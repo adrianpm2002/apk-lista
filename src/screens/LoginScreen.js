@@ -121,12 +121,7 @@ const LoginScreen = ({ navigation }) => {
               <Text style={styles.loginButtonText}>Iniciar Sesión</Text>
             </TouchableOpacity>
 
-            {/* Enlaces adicionales */}
-            <View style={styles.linksContainer}>
-              <TouchableOpacity>
-                <Text style={styles.linkText}>¿Olvidaste tu contraseña?</Text>
-              </TouchableOpacity>
-            </View>
+
           </View>
         </View>
       </ScrollView>
@@ -167,13 +162,13 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   fieldContainer: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   label: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#34495E',
-    marginBottom: 8,
+    marginBottom: 6,
     marginLeft: 4,
   },
   inputContainer: {
@@ -198,9 +193,9 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   input: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    fontSize: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
     color: '#2C3E50',
   },
   loginButton: {
@@ -222,15 +217,6 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     fontSize: 16,
     fontWeight: '600',
-  },
-  linksContainer: {
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  linkText: {
-    color: '#7F8C8D',
-    fontSize: 14,
-    textDecorationLine: 'underline',
   },
 });
 
