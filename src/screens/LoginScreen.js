@@ -1,57 +1,22 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Animated,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
+import Svg, { Path, G } from 'react-native-svg';
 
 const LoginScreen = ({ navigation }) => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isUsernameFocused, setIsUsernameFocused] = useState(false);
-  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
-
-  // Animaciones para los campos
-  const usernameAnimation = useRef(new Animated.Value(1)).current;
-  const passwordAnimation = useRef(new Animated.Value(1)).current;
-
-  const animateField = (animation, isFocused) => {
-    Animated.timing(animation, {
-      toValue: isFocused ? 1.05 : 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleUsernameFocus = () => {
-    setIsUsernameFocused(true);
-    animateField(usernameAnimation, true);
-  };
-
-  const handleUsernameBlur = () => {
-    setIsUsernameFocused(false);
-    animateField(usernameAnimation, false);
-  };
-
-  const handlePasswordFocus = () => {
-    setIsPasswordFocused(true);
-    animateField(passwordAnimation, true);
-  };
-
-  const handlePasswordBlur = () => {
-    setIsPasswordFocused(false);
-    animateField(passwordAnimation, false);
-  };
 
   const handleLogin = () => {
     // Aquí puedes agregar tu lógica de autenticación
-    console.log('Login:', { username, password });
     navigation.navigate('Home');
   };
 
@@ -60,68 +25,59 @@ const LoginScreen = ({ navigation }) => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.content}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Bienvenido</Text>
-            <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
+        <View style={styles.form}>
+          <Text style={styles.title}>Bienvenido</Text>
+          <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
+
+          {/* Email */}
+          <View style={styles.inputForm}>
+            <Svg width={20} height={20} viewBox="0 0 32 32">
+              <G>
+                <Path d="M30.853 13.87a15 15 0 0 0 -29.729 4.082 15.1 15.1 0 0 0 12.876 12.918 15.6 15.6 0 0 0 2.016.13 14.85 14.85 0 0 0 7.715-2.145 1 1 0 1 0 -1.031-1.711 13.007 13.007 0 1 1 5.458-6.529 2.149 2.149 0 0 1 -4.158-.759v-10.856a1 1 0 0 0 -2 0v1.726a8 8 0 1 0 .2 10.325 4.135 4.135 0 0 0 7.83.274 15.2 15.2 0 0 0 .823-7.455zm-14.853 8.13a6 6 0 1 1 6-6 6.006 6.006 0 0 1 -6 6z" fill="#151717"/>
+              </G>
+            </Svg>
+            <TextInput
+              style={styles.input}
+              placeholder="Ingresa tu email"
+              placeholderTextColor="#B8B8B8"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
           </View>
 
-          {/* Form */}
-          <View style={styles.form}>
-            {/* Campo de usuario */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Usuario</Text>
-              <Animated.View
-                style={[
-                  styles.inputContainer,
-                  isUsernameFocused && styles.inputContainerFocused,
-                  { transform: [{ scale: usernameAnimation }] },
-                ]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ingresa tu usuario"
-                  placeholderTextColor="#B8B8B8"
-                  value={username}
-                  onChangeText={setUsername}
-                  onFocus={handleUsernameFocus}
-                  onBlur={handleUsernameBlur}
-                  autoCapitalize="none"
-                />
-              </Animated.View>
-            </View>
+          {/* Password */}
+          <View style={styles.inputForm}>
+            <Svg width={20} height={20} viewBox="-64 0 512 512">
+              <Path d="M336 512h-288c-26.453125 0-48-21.523438-48-48v-224c0-26.476562 21.546875-48 48-48h288c26.453125 0 48 21.523438 48 48v224c0 26.476562-21.546875 48-48 48zm-288-288c-8.8125 0-16 7.167969-16 16v224c0 8.832031 7.1875 16 16 16h288c8.8125 0 16-7.167969 16-16v-224c0-8.832031-7.1875-16-16-16zm0 0" fill="#151717"/>
+              <Path d="M304 224c-8.832031 0-16-7.167969-16-16v-80c0-52.929688-43.070312-96-96-96s-96 43.070312-96 96v80c0 8.832031-7.167969 16-16 16s-16-7.167969-16-16v-80c0-70.59375 57.40625-128 128-128s128 57.40625 128 128v80c0 8.832031-7.167969 16-16 16zm0 0" fill="#151717"/>
+            </Svg>
+            <TextInput
+              style={styles.input}
+              placeholder="Ingresa tu contraseña"
+              placeholderTextColor="#B8B8B8"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
 
-            {/* Campo de contraseña */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Contraseña</Text>
-              <Animated.View
-                style={[
-                  styles.inputContainer,
-                  isPasswordFocused && styles.inputContainerFocused,
-                  { transform: [{ scale: passwordAnimation }] },
-                ]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ingresa tu contraseña"
-                  placeholderTextColor="#B8B8B8"
-                  value={password}
-                  onChangeText={setPassword}
-                  onFocus={handlePasswordFocus}
-                  onBlur={handlePasswordBlur}
-                  secureTextEntry
-                />
-              </Animated.View>
-            </View>
+          {/* Botón de login */}
+          <TouchableOpacity style={styles.buttonSubmit} onPress={handleLogin}>
+            <Text style={styles.buttonText}>Iniciar Sesión</Text>
+          </TouchableOpacity>
 
-            {/* Botón de login */}
-            <TouchableOpacity
-              style={styles.loginButton}
-              onPress={handleLogin}
-              activeOpacity={0.8}>
-              <Text style={styles.loginButtonText}>Iniciar Sesión</Text>
+          <Text style={styles.p}>¿No tienes cuenta? <Text style={styles.span}>Regístrate</Text></Text>
+          <Text style={styles.pLine}>O ingresa con</Text>
+
+          <View style={styles.flexRow}>
+            <TouchableOpacity style={styles.btn}>
+              <Text>Google</Text>
             </TouchableOpacity>
-
-
+            <TouchableOpacity style={styles.btn}>
+              <Text>Apple</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -137,15 +93,18 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: 'center',
-  },
-  header: {
     alignItems: 'center',
-    marginBottom: 48,
+  },
+  form: {
+    backgroundColor: '#fff',
+    padding: 30,
+    borderRadius: 20,
+    width: 350,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 4,
   },
   title: {
     fontSize: 32,
@@ -156,67 +115,77 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#7F8C8D',
+    marginBottom: 24,
     textAlign: 'center',
   },
-  form: {
-    width: '100%',
-  },
-  fieldContainer: {
+  inputForm: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#ecedec',
+    borderRadius: 10,
+    height: 50,
+    paddingLeft: 10,
     marginBottom: 16,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#34495E',
-    marginBottom: 6,
-    marginLeft: 4,
-  },
-  inputContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#E8E8E8',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  inputContainerFocused: {
-    borderColor: '#A8DADC',
-    shadowColor: '#A8DADC',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    width: '100%',
+    backgroundColor: '#fff',
   },
   input: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#2C3E50',
-  },
-  loginButton: {
-    backgroundColor: '#A8DADC',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 16,
-    shadowColor: '#A8DADC',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  loginButtonText: {
-    color: '#2C3E50',
+    marginLeft: 10,
+    borderRadius: 10,
+    borderWidth: 0,
+    width: '90%',
+    height: '100%',
     fontSize: 16,
-    fontWeight: '600',
+    color: '#2C3E50',
+  },
+  buttonSubmit: {
+    marginVertical: 20,
+    backgroundColor: '#151717',
+    borderRadius: 10,
+    height: 50,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  p: {
+    textAlign: 'center',
+    color: '#000',
+    fontSize: 14,
+    marginVertical: 5,
+  },
+  span: {
+    color: '#2d79f3',
+    fontWeight: '500',
+  },
+  pLine: {
+    textAlign: 'center',
+    color: '#000',
+    fontSize: 14,
+    marginVertical: 5,
+  },
+  flexRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 10,
+  },
+  btn: {
+    flex: 1,
+    marginTop: 10,
+    height: 50,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ededef',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 5,
   },
 });
 
