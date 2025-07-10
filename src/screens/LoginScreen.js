@@ -38,7 +38,7 @@ const LoginScreen = ({ navigation }) => {
             </Svg>
             <TextInput
               style={styles.input}
-              placeholder="Ingresa tu email"
+              placeholder="Ingresa tu usuario"
               placeholderTextColor="#B8B8B8"
               value={email}
               onChangeText={setEmail}
@@ -68,17 +68,9 @@ const LoginScreen = ({ navigation }) => {
             <Text style={styles.buttonText}>Iniciar Sesión</Text>
           </TouchableOpacity>
 
-          <Text style={styles.p}>¿No tienes cuenta? <Text style={styles.span}>Regístrate</Text></Text>
-          <Text style={styles.pLine}>O ingresa con</Text>
+          
 
-          <View style={styles.flexRow}>
-            <TouchableOpacity style={styles.btn}>
-              <Text>Google</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.btn}>
-              <Text>Apple</Text>
-            </TouchableOpacity>
-          </View>
+          
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
