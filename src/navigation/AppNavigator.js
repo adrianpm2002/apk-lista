@@ -2,6 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
+import MainAppScreen from '../screens/MainAppScreen';
 import VisualModeScreen from '../screens/VisualModeScreen';
 import TextModeScreen from '../screens/TextModeScreen';
 
@@ -32,6 +33,13 @@ const AppNavigator = () => (
       options={{
         title: 'Inicio',
         headerBackVisible: false,
+      }}
+    />
+    <Stack.Screen 
+      name="MainApp" 
+      component={MainAppScreen}
+      options={{
+        headerShown: false,
       }}
     />
     <Stack.Screen 

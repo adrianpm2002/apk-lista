@@ -10,22 +10,19 @@ import {
 import DropdownPicker from '../components/DropdownPicker';
 import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
-import ModeSelector from '../components/ModeSelector';
 import HammerButton from '../components/HammerButton';
 import ListButton from '../components/ListButton';
 import InfoButton from '../components/InfoButton';
-import TopBar from '../components/TopBar';
+import { SideBar, SideBarToggle } from '../components/SideBar';
 
-const TextModeScreen = ({ navigation }) => {
+const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode }) => {
   // Estados para los campos
   const [selectedLottery, setSelectedLottery] = useState(null);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [plays, setPlays] = useState('');
   const [note, setNote] = useState('');
   const [calculatedAmount, setCalculatedAmount] = useState(0);
-  
-  // Animación para transición
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const [sidebarVisible, setSidebarVisible] = useState(false);
 
   // Datos para los dropdowns
   const lotteries = [
@@ -89,36 +86,21 @@ const TextModeScreen = ({ navigation }) => {
     handleClear();
   };
 
-  const handleModeChange = (mode) => {
-    if (mode === 'Visual') {
-      // Animación de salida
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }).start(() => {
-        navigation.replace('VisualMode');
-      });
-    }
+  const handleTopBarOption = (option) => {
+    console.log('Sidebar option selected:', option);
   };
 
-  // Animación de entrada cuando se monta el componente
-  useEffect(() => {
-    fadeAnim.setValue(0);
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 150,
-      useNativeDriver: true,
-    }).start();
-  }, [fadeAnim]);
+  const toggleSidebar = () => {
+    setSidebarVisible(!sidebarVisible);
+  };
 
-  const handleTopBarOption = (option) => {
-    console.log('Top bar option selected:', option);
+  const closeSidebar = () => {
+    setSidebarVisible(false);
   };
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <TopBar onOptionSelect={handleTopBarOption} />
+    <View style={[styles.container, isDarkMode && styles.containerDark]}>
+      <SideBarToggle onToggle={toggleSidebar} />
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Row 1: Lotería y Horario */}
         <View style={styles.row}>
@@ -209,15 +191,16 @@ const TextModeScreen = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
-
-      {/* Botón de modo al final */}
-      <View style={styles.modeContainer}>
-        <ModeSelector 
-          currentMode="Texto" 
-          onModeChange={handleModeChange}
-        />
-      </View>
-    </Animated.View>
+      
+      <SideBar
+        isVisible={sidebarVisible}
+        onClose={closeSidebar}
+        onOptionSelect={handleTopBarOption}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={onToggleDarkMode}
+        navigation={navigation}
+      />
+    </View>
   );
 };
 
@@ -226,9 +209,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f0f8ff',
   },
+  containerDark: {
+    backgroundColor: '#2c3e50',
+  },
   content: {
     flex: 1,
-    padding: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingTop: 60,
   },
   row: {
     flexDirection: 'row',
@@ -253,12 +241,6 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-  },
-  modeContainer: {
-    padding: 10,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
   },
 });
 

@@ -6,6 +6,10 @@ const HomeScreen = ({ navigation }) => {
     navigation.navigate('Login');
   };
 
+  const handleStartApp = () => {
+    navigation.navigate('MainApp');
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.content}>
@@ -16,8 +20,15 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Panel Principal</Text>
             <Text style={styles.cardText}>
-              Aquí puedes comenzar a desarrollar las funcionalidades de tu aplicación.
+              Comienza a crear tus jugadas de lotería usando nuestros modos Visual y Texto.
             </Text>
+            
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={handleStartApp}
+              activeOpacity={0.8}>
+              <Text style={styles.startButtonText}>Comenzar</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -82,6 +93,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#7F8C8D',
     lineHeight: 20,
+    marginBottom: 20,
+  },
+  startButton: {
+    backgroundColor: '#3498db',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  startButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   logoutButton: {
     backgroundColor: '#E8E8E8',
