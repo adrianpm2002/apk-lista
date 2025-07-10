@@ -35,10 +35,25 @@ const LoginScreen = ({ navigation }) => {
       // Guarda el token en AsyncStorage o contexto global
       // await AsyncStorage.setItem('token', result.token);
 
-      navigation.navigate('Home');
-    } catch (err) {
-      alert('Error de red');
-    }
+  const handleUsernameBlur = () => {
+    setIsUsernameFocused(false);
+    animateField(usernameAnimation, false);
+  };
+
+  const handlePasswordFocus = () => {
+    setIsPasswordFocused(true);
+    animateField(passwordAnimation, true);
+  };
+
+  const handlePasswordBlur = () => {
+    setIsPasswordFocused(false);
+    animateField(passwordAnimation, false);
+  };
+
+  const handleLogin = () => {
+    // Aquí puedes agregar tu lógica de autenticación
+    console.log('Login:', { username, password });
+    navigation.navigate('VisualMode');
   };
 
   return (
