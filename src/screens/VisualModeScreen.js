@@ -125,6 +125,7 @@ const VisualModeScreen = ({ navigation }) => {
           onChangeText={setPlays}
           placeholder="Ej: 123, 456, 789"
           multiline={true}
+          showPasteButton={true}
         />
 
         {/* Row 4: Monto y Nota */}

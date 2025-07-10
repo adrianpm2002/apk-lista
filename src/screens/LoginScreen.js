@@ -17,14 +17,30 @@ const LoginScreen = ({ navigation }) => {
 
   const handleLogin = async () => {
     try {
+      // Validación básica
+      if (!email || !password) {
+        alert('Por favor ingresa usuario y contraseña');
+        return;
+      }
+
+      // Por ahora saltamos la autenticación y vamos directo al modo visual
+      console.log('Login simulado:', { email, password });
+      navigation.navigate('VisualMode');
+      
+      // TODO: Reactivar autenticación JWT más tarde
+      /*
       const response = await fetch('https://scaling-parakeet-ggw6rp5j6w63v4pj-3001.app.github.dev/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // 👈 NECESARIO PARA CORS + COOKIES/SESSIONS
-        body: JSON.stringify({ usuario: email, contrasena: password }),
+        credentials: 'include',
+        body: JSON.stringify({ 
+          usuario: email,
+          contrasena: password 
+        }),
       });
+
       const result = await response.json();
 
       if (!response.ok) {
@@ -32,28 +48,13 @@ const LoginScreen = ({ navigation }) => {
         return;
       }
 
-      // Guarda el token en AsyncStorage o contexto global
-      // await AsyncStorage.setItem('token', result.token);
-
-  const handleUsernameBlur = () => {
-    setIsUsernameFocused(false);
-    animateField(usernameAnimation, false);
-  };
-
-  const handlePasswordFocus = () => {
-    setIsPasswordFocused(true);
-    animateField(passwordAnimation, true);
-  };
-
-  const handlePasswordBlur = () => {
-    setIsPasswordFocused(false);
-    animateField(passwordAnimation, false);
-  };
-
-  const handleLogin = () => {
-    // Aquí puedes agregar tu lógica de autenticación
-    console.log('Login:', { username, password });
-    navigation.navigate('VisualMode');
+      console.log('Login exitoso:', result);
+      navigation.navigate('VisualMode');
+      */
+    } catch (error) {
+      console.error('Error en login:', error);
+      alert('Error de conexión. Verifica tu conexión a internet.');
+    }
   };
 
   return (
@@ -103,10 +104,6 @@ const LoginScreen = ({ navigation }) => {
           <TouchableOpacity style={styles.buttonSubmit} onPress={handleLogin}>
             <Text style={styles.buttonText}>Iniciar Sesión</Text>
           </TouchableOpacity>
-
-
-
-
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

@@ -4,6 +4,8 @@ import {
   Text,
   TextInput,
   StyleSheet,
+  TouchableOpacity,
+  Platform,
 } from 'react-native';
 
 const InputField = ({ 
@@ -14,11 +16,50 @@ const InputField = ({
   multiline = false,
   keyboardType = 'default',
   style,
-  inputStyle 
+  inputStyle,
+  showPasteButton = false
 }) => {
+  const handlePaste = async () => {
+    try {
+      let text = '';
+      
+      if (Platform.OS === 'web') {
+        // Para web usamos la API del navegador
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          text = await navigator.clipboard.readText();
+        } else {
+          // Fallback para navegadores más antiguos
+          alert('Por favor, usa Ctrl+V para pegar');
+          return;
+        }
+      } else {
+        // Para React Native móvil
+        const { Clipboard } = require('react-native');
+        text = await Clipboard.getString();
+      }
+      
+      if (text && onChangeText) {
+        onChangeText(value ? value + '\n' + text : text);
+      }
+    } catch (error) {
+      console.error('Error al pegar:', error);
+      alert('No se pudo pegar el texto. Intenta usar Ctrl+V');
+    }
+  };
   return (
     <View style={[styles.container, style]}>
-      <Text style={styles.label}>{label}</Text>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>{label}</Text>
+        {showPasteButton && (
+          <TouchableOpacity
+            style={styles.pasteButton}
+            onPress={handlePaste}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.pasteButtonText}>📋 Pegar</Text>
+          </TouchableOpacity>
+        )}
+      </View>
       <TextInput
         style={[
           styles.input,
@@ -41,12 +82,30 @@ const styles = StyleSheet.create({
   container: {
     marginBottom: 12,
   },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
   label: {
     fontSize: 14,
     fontWeight: '600',
     color: '#2D5016',
-    marginBottom: 6,
     marginLeft: 4,
+  },
+  pasteButton: {
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#B8D4A8',
+  },
+  pasteButtonText: {
+    fontSize: 12,
+    color: '#2D5016',
+    fontWeight: '600',
   },
   input: {
     backgroundColor: '#FFFFFF',
