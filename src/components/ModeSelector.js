@@ -6,10 +6,15 @@ import {
 } from 'react-native';
 
 const ModeSelector = ({ currentMode, onModeChange, modes = [] }) => {
+  const handlePress = () => {
+    const nextMode = currentMode === 'Visual' ? 'Texto' : 'Visual';
+    onModeChange && onModeChange(nextMode);
+  };
+
   return (
     <TouchableOpacity
       style={styles.container}
-      onPress={onModeChange}
+      onPress={handlePress}
       activeOpacity={0.8}
     >
       <Text style={styles.modeText}>Modo: {currentMode}</Text>

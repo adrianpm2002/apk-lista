@@ -11,20 +11,18 @@ import DropdownPicker from '../components/DropdownPicker';
 import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
 import ModeSelector from '../components/ModeSelector';
-import BatteryButton from '../components/BatteryButton';
 import HammerButton from '../components/HammerButton';
 import ListButton from '../components/ListButton';
+import InfoButton from '../components/InfoButton';
 import TopBar from '../components/TopBar';
 
-const VisualModeScreen = ({ navigation }) => {
+const TextModeScreen = ({ navigation }) => {
   // Estados para los campos
   const [selectedLottery, setSelectedLottery] = useState(null);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
-  const [selectedPlayType, setSelectedPlayType] = useState(null);
   const [plays, setPlays] = useState('');
-  const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
-  const [isLocked, setIsLocked] = useState(false);
+  const [calculatedAmount, setCalculatedAmount] = useState(0);
   
   // Animación para transición
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -41,52 +39,65 @@ const VisualModeScreen = ({ navigation }) => {
     { label: 'Noche', value: 'noche' },
   ];
 
-  const playTypes = [
-    { label: 'Fijo', value: 'fijo' },
-    { label: 'Corrido', value: 'corrido' },
-    { label: 'Parlé', value: 'parle' },
-    { label: 'Centena', value: 'centena' },
-    { label: 'Tripleta', value: 'tripleta' },
-  ];
-
-  const handleInsert = () => {
-    // Validar campos requeridos
-    if (!selectedLottery || !selectedSchedule || !selectedPlayType || !plays || !amount) {
-      alert('Por favor complete todos los campos requeridos');
-      return;
+  // Calcular monto automáticamente basado en las jugadas
+  useEffect(() => {
+    if (plays.trim()) {
+      // Contar las jugadas separadas por comas
+      const playList = plays.split(',').filter(play => play.trim() !== '');
+      const amount = playList.length * 1; // $1 por jugada (puedes ajustar esta lógica)
+      setCalculatedAmount(amount);
+    } else {
+      setCalculatedAmount(0);
     }
-    
-    console.log('Insertar jugada:', {
-      lottery: selectedLottery,
-      schedule: selectedSchedule,
-      playType: selectedPlayType,
-      plays,
-      amount,
-      note,
-    });
-    
-    // Aquí irá la lógica para guardar en la base de datos
-    alert('Jugada insertada correctamente');
-  };
+  }, [plays]);
 
   const handleClear = () => {
     setSelectedLottery(null);
     setSelectedSchedule(null);
-    setSelectedPlayType(null);
     setPlays('');
-    setAmount('');
     setNote('');
+    setCalculatedAmount(0);
+  };
+
+  const handleVerify = () => {
+    // Validar campos requeridos
+    if (!selectedLottery || !selectedSchedule || !plays) {
+      alert('Por favor complete todos los campos requeridos');
+      return;
+    }
+    
+    const playList = plays.split(',').filter(play => play.trim() !== '');
+    alert(`Verificación:\nLotería: ${selectedLottery}\nHorario: ${selectedSchedule}\nJugadas: ${playList.length}\nMonto: $${calculatedAmount.toFixed(2)}`);
+  };
+
+  const handleInsert = () => {
+    // Validar campos requeridos
+    if (!selectedLottery || !selectedSchedule || !plays) {
+      alert('Por favor complete todos los campos requeridos');
+      return;
+    }
+
+    console.log('Insertar jugada:', {
+      lottery: selectedLottery,
+      schedule: selectedSchedule,
+      plays,
+      note,
+      amount: calculatedAmount,
+    });
+
+    alert('Jugada insertada correctamente');
+    handleClear();
   };
 
   const handleModeChange = (mode) => {
-    if (mode === 'Texto') {
+    if (mode === 'Visual') {
       // Animación de salida
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 150,
         useNativeDriver: true,
       }).start(() => {
-        navigation.replace('TextMode');
+        navigation.replace('VisualMode');
       });
     }
   };
@@ -99,14 +110,10 @@ const VisualModeScreen = ({ navigation }) => {
       duration: 150,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [fadeAnim]);
 
   const handleTopBarOption = (option) => {
     console.log('Top bar option selected:', option);
-  };
-
-  const toggleLock = () => {
-    setIsLocked(!isLocked);
   };
 
   return (
@@ -135,16 +142,7 @@ const VisualModeScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Row 2: Tipo de Jugada */}
-        <DropdownPicker
-          label="Tipo de Jugada"
-          value={selectedPlayType}
-          onSelect={setSelectedPlayType}
-          options={playTypes}
-          placeholder="Seleccionar tipo de jugada"
-        />
-
-        {/* Row 3: Jugadas */}
+        {/* Row 2: Jugadas */}
         <InputField
           label="Jugadas"
           value={plays}
@@ -155,17 +153,8 @@ const VisualModeScreen = ({ navigation }) => {
           pasteButtonOverlay={true}
         />
 
-        {/* Row 4: Monto y Nota */}
+        {/* Row 3: Nota y Monto */}
         <View style={styles.row}>
-          <View style={styles.halfWidth}>
-            <InputField
-              label="Monto"
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="$0.00"
-              keyboardType="numeric"
-            />
-          </View>
           <View style={styles.halfWidth}>
             <InputField
               label="Nota"
@@ -174,33 +163,40 @@ const VisualModeScreen = ({ navigation }) => {
               placeholder="Nombre del jugador"
             />
           </View>
+          <View style={styles.halfWidth}>
+            <InputField
+              label="Monto"
+              value={`$${calculatedAmount.toFixed(2)}`}
+              editable={false}
+            />
+          </View>
         </View>
 
-        {/* Row 5: Botones de herramientas */}
+        {/* Row 4: Botones de herramientas */}
         <View style={styles.toolsContainer}>
-          <TouchableOpacity
-            style={[styles.lockButton, isLocked && styles.lockButtonActive]}
-            onPress={toggleLock}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.lockIcon}>{isLocked ? '🔒' : '🔓'}</Text>
-          </TouchableOpacity>
-          
-          <BatteryButton onOptionSelect={(option) => console.log('Battery option:', option)} />
-          
           <HammerButton onOptionSelect={(option) => console.log('Hammer option:', option)} />
           
           <ListButton onOptionSelect={(option) => console.log('List option:', option)} />
+          
+          <InfoButton />
         </View>
 
-        {/* Row 6: Botones de acción */}
+        {/* Row 5: Botones de acción */}
         <View style={styles.actionRow}>
           <View style={styles.actionButton}>
             <ActionButton
               title="Borrar"
               onPress={handleClear}
               variant="danger"
-              size="medium"
+              size="small"
+            />
+          </View>
+          <View style={styles.actionButton}>
+            <ActionButton
+              title="Verificar"
+              onPress={handleVerify}
+              variant="warning"
+              size="small"
             />
           </View>
           <View style={styles.actionButton}>
@@ -208,7 +204,7 @@ const VisualModeScreen = ({ navigation }) => {
               title="Insertar"
               onPress={handleInsert}
               variant="success"
-              size="medium"
+              size="small"
             />
           </View>
         </View>
@@ -217,7 +213,7 @@ const VisualModeScreen = ({ navigation }) => {
       {/* Botón de modo al final */}
       <View style={styles.modeContainer}>
         <ModeSelector 
-          currentMode="Visual" 
+          currentMode="Texto" 
           onModeChange={handleModeChange}
         />
       </View>
@@ -228,70 +224,42 @@ const VisualModeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FDF5',
+    backgroundColor: '#f0f8ff',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    padding: 10,
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: 6,
+    gap: 8,
   },
   halfWidth: {
-    width: '48%',
+    flex: 1,
   },
   toolsContainer: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-around',
     alignItems: 'center',
-    marginVertical: 6,
-    gap: 10,
-  },
-  lockButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#B8D4A8',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#2D5016',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  lockButtonActive: {
-    backgroundColor: '#FFE4B5',
-    borderColor: '#D4AF37',
-  },
-  lockIcon: {
-    fontSize: 18,
+    marginVertical: 10,
+    paddingHorizontal: 20,
   },
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
-    marginBottom: 6,
+    marginTop: 10,
+    gap: 6,
   },
   actionButton: {
-    width: '48%',
+    flex: 1,
   },
   modeContainer: {
-    backgroundColor: '#E8F5E8',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    alignItems: 'center',
+    padding: 10,
+    backgroundColor: '#fff',
     borderTopWidth: 1,
-    borderTopColor: '#D4E7CE',
+    borderTopColor: '#e0e0e0',
   },
 });
 
-export default VisualModeScreen;
+export default TextModeScreen;

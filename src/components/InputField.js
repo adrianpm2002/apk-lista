@@ -17,7 +17,10 @@ const InputField = ({
   keyboardType = 'default',
   style,
   inputStyle,
-  showPasteButton = false
+  showPasteButton = false,
+  pasteButtonOverlay = false,
+  editable = true,
+  ...otherProps
 }) => {
   const handlePaste = async () => {
     try {
@@ -48,32 +51,54 @@ const InputField = ({
   };
   return (
     <View style={[styles.container, style]}>
-      <View style={styles.labelRow}>
+      {!pasteButtonOverlay && (
+        <View style={styles.labelRow}>
+          <Text style={styles.label}>{label}</Text>
+          {showPasteButton && (
+            <TouchableOpacity
+              style={styles.pasteButton}
+              onPress={handlePaste}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.pasteButtonText}>📋 Pegar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+      
+      {pasteButtonOverlay && (
         <Text style={styles.label}>{label}</Text>
-        {showPasteButton && (
+      )}
+      
+      <View style={styles.inputWrapper}>
+        <TextInput
+          style={[
+            styles.input,
+            multiline && styles.multilineInput,
+            !editable && styles.readOnlyInput,
+            inputStyle
+          ]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#8FA987"
+          multiline={multiline}
+          keyboardType={keyboardType}
+          numberOfLines={multiline ? 4 : 1}
+          editable={editable}
+          {...otherProps}
+        />
+        
+        {pasteButtonOverlay && showPasteButton && (
           <TouchableOpacity
-            style={styles.pasteButton}
+            style={styles.pasteButtonOverlay}
             onPress={handlePaste}
             activeOpacity={0.7}
           >
-            <Text style={styles.pasteButtonText}>📋 Pegar</Text>
+            <Text style={styles.pasteButtonOverlayText}>📋</Text>
           </TouchableOpacity>
         )}
       </View>
-      <TextInput
-        style={[
-          styles.input,
-          multiline && styles.multilineInput,
-          inputStyle
-        ]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#8FA987"
-        multiline={multiline}
-        keyboardType={keyboardType}
-        numberOfLines={multiline ? 4 : 1}
-      />
     </View>
   );
 };
@@ -107,6 +132,32 @@ const styles = StyleSheet.create({
     color: '#2D5016',
     fontWeight: '600',
   },
+  inputWrapper: {
+    position: 'relative',
+  },
+  pasteButtonOverlay: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#B8D4A8',
+    shadowColor: '#2D5016',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  pasteButtonOverlayText: {
+    fontSize: 16,
+    color: '#2D5016',
+  },
   input: {
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
@@ -128,6 +179,12 @@ const styles = StyleSheet.create({
   multilineInput: {
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  readOnlyInput: {
+    backgroundColor: '#e8f5e8',
+    color: '#27ae60',
+    fontWeight: 'bold',
+    borderColor: '#27ae60',
   },
 });
 

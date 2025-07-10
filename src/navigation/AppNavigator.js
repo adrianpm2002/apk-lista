@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
 import VisualModeScreen from '../screens/VisualModeScreen';
+import TextModeScreen from '../screens/TextModeScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -36,6 +37,13 @@ const AppNavigator = () => (
     <Stack.Screen 
       name="VisualMode" 
       component={VisualModeScreen}
+      options={{
+        headerShown: false,
+      }}
+    />
+    <Stack.Screen 
+      name="TextMode" 
+      component={TextModeScreen}
       options={{
         headerShown: false,
       }}
