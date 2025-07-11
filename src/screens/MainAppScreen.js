@@ -31,21 +31,24 @@ const MainAppScreen = ({ navigation }) => {
     
     Animated.parallel([
       Animated.timing(fadeAnim, {
-        toValue: 0.3,
-        duration: 150,
+        toValue: 0.9,
+        duration: 80,
         useNativeDriver: true,
       }),
-      Animated.timing(slideAnim, {
+      Animated.spring(slideAnim, {
         toValue: targetSlide,
-        duration: 300,
         useNativeDriver: true,
+        tension: 120,
+        friction: 7,
+        restDisplacementThreshold: 0.1,
+        restSpeedThreshold: 0.1,
       }),
     ]).start(() => {
       setCurrentMode(newMode);
       
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 150,
+        duration: 80,
         useNativeDriver: true,
       }).start(() => {
         setIsTransitioning(false);
@@ -62,35 +65,48 @@ const MainAppScreen = ({ navigation }) => {
     PanResponder.create({
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         const { dx, dy } = gestureState;
-        return Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 20;
+        // Hacer más sensible el reconocimiento del gesto
+        return Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10;
       },
       onPanResponderMove: (evt, gestureState) => {
         const { dx } = gestureState;
-        const newValue = currentMode === 'Visual' ? 
-          Math.max(-screenWidth, Math.min(0, dx)) : 
-          Math.max(-screenWidth, Math.min(0, -screenWidth + dx));
+        const currentValue = currentMode === 'Visual' ? 0 : -screenWidth;
+        
+        // Aplicar un factor de amortiguación para que el movimiento sea más suave
+        const dampingFactor = 0.8;
+        const dampedDx = dx * dampingFactor;
+        
+        const newValue = Math.max(-screenWidth, Math.min(0, currentValue + dampedDx));
         slideAnim.setValue(newValue);
       },
       onPanResponderRelease: (evt, gestureState) => {
         const { dx, vx } = gestureState;
-        const threshold = screenWidth * 0.3;
+        // Reducir el threshold para que sea más fácil cambiar de modo
+        const threshold = screenWidth * 0.15; // Reducido de 0.3 a 0.15
+        const velocityThreshold = 0.3; // Reducido de 0.5 a 0.3
         
         let newMode = currentMode;
         let targetValue = currentMode === 'Visual' ? 0 : -screenWidth;
         
-        if (currentMode === 'Visual' && (dx < -threshold || vx < -0.5)) {
+        // Deslizar hacia la izquierda desde Visual Mode (cambiar a Texto)
+        if (currentMode === 'Visual' && (dx < -threshold || vx < -velocityThreshold)) {
           newMode = 'Texto';
           targetValue = -screenWidth;
-        } else if (currentMode === 'Texto' && (dx > threshold || vx > 0.5)) {
+        } 
+        // Deslizar hacia la derecha desde Text Mode (cambiar a Visual)
+        else if (currentMode === 'Texto' && (dx > threshold || vx > velocityThreshold)) {
           newMode = 'Visual';
           targetValue = 0;
         }
         
+        // Usar una animación más rápida y suave
         Animated.spring(slideAnim, {
           toValue: targetValue,
           useNativeDriver: true,
-          tension: 100,
-          friction: 8,
+          tension: 120, // Aumentado de 100
+          friction: 7,  // Reducido de 8
+          restDisplacementThreshold: 0.1,
+          restSpeedThreshold: 0.1,
         }).start(() => {
           if (newMode !== currentMode) {
             setCurrentMode(newMode);
@@ -113,7 +129,7 @@ const MainAppScreen = ({ navigation }) => {
         {...panResponder.panHandlers}
       >
         {/* Visual Mode Screen */}
-        <View style={[styles.modeScreen, { left: 0 }]}>
+        <View style={styles.modeScreen}>
           <VisualModeScreen 
             navigation={navigation} 
             currentMode={currentMode}
@@ -124,7 +140,7 @@ const MainAppScreen = ({ navigation }) => {
         </View>
         
         {/* Text Mode Screen */}
-        <View style={[styles.modeScreen, { left: screenWidth }]}>
+        <View style={styles.modeScreen}>
           <TextModeScreen 
             navigation={navigation}
             currentMode={currentMode}
@@ -161,8 +177,6 @@ const styles = StyleSheet.create({
     width: screenWidth * 2,
   },
   modeScreen: {
-    position: 'absolute',
-    top: 0,
     width: screenWidth,
     height: '100%',
   },
@@ -174,6 +188,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'transparent',
     paddingHorizontal: 20,
+    zIndex: 10,
   },
   modeSelectorContainerDark: {
     // Mantener transparente para el modo oscuro también

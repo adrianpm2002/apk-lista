@@ -93,6 +93,16 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
+      {/* Indicador de modo actual */}
+      <View style={[styles.modeIndicator, isDarkMode && styles.modeIndicatorDark]}>
+        <Text style={[styles.modeIndicatorText, isDarkMode && styles.modeIndicatorTextDark]}>
+          👁️ Modo Visual {currentMode === 'Visual' ? '✓' : ''}
+        </Text>
+        <Text style={[styles.swipeHint, isDarkMode && styles.swipeHintDark]}>
+          ← Desliza para Texto
+        </Text>
+      </View>
+      
       <SideBarToggle onToggle={toggleSidebar} />
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Row 1: Lotería y Horario */}
@@ -267,6 +277,39 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     width: '48%',
+  },
+  modeIndicator: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 152, 219, 0.3)',
+    zIndex: 5,
+  },
+  modeIndicatorDark: {
+    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+    borderColor: 'rgba(231, 76, 60, 0.3)',
+  },
+  modeIndicatorText: {
+    fontSize: 12,
+    color: '#3498db',
+    fontWeight: '600',
+  },
+  modeIndicatorTextDark: {
+    color: '#e74c3c',
+  },
+  swipeHint: {
+    fontSize: 10,
+    color: '#7f8c8d',
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  swipeHintDark: {
+    color: '#95a5a6',
   },
 });
 

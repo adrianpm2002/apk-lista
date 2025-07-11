@@ -1,12 +1,31 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   TouchableOpacity,
   Text,
   StyleSheet,
+  Animated,
 } from 'react-native';
 
 const ModeSelector = ({ currentMode, onModeChange, isDarkMode }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Animación sutil cuando cambia el modo
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 1.05,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [currentMode]);
+
   const handleModeSelect = (mode) => {
     if (mode !== currentMode) {
       onModeChange && onModeChange(mode);
@@ -14,7 +33,13 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode }) => {
   };
 
   return (
-    <View style={[styles.container, isDarkMode && styles.containerDark]}>
+    <Animated.View 
+      style={[
+        styles.container, 
+        isDarkMode && styles.containerDark,
+        { transform: [{ scale: scaleAnim }] }
+      ]}
+    >
       <TouchableOpacity
         style={[
           styles.modeButton,
@@ -50,7 +75,7 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode }) => {
           📝 Modo Texto
         </Text>
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 };
 
