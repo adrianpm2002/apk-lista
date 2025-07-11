@@ -4,7 +4,7 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   Animated,
 } from 'react-native';
 import DropdownPicker from '../components/DropdownPicker';

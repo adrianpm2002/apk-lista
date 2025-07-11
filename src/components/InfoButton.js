@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   Modal,
   StyleSheet,
   ScrollView,
@@ -49,13 +49,15 @@ const InfoButton = ({ onClose }) => {
 
   return (
     <>
-      <TouchableOpacity
-        style={styles.button}
+      <Pressable
+        style={({ pressed }) => [
+          styles.button,
+          pressed && styles.buttonPressed
+        ]}
         onPress={() => setIsVisible(true)}
-        activeOpacity={0.7}
       >
         <Text style={styles.buttonIcon}>i</Text>
-      </TouchableOpacity>
+      </Pressable>
 
       <Modal
         visible={isVisible}
@@ -78,13 +80,15 @@ const InfoButton = ({ onClose }) => {
               ))}
             </ScrollView>
             
-            <TouchableOpacity
-              style={styles.closeButton}
+            <Pressable
+              style={({ pressed }) => [
+                styles.closeButton,
+                pressed && styles.closeButtonPressed
+              ]}
               onPress={handleClose}
-              activeOpacity={0.7}
             >
               <Text style={styles.closeButtonText}>Cerrar</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -179,6 +183,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  buttonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.95 }],
+  },
+  closeButtonPressed: {
+    opacity: 0.8,
+    backgroundColor: '#2980b9',
   },
 });
 

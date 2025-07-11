@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   Modal,
   StyleSheet,
   ScrollView,
@@ -181,14 +181,16 @@ const LimitedNumbersButton = ({ onOptionSelect }) => {
       <Text style={styles.playTypeTitle}>{playTypeData.label}</Text>
       <View style={styles.numbersContainer}>
         {playTypeData.numbers.map((number, index) => (
-          <TouchableOpacity
+          <Pressable
             key={index}
-            style={styles.numberButton}
+            style={({ pressed }) => [
+              styles.numberButton,
+              pressed && styles.numberButtonPressed
+            ]}
             onPress={() => handleNumberSelect(lottery, schedule, playTypeKey, number)}
-            activeOpacity={0.7}
           >
             <Text style={styles.numberText}>{number}</Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
     </View>
@@ -445,6 +447,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '500',
+  },
+  numberButtonPressed: {
+    opacity: 0.7,
+    backgroundColor: '#2980b9',
+    transform: [{ scale: 0.95 }],
   },
 });
 

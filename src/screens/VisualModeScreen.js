@@ -4,7 +4,7 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   Animated,
 } from 'react-native';
 import DropdownPicker from '../components/DropdownPicker';
@@ -170,13 +170,16 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
 
         {/* Row 5: Botones de herramientas */}
         <View style={styles.toolsContainer}>
-          <TouchableOpacity
-            style={[styles.lockButton, isLocked && styles.lockButtonActive]}
+          <Pressable
+            style={({ pressed }) => [
+              styles.lockButton, 
+              isLocked && styles.lockButtonActive,
+              pressed && styles.lockButtonPressed
+            ]}
             onPress={toggleLock}
-            activeOpacity={0.7}
           >
             <Text style={styles.lockIcon}>{isLocked ? '🔒' : '🔓'}</Text>
-          </TouchableOpacity>
+          </Pressable>
           
           <BatteryButton onOptionSelect={(option) => console.log('Battery option:', option)} />
           
@@ -310,6 +313,10 @@ const styles = StyleSheet.create({
   },
   swipeHintDark: {
     color: '#95a5a6',
+  },
+  lockButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.95 }],
   },
 });
 

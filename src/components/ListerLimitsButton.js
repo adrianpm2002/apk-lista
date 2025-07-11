@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   Modal,
   StyleSheet,
   ScrollView,
@@ -171,16 +171,18 @@ const ListerLimitsButton = ({ onOptionSelect }) => {
 
   const renderSchedule = (scheduleKey, scheduleData, lottery) => (
     <View key={scheduleKey} style={styles.scheduleContainer}>
-      <TouchableOpacity
-        style={styles.scheduleHeader}
+      <Pressable
+        style={({ pressed }) => [
+          styles.scheduleHeader,
+          pressed && styles.headerPressed
+        ]}
         onPress={() => toggleSchedule(scheduleKey)}
-        activeOpacity={0.7}
       >
         <Text style={styles.scheduleTitle}>{scheduleData.label}</Text>
         <Text style={styles.arrow}>
           {expandedSchedule === scheduleKey ? '▼' : '▶'}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
       
       {expandedSchedule === scheduleKey && (
         <View style={styles.playTypesContainer}>
@@ -404,6 +406,14 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 1,
     borderColor: '#bdc3c7',
+  },
+  headerPressed: {
+    backgroundColor: '#ecf0f1',
+    opacity: 0.8,
+  },
+  buttonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.95 }],
   },
 });
 

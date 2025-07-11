@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   Modal,
   FlatList,
   StyleSheet,
@@ -24,22 +24,26 @@ const DropdownPicker = ({
   };
 
   const renderOption = ({ item }) => (
-    <TouchableOpacity
-      style={styles.option}
+    <Pressable
+      style={({ pressed }) => [
+        styles.option,
+        pressed && styles.optionPressed
+      ]}
       onPress={() => handleSelect(item)}
-      activeOpacity={0.7}
     >
       <Text style={styles.optionText}>{item.label}</Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 
   return (
     <View style={[styles.container, style]}>
       <Text style={styles.label}>{label}</Text>
-      <TouchableOpacity
-        style={styles.dropdown}
+      <Pressable
+        style={({ pressed }) => [
+          styles.dropdown,
+          pressed && styles.dropdownPressed
+        ]}
         onPress={() => setIsVisible(true)}
-        activeOpacity={0.8}
       >
         <Text style={[
           styles.dropdownText,
@@ -48,7 +52,7 @@ const DropdownPicker = ({
           {value ? value.label : placeholder}
         </Text>
         <Text style={styles.arrow}>▼</Text>
-      </TouchableOpacity>
+      </Pressable>
 
       <Modal
         visible={isVisible}
@@ -56,10 +60,9 @@ const DropdownPicker = ({
         animationType="fade"
         onRequestClose={() => setIsVisible(false)}
       >
-        <TouchableOpacity
+        <Pressable
           style={styles.overlay}
           onPress={() => setIsVisible(false)}
-          activeOpacity={1}
         >
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>{label}</Text>
@@ -70,7 +73,7 @@ const DropdownPicker = ({
               style={styles.optionsList}
             />
           </View>
-        </TouchableOpacity>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -162,6 +165,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#2D5016',
     textAlign: 'center',
+  },
+  dropdownPressed: {
+    opacity: 0.8,
+    borderColor: '#A0C890',
+  },
+  optionPressed: {
+    backgroundColor: '#E8F5E8',
+    opacity: 0.9,
   },
 });
 

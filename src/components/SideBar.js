@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   Modal,
   StyleSheet,
   Animated,
@@ -164,22 +164,26 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
       <View style={styles.modalContent}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>{data.title}</Text>
-          <TouchableOpacity
-            style={styles.modalCloseButton}
+          <Pressable
+            style={({ pressed }) => [
+              styles.modalCloseButton,
+              pressed && styles.modalCloseButtonPressed
+            ]}
             onPress={closeModal}
-            activeOpacity={0.7}
           >
             <Text style={styles.modalCloseText}>✕</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
         
         <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
           {data.sections.map((section, sectionIndex) => (
             <View key={sectionIndex} style={styles.modalSection}>
-              <TouchableOpacity
-                style={styles.modalLotteryHeader}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.modalLotteryHeader,
+                  pressed && styles.modalHeaderPressed
+                ]}
                 onPress={() => toggleLottery(sectionIndex)}
-                activeOpacity={0.7}
               >
                 <Text style={styles.modalSectionTitle}>{section.lottery}</Text>
                 <Text style={[
@@ -188,16 +192,18 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
                 ]}>
                   ▶
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
               
               {expandedLottery === sectionIndex && (
                 <View style={styles.modalLotteryContent}>
                   {section.schedules.map((schedule, scheduleIndex) => (
                     <View key={scheduleIndex} style={styles.modalSchedule}>
-                      <TouchableOpacity
-                        style={styles.modalScheduleHeader}
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.modalScheduleHeader,
+                          pressed && styles.modalHeaderPressed
+                        ]}
                         onPress={() => toggleSchedule(scheduleIndex)}
-                        activeOpacity={0.7}
                       >
                         <Text style={styles.modalScheduleTitle}>{schedule.name}</Text>
                         <Text style={[
@@ -206,7 +212,7 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
                         ]}>
                           ▶
                         </Text>
-                      </TouchableOpacity>
+                      </Pressable>
                       
                       {expandedSchedule === scheduleIndex && (
                         <View style={styles.modalScheduleContent}>
@@ -236,9 +242,8 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
         onRequestClose={handleClose}
       >
         {/* Overlay */}
-        <TouchableOpacity
+        <Pressable
           style={styles.overlay}
-          activeOpacity={1}
           onPress={handleClose}
         >
           {/* Sidebar */}
@@ -310,7 +315,7 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
               </View>
             </TouchableOpacity>
           </Animated.View>
-        </TouchableOpacity>
+        </Pressable>
       </Modal>
 
       {/* Modal para opciones */}

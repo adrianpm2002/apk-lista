@@ -4,7 +4,7 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   Platform,
 } from 'react-native';
 
@@ -55,13 +55,15 @@ const InputField = ({
         <View style={styles.labelRow}>
           <Text style={styles.label}>{label}</Text>
           {showPasteButton && (
-            <TouchableOpacity
-              style={styles.pasteButton}
+            <Pressable
+              style={({ pressed }) => [
+                styles.pasteButton,
+                pressed && styles.pasteButtonPressed
+              ]}
               onPress={handlePaste}
-              activeOpacity={0.7}
             >
               <Text style={styles.pasteButtonText}>📋 Pegar</Text>
-            </TouchableOpacity>
+            </Pressable>
           )}
         </View>
       )}
@@ -90,13 +92,15 @@ const InputField = ({
         />
         
         {pasteButtonOverlay && showPasteButton && (
-          <TouchableOpacity
-            style={styles.pasteButtonOverlay}
+          <Pressable
+            style={({ pressed }) => [
+              styles.pasteButtonOverlay,
+              pressed && styles.pasteButtonOverlayPressed
+            ]}
             onPress={handlePaste}
-            activeOpacity={0.7}
           >
             <Text style={styles.pasteButtonOverlayText}>📋</Text>
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
     </View>
@@ -185,6 +189,14 @@ const styles = StyleSheet.create({
     color: '#27ae60',
     fontWeight: 'bold',
     borderColor: '#27ae60',
+  },
+  pasteButtonPressed: {
+    opacity: 0.7,
+    backgroundColor: '#D4E8D4',
+  },
+  pasteButtonOverlayPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.95 }],
   },
 });
 

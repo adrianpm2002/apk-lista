@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   Modal,
   StyleSheet,
   FlatList,
@@ -24,25 +24,29 @@ const HammerButton = ({ onOptionSelect }) => {
   };
 
   const renderOption = ({ item }) => (
-    <TouchableOpacity
-      style={styles.option}
+    <Pressable
+      style={({ pressed }) => [
+        styles.option,
+        pressed && styles.optionPressed
+      ]}
       onPress={() => handleSelect(item)}
-      activeOpacity={0.7}
     >
       <Text style={styles.optionIcon}>{item.icon}</Text>
       <Text style={styles.optionText}>{item.label}</Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 
   return (
     <>
-      <TouchableOpacity
-        style={styles.button}
+      <Pressable
+        style={({ pressed }) => [
+          styles.button,
+          pressed && styles.buttonPressed
+        ]}
         onPress={() => setIsVisible(true)}
-        activeOpacity={0.7}
       >
         <Text style={styles.buttonIcon}>🔨</Text>
-      </TouchableOpacity>
+      </Pressable>
 
       <Modal
         visible={isVisible}
@@ -50,10 +54,9 @@ const HammerButton = ({ onOptionSelect }) => {
         animationType="fade"
         onRequestClose={() => setIsVisible(false)}
       >
-        <TouchableOpacity
+        <Pressable
           style={styles.overlay}
           onPress={() => setIsVisible(false)}
-          activeOpacity={1}
         >
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>Herramientas</Text>
@@ -64,7 +67,7 @@ const HammerButton = ({ onOptionSelect }) => {
               style={styles.optionsList}
             />
           </View>
-        </TouchableOpacity>
+        </Pressable>
       </Modal>
     </>
   );
@@ -141,6 +144,14 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 14,
     color: '#2D5016',
+  },
+  buttonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.95 }],
+  },
+  optionPressed: {
+    backgroundColor: '#E8F5E8',
+    opacity: 0.8,
   },
 });
 

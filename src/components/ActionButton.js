@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  TouchableOpacity,
+  Pressable,
   Text,
   StyleSheet,
 } from 'react-native';
@@ -38,14 +38,17 @@ const ActionButton = ({
   };
 
   return (
-    <TouchableOpacity
-      style={[getButtonStyle(), style]}
+    <Pressable
+      style={({ pressed }) => [
+        getButtonStyle(),
+        style,
+        pressed && !disabled && styles.pressed
+      ]}
       onPress={onPress}
       disabled={disabled}
-      activeOpacity={disabled ? 1 : 0.8}
     >
       <Text style={getTextStyle()}>{title}</Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
@@ -134,6 +137,10 @@ const styles = StyleSheet.create({
   },
   disabledText: {
     color: '#8FA987',
+  },
+  pressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
 });
 

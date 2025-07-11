@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   Modal,
   StyleSheet,
   ScrollView,
@@ -163,16 +163,18 @@ const PricesButton = ({ onOptionSelect }) => {
 
   const renderSchedule = (scheduleKey, scheduleData, lottery) => (
     <View key={scheduleKey} style={styles.scheduleContainer}>
-      <TouchableOpacity
-        style={styles.scheduleHeader}
+      <Pressable
+        style={({ pressed }) => [
+          styles.scheduleHeader,
+          pressed && styles.headerPressed
+        ]}
         onPress={() => toggleSchedule(scheduleKey)}
-        activeOpacity={0.7}
       >
         <Text style={styles.scheduleTitle}>{scheduleData.label}</Text>
         <Text style={styles.arrow}>
           {expandedSchedule === scheduleKey ? '▼' : '▶'}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
       
       {expandedSchedule === scheduleKey && (
         <View style={styles.playTypesContainer}>
@@ -186,16 +188,18 @@ const PricesButton = ({ onOptionSelect }) => {
 
   const renderLottery = (lotteryKey, lotteryData) => (
     <View key={lotteryKey} style={styles.lotteryContainer}>
-      <TouchableOpacity
-        style={styles.lotteryHeader}
+      <Pressable
+        style={({ pressed }) => [
+          styles.lotteryHeader,
+          pressed && styles.headerPressed
+        ]}
         onPress={() => toggleLottery(lotteryKey)}
-        activeOpacity={0.7}
       >
         <Text style={styles.lotteryTitle}>{lotteryData.label}</Text>
         <Text style={styles.arrow}>
           {expandedLottery === lotteryKey ? '▼' : '▶'}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
       
       {expandedLottery === lotteryKey && (
         <View style={styles.schedulesContainer}>
@@ -209,13 +213,15 @@ const PricesButton = ({ onOptionSelect }) => {
 
   return (
     <>
-      <TouchableOpacity
-        style={styles.button}
+      <Pressable
+        style={({ pressed }) => [
+          styles.button,
+          pressed && styles.buttonPressed
+        ]}
         onPress={() => setIsVisible(true)}
-        activeOpacity={0.7}
       >
         <Text style={styles.buttonText}>💰</Text>
-      </TouchableOpacity>
+      </Pressable>
 
       <Modal
         visible={isVisible}
@@ -227,13 +233,15 @@ const PricesButton = ({ onOptionSelect }) => {
           <View style={styles.modal}>
             <View style={styles.header}>
               <Text style={styles.title}>Configuración de Precios</Text>
-              <TouchableOpacity
-                style={styles.closeButton}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  pressed && styles.closeButtonPressed
+                ]}
                 onPress={handleClose}
-                activeOpacity={0.7}
               >
                 <Text style={styles.closeButtonText}>✕</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
             
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -399,6 +407,18 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 1,
     borderColor: '#bdc3c7',
+  },
+  buttonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.95 }],
+  },
+  closeButtonPressed: {
+    opacity: 0.8,
+    backgroundColor: '#c0392b',
+  },
+  headerPressed: {
+    backgroundColor: '#ecf0f1',
+    opacity: 0.8,
   },
 });
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import {
   View,
-  TouchableOpacity,
+  Pressable,
   Text,
   StyleSheet,
   Animated,
@@ -40,14 +40,14 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode }) => {
         { transform: [{ scale: scaleAnim }] }
       ]}
     >
-      <TouchableOpacity
-        style={[
+      <Pressable
+        style={({ pressed }) => [
           styles.modeButton,
           styles.leftButton,
-          currentMode === 'Visual' && (isDarkMode ? styles.activeButtonDark : styles.activeButton)
+          currentMode === 'Visual' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
+          pressed && styles.buttonPressed
         ]}
         onPress={() => handleModeSelect('Visual')}
-        activeOpacity={0.8}
       >
         <Text style={[
           styles.modeText,
@@ -56,16 +56,16 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode }) => {
         ]}>
           👁️ Modo Visual
         </Text>
-      </TouchableOpacity>
+      </Pressable>
       
-      <TouchableOpacity
-        style={[
+      <Pressable
+        style={({ pressed }) => [
           styles.modeButton,
           styles.rightButton,
-          currentMode === 'Texto' && (isDarkMode ? styles.activeButtonDark : styles.activeButton)
+          currentMode === 'Texto' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
+          pressed && styles.buttonPressed
         ]}
         onPress={() => handleModeSelect('Texto')}
-        activeOpacity={0.8}
       >
         <Text style={[
           styles.modeText,
@@ -74,7 +74,7 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode }) => {
         ]}>
           📝 Modo Texto
         </Text>
-      </TouchableOpacity>
+      </Pressable>
     </Animated.View>
   );
 };
@@ -145,6 +145,10 @@ const styles = StyleSheet.create({
   activeText: {
     color: '#fff',
     fontWeight: '700',
+  },
+  buttonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
 });
 

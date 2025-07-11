@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Alert } from 'react-native';
 import { supabase } from '../supabaseClient';
 import Svg, { Path, G } from 'react-native-svg';
 
@@ -71,15 +71,21 @@ export default function LoginScreen({ navigation }) {
 
         <View style={styles.flexRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity style={styles.checkbox} />
+            <Pressable style={styles.checkbox} />
             <Text style={styles.remember}>Recordarme</Text>
           </View>
           <Text style={styles.span}>¿Olvidaste tu contraseña?</Text>
         </View>
 
-        <TouchableOpacity style={styles.buttonSubmit} onPress={handleLogin}>
+        <Pressable 
+          style={({ pressed }) => [
+            styles.buttonSubmit,
+            pressed && styles.buttonPressed
+          ]} 
+          onPress={handleLogin}
+        >
           <Text style={styles.buttonText}>Iniciar sesión</Text>
-        </TouchableOpacity>
+        </Pressable>
 
         
       </View>
@@ -204,5 +210,9 @@ const styles = StyleSheet.create({
     borderColor: '#ecedec',
     borderRadius: 4,
     backgroundColor: '#fff',
+  },
+  buttonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
 });

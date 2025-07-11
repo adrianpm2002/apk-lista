@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 
 const HomeScreen = ({ navigation }) => {
   const handleLogout = () => {
@@ -23,21 +23,25 @@ const HomeScreen = ({ navigation }) => {
               Comienza a crear tus jugadas de lotería usando nuestros modos Visual y Texto.
             </Text>
             
-            <TouchableOpacity
-              style={styles.startButton}
-              onPress={handleStartApp}
-              activeOpacity={0.8}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.startButton,
+                pressed && styles.buttonPressed
+              ]}
+              onPress={handleStartApp}>
               <Text style={styles.startButtonText}>Comenzar</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          activeOpacity={0.8}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.logoutButton,
+            pressed && styles.buttonPressed
+          ]}
+          onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
     </View>
   );
@@ -118,6 +122,10 @@ const styles = StyleSheet.create({
     color: '#7F8C8D',
     fontSize: 16,
     fontWeight: '600',
+  },
+  buttonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
 });
 
