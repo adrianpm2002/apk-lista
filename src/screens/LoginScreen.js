@@ -23,7 +23,7 @@ export default function LoginScreen({ navigation }) {
     return;
   }
 
-  navigation.navigate('VisualMode');
+  navigation.navigate('MainApp');
 };
 
   return (

@@ -202,16 +202,18 @@ const LimitedNumbersButton = ({ onOptionSelect }) => {
     
     return (
       <View key={scheduleKey} style={styles.scheduleContainer}>
-        <TouchableOpacity
-          style={styles.scheduleHeader}
+        <Pressable
+          style={({ pressed }) => [
+            styles.scheduleHeader,
+            pressed && styles.buttonPressed
+          ]}
           onPress={() => toggleSchedule(scheduleKey)}
-          activeOpacity={0.7}
         >
           <Text style={styles.scheduleTitle}>{scheduleData.label}</Text>
           <Text style={styles.arrow}>
             {isExpanded ? '▼' : '▶'}
           </Text>
-        </TouchableOpacity>
+        </Pressable>
         
         {isExpanded && (
           <Animated.View 
@@ -239,16 +241,18 @@ const LimitedNumbersButton = ({ onOptionSelect }) => {
     
     return (
       <View key={lotteryKey} style={styles.lotteryContainer}>
-        <TouchableOpacity
-          style={styles.lotteryHeader}
+        <Pressable
+          style={({ pressed }) => [
+            styles.lotteryHeader,
+            pressed && styles.buttonPressed
+          ]}
           onPress={() => toggleLottery(lotteryKey)}
-          activeOpacity={0.7}
         >
           <Text style={styles.lotteryTitle}>{lotteryData.label}</Text>
           <Text style={styles.arrow}>
             {isExpanded ? '▼' : '▶'}
           </Text>
-        </TouchableOpacity>
+        </Pressable>
         
         {isExpanded && (
           <Animated.View 
@@ -273,13 +277,15 @@ const LimitedNumbersButton = ({ onOptionSelect }) => {
 
   return (
     <>
-      <TouchableOpacity
-        style={styles.button}
+      <Pressable
+        style={({ pressed }) => [
+          styles.button,
+          pressed && styles.buttonPressed
+        ]}
         onPress={() => setIsVisible(true)}
-        activeOpacity={0.7}
       >
         <Text style={styles.buttonText}>📊</Text>
-      </TouchableOpacity>
+      </Pressable>
 
       <Modal
         visible={isVisible}
@@ -291,13 +297,15 @@ const LimitedNumbersButton = ({ onOptionSelect }) => {
           <View style={styles.modal}>
             <View style={styles.header}>
               <Text style={styles.title}>Números Limitados</Text>
-              <TouchableOpacity
-                style={styles.closeButton}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  pressed && styles.buttonPressed
+                ]}
                 onPress={handleClose}
-                activeOpacity={0.7}
               >
                 <Text style={styles.closeButtonText}>✕</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
             
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -452,6 +460,10 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     backgroundColor: '#2980b9',
     transform: [{ scale: 0.95 }],
+  },
+  buttonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
 });
 

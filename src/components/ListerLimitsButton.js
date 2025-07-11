@@ -196,16 +196,18 @@ const ListerLimitsButton = ({ onOptionSelect }) => {
 
   const renderLottery = (lotteryKey, lotteryData) => (
     <View key={lotteryKey} style={styles.lotteryContainer}>
-      <TouchableOpacity
-        style={styles.lotteryHeader}
+      <Pressable
+        style={({ pressed }) => [
+          styles.lotteryHeader,
+          pressed && styles.buttonPressed
+        ]}
         onPress={() => toggleLottery(lotteryKey)}
-        activeOpacity={0.7}
       >
         <Text style={styles.lotteryTitle}>{lotteryData.label}</Text>
         <Text style={styles.arrow}>
           {expandedLottery === lotteryKey ? '▼' : '▶'}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
       
       {expandedLottery === lotteryKey && (
         <View style={styles.schedulesContainer}>
@@ -219,13 +221,15 @@ const ListerLimitsButton = ({ onOptionSelect }) => {
 
   return (
     <>
-      <TouchableOpacity
-        style={styles.button}
+      <Pressable
+        style={({ pressed }) => [
+          styles.button,
+          pressed && styles.buttonPressed
+        ]}
         onPress={() => setIsVisible(true)}
-        activeOpacity={0.7}
       >
         <Text style={styles.buttonText}>⚠️</Text>
-      </TouchableOpacity>
+      </Pressable>
 
       <Modal
         visible={isVisible}
@@ -237,13 +241,15 @@ const ListerLimitsButton = ({ onOptionSelect }) => {
           <View style={styles.modal}>
             <View style={styles.header}>
               <Text style={styles.title}>Límites del Listero</Text>
-              <TouchableOpacity
-                style={styles.closeButton}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  pressed && styles.buttonPressed
+                ]}
                 onPress={handleClose}
-                activeOpacity={0.7}
               >
                 <Text style={styles.closeButtonText}>✕</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
             
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>

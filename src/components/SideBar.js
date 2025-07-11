@@ -256,20 +256,22 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
               },
             ]}
           >
-            <TouchableOpacity activeOpacity={1}>
+            <Pressable>
               {/* Header */}
               <View style={[styles.header, isDarkMode && styles.headerDark]}>
                 <View style={styles.appInfo}>
                   <Text style={styles.appLogo}>🎲</Text>
                   <Text style={[styles.appName, isDarkMode && styles.appNameDark]}>Lotería Pro</Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.closeButton}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.closeButton,
+                    pressed && styles.buttonPressed
+                  ]}
                   onPress={handleClose}
-                  activeOpacity={0.7}
                 >
                   <Text style={styles.closeButtonText}>✕</Text>
-                </TouchableOpacity>
+                </Pressable>
               </View>
 
               {/* Divider */}
@@ -278,11 +280,14 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
               {/* Content */}
               <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {configOptions.map((option) => (
-                  <TouchableOpacity
+                  <Pressable
                     key={option.id}
-                    style={[styles.optionRow, isDarkMode && styles.optionRowDark]}
+                    style={({ pressed }) => [
+                      styles.optionRow, 
+                      isDarkMode && styles.optionRowDark,
+                      pressed && styles.buttonPressed
+                    ]}
                     onPress={() => handleOptionPress(option)}
-                    activeOpacity={0.7}
                   >
                     <Text style={styles.optionIcon}>{option.icon}</Text>
                     <View style={styles.optionTextContainer}>
@@ -290,30 +295,34 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
                       <Text style={[styles.optionDescription, isDarkMode && styles.optionDescriptionDark]}>{option.description}</Text>
                     </View>
                     <Text style={[styles.arrowIcon, isDarkMode && styles.arrowIconDark]}>▶</Text>
-                  </TouchableOpacity>
+                  </Pressable>
                 ))}
               </ScrollView>
 
               {/* Botones inferiores */}
               <View style={[styles.bottomButtons, isDarkMode && styles.bottomButtonsDark]}>
-                <TouchableOpacity
-                  style={styles.darkModeButton}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.darkModeButton,
+                    pressed && styles.buttonPressed
+                  ]}
                   onPress={toggleDarkMode}
-                  activeOpacity={0.7}
                 >
                   <Text style={styles.darkModeIcon}>{isDarkMode ? '☀️' : '🌙'}</Text>
-                </TouchableOpacity>
+                </Pressable>
                 
-                <TouchableOpacity
-                  style={styles.logoutButton}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.logoutButton,
+                    pressed && styles.buttonPressed
+                  ]}
                   onPress={handleLogout}
-                  activeOpacity={0.7}
                 >
                   <Text style={styles.logoutIcon}>🚪</Text>
                   <Text style={[styles.logoutText, isDarkMode && styles.logoutTextDark]}>Cerrar Sesión</Text>
-                </TouchableOpacity>
+                </Pressable>
               </View>
-            </TouchableOpacity>
+            </Pressable>
           </Animated.View>
         </Pressable>
       </Modal>
@@ -325,17 +334,16 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
         animationType="fade"
         onRequestClose={closeModal}
       >
-        <TouchableOpacity
+        <Pressable
           style={styles.modalOverlay}
-          activeOpacity={1}
           onPress={closeModal}
         >
           <View style={styles.modalContainer}>
-            <TouchableOpacity activeOpacity={1}>
+            <Pressable>
               {renderModalContent()}
-            </TouchableOpacity>
+            </Pressable>
           </View>
-        </TouchableOpacity>
+        </Pressable>
       </Modal>
     </>
   );
@@ -343,13 +351,15 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
 
 const SideBarToggle = ({ onToggle }) => {
   return (
-    <TouchableOpacity
-      style={styles.toggleButton}
+    <Pressable
+      style={({ pressed }) => [
+        styles.toggleButton,
+        pressed && styles.buttonPressed
+      ]}
       onPress={onToggle}
-      activeOpacity={0.7}
     >
       <Text style={styles.toggleIcon}>☰</Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
@@ -659,6 +669,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#2c3e50',
     fontWeight: 'bold',
+  },
+  buttonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
 });
 

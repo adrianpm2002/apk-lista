@@ -8,7 +8,9 @@ import {
   Animated,
 } from 'react-native';
 import DropdownPicker from '../components/DropdownPicker';
+import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import InputField from '../components/InputField';
+import MoneyInputField from '../components/MoneyInputField';
 import ActionButton from '../components/ActionButton';
 import BatteryButton from '../components/BatteryButton';
 import HammerButton from '../components/HammerButton';
@@ -17,7 +19,7 @@ import { SideBar, SideBarToggle } from '../components/SideBar';
 
 const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode }) => {
   // Estados para los campos
-  const [selectedLottery, setSelectedLottery] = useState(null);
+  const [selectedLotteries, setSelectedLotteries] = useState([]); // Cambiado a array para múltiple selección
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [selectedPlayType, setSelectedPlayType] = useState(null);
   const [plays, setPlays] = useState('');
@@ -48,13 +50,13 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
 
   const handleInsert = () => {
     // Validar campos requeridos
-    if (!selectedLottery || !selectedSchedule || !selectedPlayType || !plays || !amount) {
+    if (!selectedLotteries.length || !selectedSchedule || !selectedPlayType || !plays || !amount) {
       alert('Por favor complete todos los campos requeridos');
       return;
     }
     
     console.log('Insertar jugada:', {
-      lottery: selectedLottery,
+      lotteries: selectedLotteries,
       schedule: selectedSchedule,
       playType: selectedPlayType,
       plays,
@@ -67,7 +69,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
   };
 
   const handleClear = () => {
-    setSelectedLottery(null);
+    setSelectedLotteries([]);
     setSelectedSchedule(null);
     setSelectedPlayType(null);
     setPlays('');
@@ -93,29 +95,20 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
-      {/* Indicador de modo actual */}
-      <View style={[styles.modeIndicator, isDarkMode && styles.modeIndicatorDark]}>
-        <Text style={[styles.modeIndicatorText, isDarkMode && styles.modeIndicatorTextDark]}>
-          👁️ Modo Visual {currentMode === 'Visual' ? '✓' : ''}
-        </Text>
-        <Text style={[styles.swipeHint, isDarkMode && styles.swipeHintDark]}>
-          ← Desliza para Texto
-        </Text>
-      </View>
-      
       <SideBarToggle onToggle={toggleSidebar} />
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Row 1: Lotería y Horario */}
+        {/* Row 1: Lotería */}
+        <MultiSelectDropdown
+          label="Lotería"
+          selectedValues={selectedLotteries}
+          onSelect={setSelectedLotteries}
+          options={lotteries}
+          placeholder="Seleccionar loterias"
+          isDarkMode={isDarkMode}
+        />
+
+        {/* Row 2: Horario y Jugada */}
         <View style={styles.row}>
-          <View style={styles.halfWidth}>
-            <DropdownPicker
-              label="Lotería"
-              value={selectedLottery}
-              onSelect={setSelectedLottery}
-              options={lotteries}
-              placeholder="Seleccionar lotería"
-            />
-          </View>
           <View style={styles.halfWidth}>
             <DropdownPicker
               label="Horario"
@@ -125,16 +118,16 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
               placeholder="Seleccionar horario"
             />
           </View>
+          <View style={styles.halfWidth}>
+            <DropdownPicker
+              label="Jugada"
+              value={selectedPlayType}
+              onSelect={setSelectedPlayType}
+              options={playTypes}
+              placeholder="Seleccionar jugada"
+            />
+          </View>
         </View>
-
-        {/* Row 2: Tipo de Jugada */}
-        <DropdownPicker
-          label="Tipo de Jugada"
-          value={selectedPlayType}
-          onSelect={setSelectedPlayType}
-          options={playTypes}
-          placeholder="Seleccionar tipo de jugada"
-        />
 
         {/* Row 3: Jugadas */}
         <InputField
@@ -147,23 +140,22 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
           pasteButtonOverlay={true}
         />
 
-        {/* Row 4: Monto y Nota */}
+        {/* Row 4: Nota y Monto */}
         <View style={styles.row}>
-          <View style={styles.halfWidth}>
-            <InputField
-              label="Monto"
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="$0.00"
-              keyboardType="numeric"
-            />
-          </View>
           <View style={styles.halfWidth}>
             <InputField
               label="Nota"
               value={note}
               onChangeText={setNote}
-              placeholder="Nombre del jugador"
+              placeholder=""
+            />
+          </View>
+          <View style={styles.halfWidth}>
+            <MoneyInputField
+              label="Monto"
+              value={amount}
+              onChangeText={setAmount}
+              placeholder="$0"
             />
           </View>
         </View>
@@ -237,8 +229,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 6,
   },
+  threeColumnRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    gap: 6,
+  },
   halfWidth: {
     width: '48%',
+  },
+  thirdWidth: {
+    flex: 1,
   },
   toolsContainer: {
     flexDirection: 'row',
@@ -280,39 +281,6 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     width: '48%',
-  },
-  modeIndicator: {
-    position: 'absolute',
-    top: 50,
-    right: 20,
-    backgroundColor: 'rgba(52, 152, 219, 0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(52, 152, 219, 0.3)',
-    zIndex: 5,
-  },
-  modeIndicatorDark: {
-    backgroundColor: 'rgba(231, 76, 60, 0.1)',
-    borderColor: 'rgba(231, 76, 60, 0.3)',
-  },
-  modeIndicatorText: {
-    fontSize: 12,
-    color: '#3498db',
-    fontWeight: '600',
-  },
-  modeIndicatorTextDark: {
-    color: '#e74c3c',
-  },
-  swipeHint: {
-    fontSize: 10,
-    color: '#7f8c8d',
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
-  swipeHintDark: {
-    color: '#95a5a6',
   },
   lockButtonPressed: {
     opacity: 0.7,
