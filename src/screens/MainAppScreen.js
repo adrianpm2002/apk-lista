@@ -10,6 +10,10 @@ import ModeSelector from '../components/ModeSelector';
 const MainAppScreen = ({ navigation }) => {
   const [currentMode, setCurrentMode] = useState('Visual');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [visibleModes, setVisibleModes] = useState({
+    visual: true,
+    text: true
+  });
 
   const handleModeChange = (newMode) => {
     if (newMode === currentMode) return;
@@ -20,35 +24,54 @@ const MainAppScreen = ({ navigation }) => {
     setIsDarkMode(!isDarkMode);
   };
 
+  const handleModeVisibilityChange = (newVisibleModes) => {
+    setVisibleModes(newVisibleModes);
+    
+    // Si el modo actual ya no es visible, cambiar al primer modo visible
+    if ((currentMode === 'Visual' && !newVisibleModes.visual) ||
+        (currentMode === 'Texto' && !newVisibleModes.text)) {
+      if (newVisibleModes.visual) {
+        setCurrentMode('Visual');
+      } else if (newVisibleModes.text) {
+        setCurrentMode('Texto');
+      }
+    }
+  };
+
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
-      {/* Renderizar solo la pantalla del modo actual */}
-      {currentMode === 'Visual' ? (
+      {/* Mode Selector - Visible si hay al menos un modo disponible */}
+      {(visibleModes.visual || visibleModes.text) && (
+        <View style={[styles.modeSelectorContainer, isDarkMode && styles.modeSelectorContainerDark]}>
+          <ModeSelector 
+            currentMode={currentMode} 
+            onModeChange={handleModeChange}
+            isDarkMode={isDarkMode}
+            visibleModes={visibleModes}
+          />
+        </View>
+      )}
+      
+      {/* Renderizar solo la pantalla del modo actual si está visible */}
+      {currentMode === 'Visual' && visibleModes.visual ? (
         <VisualModeScreen 
           navigation={navigation} 
           currentMode={currentMode}
           onModeChange={handleModeChange}
           isDarkMode={isDarkMode}
           onToggleDarkMode={handleToggleDarkMode}
+          onModeVisibilityChange={handleModeVisibilityChange}
         />
-      ) : (
+      ) : visibleModes.text ? (
         <TextModeScreen 
           navigation={navigation}
           currentMode={currentMode}
           onModeChange={handleModeChange}
           isDarkMode={isDarkMode}
           onToggleDarkMode={handleToggleDarkMode}
+          onModeVisibilityChange={handleModeVisibilityChange}
         />
-      )}
-      
-      {/* Mode Selector - Siempre visible en la parte inferior */}
-      <View style={[styles.modeSelectorContainer, isDarkMode && styles.modeSelectorContainerDark]}>
-        <ModeSelector 
-          currentMode={currentMode} 
-          onModeChange={handleModeChange}
-          isDarkMode={isDarkMode}
-        />
-      </View>
+      ) : null}
     </View>
   );
 };
@@ -63,12 +86,13 @@ const styles = StyleSheet.create({
   },
   modeSelectorContainer: {
     position: 'absolute',
-    bottom: 30,
-    left: 0,
+    top: 0,
+    left: 70, // Dejamos espacio para el botón de la barra lateral (45px + 15px left + margen)
     right: 0,
     alignItems: 'center',
     backgroundColor: 'transparent',
     paddingHorizontal: 20,
+    paddingTop: 50,
     zIndex: 10,
   },
   modeSelectorContainerDark: {

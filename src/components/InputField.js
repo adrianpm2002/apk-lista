@@ -20,6 +20,7 @@ const InputField = ({
   showPasteButton = false,
   pasteButtonOverlay = false,
   editable = true,
+  hasError = false,
   ...otherProps
 }) => {
   const handlePaste = async () => {
@@ -78,6 +79,7 @@ const InputField = ({
             styles.input,
             multiline && styles.multilineInput,
             !editable && styles.readOnlyInput,
+            hasError && styles.inputError,
             inputStyle
           ]}
           value={value}
@@ -189,6 +191,11 @@ const styles = StyleSheet.create({
     color: '#27ae60',
     fontWeight: 'bold',
     borderColor: '#27ae60',
+  },
+  inputError: {
+    borderColor: '#E74C3C',
+    borderWidth: 2,
+    backgroundColor: '#FDEDEC',
   },
   pasteButtonPressed: {
     opacity: 0.7,

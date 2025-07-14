@@ -15,7 +15,9 @@ const MultiSelectDropdown = ({
   onSelect, 
   options = [], 
   placeholder = "Seleccionar opciones",
-  isDarkMode = false 
+  isDarkMode = false,
+  hasError = false,
+  errorMessage = ""
 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -100,6 +102,7 @@ const MultiSelectDropdown = ({
         style={({ pressed }) => [
           styles.dropdown,
           isDarkMode && styles.dropdownDark,
+          hasError && styles.dropdownError,
           pressed && styles.dropdownPressed
         ]}
         onPress={() => setIsVisible(true)}
@@ -108,9 +111,10 @@ const MultiSelectDropdown = ({
           styles.dropdownText,
           selectedValues.length === 0 && styles.placeholderText,
           isDarkMode && styles.dropdownTextDark,
-          selectedValues.length === 0 && isDarkMode && styles.placeholderTextDark
+          selectedValues.length === 0 && isDarkMode && styles.placeholderTextDark,
+          hasError && styles.dropdownTextError
         ]}>
-          {getSelectedLabels()}
+          {hasError && errorMessage ? errorMessage : getSelectedLabels()}
         </Text>
         <Text style={[styles.arrow, isDarkMode && styles.arrowDark]}>▼</Text>
       </Pressable>
@@ -206,6 +210,15 @@ const styles = StyleSheet.create({
   dropdownPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.98 }],
+  },
+  dropdownError: {
+    borderColor: '#E74C3C',
+    borderWidth: 2,
+    backgroundColor: '#FDEDEC',
+  },
+  dropdownTextError: {
+    color: '#E74C3C',
+    fontWeight: '500',
   },
   dropdownText: {
     fontSize: 16,

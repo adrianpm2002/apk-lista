@@ -13,38 +13,31 @@ import {
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkMode, navigation, onModeVisibilityChange }) => {
+const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkMode, navigation }) => {
   const sidebarWidth = screenWidth * 0.75;
   const slideAnim = useRef(new Animated.Value(-sidebarWidth)).current;
   const [modalVisible, setModalVisible] = useState(false);
   const [modalContent, setModalContent] = useState(null);
-  const [modeVisibilityModal, setModeVisibilityModal] = useState(false);
-  const [visibleModes, setVisibleModes] = useState({
-    visual: true,
-    text: true
-  });
 
   // Opciones del sidebar
   const configOptions = [
     {
       id: 'limitedNumbers',
       icon: '📊',
-      title: 'Números Limitados'
+      title: 'Números Limitados',
+      description: 'Ver y gestionar números limitados'
     },
     {
       id: 'listerLimits',
       icon: '📋',
-      title: 'Límites del Listero'
+      title: 'Límites del Listero',
+      description: 'Configurar límites de apuestas'
     },
     {
       id: 'prices',
       icon: '💰',
-      title: 'Configuración de Precios'
-    },
-    {
-      id: 'settings',
-      icon: '⚙️',
-      title: 'Configuración'
+      title: 'Configuración de Precios',
+      description: 'Ajustar precios y porcentajes'
     }
   ];
 
@@ -97,84 +90,14 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
     );
   };
 
-  const handleModeVisibilityPress = () => {
-    setModeVisibilityModal(true);
-  };
-
-  const handleModeToggle = (mode) => {
-    const newVisibleModes = {
-      ...visibleModes,
-      [mode]: !visibleModes[mode]
-    };
-    
-    // Asegurar que al menos un modo esté visible
-    const hasAnyModeVisible = Object.values(newVisibleModes).some(visible => visible);
-    if (!hasAnyModeVisible) {
-      Alert.alert('Error', 'Debe tener al menos un modo visible');
-      return;
-    }
-    
-    setVisibleModes(newVisibleModes);
-    onModeVisibilityChange && onModeVisibilityChange(newVisibleModes);
-  };
-
-  const closeModeVisibilityModal = () => {
-    setModeVisibilityModal(false);
-  };
-
   const renderModalContent = () => {
     if (!modalContent) return null;
-
-    if (modalContent.id === 'settings') {
-      return (
-        <View style={styles.modalContentInner}>
-          <Text style={styles.modalTitle}>{modalContent.title}</Text>
-          
-          <View style={styles.settingsContainer}>
-            {/* Mantener sesión iniciada */}
-            <Pressable style={styles.settingOption}>
-              <Text style={styles.settingIcon}>🔐</Text>
-              <Text style={styles.settingText}>Mantener sesión iniciada</Text>
-              <Text style={styles.settingArrow}>▶</Text>
-            </Pressable>
-            
-            {/* Tamaño de letra */}
-            <Pressable style={styles.settingOption}>
-              <Text style={styles.settingIcon}>🔤</Text>
-              <Text style={styles.settingText}>Tamaño de letra</Text>
-              <Text style={styles.settingArrow}>▶</Text>
-            </Pressable>
-            
-            {/* Patrón de seguridad */}
-            <Pressable style={styles.settingOption}>
-              <Text style={styles.settingIcon}>🔒</Text>
-              <Text style={styles.settingText}>Patrón de seguridad</Text>
-              <Text style={styles.settingArrow}>▶</Text>
-            </Pressable>
-            
-            {/* Modos Visibles */}
-            <Pressable 
-              style={styles.settingOption}
-              onPress={() => handleModeVisibilityPress()}
-            >
-              <Text style={styles.settingIcon}>👁️</Text>
-              <Text style={styles.settingText}>Modos Visibles</Text>
-              <Text style={styles.settingArrow}>▶</Text>
-            </Pressable>
-          </View>
-          
-          <Pressable style={styles.modalCloseButton} onPress={closeModal}>
-            <Text style={styles.modalCloseButtonText}>Cerrar</Text>
-          </Pressable>
-        </View>
-      );
-    }
 
     return (
       <View style={styles.modalContentInner}>
         <Text style={styles.modalTitle}>{modalContent.title}</Text>
         <Text style={styles.modalDescription}>
-          Funcionalidad para {modalContent.title.toLowerCase()}
+          Funcionalidad para {modalContent.description.toLowerCase()}
         </Text>
         <Pressable style={styles.modalCloseButton} onPress={closeModal}>
           <Text style={styles.modalCloseButtonText}>Cerrar</Text>
@@ -248,6 +171,9 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
                     <Text style={[styles.optionTitle, isDarkMode && styles.optionTitleDark]}>
                       {option.title}
                     </Text>
+                    <Text style={[styles.optionDescription, isDarkMode && styles.optionDescriptionDark]}>
+                      {option.description}
+                    </Text>
                   </View>
                   <Text style={[styles.arrowIcon, isDarkMode && styles.arrowIconDark]}>▶</Text>
                 </Pressable>
@@ -300,114 +226,6 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
           </View>
         </Pressable>
       </Modal>
-
-      {/* Modal de Visibilidad de Modos */}
-      <Modal
-        visible={modeVisibilityModal}
-        transparent
-        animationType="slide"
-        onRequestClose={closeModeVisibilityModal}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={closeModeVisibilityModal}
-        >
-          <View 
-            style={[styles.modalContent, isDarkMode && styles.modalContentDark]}
-            onStartShouldSetResponder={() => true}
-          >
-            <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
-              Modos Visibles
-            </Text>
-            <Text style={[styles.modalSubtitle, isDarkMode && styles.modalSubtitleDark]}>
-              Selecciona qué modos quieres mostrar en la interfaz
-            </Text>
-
-            <View style={styles.modeOptionsContainer}>
-              {/* Modo Visual */}
-              <Pressable
-                style={[
-                  styles.modeOption,
-                  isDarkMode && styles.modeOptionDark,
-                  visibleModes.visual && styles.modeOptionSelected,
-                  visibleModes.visual && isDarkMode && styles.modeOptionSelectedDark
-                ]}
-                onPress={() => handleModeToggle('visual')}
-              >
-                <Text style={styles.modeIcon}>👁️</Text>
-                <View style={styles.modeTextContainer}>
-                  <Text style={[
-                    styles.modeTitle,
-                    isDarkMode && styles.modeTitleDark,
-                    visibleModes.visual && styles.modeTitleSelected
-                  ]}>
-                    Modo Visual
-                  </Text>
-                  <Text style={[
-                    styles.modeDescription,
-                    isDarkMode && styles.modeDescriptionDark
-                  ]}>
-                    Interfaz gráfica completa
-                  </Text>
-                </View>
-                <View style={[
-                  styles.modeCheckbox,
-                  isDarkMode && styles.modeCheckboxDark,
-                  visibleModes.visual && styles.modeCheckboxSelected
-                ]}>
-                  {visibleModes.visual && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-              </Pressable>
-
-              {/* Modo Texto */}
-              <Pressable
-                style={[
-                  styles.modeOption,
-                  isDarkMode && styles.modeOptionDark,
-                  visibleModes.text && styles.modeOptionSelected,
-                  visibleModes.text && isDarkMode && styles.modeOptionSelectedDark
-                ]}
-                onPress={() => handleModeToggle('text')}
-              >
-                <Text style={styles.modeIcon}>📝</Text>
-                <View style={styles.modeTextContainer}>
-                  <Text style={[
-                    styles.modeTitle,
-                    isDarkMode && styles.modeTitleDark,
-                    visibleModes.text && styles.modeTitleSelected
-                  ]}>
-                    Modo Texto
-                  </Text>
-                  <Text style={[
-                    styles.modeDescription,
-                    isDarkMode && styles.modeDescriptionDark
-                  ]}>
-                    Interfaz simplificada de texto
-                  </Text>
-                </View>
-                <View style={[
-                  styles.modeCheckbox,
-                  isDarkMode && styles.modeCheckboxDark,
-                  visibleModes.text && styles.modeCheckboxSelected
-                ]}>
-                  {visibleModes.text && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-              </Pressable>
-            </View>
-
-            <View style={styles.modeModalButtons}>
-              <Pressable
-                style={[styles.modalCloseButton, isDarkMode && styles.modalCloseButtonDark]}
-                onPress={closeModeVisibilityModal}
-              >
-                <Text style={[styles.modalCloseButtonText, isDarkMode && styles.modalCloseButtonTextDark]}>
-                  Aplicar
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
     </>
   );
 };
@@ -438,21 +256,14 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    flexDirection: 'row',
   },
   overlayTouchable: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
   },
   
   // Sidebar principal
   sidebar: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
     width: screenWidth * 0.75,
     backgroundColor: '#ffffff',
     shadowColor: '#000',
@@ -643,39 +454,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   
-  // Settings modal
-  settingsContainer: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  settingOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#f8f9fa',
-    marginVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-  },
-  settingIcon: {
-    fontSize: 18,
-    marginRight: 12,
-    width: 24,
-    textAlign: 'center',
-  },
-  settingText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#2c3e50',
-    fontWeight: '500',
-  },
-  settingArrow: {
-    fontSize: 12,
-    color: '#95a5a6',
-  },
-  
   // Toggle Button
   toggleButton: {
     position: 'absolute',
@@ -702,97 +480,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#2c3e50',
     fontWeight: 'bold',
-  },
-  
-  // Mode visibility modal styles
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  modalSubtitleDark: {
-    color: '#BDC3C7',
-  },
-  modeOptionsContainer: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  modeOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: '#E8F1E4',
-  },
-  modeOptionDark: {
-    backgroundColor: '#34495E',
-    borderColor: '#5D6D7E',
-  },
-  modeOptionSelected: {
-    borderColor: '#27AE60',
-    backgroundColor: '#E8F5E8',
-  },
-  modeOptionSelectedDark: {
-    borderColor: '#27AE60',
-    backgroundColor: '#2C3E50',
-  },
-  modeIcon: {
-    fontSize: 24,
-    marginRight: 15,
-  },
-  modeTextContainer: {
-    flex: 1,
-  },
-  modeTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2D5016',
-    marginBottom: 2,
-  },
-  modeTitleDark: {
-    color: '#ECF0F1',
-  },
-  modeTitleSelected: {
-    color: '#27AE60',
-  },
-  modeDescription: {
-    fontSize: 12,
-    color: '#7F8C8D',
-  },
-  modeDescriptionDark: {
-    color: '#BDC3C7',
-  },
-  modeCheckbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#D5DBDB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  modeCheckboxDark: {
-    borderColor: '#5D6D7E',
-    backgroundColor: '#34495E',
-  },
-  modeCheckboxSelected: {
-    borderColor: '#27AE60',
-    backgroundColor: '#27AE60',
-  },
-  checkmark: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  modeModalButtons: {
-    width: '100%',
-    alignItems: 'center',
   },
   
   // Pressed states

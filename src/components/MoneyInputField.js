@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,26 @@ const MoneyInputField = ({
   onChangeText, 
   placeholder = "$0",
   isDarkMode = false,
-  editable = true
+  editable = true,
+  style,
+  inputStyle,
+  hasError = false
 }) => {
-  const [displayValue, setDisplayValue] = useState(value || '');  // Función para formatear el dinero
+  const [displayValue, setDisplayValue] = useState(value || '');
+
+  // Sincronizar el displayValue cuando el prop value cambie
+  useEffect(() => {
+    if (value !== undefined && value !== null) {
+      // Si es para un campo no editable (como Total), formatear inmediatamente
+      if (!editable) {
+        const formatted = formatMoney(value);
+        setDisplayValue(formatted);
+      } else {
+        // Para campos editables, usar el valor tal como viene
+        setDisplayValue(value || '');
+      }
+    }
+  }, [value, editable]);  // Función para formatear el dinero
   const formatMoney = (amount) => {
     if (!amount || amount === '0' || amount === 0) return '';
     
@@ -57,7 +74,7 @@ const MoneyInputField = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
       {label && (
         <Text style={[styles.label, isDarkMode && styles.labelDark]}>
           {label}
@@ -67,6 +84,9 @@ const MoneyInputField = ({
         style={[
           styles.input,
           isDarkMode && styles.inputDark,
+          !editable && styles.inputDisabled,
+          hasError && styles.inputError,
+          inputStyle, // inputStyle debe ir al final para tener mayor prioridad
         ]}
         value={displayValue}
         onChangeText={handleChange}
@@ -108,6 +128,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#34495E',
     borderColor: '#5D6D7E',
     color: '#ECF0F1',
+  },
+  inputDisabled: {
+    backgroundColor: '#F8F9FA',
+    borderColor: '#E9ECEF',
+    color: '#6C757D',
+  },
+  inputError: {
+    borderColor: '#E74C3C',
+    borderWidth: 2,
+    backgroundColor: '#FDEDEC',
   },
 });
 

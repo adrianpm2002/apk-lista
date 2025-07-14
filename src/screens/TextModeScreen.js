@@ -17,14 +17,20 @@ import ListButton from '../components/ListButton';
 import InfoButton from '../components/InfoButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 
-const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode }) => {
+const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [plays, setPlays] = useState('');
   const [note, setNote] = useState('');
   const [calculatedAmount, setCalculatedAmount] = useState(0);
+  const [total, setTotal] = useState(0);
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lotteryError, setLotteryError] = useState(false);
+  const [lotteryErrorMessage, setLotteryErrorMessage] = useState('');
+  const [scheduleError, setScheduleError] = useState(false);
+  const [playsError, setPlaysError] = useState(false);
 
   // Datos para los dropdowns
   const lotteries = [
@@ -43,12 +49,22 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     if (plays.trim()) {
       // Contar las jugadas separadas por comas
       const playList = plays.split(',').filter(play => play.trim() !== '');
-      const amount = playList.length * 1; // $1 por jugada (puedes ajustar esta lógica)
-      setCalculatedAmount(amount);
+      const baseAmount = playList.length * 1; // $1 por jugada
+      setCalculatedAmount(baseAmount);
+      
+      // Calcular total basado en el estado del candado
+      if (isLocked) {
+        // Cuando el candado está cerrado: Total = Monto (sin importar cantidad de números)
+        setTotal(baseAmount);
+      } else {
+        // Cuando el candado está abierto: Total = Cantidad de números × Monto
+        setTotal(baseAmount * playList.length);
+      }
     } else {
       setCalculatedAmount(0);
+      setTotal(0);
     }
-  }, [plays]);
+  }, [plays, isLocked]);
 
   const handleClear = () => {
     setSelectedLotteries([]);
@@ -56,6 +72,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     setPlays('');
     setNote('');
     setCalculatedAmount(0);
+    setTotal(0);
   };
 
   const handleVerify = () => {
@@ -70,9 +87,39 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
   };
 
   const handleInsert = () => {
+    // Resetear errores
+    setLotteryError(false);
+    setScheduleError(false);
+    setPlaysError(false);
+    setLotteryErrorMessage('');
+
     // Validar campos requeridos
-    if (!selectedLotteries.length || !selectedSchedule || !plays) {
-      alert('Por favor complete todos los campos requeridos');
+    let hasErrors = false;
+
+    if (!selectedLotteries.length) {
+      setLotteryError(true);
+      setLotteryErrorMessage('Selecciona una lotería');
+      hasErrors = true;
+    }
+
+    if (!selectedSchedule) {
+      setScheduleError(true);
+      hasErrors = true;
+    }
+
+    if (!plays.trim()) {
+      setPlaysError(true);
+      hasErrors = true;
+    }
+
+    if (hasErrors) {
+      // Quitar errores después de 3 segundos
+      setTimeout(() => {
+        setLotteryError(false);
+        setScheduleError(false);
+        setPlaysError(false);
+        setLotteryErrorMessage('');
+      }, 3000);
       return;
     }
 
@@ -85,7 +132,12 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     });
 
     alert('Jugada insertada correctamente');
-    handleClear();
+    
+    // Solo limpiar plays, note y montos - mantener lotería y horario
+    setPlays('');
+    setNote('');
+    setCalculatedAmount(0);
+    setTotal(0);
   };
 
   const handleTopBarOption = (option) => {
@@ -93,16 +145,24 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
   };
 
   const toggleSidebar = () => {
+    console.log('toggleSidebar called, current state:', sidebarVisible);
     setSidebarVisible(!sidebarVisible);
+    console.log('toggleSidebar new state will be:', !sidebarVisible);
   };
 
   const closeSidebar = () => {
     setSidebarVisible(false);
   };
 
+  const toggleLock = () => {
+    setIsLocked(!isLocked);
+  };
+
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
-      <SideBarToggle onToggle={toggleSidebar} />
+      <View style={styles.toggleContainer}>
+        <SideBarToggle onToggle={toggleSidebar} />
+      </View>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Row 1: Lotería */}
         <MultiSelectDropdown
@@ -112,6 +172,8 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           options={lotteries}
           placeholder="Seleccionar loterias"
           isDarkMode={isDarkMode}
+          hasError={lotteryError}
+          errorMessage={lotteryErrorMessage}
         />
 
         {/* Row 2: Horario */}
@@ -121,6 +183,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           onSelect={setSelectedSchedule}
           options={schedules}
           placeholder="Seleccionar horario"
+          hasError={scheduleError}
         />
 
         {/* Row 3: Jugadas */}
@@ -132,9 +195,10 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           multiline={true}
           showPasteButton={true}
           pasteButtonOverlay={true}
+          hasError={playsError}
         />
 
-        {/* Row 4: Nota y Monto */}
+        {/* Row 4: Nota y Total */}
         <View style={styles.row}>
           <View style={styles.halfWidth}>
             <InputField
@@ -142,20 +206,35 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
               value={note}
               onChangeText={setNote}
               placeholder=""
+              style={styles.fieldContainer}
+              inputStyle={styles.unifiedInput}
             />
           </View>
           <View style={styles.halfWidth}>
             <MoneyInputField
-              label="Monto"
-              value={calculatedAmount.toString()}
+              label="Total"
+              value={total.toString()}
               editable={false}
               placeholder="$0"
+              style={styles.fieldContainer}
+              inputStyle={styles.unifiedInput}
             />
           </View>
         </View>
 
         {/* Row 4: Botones de herramientas */}
         <View style={styles.toolsContainer}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.lockButton, 
+              isLocked && styles.lockButtonActive,
+              pressed && styles.lockButtonPressed
+            ]}
+            onPress={toggleLock}
+          >
+            <Text style={styles.lockIcon}>{isLocked ? '🔒' : '🔓'}</Text>
+          </Pressable>
+          
           <HammerButton onOptionSelect={(option) => console.log('Hammer option:', option)} />
           
           <ListButton onOptionSelect={(option) => console.log('List option:', option)} />
@@ -199,6 +278,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
         isDarkMode={isDarkMode}
         onToggleDarkMode={onToggleDarkMode}
         navigation={navigation}
+        onModeVisibilityChange={onModeVisibilityChange}
       />
     </View>
   );
@@ -212,16 +292,24 @@ const styles = StyleSheet.create({
   containerDark: {
     backgroundColor: '#2c3e50',
   },
+  toggleContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
   content: {
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 60,
+    paddingTop: 120,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 6,
+    gap: 8,
   },
   threeColumnRow: {
     flexDirection: 'row',
@@ -230,17 +318,46 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   halfWidth: {
-    width: '48%',
+    flex: 1,
   },
   thirdWidth: {
     flex: 1,
   },
   toolsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 10,
-    paddingHorizontal: 20,
+    marginVertical: 6,
+    gap: 10,
+  },
+  lockButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#B8D4A8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2D5016',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  lockButtonActive: {
+    backgroundColor: '#FFE4B5',
+    borderColor: '#D4AF37',
+  },
+  lockIcon: {
+    fontSize: 18,
+  },
+  lockButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.95 }],
   },
   actionRow: {
     flexDirection: 'row',
@@ -250,6 +367,22 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+  },
+  fieldContainer: {
+    marginBottom: 0, // Anular el marginBottom de los componentes internos
+  },
+  unifiedInput: {
+    height: 40, // Altura más pequeña como tenía nota anteriormente
+    minHeight: 40, // Sobrescribir cualquier minHeight interno
+    maxHeight: 40, // Asegurar que no crezca más
+    paddingHorizontal: 12,
+    paddingVertical: 8, // Reducido también el padding vertical
+    fontSize: 16,
+    borderWidth: 1.5,
+    borderRadius: 8,
+    borderColor: '#D5DBDB',
+    backgroundColor: '#FFFFFF',
+    color: '#2C3E50',
   },
 });
 

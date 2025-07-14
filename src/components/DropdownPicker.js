@@ -14,7 +14,8 @@ const DropdownPicker = ({
   onSelect, 
   options = [], 
   placeholder = "Seleccionar...",
-  style 
+  style,
+  hasError = false
 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -41,13 +42,15 @@ const DropdownPicker = ({
       <Pressable
         style={({ pressed }) => [
           styles.dropdown,
+          hasError && styles.dropdownError,
           pressed && styles.dropdownPressed
         ]}
         onPress={() => setIsVisible(true)}
       >
         <Text style={[
           styles.dropdownText,
-          !value && styles.placeholder
+          !value && styles.placeholder,
+          hasError && styles.dropdownTextError
         ]}>
           {value ? value.label : placeholder}
         </Text>
@@ -169,6 +172,15 @@ const styles = StyleSheet.create({
   dropdownPressed: {
     opacity: 0.8,
     borderColor: '#A0C890',
+  },
+  dropdownError: {
+    borderColor: '#E74C3C',
+    borderWidth: 2,
+    backgroundColor: '#FDEDEC',
+  },
+  dropdownTextError: {
+    color: '#E74C3C',
+    fontWeight: '500',
   },
   optionPressed: {
     backgroundColor: '#E8F5E8',

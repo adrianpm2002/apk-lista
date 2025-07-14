@@ -7,7 +7,7 @@ import {
   Animated,
 } from 'react-native';
 
-const ModeSelector = ({ currentMode, onModeChange, isDarkMode }) => {
+const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { visual: true, text: true } }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -40,41 +40,45 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode }) => {
         { transform: [{ scale: scaleAnim }] }
       ]}
     >
-      <Pressable
-        style={({ pressed }) => [
-          styles.modeButton,
-          styles.leftButton,
-          currentMode === 'Visual' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
-          pressed && styles.buttonPressed
-        ]}
-        onPress={() => handleModeSelect('Visual')}
-      >
-        <Text style={[
-          styles.modeText,
-          isDarkMode && styles.modeTextDark,
-          currentMode === 'Visual' && styles.activeText
-        ]}>
-          👁️ Modo Visual
-        </Text>
-      </Pressable>
+      {visibleModes.visual && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.modeButton,
+            !visibleModes.text ? styles.singleButton : styles.leftButton,
+            currentMode === 'Visual' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
+            pressed && styles.buttonPressed
+          ]}
+          onPress={() => handleModeSelect('Visual')}
+        >
+          <Text style={[
+            styles.modeText,
+            isDarkMode && styles.modeTextDark,
+            currentMode === 'Visual' && styles.activeText
+          ]}>
+            👁️ Modo Visual
+          </Text>
+        </Pressable>
+      )}
       
-      <Pressable
-        style={({ pressed }) => [
-          styles.modeButton,
-          styles.rightButton,
-          currentMode === 'Texto' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
-          pressed && styles.buttonPressed
-        ]}
-        onPress={() => handleModeSelect('Texto')}
-      >
-        <Text style={[
-          styles.modeText,
-          isDarkMode && styles.modeTextDark,
-          currentMode === 'Texto' && styles.activeText
-        ]}>
-          📝 Modo Texto
-        </Text>
-      </Pressable>
+      {visibleModes.text && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.modeButton,
+            !visibleModes.visual ? styles.singleButton : styles.rightButton,
+            currentMode === 'Texto' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
+            pressed && styles.buttonPressed
+          ]}
+          onPress={() => handleModeSelect('Texto')}
+        >
+          <Text style={[
+            styles.modeText,
+            isDarkMode && styles.modeTextDark,
+            currentMode === 'Texto' && styles.activeText
+          ]}>
+            📝 Modo Texto
+          </Text>
+        </Pressable>
+      )}
     </Animated.View>
   );
 };
@@ -111,6 +115,9 @@ const styles = StyleSheet.create({
   },
   rightButton: {
     marginLeft: 2,
+  },
+  singleButton: {
+    // Sin márgenes para un solo botón
   },
   activeButton: {
     backgroundColor: '#3498db',
