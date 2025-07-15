@@ -80,7 +80,7 @@ const configOptions = roleOptionsMap[role] || [];
       navigation.navigate('CreateUser');
       break;
     case 'insertResults':
-      navigation.navigate('InsertResults');
+      navigation.navigate('Bankview');
       break;
     case 'lotteries':
       navigation.navigate('ManageLotteries');

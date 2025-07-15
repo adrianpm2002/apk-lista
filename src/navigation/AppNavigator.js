@@ -4,6 +4,7 @@ import LoginScreen from '../screens/LoginScreen';
 import MainAppScreen from '../screens/MainAppScreen';
 import CreateUserScreen from '../screens/CreateUserScreen';
 import InsertResultsScreen from '../screens/InsertResultsScreen';
+import ManageLotteriesScreen from '../screens/ManageLotteriesScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -43,6 +44,7 @@ const AppNavigator = () => (
         headerBackVisible: false,
       }}
     />
+    <Stack.Screen name="ManageLotteries" component={ManageLotteriesScreen} />
 
     <Stack.Screen name="CreateUser" component={CreateUserScreen} />
 
