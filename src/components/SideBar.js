@@ -41,6 +41,14 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
       icon: '💰',
       title: 'Configuración de Precios'
     },
+
+    {
+  id: 'createUser',
+  icon: '🧑‍💼',
+  title: 'Crear Usuario',
+  description: 'Crear nuevos usuarios en el sistema'
+},
+
     {
       id: 'settings',
       icon: '⚙️',
@@ -70,9 +78,14 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
   };
 
   const handleOptionPress = (option) => {
+  if (option.id === 'createUser') {
+    handleClose();
+    navigation.navigate('CreateUser');
+  } else {
     setModalContent(option);
     setModalVisible(true);
-  };
+  }
+};
 
   const closeModal = () => {
     setModalVisible(false);

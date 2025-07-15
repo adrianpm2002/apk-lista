@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -18,8 +19,8 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
   const slideAnim = useRef(new Animated.Value(-sidebarWidth)).current;
   const [modalVisible, setModalVisible] = useState(false);
   const [modalContent, setModalContent] = useState(null);
+  const nav = useNavigation();
 
-  // Opciones del sidebar
   const configOptions = [
     {
       id: 'limitedNumbers',
@@ -38,10 +39,16 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
       icon: '💰',
       title: 'Configuración de Precios',
       description: 'Ajustar precios y porcentajes'
-    }
+    },
+    {
+  id: 'createUser',
+  icon: '🧑‍💼',
+  title: 'Crear Usuario',
+  description: 'Crear nuevos usuarios en el sistema'
+}
+
   ];
 
-  // Animación del sidebar
   useEffect(() => {
     if (isVisible) {
       Animated.timing(slideAnim, {
@@ -63,9 +70,15 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
   };
 
   const handleOptionPress = (option) => {
+  if (option.id === 'createUser') {
+    handleClose();
+    navigation.navigate('CreateUser');
+  } else {
     setModalContent(option);
     setModalVisible(true);
-  };
+  }
+};
+
 
   const closeModal = () => {
     setModalVisible(false);
@@ -108,7 +121,6 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
 
   return (
     <>
-      {/* Sidebar Principal */}
       <Modal
         visible={isVisible}
         transparent
@@ -116,10 +128,7 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
         onRequestClose={handleClose}
       >
         <View style={styles.overlay}>
-          {/* Área para cerrar */}
           <Pressable style={styles.overlayTouchable} onPress={handleClose} />
-          
-          {/* Sidebar */}
           <Animated.View
             style={[
               styles.sidebar,
@@ -129,7 +138,6 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
               },
             ]}
           >
-            {/* Header */}
             <View style={[styles.header, isDarkMode && styles.headerDark]}>
               <View style={styles.appInfo}>
                 <Text style={styles.appLogo}>🎲</Text>
@@ -148,10 +156,8 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
               </Pressable>
             </View>
 
-            {/* Divider */}
             <View style={styles.divider} />
 
-            {/* Content */}
             <ScrollView 
               style={styles.content}
               showsVerticalScrollIndicator={false}
@@ -180,7 +186,6 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
               ))}
             </ScrollView>
 
-            {/* Footer */}
             <View style={[styles.footer, isDarkMode && styles.footerDark]}>
               <Pressable
                 style={({ pressed }) => [
@@ -194,7 +199,6 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
                   {isDarkMode ? 'Modo Claro' : 'Modo Oscuro'}
                 </Text>
               </Pressable>
-              
               <Pressable
                 style={({ pressed }) => [
                   styles.footerButton,
@@ -213,7 +217,6 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
         </View>
       </Modal>
 
-      {/* Modal para opciones */}
       <Modal
         visible={modalVisible}
         transparent
@@ -232,7 +235,6 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
 
 const SideBarToggle = ({ onToggle }) => {
   const handlePress = () => {
-    console.log('SideBarToggle pressed!');
     onToggle && onToggle();
   };
 
@@ -243,11 +245,10 @@ const SideBarToggle = ({ onToggle }) => {
         pressed && styles.toggleButtonPressed
       ]}
       onPress={handlePress}
-      onPressIn={() => console.log('SideBarToggle PRESS IN')}
-      onPressOut={() => console.log('SideBarToggle PRESS OUT')}
     >
       <Text style={styles.toggleIcon}>☰</Text>
     </Pressable>
+
   );
 };
 
