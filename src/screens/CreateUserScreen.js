@@ -1,68 +1,42 @@
+// src/screens/ManageUsersScreen.js
+
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, Alert, StyleSheet } from 'react-native';
+import { View, Text, Alert, Modal, StyleSheet, TextInput, Button, FlatList, TouchableOpacity } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { supabase } from '../supabaseClient';
 
-const CreateUserScreen = () => {
+const ManageUsersScreen = ({ isDarkMode }) => {
+  const [users, setUsers] = useState([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('');
   const [collectors, setCollectors] = useState([]);
   const [selectedCollector, setSelectedCollector] = useState('');
-  const [currentUserRole, setCurrentUserRole] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
 
   useEffect(() => {
-    const fetchCurrentUserRole = async () => {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError || !user) return;
-
-      setCurrentUserId(user.id);
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (data) {
-        setCurrentUserRole(data.role);
-        if (data.role === 'collector') {
-          setSelectedCollector(user.id); // Colector se autoasigna
-        }
-      }
-    };
-
-    fetchCurrentUserRole();
+    fetchUsers();
+    fetchCurrentUser();
   }, []);
 
-  useEffect(() => {
-    const fetchCollectors = async () => {
-      if (role !== 'listero') return;
+  const fetchUsers = async () => {
+    const { data, error } = await supabase.from('profiles').select('*');
+    if (!error) setUsers(data);
+  };
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, username')
-        .eq('role', 'collector');
+  const fetchCurrentUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) setCurrentUserId(user.id);
+  };
 
-      if (data) {
-        setCollectors(data);
-      }
-    };
-
-    fetchCollectors();
-  }, [role]);
-
-  const handleCreateUser = async () => {
-    if (!username || !password || role === '') {
-  Alert.alert('Error', 'Por favor completa todos los campos.');
-  return;
-}
-
+  const handleCreateOrUpdate = async () => {
+    if (!username || (!isEditing && !password) || !role) {
+      Alert.alert('Error', 'Todos los campos son obligatorios.');
+      return;
+    }
 
     if (username.includes('@')) {
       Alert.alert('Error', 'El nombre de usuario no debe contener "@".');
@@ -70,106 +44,164 @@ const CreateUserScreen = () => {
     }
 
     if (role === 'listero' && !selectedCollector) {
-      Alert.alert('Error', 'Debes seleccionar un colector para el listero.');
+      Alert.alert('Error', 'Debes seleccionar un colector.');
       return;
     }
 
     const fakeEmail = `${username.toLowerCase()}@example.com`;
-    console.log('Registrando email:', fakeEmail);
-    console.log('Datos insertados:', { role, username, assigned_collector: selectedCollector });
 
+    if (isEditing && editingUser) {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ username, role, assigned_collector: selectedCollector || null })
+        .eq('id', editingUser.id);
 
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email: fakeEmail,
-      password,
-    });
+      if (error) return Alert.alert('Error al actualizar', error.message);
+      Alert.alert('Éxito', 'Usuario actualizado');
+    } else {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: fakeEmail,
+        password,
+      });
 
-    if (signUpError) {
-      console.error(signUpError);
-      Alert.alert('Error al crear usuario', signUpError.message);
-      return;
-    }
+      if (signUpError) return Alert.alert('Error al registrar', signUpError.message);
 
-    const newUserId = signUpData.user?.id;
+      const newUserId = signUpData.user?.id;
 
-    if (newUserId) {
-      const insertData = {
-        id: newUserId,
-        username,
-        role,
-        created_by: currentUserId,
-        assigned_collector: role === 'listero' ? selectedCollector : null,
-      };
+      if (newUserId) {
+        const insertData = {
+          id: newUserId,
+          username,
+          role,
+          created_by: currentUserId,
+          assigned_collector: role === 'listero' ? selectedCollector : null,
+        };
 
-      const { error: profileError } = await supabase.from('profiles').insert(insertData);
-
-      if (profileError) {
-        console.error(profileError);
-        Alert.alert('Error al guardar perfil', profileError.message);
-        return;
+        const { error: insertError } = await supabase.from('profiles').insert(insertData);
+        if (insertError) return Alert.alert('Error al guardar perfil', insertError.message);
+        Alert.alert('Éxito', 'Usuario creado');
       }
-
-      Alert.alert('Éxito', 'Usuario creado correctamente.');
-      setUsername('');
-      setPassword('');
-      setRole('');
-      setSelectedCollector('');
     }
+
+    setModalVisible(false);
+    clearForm();
+    fetchUsers();
+  };
+
+  const handleDelete = async (id) => {
+    Alert.alert('Confirmar', '¿Eliminar este usuario?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase.from('profiles').delete().eq('id', id);
+          if (error) return Alert.alert('Error', error.message);
+          fetchUsers();
+        },
+      },
+    ]);
+  };
+
+  const openEditModal = (user) => {
+    setIsEditing(true);
+    setEditingUser(user);
+    setUsername(user.username);
+    setRole(user.role);
+    setSelectedCollector(user.assigned_collector || '');
+    setModalVisible(true);
+  };
+
+  const clearForm = () => {
+    setUsername('');
+    setPassword('');
+    setRole('');
+    setSelectedCollector('');
+    setIsEditing(false);
+    setEditingUser(null);
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Crear Usuario</Text>
+      <Text style={styles.title}>Gestión de Usuarios</Text>
 
-      <TextInput
-        placeholder='Nombre de usuario'
-        value={username}
-        onChangeText={setUsername}
-        style={styles.input}
+      <Button title="Crear Usuario" onPress={() => { clearForm(); setModalVisible(true); }} />
+
+      <FlatList
+        data={users}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View style={styles.userItem}>
+            <Text style={styles.userText}>{item.username} - {item.role}</Text>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity onPress={() => openEditModal(item)} style={styles.editButton}>
+                <Text style={styles.buttonText}>Editar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteButton}>
+                <Text style={styles.buttonText}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       />
 
-      <TextInput
-        placeholder='Contraseña'
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-        style={styles.input}
-      />
+      <Modal visible={modalVisible} animationType="slide">
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>{isEditing ? 'Editar Usuario' : 'Crear Usuario'}</Text>
 
-      <Text style={styles.label}>Rol:</Text>
-      <Picker
-        selectedValue={role}
-        onValueChange={(itemValue) => setRole(itemValue)}
-        enabled={currentUserRole === 'admin'}
-        style={styles.picker}
-      >
-        <Picker.Item label='Selecciona un rol' value='' />
-        <Picker.Item label='Colector' value='collector' />
-        <Picker.Item label='Listero' value='listero' />
-      </Picker>
+          <TextInput
+            placeholder="Nombre de usuario"
+            value={username}
+            onChangeText={setUsername}
+            style={styles.input}
+          />
 
-      {role === 'listero' && currentUserRole === 'admin' && (
-        <>
-          <Text style={styles.label}>Seleccionar colector:</Text>
+          {!isEditing && (
+            <TextInput
+              placeholder="Contraseña"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+              style={styles.input}
+            />
+          )}
+
+          <Text>Rol:</Text>
           <Picker
-            selectedValue={selectedCollector}
-            onValueChange={(itemValue) => setSelectedCollector(itemValue)}
+            selectedValue={role}
+            onValueChange={setRole}
             style={styles.picker}
           >
-            <Picker.Item label='Selecciona un colector' value='' />
-            {collectors.map((col) => (
-              <Picker.Item key={col.id} label={col.username} value={col.id} />
-            ))}
+            <Picker.Item label="Selecciona un rol" value="" />
+            <Picker.Item label="Colector" value="collector" />
+            <Picker.Item label="Listero" value="listero" />
           </Picker>
-        </>
-      )}
 
-      <Button title='Crear Usuario' onPress={handleCreateUser} />
+          {role === 'listero' && (
+            <>
+              <Text>Seleccionar colector:</Text>
+              <Picker
+                selectedValue={selectedCollector}
+                onValueChange={setSelectedCollector}
+                style={styles.picker}
+              >
+                <Picker.Item label="Selecciona un colector" value="" />
+                {users.filter(u => u.role === 'collector').map((col) => (
+                  <Picker.Item key={col.id} label={col.username} value={col.id} />
+                ))}
+              </Picker>
+            </>
+          )}
+
+          <Button title={isEditing ? 'Guardar Cambios' : 'Crear Usuario'} onPress={handleCreateOrUpdate} />
+          <Button title="Cancelar" color="grey" onPress={() => setModalVisible(false)} />
+        </View>
+      </Modal>
     </View>
   );
 };
 
-export default CreateUserScreen;
+export default ManageUsersScreen;
 
 const styles = StyleSheet.create({
   container: { padding: 20, flex: 1, backgroundColor: '#fff' },
@@ -183,11 +215,42 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#fff',
   },
-  label: { marginBottom: 5, fontWeight: 'bold' },
   picker: {
     borderWidth: 1,
     borderColor: '#ccc',
     marginBottom: 15,
     backgroundColor: '#fff',
+  },
+  userItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  userText: { fontSize: 16 },
+  buttonRow: { flexDirection: 'row' },
+  editButton: {
+    backgroundColor: '#3498db',
+    padding: 8,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+  deleteButton: {
+    backgroundColor: '#e74c3c',
+    padding: 8,
+    borderRadius: 5,
+  },
+  buttonText: { color: '#fff', fontWeight: 'bold' },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#F8FDF5',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
   },
 });
