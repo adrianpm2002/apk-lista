@@ -8,12 +8,11 @@ const CreateUserScreen = () => {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('');
   const [collectors, setCollectors] = useState([]);
-  const [selectedCollector, setSelectedCollector] = useState(null);
+  const [selectedCollector, setSelectedCollector] = useState('');
   const [currentUserRole, setCurrentUserRole] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
 
-  // Obtener rol del usuario logeado
-  /*useEffect(() => {
+  useEffect(() => {
     const fetchCurrentUserRole = async () => {
       const {
         data: { user },
@@ -33,23 +32,14 @@ const CreateUserScreen = () => {
       if (data) {
         setCurrentUserRole(data.role);
         if (data.role === 'collector') {
-          setSelectedCollector(user.id); // autoseleccionarse como colector
+          setSelectedCollector(user.id); // Colector se autoasigna
         }
       }
     };
-    
-   
-
 
     fetchCurrentUserRole();
-  }, []);*/
+  }, []);
 
-  useEffect(() => {
-  // Modo desarrollo forzando el rol a 'admin'
-  setCurrentUserRole('admin');
-}, []);
-
-  // Si el rol seleccionado es listero, cargar colectores
   useEffect(() => {
     const fetchCollectors = async () => {
       if (role !== 'listero') return;
@@ -68,8 +58,14 @@ const CreateUserScreen = () => {
   }, [role]);
 
   const handleCreateUser = async () => {
-    if (!username || !password || !role) {
-      Alert.alert('Error', 'Por favor completa todos los campos.');
+    if (!username || !password || role === '') {
+  Alert.alert('Error', 'Por favor completa todos los campos.');
+  return;
+}
+
+
+    if (username.includes('@')) {
+      Alert.alert('Error', 'El nombre de usuario no debe contener "@".');
       return;
     }
 
@@ -78,8 +74,10 @@ const CreateUserScreen = () => {
       return;
     }
 
-    // Crear email sintético
     const fakeEmail = `${username.toLowerCase()}@example.com`;
+    console.log('Registrando email:', fakeEmail);
+    console.log('Datos insertados:', { role, username, assigned_collector: selectedCollector });
+
 
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: fakeEmail,
@@ -87,6 +85,7 @@ const CreateUserScreen = () => {
     });
 
     if (signUpError) {
+      console.error(signUpError);
       Alert.alert('Error al crear usuario', signUpError.message);
       return;
     }
@@ -94,14 +93,18 @@ const CreateUserScreen = () => {
     const newUserId = signUpData.user?.id;
 
     if (newUserId) {
-      const { error: profileError } = await supabase.from('profiles').insert({
+      const insertData = {
         id: newUserId,
         username,
         role,
+        created_by: currentUserId,
         assigned_collector: role === 'listero' ? selectedCollector : null,
-      });
+      };
+
+      const { error: profileError } = await supabase.from('profiles').insert(insertData);
 
       if (profileError) {
+        console.error(profileError);
         Alert.alert('Error al guardar perfil', profileError.message);
         return;
       }
@@ -110,7 +113,7 @@ const CreateUserScreen = () => {
       setUsername('');
       setPassword('');
       setRole('');
-      setSelectedCollector(null);
+      setSelectedCollector('');
     }
   };
 
@@ -137,7 +140,7 @@ const CreateUserScreen = () => {
       <Picker
         selectedValue={role}
         onValueChange={(itemValue) => setRole(itemValue)}
-        enabled={currentUserRole === 'admin'} // solo admin puede elegir rol
+        enabled={currentUserRole === 'admin'}
         style={styles.picker}
       >
         <Picker.Item label='Selecciona un rol' value='' />
@@ -153,7 +156,7 @@ const CreateUserScreen = () => {
             onValueChange={(itemValue) => setSelectedCollector(itemValue)}
             style={styles.picker}
           >
-            <Picker.Item label='Selecciona un colector' value={null} />
+            <Picker.Item label='Selecciona un colector' value='' />
             {collectors.map((col) => (
               <Picker.Item key={col.id} label={col.username} value={col.id} />
             ))}
@@ -171,17 +174,20 @@ export default CreateUserScreen;
 const styles = StyleSheet.create({
   container: { padding: 20, flex: 1, backgroundColor: '#fff' },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 10, marginBottom: 15, borderRadius: 5 },
-  label: { marginBottom: 5, fontWeight: 'bold' },
-  picker: { borderWidth: 1, borderColor: '#ccc', marginBottom: 15 },
   input: {
-  borderWidth: 1,
-  borderColor: '#ccc',
-  paddingHorizontal: 10,
-  paddingVertical: 12,
-  marginBottom: 15,
-  borderRadius: 5,
-  backgroundColor: '#fff',
-},
+    borderWidth: 1,
+    borderColor: '#ccc',
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    marginBottom: 15,
+    borderRadius: 5,
+    backgroundColor: '#fff',
+  },
+  label: { marginBottom: 5, fontWeight: 'bold' },
+  picker: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    marginBottom: 15,
+    backgroundColor: '#fff',
+  },
 });
-

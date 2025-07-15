@@ -9,7 +9,7 @@ const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => (
   <Stack.Navigator
-    initialRouteName="MainApp"
+    initialRouteName="Login"
     screenOptions={{
       headerStyle: {
         backgroundColor: '#F8F9FA',
