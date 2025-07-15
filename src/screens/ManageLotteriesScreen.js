@@ -1,11 +1,12 @@
 // src/screens/ManageLotteriesScreen.js
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, Alert, FlatList, Pressable } from 'react-native';
+import { View, Text, Alert, FlatList, Pressable, TouchableOpacity, Platform } from 'react-native';
+
 import { supabase } from '../supabaseClient';
 import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
-import { TouchableOpacity } from 'react-native';
+
 
 const ManageLotteriesScreen = ({ isDarkMode }) => {
   const [lotteries, setLotteries] = useState([]);
@@ -44,39 +45,52 @@ const ManageLotteriesScreen = ({ isDarkMode }) => {
   };
 
   const handleDeleteLottery = async (id) => {
-  Alert.alert(
-    'Eliminar Lotería',
-    '¿Estás seguro de que deseas eliminar esta lotería?',
-    [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            console.log('Eliminando lotería con ID:', id);
+  const isWeb = Platform.OS === 'web';
 
+  if (isWeb) {
+    console.log('Eliminando directamente en web:', id);
+    const { error } = await supabase
+      .from('loteria')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error al eliminar:', error.message);
+      Alert.alert('Error al eliminar', error.message);
+    } else {
+      console.log('Lotería eliminada con éxito');
+      fetchLotteries();
+    }
+  } else {
+    Alert.alert(
+      'Eliminar Lotería',
+      '¿Estás seguro de que deseas eliminar esta lotería?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            console.log('Confirmado en nativo. Eliminando ID:', id);
             const { error } = await supabase
-              .from('loteria') // <-- CONFIRMA QUE ESTE ES EL NOMBRE CORRECTO
+              .from('loteria')
               .delete()
               .eq('id', id);
 
             if (error) {
-              console.error('Error al eliminar:', error);
+              console.error('Error al eliminar:', error.message);
               Alert.alert('Error al eliminar', error.message);
             } else {
-              console.log('Lotería eliminada con éxito');
-              fetchLotteries(); // refresca la lista
+              fetchLotteries();
             }
-          } catch (e) {
-            console.error('Error inesperado:', e);
-            Alert.alert('Error', 'Ha ocurrido un error inesperado');
           }
         }
-      }
-    ]
-  );
+      ]
+    );
+  }
 };
+
+
 
 
   useEffect(() => {
@@ -116,6 +130,7 @@ const ManageLotteriesScreen = ({ isDarkMode }) => {
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <View
+          
   style={{
     padding: 12,
     marginTop: 10,
@@ -124,6 +139,7 @@ const ManageLotteriesScreen = ({ isDarkMode }) => {
     borderColor: '#ccc',
     backgroundColor: isDarkMode ? '#2c3e50' : '#fff',
   }}
+  
 >
   <Text style={{ 
     fontSize: 16, 
@@ -131,6 +147,7 @@ const ManageLotteriesScreen = ({ isDarkMode }) => {
     color: isDarkMode ? '#fff' : '#000', 
     marginBottom: 8 
   }}>
+    
     {item.nombre}
   </Text>
 
@@ -138,7 +155,10 @@ const ManageLotteriesScreen = ({ isDarkMode }) => {
 
 
   <TouchableOpacity
-  onPress={() => handleDeleteLottery(item.id)}
+  onPress={() => {
+    console.log('Se hizo clic en eliminar', item.id); // <-- Asegura que esto aparece
+    handleDeleteLottery(item.id);
+  }}
   style={{
     alignSelf: 'flex-end',
     backgroundColor: '#e74c3c',
@@ -149,9 +169,11 @@ const ManageLotteriesScreen = ({ isDarkMode }) => {
 >
   <Text style={{ color: '#fff', fontWeight: '600' }}>Eliminar</Text>
 </TouchableOpacity>
+
 </View>
 
         )}
+        
       />
     </View>
   );

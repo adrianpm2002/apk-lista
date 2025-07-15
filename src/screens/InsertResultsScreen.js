@@ -54,25 +54,35 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
 
 
   const handleInsert = async () => {
-    if (!selectedLottery || !result) {
-      Alert.alert('Error', 'Selecciona lotería y escribe el resultado');
-      return;
-    }
+  if (!selectedLottery || !result) {
+    Alert.alert('Error', 'Selecciona lotería y escribe el resultado');
+    return;
+  }
 
-    const { error } = await supabase.from('resultados').insert({
+  console.log('Insertando resultado:', {
+    loteria_id: selectedLottery,
+    resultado: result,
+    fecha: date.toISOString().split('T')[0],
+  });
+
+  const { error } = await supabase.from('resultados').insert([
+    {
       loteria_id: selectedLottery,
       resultado: result,
       fecha: date.toISOString().split('T')[0],
-    });
-
-    if (error) {
-      Alert.alert('Error al guardar', error.message);
-      return;
     }
+  ]);
 
-    Alert.alert('Éxito', 'Resultado guardado');
-    setResult('');
-  };
+  if (error) {
+    console.error('Error Supabase:', error);
+    Alert.alert('Error al guardar', error.message);
+    return;
+  }
+
+  Alert.alert('Éxito', 'Resultado guardado');
+  setResult('');
+};
+
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
@@ -84,12 +94,13 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
         <Text style={styles.title}>Insertar Resultado</Text>
 
         <DropdownPicker
-          label="Lotería"
-          value={selectedLottery}
-          onSelect={setSelectedLottery}
-          options={lotteryOptions}
-          placeholder="Seleccionar lotería"
-        />
+  label="Lotería"
+  value={selectedLottery}
+  onSelect={(option) => setSelectedLottery(option.value)}
+  options={lotteryOptions}
+  placeholder="Seleccionar lotería"
+/>
+
 
         <Text style={styles.label}>Fecha</Text>
         <Pressable onPress={() => setShowDatePicker(true)} style={styles.dateDisplay}>
