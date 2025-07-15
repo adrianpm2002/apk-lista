@@ -13,7 +13,8 @@ import {
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkMode, navigation, onModeVisibilityChange }) => {
+const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkMode, navigation, onModeVisibilityChange, role }) => {
+
   const sidebarWidth = screenWidth * 0.75;
   const slideAnim = useRef(new Animated.Value(-sidebarWidth)).current;
   const [modalVisible, setModalVisible] = useState(false);
@@ -24,37 +25,31 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
     text: true
   });
 
-  // Opciones del sidebar
-  const configOptions = [
-    {
-      id: 'limitedNumbers',
-      icon: '📊',
-      title: 'Números Limitados'
-    },
-    {
-      id: 'listerLimits',
-      icon: '📋',
-      title: 'Límites del Listero'
-    },
-    {
-      id: 'prices',
-      icon: '💰',
-      title: 'Configuración de Precios'
-    },
+  // Opciones del sidebar por rol
+const roleOptionsMap = {
+  admin: [
+    { id: 'insertResults', icon: '🎯', title: 'Insertar Resultados' },
+    { id: 'lotteries', icon: '🎰', title: 'Gestionar Loterías' },
+    { id: 'createUser', icon: '🧑‍💼', title: 'Crear Usuario' },
+    { id: 'prices', icon: '💰', title: 'Configurar Precios' },
+    { id: 'listerLimits', icon: '📋', title: 'Limitar Usuarios' },
+    { id: 'limitedNumbers', icon: '📊', title: 'Limitar Números' },
+    { id: 'statistics', icon: '📈', title: 'Estadísticas' },
+    { id: 'settings', icon: '⚙️', title: 'Configuración' },
+  ],
+  colector: [
+    { id: 'createUser', icon: '🧑‍💼', title: 'Crear Listero' },
+    { id: 'listerLimits', icon: '📋', title: 'Limitar Listeros' },
+    { id: 'settings', icon: '⚙️', title: 'Configuración' },
+  ],
+  listero: [
+    { id: 'settings', icon: '⚙️', title: 'Configuración' },
+  ]
+};
 
-    {
-  id: 'createUser',
-  icon: '🧑‍💼',
-  title: 'Crear Usuario',
-  description: 'Crear nuevos usuarios en el sistema'
-},
+// Selección de opciones dinámicamente según rol
+const configOptions = roleOptionsMap[role] || [];
 
-    {
-      id: 'settings',
-      icon: '⚙️',
-      title: 'Configuración'
-    }
-  ];
 
   // Animación del sidebar
   useEffect(() => {
@@ -78,14 +73,39 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
   };
 
   const handleOptionPress = (option) => {
-  if (option.id === 'createUser') {
-    handleClose();
-    navigation.navigate('CreateUser');
-  } else {
-    setModalContent(option);
-    setModalVisible(true);
+  handleClose();
+
+  switch (option.id) {
+    case 'createUser':
+      navigation.navigate('CreateUser');
+      break;
+    case 'insertResults':
+      navigation.navigate('InsertResults');
+      break;
+    case 'lotteries':
+      navigation.navigate('ManageLotteries');
+      break;
+    case 'prices':
+      navigation.navigate('ManagePrices');
+      break;
+    case 'listerLimits':
+      navigation.navigate('UserLimits');
+      break;
+    case 'limitedNumbers':
+      navigation.navigate('NumberLimits');
+      break;
+    case 'statistics':
+      navigation.navigate('Statistics');
+      break;
+    case 'settings':
+      setModalContent(option);
+      setModalVisible(true);
+      break;
+    default:
+      Alert.alert('Opción aún no implementada');
   }
 };
+
 
   const closeModal = () => {
     setModalVisible(false);

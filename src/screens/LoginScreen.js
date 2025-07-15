@@ -50,7 +50,7 @@ export default function LoginScreen({ navigation }) {
 
   // Navegación basada en rol
   if (userRole === 'admin') {
-    navigation.navigate('MainApp'); // navega a toda la app
+    navigation.navigate('Bankview'); // navega a toda la app
   } else if (userRole === 'collector') {
     navigation.navigate('MainApp'); // navega a la app principal
   } else if (userRole === 'listero') {

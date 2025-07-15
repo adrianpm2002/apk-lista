@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/LoginScreen';
 import MainAppScreen from '../screens/MainAppScreen';
 import CreateUserScreen from '../screens/CreateUserScreen';
+import InsertResultsScreen from '../screens/InsertResultsScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -29,6 +30,14 @@ const AppNavigator = () => (
     <Stack.Screen 
       name="MainApp" 
       component={MainAppScreen}
+      options={{
+        headerShown: false,
+        headerBackVisible: false,
+      }}
+    />
+    <Stack.Screen 
+      name="Bankview" 
+      component={InsertResultsScreen}
       options={{
         headerShown: false,
         headerBackVisible: false,
