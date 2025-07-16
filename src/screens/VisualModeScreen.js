@@ -7,6 +7,7 @@ import {
   Pressable,
   Animated,
 } from 'react-native';
+import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import DropdownPicker from '../components/DropdownPicker';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import InputField from '../components/InputField';
@@ -19,6 +20,9 @@ import ListButton from '../components/ListButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 
 const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+  // Hook para guardar jugadas
+  const { submitPlayWithConfirmation } = usePlaySubmission();
+  
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // Cambiado a array para múltiple selección
   const [selectedSchedule, setSelectedSchedule] = useState(null);
@@ -77,7 +81,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
     { label: 'Tripleta', value: 'tripleta' },
   ];
 
-  const handleInsert = () => {
+  const handleInsert = async () => {
     // Resetear errores
     setLotteryError(false);
     setScheduleError(false);
@@ -137,14 +141,35 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
       note,
     });
     
-    // Aquí irá la lógica para guardar en la base de datos
-    alert('Jugada insertada correctamente');
+    // Guardar jugadas para cada lotería seleccionada
+    const savePromises = selectedLotteries.map(async (lottery) => {
+      const formData = {
+        lottery: lottery.value || lottery,
+        schedule: selectedSchedule.value || selectedSchedule,
+        playType: selectedPlayType.value || selectedPlayType,
+        numbers: plays,
+        amount: parseFloat(amount),
+        note: note || 'Sin nombre'
+      };
+      
+      console.log('Enviando datos para guardar:', formData);
+      return await submitPlayWithConfirmation(formData);
+    });
     
-    // Solo limpiar plays, amount, note y total - mantener lotería, horario y jugada
-    setPlays('');
-    setAmount('');
-    setNote('');
-    setTotal(0);
+    try {
+      const results = await Promise.all(savePromises);
+      const successCount = results.filter(r => r.success).length;
+      
+      if (successCount === selectedLotteries.length) {
+        // Solo limpiar plays, amount, note y total - mantener lotería, horario y jugada
+        setPlays('');
+        setAmount('');
+        setNote('');
+        setTotal(0);
+      }
+    } catch (error) {
+      console.error('Error al guardar jugadas:', error);
+    }
   };
 
   const handleClear = () => {

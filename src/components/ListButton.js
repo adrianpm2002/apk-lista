@@ -9,83 +9,61 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  RefreshControl,
 } from 'react-native';
+import { SavedPlaysStorage } from '../utils/storage';
 
 const ListButton = ({ onOptionSelect, isDarkMode = false }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [savedPlays, setSavedPlays] = useState([]);
   const [filteredPlays, setFilteredPlays] = useState([]);
+  const [displayedPlays, setDisplayedPlays] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [selectedLotteryFilter, setSelectedLotteryFilter] = useState('all');
   const [selectedScheduleFilter, setSelectedScheduleFilter] = useState('all');
   const [showOnlyWinners, setShowOnlyWinners] = useState(false);
   const [selectedPlays, setSelectedPlays] = useState(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-
-  // Datos simulados de jugadas guardadas (normalmente vendrían de una base de datos)
-  const mockSavedPlays = [
-    {
-      id: 1,
-      lottery: 'Georgia',
-      schedule: 'mediodia',
-      playType: 'fijo',
-      numbers: '12, 34, 56',
-      amount: 100,
-      total: 300,
-      note: 'Números de la suerte',
-      timestamp: new Date('2025-01-13T12:00:00'),
-      result: '12',
-      prize: 5000,
-      hasPrize: true
-    },
-    {
-      id: 2,
-      lottery: 'Florida',
-      schedule: 'noche',
-      playType: 'corrido',
-      numbers: '78, 90',
-      amount: 50,
-      total: 100,
-      note: 'Jugada especial',
-      timestamp: new Date('2025-01-13T18:00:00'),
-      result: 'no disponible',
-      prize: 'desconocido',
-      hasPrize: false
-    },
-    {
-      id: 3,
-      lottery: 'New York',
-      schedule: 'mediodia',
-      playType: 'parle',
-      numbers: '23, 45',
-      amount: 75,
-      total: 150,
-      note: 'Combinación ganadora',
-      timestamp: new Date('2025-01-12T12:30:00'),
-      result: '23',
-      prize: 3750,
-      hasPrize: true
-    },
-    {
-      id: 4,
-      lottery: 'Georgia',
-      schedule: 'noche',
-      playType: 'centena',
-      numbers: '123, 456',
-      amount: 25,
-      total: 50,
-      note: 'Prueba centena',
-      timestamp: new Date('2025-01-12T19:15:00'),
-      result: 'no disponible',
-      prize: 'desconocido',
-      hasPrize: false
-    }
-  ];
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasMoreData, setHasMoreData] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteMode, setDeleteMode] = useState('multiple'); // 'multiple' o 'single'
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  
+  const ITEMS_PER_PAGE = 20; // Cantidad de jugadas por página
 
   useEffect(() => {
-    // Simular carga de datos desde base de datos
-    setSavedPlays(mockSavedPlays.sort((a, b) => b.timestamp - a.timestamp));
+    loadSavedPlays();
   }, []);
+
+  const loadSavedPlays = async () => {
+    try {
+      setIsLoading(true);
+      let plays = await SavedPlaysStorage.getAll();
+      
+      // Si no hay datos, inicializar con datos de prueba
+      if (plays.length === 0) {
+        console.log('No hay jugadas guardadas, inicializando con datos de prueba...');
+        plays = await SavedPlaysStorage.initializeWithMockData();
+      }
+      
+      // Convertir timestamps de string a Date si es necesario
+      const playsWithDates = plays.map(play => ({
+        ...play,
+        timestamp: new Date(play.timestamp)
+      }));
+      
+      setSavedPlays(playsWithDates.sort((a, b) => b.timestamp - a.timestamp));
+    } catch (error) {
+      console.error('Error al cargar jugadas:', error);
+      Alert.alert('Error', 'No se pudieron cargar las jugadas guardadas');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Filtrar jugadas según criterios seleccionados
@@ -116,9 +94,18 @@ const ListButton = ({ onOptionSelect, isDarkMode = false }) => {
     }
 
     setFilteredPlays(filtered);
+    
+    // Resetear paginación cuando cambien los filtros
+    setCurrentPage(0);
+    setHasMoreData(true);
+    
+    // Mostrar primera página
+    const firstPage = filtered.slice(0, ITEMS_PER_PAGE);
+    setDisplayedPlays(firstPage);
+    setHasMoreData(filtered.length > ITEMS_PER_PAGE);
   }, [savedPlays, searchText, selectedLotteryFilter, selectedScheduleFilter, showOnlyWinners]);
 
-  // Calcular totales
+  // Calcular totales (usar filteredPlays en lugar de displayedPlays)
   const getTotals = () => {
     const totalRecogido = filteredPlays
       .filter(play => play.hasPrize)
@@ -129,6 +116,45 @@ const ListButton = ({ onOptionSelect, isDarkMode = false }) => {
       .reduce((sum, play) => sum + play.total, 0);
 
     return { totalRecogido, pendientePago };
+  };
+
+  // Función para cargar más datos (infinite scroll)
+  const loadMoreData = () => {
+    if (isLoadingMore || !hasMoreData) return;
+    
+    setIsLoadingMore(true);
+    
+    setTimeout(() => {
+      const nextPage = currentPage + 1;
+      const startIndex = nextPage * ITEMS_PER_PAGE;
+      const endIndex = startIndex + ITEMS_PER_PAGE;
+      const nextPageData = filteredPlays.slice(startIndex, endIndex);
+      
+      if (nextPageData.length > 0) {
+        setDisplayedPlays(prev => [...prev, ...nextPageData]);
+        setCurrentPage(nextPage);
+        setHasMoreData(endIndex < filteredPlays.length);
+      } else {
+        setHasMoreData(false);
+      }
+      
+      setIsLoadingMore(false);
+    }, 300); // Simular carga
+  };
+
+  // Función para pull-to-refresh
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadSavedPlays();
+      // Reset pagination
+      setCurrentPage(0);
+      setHasMoreData(true);
+    } catch (error) {
+      console.error('Error al refrescar:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const { totalRecogido, pendientePago } = getTotals();
@@ -161,72 +187,94 @@ const ListButton = ({ onOptionSelect, isDarkMode = false }) => {
   };
 
   const handlePlayPress = (playId) => {
+    console.log('handlePlayPress llamado - playId:', playId, 'isSelectionMode:', isSelectionMode);
     if (isSelectionMode) {
       togglePlaySelection(playId);
     }
   };
 
   const handlePlayLongPress = (playId) => {
+    console.log('handlePlayLongPress llamado - playId:', playId);
     if (!isSelectionMode) {
       setIsSelectionMode(true);
       setSelectedPlays(new Set([playId]));
+      console.log('Modo selección activado con ID:', playId);
     }
   };
 
   const togglePlaySelection = (playId) => {
+    console.log('togglePlaySelection llamado - playId:', playId);
     const newSelection = new Set(selectedPlays);
     if (newSelection.has(playId)) {
       newSelection.delete(playId);
+      console.log('ID removido de selección:', playId);
     } else {
       newSelection.add(playId);
+      console.log('ID agregado a selección:', playId);
     }
     setSelectedPlays(newSelection);
+    console.log('Nueva selección:', Array.from(newSelection));
     
     // Si no hay elementos seleccionados, salir del modo selección
     if (newSelection.size === 0) {
       setIsSelectionMode(false);
+      console.log('Modo selección desactivado');
     }
   };
 
-  const handleDeleteSelected = () => {
-    Alert.alert(
-      'Eliminar jugadas',
-      `¿Estás seguro de que quieres eliminar ${selectedPlays.size} jugada(s)?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => {
-            setSavedPlays(prev => prev.filter(play => !selectedPlays.has(play.id)));
-            setSelectedPlays(new Set());
-            setIsSelectionMode(false);
-          }
-        }
-      ]
-    );
+  const handleDeleteSelected = async () => {
+    console.log('🔥 handleDeleteSelected INICIADO');
+    console.log('🔥 selectedPlays.size:', selectedPlays.size);
+    console.log('🔥 selectedPlays array:', Array.from(selectedPlays));
+    
+    if (selectedPlays.size === 0) {
+      console.log('🔥 No hay jugadas seleccionadas');
+      return;
+    }
+    
+    console.log('🔥 Mostrando confirmación personalizada...');
+    setDeleteMode('multiple');
+    setDeleteTarget(Array.from(selectedPlays));
+    setShowDeleteConfirm(true);
   };
 
-  const handleDeleteSingle = (playId) => {
-    Alert.alert(
-      'Eliminar jugada',
-      '¿Estás seguro de que quieres eliminar esta jugada?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => {
-            setSavedPlays(prev => prev.filter(play => play.id !== playId));
-          }
-        }
-      ]
-    );
+  const performDelete = async () => {
+    try {
+      const idsToDelete = deleteMode === 'multiple' ? deleteTarget : [deleteTarget];
+      console.log('🔥 Ejecutando eliminación con IDs:', idsToDelete);
+      console.log('🔥 Jugadas actuales:', savedPlays.map(p => ({ id: p.id, lottery: p.lottery })));
+      
+      console.log('🔥 Llamando a SavedPlaysStorage.deleteMultiple...');
+      await SavedPlaysStorage.deleteMultiple(idsToDelete);
+      console.log('🔥 SavedPlaysStorage.deleteMultiple completado');
+      
+      console.log('🔥 Recargando datos...');
+      await loadSavedPlays();
+      console.log('🔥 Datos recargados');
+      
+      setSelectedPlays(new Set());
+      setIsSelectionMode(false);
+      setShowDeleteConfirm(false);
+      console.log('🔥 Estados limpiados');
+      
+      console.log('🔥 Proceso de eliminación COMPLETADO');
+    } catch (error) {
+      console.error('🔥 ERROR al eliminar jugadas:', error);
+    }
+  };
+
+  const handleDeleteSingle = async (playId) => {
+    console.log('handleDeleteSingle llamado con ID:', playId);
+    setDeleteMode('single');
+    setDeleteTarget(playId);
+    setShowDeleteConfirm(true);
   };
 
   const cancelSelection = () => {
+    console.log('cancelSelection llamado');
     setSelectedPlays(new Set());
     setIsSelectionMode(false);
+    console.log('Selección cancelada');
   };
 
   const renderPlayItem = ({ item }) => (
@@ -354,6 +402,32 @@ const ListButton = ({ onOptionSelect, isDarkMode = false }) => {
     </Pressable>
   );
 
+  // Componente para mostrar loading al final de la lista
+  const renderFooter = () => {
+    if (!isLoadingMore) return null;
+    
+    return (
+      <View style={styles.footerLoading}>
+        <Text style={[styles.footerLoadingText, isDarkMode && styles.footerLoadingTextDark]}>
+          Cargando más jugadas...
+        </Text>
+      </View>
+    );
+  };
+
+  // Componente para mostrar que no hay más datos
+  const renderNoMoreData = () => {
+    if (hasMoreData || displayedPlays.length === 0) return null;
+    
+    return (
+      <View style={styles.noMoreDataContainer}>
+        <Text style={[styles.noMoreDataText, isDarkMode && styles.noMoreDataTextDark]}>
+          Has visto todas las jugadas ({filteredPlays.length} total)
+        </Text>
+      </View>
+    );
+  };
+
   return (
     <>
       <Pressable
@@ -362,10 +436,59 @@ const ListButton = ({ onOptionSelect, isDarkMode = false }) => {
           pressed && styles.buttonPressed,
           isDarkMode && styles.buttonDark
         ]}
-        onPress={() => setIsVisible(true)}
+        onPress={() => {
+          setIsVisible(true);
+          loadSavedPlays(); // Recargar datos cuando se abra el modal
+        }}
       >
         <Text style={styles.buttonIcon}>📄</Text>
       </Pressable>
+
+      {/* Modal de confirmación de eliminación */}
+      <Modal
+        visible={showDeleteConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteConfirm(false)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={[styles.confirmModal, isDarkMode && styles.confirmModalDark]}>
+            <Text style={[styles.confirmTitle, isDarkMode && styles.confirmTitleDark]}>
+              Eliminar {deleteMode === 'multiple' ? 'jugadas' : 'jugada'}
+            </Text>
+            <Text style={[styles.confirmMessage, isDarkMode && styles.confirmMessageDark]}>
+              {deleteMode === 'multiple' 
+                ? `¿Estás seguro de que quieres eliminar ${deleteTarget?.length || 0} jugada(s)?`
+                : '¿Estás seguro de que quieres eliminar esta jugada?'
+              }
+            </Text>
+            <View style={styles.confirmButtons}>
+              <Pressable
+                style={[styles.confirmCancelButton, isDarkMode && styles.confirmCancelButtonDark]}
+                onPress={() => {
+                  console.log('🔥 Usuario CANCELÓ la eliminación');
+                  setShowDeleteConfirm(false);
+                }}
+              >
+                <Text style={[styles.confirmCancelText, isDarkMode && styles.confirmCancelTextDark]}>
+                  Cancelar
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.confirmDeleteButton, isDarkMode && styles.confirmDeleteButtonDark]}
+                onPress={() => {
+                  console.log('🔥 Usuario CONFIRMÓ la eliminación - iniciando proceso...');
+                  performDelete();
+                }}
+              >
+                <Text style={styles.confirmDeleteText}>
+                  Eliminar
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={isVisible}
@@ -379,9 +502,14 @@ const ListButton = ({ onOptionSelect, isDarkMode = false }) => {
             <View style={styles.topBar}>
               {!isSelectionMode ? (
                 <>
-                  <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
-                    Jugadas Guardadas
-                  </Text>
+                  <View style={styles.titleContainer}>
+                    <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
+                      Jugadas Guardadas
+                    </Text>
+                    <Text style={[styles.totalCount, isDarkMode && styles.totalCountDark]}>
+                      {displayedPlays.length} de {filteredPlays.length} jugadas
+                    </Text>
+                  </View>
                   
                   {/* Barra de búsqueda */}
                   <TextInput
@@ -418,7 +546,12 @@ const ListButton = ({ onOptionSelect, isDarkMode = false }) => {
                       </Pressable>
                       <Pressable
                         style={[styles.deleteSelectedButton, isDarkMode && styles.deleteSelectedButtonDark]}
-                        onPress={handleDeleteSelected}
+                        onPress={() => {
+                          console.log('Botón de eliminar presionado');
+                          console.log('selectedPlays.size:', selectedPlays.size);
+                          console.log('selectedPlays:', Array.from(selectedPlays));
+                          handleDeleteSelected();
+                        }}
                       >
                         <Text style={styles.deleteSelectedButtonText}>
                           🗑️ Eliminar ({selectedPlays.size})
@@ -471,19 +604,57 @@ const ListButton = ({ onOptionSelect, isDarkMode = false }) => {
               )}
             </View>
 
-            {/* Lista de jugadas */}
-            <FlatList
-              data={filteredPlays}
-              renderItem={renderPlayItem}
-              keyExtractor={(item) => item.id.toString()}
-              style={styles.playsList}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>
-                  No hay jugadas que coincidan con los filtros
+            {/* Lista de jugadas con infinite scroll */}
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={[styles.loadingText, isDarkMode && styles.loadingTextDark]}>
+                  Cargando jugadas...
                 </Text>
-              }
-            />
+              </View>
+            ) : (
+              <FlatList
+                data={displayedPlays}
+                renderItem={renderPlayItem}
+                keyExtractor={(item) => item.id.toString()}
+                style={styles.playsList}
+                showsVerticalScrollIndicator={false}
+                onEndReached={loadMoreData}
+                onEndReachedThreshold={0.1}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={isRefreshing}
+                    onRefresh={onRefresh}
+                    colors={['#27AE60']}
+                    tintColor={'#27AE60'}
+                    title="Actualizando jugadas..."
+                    titleColor={isDarkMode ? '#ECF0F1' : '#2D5016'}
+                  />
+                }
+                ListFooterComponent={() => (
+                  <>
+                    {renderFooter()}
+                    {renderNoMoreData()}
+                  </>
+                )}
+                ListEmptyComponent={
+                  <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>
+                    {filteredPlays.length === 0 && savedPlays.length > 0 
+                      ? 'No hay jugadas que coincidan con los filtros'
+                      : 'No hay jugadas guardadas'
+                    }
+                  </Text>
+                }
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                windowSize={10}
+                initialNumToRender={ITEMS_PER_PAGE}
+                getItemLayout={(data, index) => ({
+                  length: 120, // Altura aproximada de cada item
+                  offset: 120 * index,
+                  index,
+                })}
+              />
+            )}
 
             {/* Botón cerrar */}
             <Pressable
@@ -541,6 +712,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1,
   },
   modal: {
     backgroundColor: '#FFFFFF',
@@ -556,6 +728,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 8,
+    zIndex: 2,
   },
   modalDark: {
     backgroundColor: '#2C3E50',
@@ -563,15 +736,27 @@ const styles = StyleSheet.create({
   topBar: {
     marginBottom: 16,
   },
+  titleContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#2D5016',
     textAlign: 'center',
-    marginBottom: 12,
   },
   modalTitleDark: {
     color: '#ECF0F1',
+  },
+  totalCount: {
+    fontSize: 12,
+    color: '#7F8C8D',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  totalCountDark: {
+    color: '#BDC3C7',
   },
   searchInput: {
     backgroundColor: '#F8F9FA',
@@ -811,6 +996,20 @@ const styles = StyleSheet.create({
   emptyTextDark: {
     color: '#BDC3C7',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#7F8C8D',
+    fontStyle: 'italic',
+  },
+  loadingTextDark: {
+    color: '#BDC3C7',
+  },
   closeButton: {
     backgroundColor: '#E74C3C',
     borderRadius: 8,
@@ -986,6 +1185,124 @@ const styles = StyleSheet.create({
   },
   prizeValueWinner: {
     color: '#1B4F72',
+  },
+  // Estilos para infinite scroll
+  footerLoading: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerLoadingText: {
+    fontSize: 14,
+    color: '#7F8C8D',
+    fontStyle: 'italic',
+  },
+  footerLoadingTextDark: {
+    color: '#BDC3C7',
+  },
+  noMoreDataContainer: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#E9ECEF',
+    marginTop: 8,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+  },
+  noMoreDataText: {
+    fontSize: 12,
+    color: '#95A5A6',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  noMoreDataTextDark: {
+    color: '#7F8C8D',
+  },
+  // Estilos del modal de confirmación
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    zIndex: 1000,
+  },
+  confirmModal: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    minWidth: 280,
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 10,
+    zIndex: 1001,
+  },
+  confirmModalDark: {
+    backgroundColor: '#333',
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#000',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  confirmTitleDark: {
+    color: '#fff',
+  },
+  confirmMessage: {
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  confirmMessageDark: {
+    color: '#ccc',
+  },
+  confirmButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  confirmCancelButton: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  confirmCancelButtonDark: {
+    backgroundColor: '#555',
+  },
+  confirmDeleteButton: {
+    flex: 1,
+    backgroundColor: '#ff4444',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  confirmDeleteButtonDark: {
+    backgroundColor: '#cc3333',
+  },
+  confirmCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  confirmCancelTextDark: {
+    color: '#ccc',
+  },
+  confirmDeleteText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 

@@ -16,6 +16,7 @@ import HammerButton from '../components/HammerButton';
 import ListButton from '../components/ListButton';
 import InfoButton from '../components/InfoButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
+import { usePlaySubmission } from '../hooks/usePlaySubmission';
 
 const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   // Estados para los campos
@@ -31,6 +32,9 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
   const [lotteryErrorMessage, setLotteryErrorMessage] = useState('');
   const [scheduleError, setScheduleError] = useState(false);
   const [playsError, setPlaysError] = useState(false);
+
+  // Hook para enviar jugadas al almacenamiento
+  const { submitPlayWithConfirmation } = usePlaySubmission();
 
   // Datos para los dropdowns
   const lotteries = [
@@ -86,7 +90,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     alert(`Verificación:\nLotería: ${selectedLotteries.join(', ')}\nHorario: ${selectedSchedule}\nJugadas: ${playList.length}\nMonto: $${calculatedAmount.toFixed(2)}`);
   };
 
-  const handleInsert = () => {
+  const handleInsert = async () => {
     // Resetear errores
     setLotteryError(false);
     setScheduleError(false);
@@ -123,21 +127,43 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
       return;
     }
 
-    console.log('Insertar jugada:', {
-      lotteries: selectedLotteries,
-      schedule: selectedSchedule,
-      plays,
-      note,
-      amount: calculatedAmount,
-    });
-
-    alert('Jugada insertada correctamente');
+    // Procesar las jugadas del campo de texto
+    const playList = plays.split(',').filter(play => play.trim() !== '');
     
-    // Solo limpiar plays, note y montos - mantener lotería y horario
-    setPlays('');
-    setNote('');
-    setCalculatedAmount(0);
-    setTotal(0);
+    try {
+      // Crear un objeto de jugada para cada lotería seleccionada
+      const playsToSave = [];
+      
+      for (const lottery of selectedLotteries) {
+        const playData = {
+          lottery: lottery,
+          schedule: selectedSchedule,
+          numbers: playList,
+          note: note.trim(),
+          amount: calculatedAmount,
+          total: calculatedAmount
+        };
+        
+        playsToSave.push(playData);
+      }
+      
+      // Usar Promise.all para guardar todas las jugadas
+      await Promise.all(
+        playsToSave.map(playData => 
+          submitPlayWithConfirmation(playData)
+        )
+      );
+      
+      // Solo limpiar plays, note y montos - mantener lotería y horario
+      setPlays('');
+      setNote('');
+      setCalculatedAmount(0);
+      setTotal(0);
+      
+    } catch (error) {
+      console.error('Error al guardar las jugadas:', error);
+      alert('Error al guardar las jugadas. Inténtalo de nuevo.');
+    }
   };
 
   const handleTopBarOption = (option) => {

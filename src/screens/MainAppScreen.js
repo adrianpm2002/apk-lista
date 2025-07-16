@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,35 +6,50 @@ import {
 import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
 import ModeSelector from '../components/ModeSelector';
+import { useAppSettings } from '../hooks/useStorage';
 
 const MainAppScreen = ({ navigation }) => {
+  const { settings, updateSettings } = useAppSettings();
   const [currentMode, setCurrentMode] = useState('Visual');
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [visibleModes, setVisibleModes] = useState({
-    visual: true,
-    text: true
-  });
+  
+  // Usar configuraciones persistentes
+  const isDarkMode = settings.isDarkMode;
+  const visibleModes = settings.visibleModes;
+
+  useEffect(() => {
+    // Si el modo actual no es visible, cambiar al primer modo disponible
+    if (currentMode === 'Visual' && !visibleModes.visual && visibleModes.text) {
+      setCurrentMode('Texto');
+    } else if (currentMode === 'Texto' && !visibleModes.text && visibleModes.visual) {
+      setCurrentMode('Visual');
+    }
+  }, [visibleModes, currentMode]);
 
   const handleModeChange = (newMode) => {
     if (newMode === currentMode) return;
     setCurrentMode(newMode);
   };
 
-  const handleToggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
+  const handleToggleDarkMode = async () => {
+    try {
+      await updateSettings({ isDarkMode: !isDarkMode });
+    } catch (error) {
+      console.error('Error al cambiar tema:', error);
+    }
   };
 
-  const handleModeVisibilityChange = (newVisibleModes) => {
-    setVisibleModes(newVisibleModes);
-    
-    // Si el modo actual ya no es visible, cambiar al primer modo visible
-    if ((currentMode === 'Visual' && !newVisibleModes.visual) ||
-        (currentMode === 'Texto' && !newVisibleModes.text)) {
-      if (newVisibleModes.visual) {
-        setCurrentMode('Visual');
-      } else if (newVisibleModes.text) {
+  const handleModeVisibilityChange = async (newVisibleModes) => {
+    try {
+      await updateSettings({ visibleModes: newVisibleModes });
+      
+      // Si el modo actual ya no es visible, cambiar al primer modo visible
+      if (currentMode === 'Visual' && !newVisibleModes.visual && newVisibleModes.text) {
         setCurrentMode('Texto');
+      } else if (currentMode === 'Texto' && !newVisibleModes.text && newVisibleModes.visual) {
+        setCurrentMode('Visual');
       }
+    } catch (error) {
+      console.error('Error al actualizar visibilidad de modos:', error);
     }
   };
 
