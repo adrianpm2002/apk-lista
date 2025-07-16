@@ -5,8 +5,8 @@ import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { format } from 'date-fns';
+import DateTimePicker from '../components/DateTimePickerWrapper';
+import { format } from '../utils/dateUtils';
 
 const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   const [lotteryOptions, setLotteryOptions] = useState([]);

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, Alert, Modal, StyleSheet, TextInput, Button, FlatList, TouchableOpacity } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../components/PickerWrapper';
 import { supabase } from '../supabaseClient';
 
 const ManageUsersScreen = ({ isDarkMode }) => {

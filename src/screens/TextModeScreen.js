@@ -305,6 +305,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
         onToggleDarkMode={onToggleDarkMode}
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
+        role="listero"
       />
     </View>
   );

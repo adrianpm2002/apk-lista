@@ -372,6 +372,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
         onToggleDarkMode={onToggleDarkMode}
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
+        role="listero"
       />
     </View>
   );

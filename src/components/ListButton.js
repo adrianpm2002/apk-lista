@@ -8,7 +8,6 @@ import {
   FlatList,
   TextInput,
   ScrollView,
-  Alert,
   RefreshControl,
 } from 'react-native';
 import { SavedPlaysStorage } from '../utils/storage';
@@ -59,7 +58,8 @@ const ListButton = ({ onOptionSelect, isDarkMode = false }) => {
       setSavedPlays(playsWithDates.sort((a, b) => b.timestamp - a.timestamp));
     } catch (error) {
       console.error('Error al cargar jugadas:', error);
-      Alert.alert('Error', 'No se pudieron cargar las jugadas guardadas');
+      // Aquí se podría mostrar un toast o mensaje de error personalizado
+      // Por ahora solo log del error
     } finally {
       setIsLoading(false);
     }

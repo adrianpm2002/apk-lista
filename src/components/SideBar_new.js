@@ -10,7 +10,6 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -19,7 +18,6 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
   const slideAnim = useRef(new Animated.Value(-sidebarWidth)).current;
   const [modalVisible, setModalVisible] = useState(false);
   const [modalContent, setModalContent] = useState(null);
-  const nav = useNavigation();
 
   const configOptions = [
     {
@@ -41,12 +39,11 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
       description: 'Ajustar precios y porcentajes'
     },
     {
-  id: 'createUser',
-  icon: '🧑‍💼',
-  title: 'Crear Usuario',
-  description: 'Crear nuevos usuarios en el sistema'
-}
-
+      id: 'createUser',
+      icon: '🧑‍💼',
+      title: 'Crear Usuario',
+      description: 'Crear nuevos usuarios en el sistema'
+    }
   ];
 
   useEffect(() => {
