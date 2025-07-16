@@ -2,29 +2,64 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, Alert } from 'react-native';
 import { supabase } from '../supabaseClient';
 import Svg, { Path, G } from 'react-native-svg';
+import { useNavigation } from '@react-navigation/native';
 
 export default function LoginScreen({ navigation }) {
-  const [email, setEmail] = useState('');
+ const [username, setUsername] = useState('');
+
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
-  if (!email || !password) {
-    Alert.alert('Error', 'Por favor ingresa email y contraseña');
+  if (!username || !password) {
+    Alert.alert('Error', 'Por favor ingresa nombre de usuario y contraseña');
     return;
   }
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const email = `${username.toLowerCase()}@example.com`;
+
+  const { data: authData, error: loginError } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
-  if (error) {
+  if (loginError) {
     Alert.alert('Error de autenticación', 'Usuario o contraseña incorrectos');
     return;
   }
 
-  navigation.navigate('MainApp');
+  const userId = authData.user?.id;
+
+  if (!userId) {
+    Alert.alert('Error', 'No se pudo obtener el usuario.');
+    return;
+  }
+
+  // Obtener rol del perfil
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+
+  if (profileError || !profile) {
+    Alert.alert('Error', 'No se pudo obtener el perfil del usuario.');
+    return;
+  }
+
+  const userRole = profile.role;
+
+  // Navegación basada en rol
+  if (userRole === 'admin') {
+    navigation.navigate('Bankview'); // navega a toda la app
+  } else if (userRole === 'collector') {
+    navigation.navigate('MainApp'); // navega a la app principal
+  } else if (userRole === 'listero') {
+    navigation.navigate('MainApp'); // navega a la app principal
+  } else {
+    Alert.alert('Error', 'Rol de usuario no reconocido');
+  }
 };
+
 
   return (
     <View style={styles.container}>
@@ -32,7 +67,7 @@ export default function LoginScreen({ navigation }) {
         <Text style={styles.title}>Iniciar sesión</Text>
 
         <View style={styles.flexColumn}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>Nombre de Usuario</Text>
         </View>
         <View style={styles.inputForm}>
           <Svg width={20} height={20} viewBox="0 0 32 32">
@@ -42,12 +77,11 @@ export default function LoginScreen({ navigation }) {
           </Svg>
           <TextInput
             style={styles.input}
-            placeholder="Ingresa tu email"
+            placeholder="Ingresa tu nombre de usuario"
             placeholderTextColor="#B8B8B8"
-            value={email}
-            onChangeText={setEmail}
+            value={username}
+            onChangeText={setUsername}
             autoCapitalize="none"
-            keyboardType="email-address"
           />
         </View>
 

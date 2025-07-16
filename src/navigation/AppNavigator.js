@@ -2,12 +2,16 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/LoginScreen';
 import MainAppScreen from '../screens/MainAppScreen';
+import CreateUserScreen from '../screens/CreateUserScreen';
+import InsertResultsScreen from '../screens/InsertResultsScreen';
+import ManageLotteriesScreen from '../screens/ManageLotteriesScreen';
+
 
 const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => (
   <Stack.Navigator
-    initialRouteName="MainApp"
+    initialRouteName="Login"
     screenOptions={{
       headerStyle: {
         backgroundColor: '#F8F9FA',
@@ -32,6 +36,18 @@ const AppNavigator = () => (
         headerBackVisible: false,
       }}
     />
+    <Stack.Screen 
+      name="Bankview" 
+      component={InsertResultsScreen}
+      options={{
+        headerShown: false,
+        headerBackVisible: false,
+      }}
+    />
+    <Stack.Screen name="ManageLotteries" component={ManageLotteriesScreen} />
+
+    <Stack.Screen name="CreateUser" component={CreateUserScreen} />
+
   </Stack.Navigator>
 );
 
