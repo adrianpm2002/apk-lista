@@ -6,7 +6,7 @@ import ActionButton from '../components/ActionButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import DateTimePicker from '../components/DateTimePickerWrapper';
-import { format } from '../utils/dateUtils';
+import { format } from 'date-fns';
 
 const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   const [lotteryOptions, setLotteryOptions] = useState([]);
