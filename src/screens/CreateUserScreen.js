@@ -28,11 +28,24 @@ const ManageUsersScreen = ({ isDarkMode }) => {
   };
 
   const fetchCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) setCurrentUserId(user.id);
-  };
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (error || data.role !== 'collector') {
+      Alert.alert('No Autorizado', 'Solo los administradores pueden gestionar usuarios');
+      // Redirigir o bloquear la funcionalidad
+    }
+    setCurrentUserId(user.id);
+  }
+};
 
   const handleCreateOrUpdate = async () => {
+  try {
     if (!username || (!isEditing && !password) || !role) {
       Alert.alert('Error', 'Todos los campos son obligatorios.');
       return;
@@ -53,10 +66,18 @@ const ManageUsersScreen = ({ isDarkMode }) => {
     if (isEditing && editingUser) {
       const { error } = await supabase
         .from('profiles')
-        .update({ username, role, assigned_collector: selectedCollector || null })
+        .update({
+          username,
+          role,
+          assigned_collector: selectedCollector || null,
+        })
         .eq('id', editingUser.id);
 
-      if (error) return Alert.alert('Error al actualizar', error.message);
+      if (error) {
+        console.error('Update Error:', error);
+        return Alert.alert('Error al actualizar', error.message);
+      }
+
       Alert.alert('Éxito', 'Usuario actualizado');
     } else {
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -64,7 +85,10 @@ const ManageUsersScreen = ({ isDarkMode }) => {
         password,
       });
 
-      if (signUpError) return Alert.alert('Error al registrar', signUpError.message);
+      if (signUpError) {
+        console.error('SignUp Error:', signUpError);
+        return Alert.alert('Error al registrar', signUpError.message);
+      }
 
       const newUserId = signUpData.user?.id;
 
@@ -77,8 +101,17 @@ const ManageUsersScreen = ({ isDarkMode }) => {
           assigned_collector: role === 'listero' ? selectedCollector : null,
         };
 
-        const { error: insertError } = await supabase.from('profiles').insert(insertData);
-        if (insertError) return Alert.alert('Error al guardar perfil', insertError.message);
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert(insertData, { returning: 'minimal' });
+
+        if (insertError) {
+          console.error('Insert Error:', insertError);
+          // Eliminar el usuario de auth si falla el insert
+          await supabase.auth.admin.deleteUser(newUserId);
+          return Alert.alert('Error al guardar perfil', insertError.message);
+        }
+
         Alert.alert('Éxito', 'Usuario creado');
       }
     }
@@ -86,7 +119,12 @@ const ManageUsersScreen = ({ isDarkMode }) => {
     setModalVisible(false);
     clearForm();
     fetchUsers();
-  };
+  } catch (error) {
+    console.error('Unexpected Error:', error);
+    Alert.alert('Error inesperado', error.message || 'Ocurrió un problema inesperado.');
+  }
+};
+
 
   const handleDelete = async (id) => {
     Alert.alert('Confirmar', '¿Eliminar este usuario?', [
