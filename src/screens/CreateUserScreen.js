@@ -64,21 +64,26 @@ const ManageUsersScreen = ({ isDarkMode }) => {
     const fakeEmail = `${username.toLowerCase()}@example.com`;
 
     if (isEditing && editingUser) {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          username,
-          role,
-          assigned_collector: selectedCollector || null,
-        })
-        .eq('id', editingUser.id);
+      // Usar función de base de datos para actualizar tanto profiles como auth
+      const { data, error } = await supabase.rpc('update_user_profile_and_auth', {
+        user_id: editingUser.id,
+        new_username: username,
+        new_role: role,
+        new_assigned_collector: selectedCollector || null
+      });
 
       if (error) {
         console.error('Update Error:', error);
         return Alert.alert('Error al actualizar', error.message);
       }
 
-      Alert.alert('Éxito', 'Usuario actualizado');
+      // Verificar si la función retornó un error
+      if (data && !data.success) {
+        console.error('Function Error:', data.error);
+        return Alert.alert('Error al actualizar', data.message || data.error);
+      }
+
+      Alert.alert('Éxito', 'Usuario actualizado correctamente');
     } else {
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: fakeEmail,
@@ -127,18 +132,39 @@ const ManageUsersScreen = ({ isDarkMode }) => {
 
 
   const handleDelete = async (id) => {
-    Alert.alert('Confirmar', '¿Eliminar este usuario?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase.from('profiles').delete().eq('id', id);
-          if (error) return Alert.alert('Error', error.message);
-          fetchUsers();
-        },
-      },
-    ]);
+    console.log('handleDelete called with id:', id); // Debug log
+    
+    // Usar confirm nativo para web en lugar de Alert.alert
+    const shouldDelete = window.confirm('¿Estás seguro de que quieres eliminar este usuario?');
+    
+    if (shouldDelete) {
+      try {
+        console.log('Attempting to delete user:', id); // Debug log
+        // Usar función de base de datos para eliminar tanto profiles como auth
+        const { data, error } = await supabase.rpc('delete_user_complete', {
+          user_id: id
+        });
+
+        if (error) {
+          console.error('Delete Error:', error);
+          return Alert.alert('Error al eliminar', error.message);
+        }
+
+        // Verificar si la función retornó un error
+        if (data && !data.success) {
+          console.error('Function Delete Error:', data.error);
+          return Alert.alert('Error al eliminar', data.message || data.error);
+        }
+
+        Alert.alert('Éxito', 'Usuario eliminado completamente');
+        fetchUsers();
+      } catch (error) {
+        console.error('Unexpected Delete Error:', error);
+        Alert.alert('Error inesperado', error.message || 'Ocurrió un problema al eliminar el usuario.');
+      }
+    } else {
+      console.log('User cancelled deletion');
+    }
   };
 
   const openEditModal = (user) => {
@@ -175,7 +201,14 @@ const ManageUsersScreen = ({ isDarkMode }) => {
               <TouchableOpacity onPress={() => openEditModal(item)} style={styles.editButton}>
                 <Text style={styles.buttonText}>Editar</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteButton}>
+              <TouchableOpacity 
+                onPress={() => {
+                  console.log('Delete button pressed for user:', item.id, item.username);
+                  handleDelete(item.id);
+                }} 
+                style={styles.deleteButton}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.buttonText}>Eliminar</Text>
               </TouchableOpacity>
             </View>
@@ -279,6 +312,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#e74c3c',
     padding: 8,
     borderRadius: 5,
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonText: { color: '#fff', fontWeight: 'bold' },
   modalContent: {
