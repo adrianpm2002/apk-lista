@@ -52,11 +52,24 @@ const ManageUsersScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVis
   };
 
   const fetchCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) setCurrentUserId(user.id);
-  };
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (error || data.role !== 'collector') {
+      Alert.alert('No Autorizado', 'Solo los administradores pueden gestionar usuarios');
+      // Redirigir o bloquear la funcionalidad
+    }
+    setCurrentUserId(user.id);
+  }
+};
 
   const handleCreateOrUpdate = async () => {
+  try {
     if (!username || (!isEditing && !password) || !role) {
       Alert.alert('Error', 'Todos los campos son obligatorios.');
       return;
@@ -75,20 +88,36 @@ const ManageUsersScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVis
     const fakeEmail = `${username.toLowerCase()}@example.com`;
 
     if (isEditing && editingUser) {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ username, role, assigned_collector: selectedCollector || null })
-        .eq('id', editingUser.id);
+      // Usar función de base de datos para actualizar tanto profiles como auth
+      const { data, error } = await supabase.rpc('update_user_profile_and_auth', {
+        user_id: editingUser.id,
+        new_username: username,
+        new_role: role,
+        new_assigned_collector: selectedCollector || null
+      });
 
-      if (error) return Alert.alert('Error al actualizar', error.message);
-      Alert.alert('Éxito', 'Usuario actualizado');
+      if (error) {
+        console.error('Update Error:', error);
+        return Alert.alert('Error al actualizar', error.message);
+      }
+
+      // Verificar si la función retornó un error
+      if (data && !data.success) {
+        console.error('Function Error:', data.error);
+        return Alert.alert('Error al actualizar', data.message || data.error);
+      }
+
+      Alert.alert('Éxito', 'Usuario actualizado correctamente');
     } else {
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: fakeEmail,
         password,
       });
 
-      if (signUpError) return Alert.alert('Error al registrar', signUpError.message);
+      if (signUpError) {
+        console.error('SignUp Error:', signUpError);
+        return Alert.alert('Error al registrar', signUpError.message);
+      }
 
       const newUserId = signUpData.user?.id;
 
@@ -101,8 +130,17 @@ const ManageUsersScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVis
           assigned_collector: role === 'listero' ? selectedCollector : null,
         };
 
-        const { error: insertError } = await supabase.from('profiles').insert(insertData);
-        if (insertError) return Alert.alert('Error al guardar perfil', insertError.message);
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert(insertData, { returning: 'minimal' });
+
+        if (insertError) {
+          console.error('Insert Error:', insertError);
+          // Eliminar el usuario de auth si falla el insert
+          await supabase.auth.admin.deleteUser(newUserId);
+          return Alert.alert('Error al guardar perfil', insertError.message);
+        }
+
         Alert.alert('Éxito', 'Usuario creado');
       }
     }
@@ -110,21 +148,47 @@ const ManageUsersScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVis
     setModalVisible(false);
     clearForm();
     fetchUsers();
-  };
+  } catch (error) {
+    console.error('Unexpected Error:', error);
+    Alert.alert('Error inesperado', error.message || 'Ocurrió un problema inesperado.');
+  }
+};
+
 
   const handleDelete = async (id) => {
-    Alert.alert('Confirmar', '¿Eliminar este usuario?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase.from('profiles').delete().eq('id', id);
-          if (error) return Alert.alert('Error', error.message);
-          fetchUsers();
-        },
-      },
-    ]);
+    console.log('handleDelete called with id:', id); // Debug log
+    
+    // Usar confirm nativo para web en lugar de Alert.alert
+    const shouldDelete = window.confirm('¿Estás seguro de que quieres eliminar este usuario?');
+    
+    if (shouldDelete) {
+      try {
+        console.log('Attempting to delete user:', id); // Debug log
+        // Usar función de base de datos para eliminar tanto profiles como auth
+        const { data, error } = await supabase.rpc('delete_user_complete', {
+          user_id: id
+        });
+
+        if (error) {
+          console.error('Delete Error:', error);
+          return Alert.alert('Error al eliminar', error.message);
+        }
+
+        // Verificar si la función retornó un error
+        if (data && !data.success) {
+          console.error('Function Delete Error:', data.error);
+          return Alert.alert('Error al eliminar', data.message || data.error);
+        }
+
+        Alert.alert('Éxito', 'Usuario eliminado completamente');
+        fetchUsers();
+      } catch (error) {
+        console.error('Unexpected Delete Error:', error);
+        Alert.alert('Error inesperado', error.message || 'Ocurrió un problema al eliminar el usuario.');
+      }
+    } else {
+      console.log('User cancelled deletion');
+    }
   };
 
   const openEditModal = (user) => {
@@ -167,7 +231,14 @@ const ManageUsersScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVis
               <TouchableOpacity onPress={() => openEditModal(item)} style={styles.editButton}>
                 <Text style={styles.buttonText}>Editar</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteButton}>
+              <TouchableOpacity 
+                onPress={() => {
+                  console.log('Delete button pressed for user:', item.id, item.username);
+                  handleDelete(item.id);
+                }} 
+                style={styles.deleteButton}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.buttonText}>Eliminar</Text>
               </TouchableOpacity>
             </View>
@@ -321,6 +392,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#e74c3c',
     padding: 8,
     borderRadius: 5,
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonText: { color: '#fff', fontWeight: 'bold' },
   modalContent: {

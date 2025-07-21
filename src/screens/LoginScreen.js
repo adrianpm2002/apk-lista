@@ -39,7 +39,7 @@ export default function LoginScreen({ navigation }) {
     .from('profiles')
     .select('role')
     .eq('id', userId)
-    .single();
+    .maybeSingle();
 
   if (profileError || !profile) {
     Alert.alert('Error', 'No se pudo obtener el perfil del usuario.');
