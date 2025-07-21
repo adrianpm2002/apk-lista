@@ -1,21 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Alert, StyleSheet, Platform, Pressable } from 'react-native';
+import { View, Text, ScrollView, Alert, StyleSheet, SafeAreaView } from 'react-native';
 import DropdownPicker from '../components/DropdownPicker';
 import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
-import DateTimePicker from '../components/DateTimePickerWrapper';
-import { format } from 'date-fns';
 
 const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   const [lotteryOptions, setLotteryOptions] = useState([]);
   const [selectedLottery, setSelectedLottery] = useState(null);
+  const [selectedLotteryLabel, setSelectedLotteryLabel] = useState('');
+  const [horarioOptions, setHorarioOptions] = useState([]);
+  const [selectedHorario, setSelectedHorario] = useState(null);
+  const [selectedHorarioLabel, setSelectedHorarioLabel] = useState('');
   const [result, setResult] = useState('');
-  const [date, setDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
+
+  // Estados para errores de validación
+  const [errors, setErrors] = useState({
+    lottery: false,
+    horario: false,
+    result: false
+  });
 
   const fetchLoterias = async () => {
     const { data, error } = await supabase.from('loteria').select('id, nombre');
@@ -25,6 +32,35 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
     }
     const options = data.map((l) => ({ label: l.nombre, value: l.id }));
     setLotteryOptions(options);
+  };
+
+  const fetchHorarios = async (lotteryId) => {
+    if (!lotteryId) {
+      setHorarioOptions([]);
+      setSelectedHorario(null);
+      setSelectedHorarioLabel('');
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('horario')
+      .select('id, nombre, hora_inicio, hora_fin')
+      .eq('id_loteria', lotteryId)
+      .order('hora_inicio', { ascending: true });
+
+    if (error) {
+      console.error('Error cargando horarios:', error);
+      Alert.alert('Error cargando horarios');
+      return;
+    }
+
+    const options = data.map((h) => ({ 
+      label: `${h.nombre} (${h.hora_inicio.slice(0,5)} - ${h.hora_fin.slice(0,5)})`, 
+      value: h.id 
+    }));
+    setHorarioOptions(options);
+    setSelectedHorario(null);
+    setSelectedHorarioLabel('');
   };
 
   useEffect(() => {
@@ -54,98 +90,162 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
 
 
   const handleInsert = async () => {
-  if (!selectedLottery || !result) {
-    Alert.alert('Error', 'Selecciona lotería y escribe el resultado');
-    return;
-  }
+    // Resetear errores
+    setErrors({
+      lottery: false,
+      horario: false,
+      result: false
+    });
 
-  console.log('Insertando resultado:', {
-    loteria_id: selectedLottery,
-    resultado: result,
-    fecha: date.toISOString().split('T')[0],
-  });
+    let hasErrors = false;
+    let errorMessages = [];
 
-  const { error } = await supabase.from('resultados').insert([
-    {
-      loteria_id: selectedLottery,
-      resultado: result,
-      fecha: date.toISOString().split('T')[0],
+    // Validar lotería
+    if (!selectedLottery) {
+      setErrors(prev => ({ ...prev, lottery: true }));
+      hasErrors = true;
+      errorMessages.push('- Seleccionar lotería');
     }
-  ]);
 
-  if (error) {
-    console.error('Error Supabase:', error);
-    Alert.alert('Error al guardar', error.message);
-    return;
-  }
+    // Validar horario
+    if (!selectedHorario) {
+      setErrors(prev => ({ ...prev, horario: true }));
+      hasErrors = true;
+      errorMessages.push('- Seleccionar horario');
+    }
 
-  Alert.alert('Éxito', 'Resultado guardado');
-  setResult('');
-};
+    // Validar resultado
+    const numbersOnly = result.trim().replace(/\D/g, '');
+    if (!result.trim()) {
+      setErrors(prev => ({ ...prev, result: true }));
+      hasErrors = true;
+      errorMessages.push('- Escribir resultado');
+    } else if (numbersOnly.length !== 7) {
+      setErrors(prev => ({ ...prev, result: true }));
+      hasErrors = true;
+      errorMessages.push('- El resultado debe tener exactamente 7 números');
+    }
+
+    // Si hay errores, mostrar mensaje y salir
+    if (hasErrors) {
+      Alert.alert(
+        'Campos con errores', 
+        'Corrige los siguientes errores:\n\n' + errorMessages.join('\n'),
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Formatear el resultado como "XXX XXXX"
+    const cleanResult = numbersOnly.substring(0, 3) + ' ' + numbersOnly.substring(3, 7);
+
+    console.log('Insertando resultado:', {
+      id_horario: selectedHorario,
+      numeros: cleanResult,
+    });
+
+    const { error } = await supabase.from('resultado').insert([
+      {
+        id_horario: selectedHorario,
+        numeros: cleanResult,
+        // created_at se crea automáticamente en la base de datos
+      }
+    ]);
+
+    if (error) {
+      console.error('Error Supabase:', error);
+      Alert.alert('Error al guardar', error.message);
+      return;
+    }
+
+    Alert.alert('Éxito', 'Resultado guardado correctamente');
+    
+    // Limpiar formulario y errores
+    setResult('');
+    setSelectedHorario(null);
+    setSelectedHorarioLabel('');
+    setSelectedLottery(null);
+    setSelectedLotteryLabel('');
+    setErrors({
+      lottery: false,
+      horario: false,
+      result: false
+    });
+  };
 
 
   return (
-    <View style={[styles.container, isDarkMode && styles.containerDark]}>
-      <View style={styles.toggleContainer}>
-        <SideBarToggle onToggle={() => setSidebarVisible(!sidebarVisible)} />
+    <View style={styles.container}>
+      {/* Header personalizado - arriba del todo */}
+      <View style={styles.customHeader}>
+        <SideBarToggle onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
+        <Text style={styles.headerTitle}>Insertar Resultado</Text>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Insertar Resultado</Text>
-
         <DropdownPicker
-  label="Lotería"
-  value={selectedLottery}
-  onSelect={(option) => setSelectedLottery(option.value)}
-  options={lotteryOptions}
-  placeholder="Seleccionar lotería"
-/>
-
-
-        <Text style={styles.label}>Fecha</Text>
-        <Pressable onPress={() => setShowDatePicker(true)} style={styles.dateDisplay}>
-          <Text style={styles.dateText}>{format(date, 'yyyy-MM-dd')}</Text>
-        </Pressable>
-
-        {showDatePicker && (
-          <DateTimePicker
-            value={date}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, selectedDate) => {
-              setShowDatePicker(Platform.OS === 'ios');
-              if (selectedDate) setDate(selectedDate);
-            }}
-          />
-        )}
-
-        <InputField
-          label="Resultado"
-          value={result}
-          onChangeText={setResult}
-          placeholder="Ej: 12,34,56"
+          label="Lotería"
+          value={selectedLotteryLabel}
+          onSelect={(option) => {
+            setSelectedLottery(option.value);
+            setSelectedLotteryLabel(option.label);
+            fetchHorarios(option.value);
+            // Limpiar error cuando se selecciona
+            setErrors(prev => ({ ...prev, lottery: false }));
+          }}
+          options={lotteryOptions}
+          placeholder="Seleccionar lotería"
+          hasError={errors.lottery}
         />
 
-        <View style={styles.actionRow}>
-          <ActionButton
-            title="Insertar Resultado"
-            onPress={handleInsert}
-            variant="success"
-            size="medium"
-          />
-        </View>
+        <DropdownPicker
+          label="Horario"
+          value={selectedHorarioLabel}
+          onSelect={(option) => {
+            setSelectedHorario(option.value);
+            setSelectedHorarioLabel(option.label);
+            // Limpiar error cuando se selecciona
+            setErrors(prev => ({ ...prev, horario: false }));
+          }}
+          options={horarioOptions}
+          placeholder="Seleccionar horario"
+          disabled={!selectedLottery}
+          hasError={errors.horario}
+        />
+
+        <InputField
+          label="Resultado (7 números)"
+          value={result}
+          onChangeText={(text) => {
+            setResult(text);
+            // Limpiar error cuando se escribe
+            if (text.trim()) {
+              setErrors(prev => ({ ...prev, result: false }));
+            }
+          }}
+          placeholder="Ej: 2538666 o 253 8666"
+          keyboardType="numeric"
+          hasError={errors.result}
+        />
+
+        <ActionButton
+          title="Insertar Resultado"
+          onPress={handleInsert}
+          variant="success"
+          size="medium"
+          style={styles.submitButton}
+        />
       </ScrollView>
 
       <SideBar
-  isVisible={sidebarVisible}
-  onClose={() => setSidebarVisible(false)}
-  navigation={navigation}
-  isDarkMode={isDarkMode}
-  onToggleDarkMode={onToggleDarkMode}
-  onModeVisibilityChange={onModeVisibilityChange}
-  role={userRole}
-/>
-
+        isVisible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        navigation={navigation}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={onToggleDarkMode}
+        onModeVisibilityChange={onModeVisibilityChange}
+        role={userRole}
+      />
     </View>
   );
 };
@@ -157,43 +257,44 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FDF5',
   },
-  toggleContainer: {
+  customHeader: {
+    height: 100, // 56 + 44 para status bar
+    backgroundColor: '#F8F9FA',
+    flexDirection: 'row',
+    alignItems: 'flex-end', // Alinear al final para que el botón esté abajo
+    paddingHorizontal: 16,
+    paddingBottom: 12, // Espacio desde el borde inferior
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 4,
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 1000,
   },
+  sidebarButton: {
+    marginRight: 16,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
+    flex: 1,
+    textAlign: 'center',
+    marginRight: 44, // Para centrar el texto compensando el botón
+  },
   content: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingTop: 120,
+    paddingVertical: 16,
+    marginTop: 100, // Espacio para el header fijo
   },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    color: '#2C3E50',
-  },
-  label: {
-    marginBottom: 4,
-    fontWeight: 'bold',
-    color: '#34495E',
-  },
-  dateDisplay: {
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: '#D5DBDB',
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 16,
-  },
-  dateText: {
-    fontSize: 16,
-    color: '#2C3E50',
-  },
-  actionRow: {
+  submitButton: {
     marginTop: 10,
     width: '100%',
   },

@@ -5,6 +5,7 @@ import MainAppScreen from '../screens/MainAppScreen';
 import CreateUserScreen from '../screens/CreateUserScreen';
 import InsertResultsScreen from '../screens/InsertResultsScreen';
 import ManageLotteriesScreen from '../screens/ManageLotteriesScreen';
+import ManagePricesScreen from '../screens/ManagePricesScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -41,12 +42,31 @@ const AppNavigator = () => (
       component={InsertResultsScreen}
       options={{
         headerShown: false,
-        headerBackVisible: false,
       }}
     />
-    <Stack.Screen name="ManageLotteries" component={ManageLotteriesScreen} />
+    <Stack.Screen 
+      name="ManageLotteries" 
+      component={ManageLotteriesScreen}
+      options={{
+        headerShown: false,
+      }}
+    />
 
-    <Stack.Screen name="CreateUser" component={CreateUserScreen} />
+    <Stack.Screen 
+      name="CreateUser" 
+      component={CreateUserScreen} 
+      options={{
+        headerShown: false,
+      }}
+    />
+
+    <Stack.Screen 
+      name="ManagePrices" 
+      component={ManagePricesScreen} 
+      options={{
+        headerShown: false,
+      }}
+    />
 
   </Stack.Navigator>
 );

@@ -3,11 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Alert, Modal, StyleSheet, TextInput, Button, FlatList, TouchableOpacity } from 'react-native';
 import { Picker } from '../components/PickerWrapper';
+import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 
-const ManageUsersScreen = ({ isDarkMode }) => {
+const ManageUsersScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   const [users, setUsers] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [username, setUsername] = useState('');
@@ -16,10 +18,32 @@ const ManageUsersScreen = ({ isDarkMode }) => {
   const [collectors, setCollectors] = useState([]);
   const [selectedCollector, setSelectedCollector] = useState('');
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
     fetchUsers();
     fetchCurrentUser();
+  }, []);
+
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (data) {
+          setUserRole(data.role);
+        } else {
+          console.error('Error cargando rol:', error);
+        }
+      }
+    };
+
+    fetchUserRole();
   }, []);
 
   const fetchUsers = async () => {
@@ -123,7 +147,13 @@ const ManageUsersScreen = ({ isDarkMode }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Gestión de Usuarios</Text>
+      {/* Header personalizado - arriba del todo */}
+      <View style={styles.customHeader}>
+        <SideBarToggle onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
+        <Text style={styles.headerTitle}>Gestión de Usuarios</Text>
+      </View>
+
+      <View style={styles.content}>
 
       <Button title="Crear Usuario" onPress={() => { clearForm(); setModalVisible(true); }} />
 
@@ -197,6 +227,17 @@ const ManageUsersScreen = ({ isDarkMode }) => {
           <Button title="Cancelar" color="grey" onPress={() => setModalVisible(false)} />
         </View>
       </Modal>
+      </View>
+
+      <SideBar
+        isVisible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        navigation={navigation}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={onToggleDarkMode}
+        onModeVisibilityChange={onModeVisibilityChange}
+        role={userRole}
+      />
     </View>
   );
 };
@@ -204,8 +245,47 @@ const ManageUsersScreen = ({ isDarkMode }) => {
 export default ManageUsersScreen;
 
 const styles = StyleSheet.create({
-  container: { padding: 20, flex: 1, backgroundColor: '#fff' },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FDF5',
+  },
+  customHeader: {
+    height: 100, // 56 + 44 para status bar
+    backgroundColor: '#F8F9FA',
+    flexDirection: 'row',
+    alignItems: 'flex-end', // Alinear al final para que el botón esté abajo
+    paddingHorizontal: 16,
+    paddingBottom: 12, // Espacio desde el borde inferior
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 4,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
+  sidebarButton: {
+    marginRight: 16,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
+    flex: 1,
+    textAlign: 'center',
+    marginRight: 44, // Para centrar el texto compensando el botón
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+    marginTop: 100, // Espacio para el header fijo
+    backgroundColor: '#fff',
+  },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
