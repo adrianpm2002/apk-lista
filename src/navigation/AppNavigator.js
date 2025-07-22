@@ -7,6 +7,7 @@ import InsertResultsScreen from '../screens/InsertResultsScreen';
 import ManageLotteriesScreen from '../screens/ManageLotteriesScreen';
 import ManagePricesScreen from '../screens/ManagePricesScreen';
 import LimitNumero from '../screens/limitNumero';
+import StaticsBanck from '../screens/StatisticsScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -72,6 +73,14 @@ const AppNavigator = () => (
     <Stack.Screen 
       name="NumberLimits" 
       component={LimitNumero} 
+      options={{
+        headerShown: false,
+      }}
+    />
+
+    <Stack.Screen 
+      name="Statistics" 
+      component={StaticsBanck} 
       options={{
         headerShown: false,
       }}
