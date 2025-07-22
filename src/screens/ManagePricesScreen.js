@@ -256,64 +256,7 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
           ))}
         </View>
 
-        {/* Sección: Límites de Números */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Límites de Números</Text>
-          
-          {/* Límite Global */}
-          <View style={styles.limitGroup}>
-            <Text style={styles.limitGroupTitle}>Límite Global</Text>
-            <InputField
-              label="Límite máximo para todos los números"
-              value={globalLimit}
-              onChangeText={setGlobalLimit}
-              placeholder="Ej: 1000"
-              keyboardType="numeric"
-            />
-          </View>
-
-          {/* Límites Específicos */}
-          <View style={styles.limitGroup}>
-            <View style={styles.limitHeader}>
-              <Text style={styles.limitGroupTitle}>Límites Específicos</Text>
-              <TouchableOpacity style={styles.addButton} onPress={addSpecificLimit}>
-                <Text style={styles.addButtonText}>+ Agregar</Text>
-              </TouchableOpacity>
-            </View>
-
-            {specificLimits.map((item, index) => (
-              <View key={item.id} style={styles.specificLimitRow}>
-                <View style={styles.numberField}>
-                  <InputField
-                    label="Número"
-                    value={item.number}
-                    onChangeText={(value) => updateSpecificLimit(item.id, 'number', value)}
-                    placeholder="12"
-                    keyboardType="numeric"
-                    maxLength={2}
-                  />
-                </View>
-                <View style={styles.limitField}>
-                  <InputField
-                    label="Límite"
-                    value={item.limit}
-                    onChangeText={(value) => updateSpecificLimit(item.id, 'limit', value)}
-                    placeholder="500"
-                    keyboardType="numeric"
-                  />
-                </View>
-                {specificLimits.length > 1 && (
-                  <TouchableOpacity 
-                    style={styles.removeButton} 
-                    onPress={() => removeSpecificLimit(item.id)}
-                  >
-                    <Text style={styles.removeButtonText}>×</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))}
-          </View>
-        </View>
+        
 
         {/* Botón Guardar */}
         <ActionButton
