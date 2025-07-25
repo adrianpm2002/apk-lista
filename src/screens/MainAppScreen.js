@@ -6,15 +6,16 @@ import {
 import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
 import ModeSelector from '../components/ModeSelector';
-import { useAppSettings } from '../hooks/useStorage';
 
 const MainAppScreen = ({ navigation }) => {
-  const { settings, updateSettings } = useAppSettings();
   const [currentMode, setCurrentMode] = useState('Visual');
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [visibleModes, setVisibleModes] = useState({
+    visual: true,
+    text: true
+  });
   
-  // Usar configuraciones persistentes
-  const isDarkMode = settings.isDarkMode;
-  const visibleModes = settings.visibleModes;
+  // Usar configuraciones locales simples
 
   useEffect(() => {
     // Si el modo actual no es visible, cambiar al primer modo disponible
@@ -32,24 +33,17 @@ const MainAppScreen = ({ navigation }) => {
 
   const handleToggleDarkMode = async () => {
     try {
-      await updateSettings({ isDarkMode: !isDarkMode });
+      setIsDarkMode(!isDarkMode);
     } catch (error) {
-      console.error('Error al cambiar tema:', error);
+      console.error('Error toggling dark mode:', error);
     }
   };
 
   const handleModeVisibilityChange = async (newVisibleModes) => {
     try {
-      await updateSettings({ visibleModes: newVisibleModes });
-      
-      // Si el modo actual ya no es visible, cambiar al primer modo visible
-      if (currentMode === 'Visual' && !newVisibleModes.visual && newVisibleModes.text) {
-        setCurrentMode('Texto');
-      } else if (currentMode === 'Texto' && !newVisibleModes.text && newVisibleModes.visual) {
-        setCurrentMode('Visual');
-      }
+      setVisibleModes(newVisibleModes);
     } catch (error) {
-      console.error('Error al actualizar visibilidad de modos:', error);
+      console.error('Error updating mode visibility:', error);
     }
   };
 

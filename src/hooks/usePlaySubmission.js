@@ -1,11 +1,9 @@
 import { Alert } from 'react-native';
-import { useSavedPlays } from './useStorage';
 import { useNumberLimits } from './useNumberLimits';
 import { supabase } from '../supabaseClient';
 
 // Hook para manejar el guardado de jugadas desde los formularios
 export const usePlaySubmission = () => {
-  const { addPlay } = useSavedPlays();
   const { checkBetLimits, registerBet } = useNumberLimits();
 
   // Obtener IDs de lotería y horario desde la base de datos
@@ -148,11 +146,11 @@ export const usePlaySubmission = () => {
         hasPrize: false
       };
 
-      // Guardar la jugada
-      const savedPlay = await addPlay(playData);
+      // Las jugadas se guardan directamente en la base de datos
+      // Ya no necesitamos almacenamiento local
 
       // Si tenemos IDs válidos, registrar las apuestas en el tracking de límites
-      if (ids && savedPlay) {
+      if (ids) {
         for (const number of numbersArray) {
           const cleanNumber = number.trim();
           if (cleanNumber) {
