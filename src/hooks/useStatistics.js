@@ -148,7 +148,6 @@ const useStatistics = () => {
       setLotteryStats(stats);
       return stats;
     } catch (error) {
-      console.log('Usando datos mock para loterías');
       const mockStats = [
         { name: 'Lotería Nacional', total_bets: 12000, total_volume: 12000, value: 12000 },
         { name: 'Loteka', total_bets: 8000, total_volume: 8000, value: 8000 },
@@ -186,7 +185,6 @@ const useStatistics = () => {
       setScheduleStats(stats);
       return stats;
     } catch (error) {
-      console.log('Usando datos mock para horarios');
       const mockStats = [
         { schedule_name: 'Matutino', total_plays: 50, total_amount: 8000, value: 8000 },
         { schedule_name: 'Vespertino', total_plays: 60, total_amount: 10000, value: 10000 },
@@ -429,10 +427,8 @@ const useStatistics = () => {
       setError(null);
       
       if (USE_MOCK_DATA) {
-        console.log('📊 Cargando estadísticas diarias (MOCK DATA)');
         return await loadMockDailyStats();
       } else {
-        console.log('📊 Cargando estadísticas diarias (REAL DATA)');
         return await loadRealDailyStats();
       }
       
@@ -453,7 +449,6 @@ const useStatistics = () => {
       setError(null);
       
       if (USE_MOCK_DATA) {
-        console.log('📊 Cargando estadísticas de período (MOCK DATA)');
         // Para datos mock, simular cálculos de período
         const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
         const mockStats = {
@@ -465,7 +460,6 @@ const useStatistics = () => {
         };
         return mockStats;
       } else {
-        console.log('📊 Cargando estadísticas de período (REAL DATA)');
         // 🔮 CONSULTA REAL PARA PERÍODO ESPECÍFICO
         /*
         const { data: periodData, error } = await supabase
@@ -520,10 +514,8 @@ const useStatistics = () => {
       setError(null);
       
       if (USE_MOCK_DATA) {
-        console.log('📈 Cargando tendencias (MOCK DATA)');
         return await loadMockTrendData();
       } else {
-        console.log('📈 Cargando tendencias (REAL DATA)');
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 7);
         const endDate = new Date();
@@ -546,10 +538,8 @@ const useStatistics = () => {
       setError(null);
       
       if (USE_MOCK_DATA) {
-        console.log('🎯 Cargando estadísticas por lotería (MOCK DATA)');
         return await loadMockLotteryStats();
       } else {
-        console.log('🎯 Cargando estadísticas por lotería (REAL DATA)');
         return await loadRealLotteryStats();
       }
       
@@ -569,10 +559,8 @@ const useStatistics = () => {
       setError(null);
       
       if (USE_MOCK_DATA) {
-        console.log('⏰ Cargando estadísticas por horario (MOCK DATA)');
         return await loadMockScheduleStats();
       } else {
-        console.log('⏰ Cargando estadísticas por horario (REAL DATA)');
         return await loadRealScheduleStats();
       }
       
@@ -634,7 +622,6 @@ const useStatistics = () => {
   // Función para cambiar entre modo mock y real (para desarrollo)
   const toggleDataMode = () => {
     // Esta función permitirá cambiar dinámicamente en desarrollo
-    console.log(`🔄 Cambiando modo de datos: ${USE_MOCK_DATA ? 'REAL' : 'MOCK'}`);
     // En producción, esto se controlará por la variable USE_MOCK_DATA
   };
 
@@ -649,14 +636,11 @@ const useStatistics = () => {
       
       if (error && error.code === '42P01') {
         // Tabla no existe
-        console.log('⚠️ Tablas de datos reales no están configuradas');
         return false;
       }
       
-      console.log('✅ Tablas de datos reales están disponibles');
       return true;
     } catch (error) {
-      console.log('⚠️ No se pudo verificar disponibilidad de datos reales');
       return false;
     }
   };
@@ -710,16 +694,12 @@ const useStatistics = () => {
       setIsLoading(true);
       setError(null);
       
-      console.log(`🚀 Iniciando carga de estadísticas - Modo: ${USE_MOCK_DATA ? 'MOCK' : 'REAL'}`);
-      
       await Promise.all([
         loadDailyStats(),
         loadTrendData(),
         loadLotteryStats(),
         loadScheduleStats()
       ]);
-      
-      console.log('✅ Todas las estadísticas cargadas exitosamente');
       
     } catch (error) {
       console.error('❌ Error cargando todas las estadísticas:', error);
@@ -731,7 +711,6 @@ const useStatistics = () => {
 
   // Refrescar todas las estadísticas
   const refreshAllStats = async () => {
-    console.log('🔄 Refrescando todas las estadísticas...');
     await loadAllStats();
   };
 
@@ -772,8 +751,6 @@ const useStatistics = () => {
       setIsLoading(true);
       setError(null);
       
-      console.log('🔍 Aplicando filtros:', filters);
-      
       // Actualizar estados de filtros
       if (filters.startDate) setDateRange(prev => ({ ...prev, startDate: filters.startDate }));
       if (filters.endDate) setDateRange(prev => ({ ...prev, endDate: filters.endDate }));
@@ -791,8 +768,6 @@ const useStatistics = () => {
         await loadAllStats();
       }
       
-      console.log('✅ Filtros aplicados exitosamente');
-      
     } catch (error) {
       console.error('❌ Error aplicando filtros:', error);
       setError(error);
@@ -803,7 +778,6 @@ const useStatistics = () => {
 
   // Resetear filtros
   const resetFilters = () => {
-    console.log('🔄 Reseteando filtros...');
     setSelectedLottery(null);
     setSelectedSchedule(null);
     setDateRange({
@@ -820,8 +794,6 @@ const useStatistics = () => {
   // Exportar datos
   const exportToCSV = async (format = 'csv') => {
     try {
-      console.log(`📤 Exportando datos en formato ${format}...`);
-      
       // Simular proceso de exportación
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -841,9 +813,6 @@ const useStatistics = () => {
         dataMode: USE_MOCK_DATA ? 'MOCK' : 'REAL'
       };
       
-      console.log('✅ Datos exportados exitosamente');
-      console.log('📊 Datos de exportación:', exportData);
-      
       return true;
       
     } catch (error) {
@@ -859,14 +828,10 @@ const useStatistics = () => {
   // Efecto para cargar listas al montar el componente
   useEffect(() => {
     const initializeData = async () => {
-      console.log('🎯 Inicializando hook de estadísticas...');
       
       if (!USE_MOCK_DATA) {
         // Verificar disponibilidad de datos reales
         const isRealDataAvailable = await checkRealDataAvailability();
-        if (!isRealDataAvailable) {
-          console.log('⚠️ Datos reales no disponibles, usando modo mock como fallback');
-        }
       }
       
       // Cargar datos iniciales

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Alert, Platform } from 'react-native';
 import { supabase } from '../supabaseClient';
 import Svg, { Path, G } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
@@ -50,7 +50,7 @@ export default function LoginScreen({ navigation }) {
 
   // Navegación basada en rol
   if (userRole === 'admin') {
-    navigation.navigate('Bankview'); // navega a toda la app
+    navigation.navigate('Statistics'); // navega a estadísticas como pantalla principal
   } else if (userRole === 'collector') {
     navigation.navigate('MainApp'); // navega a la app principal
   } else if (userRole === 'listero') {
@@ -70,10 +70,8 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.label}>Nombre de Usuario</Text>
         </View>
         <View style={styles.inputForm}>
-          <Svg width={20} height={20} viewBox="0 0 32 32">
-            <G>
-              <Path d="M30.853 13.87a15 15 0 0 0 -29.729 4.082 15.1 15.1 0 0 0 12.876 12.918 15.6 15.6 0 0 0 2.016.13 14.85 14.85 0 0 0 7.715-2.145 1 1 0 1 0 -1.031-1.711 13.007 13.007 0 1 1 5.458-6.529 2.149 2.149 0 0 1 -4.158-.759v-10.856a1 1 0 0 0 -2 0v1.726a8 8 0 1 0 .2 10.325 4.135 4.135 0 0 0 7.83.274 15.2 15.2 0 0 0 .823-7.455zm-14.853 8.13a6 6 0 1 1 6-6 6.006 6.006 0 0 1 -6 6z" fill="#151717"/>
-            </G>
+          <Svg width={20} height={20} viewBox="0 0 24 24">
+            <Path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" fill="#151717"/>
           </Svg>
           <TextInput
             style={styles.input}
@@ -140,10 +138,14 @@ const styles = StyleSheet.create({
     width: 350,
     borderRadius: 20,
     fontFamily: 'System',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 4,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.05)',
+    } : {
+      shadowColor: '#000',
+      shadowOpacity: 0.05,
+      shadowRadius: 10,
+      elevation: 4,
+    }),
   },
   title: {
     fontSize: 28,

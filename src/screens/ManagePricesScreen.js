@@ -16,6 +16,7 @@ import { supabase } from '../supabaseClient';
 const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [currentBankId, setCurrentBankId] = useState(null);
   
   // Estados para tipos de jugada disponibles
   const [availablePlayTypes] = useState([
@@ -58,12 +59,14 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
       if (user) {
         const { data, error } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, id_banco')
           .eq('id', user.id)
           .single();
 
         if (data) {
           setUserRole(data.role);
+          // Si es admin (banco), su propio ID es el banco ID, si es colector usa id_banco
+          setCurrentBankId(data.role === 'admin' ? user.id : data.id_banco);
         } else {
           console.error('Error cargando rol:', error);
         }

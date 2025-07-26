@@ -28,16 +28,16 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
   // Opciones del sidebar por rol
 const roleOptionsMap = {
   admin: [
+    { id: 'statistics', icon: '📈', title: 'Estadísticas' },
     { id: 'insertResults', icon: '🎯', title: 'Insertar Resultados' },
     { id: 'lotteries', icon: '🎰', title: 'Gestionar Loterías' },
-    { id: 'createUser', icon: '🧑‍💼', title: 'Gestionar Usuario' },
+    { id: 'createUser', icon: '🧑‍💼', title: 'Gestionar Usuarios' },
     { id: 'prices', icon: '💰', title: 'Configurar Precios' },
     { id: 'listerLimits', icon: '📋', title: 'Limitar Usuarios' },
     { id: 'limitedNumbers', icon: '📊', title: 'Limitar Números' },
-    { id: 'statistics', icon: '📈', title: 'Estadísticas' },
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
-  colector: [
+  collector: [
     { id: 'createUser', icon: '🧑‍💼', title: 'Crear Listero' },
     { id: 'listerLimits', icon: '📋', title: 'Limitar Listeros' },
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
@@ -447,7 +447,6 @@ const configOptions = roleOptionsMap[role] || [];
 
 const SideBarToggle = ({ onToggle }) => {
   const handlePress = () => {
-    console.log('SideBarToggle pressed!');
     onToggle && onToggle();
   };
 
@@ -458,8 +457,6 @@ const SideBarToggle = ({ onToggle }) => {
         pressed && styles.toggleButtonPressed
       ]}
       onPress={handlePress}
-      onPressIn={() => console.log('SideBarToggle PRESS IN')}
-      onPressOut={() => console.log('SideBarToggle PRESS OUT')}
     >
       <Text style={styles.toggleIcon}>☰</Text>
     </Pressable>

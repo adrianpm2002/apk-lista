@@ -16,10 +16,11 @@ import KPICard from '../components/KPICard';
 import StatisticsChart from '../components/StatisticsChart';
 import DataTable from '../components/DataTable';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
+import { SideBar, SideBarToggle } from '../components/SideBar';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const StatisticsScreen = ({ isDarkMode = false }) => {
+const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, onModeVisibilityChange }) => {
   // Estados para filtros
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [startDate, setStartDate] = useState(new Date());
@@ -36,6 +37,10 @@ const StatisticsScreen = ({ isDarkMode = false }) => {
   // Estados para datos
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Estados para sidebar
+  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [userRole, setUserRole] = useState(null);
 
   // Hook de estadísticas
   const {
@@ -75,6 +80,27 @@ const StatisticsScreen = ({ isDarkMode = false }) => {
   // Cargar datos iniciales
   useEffect(() => {
     loadInitialData();
+  }, []);
+
+  // Obtener rol del usuario para la sidebar
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      const { supabase } = await import('../supabaseClient');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (data) {
+          setUserRole(data.role);
+        }
+      }
+    };
+
+    fetchUserRole();
   }, []);
 
   // Cargar datos cuando cambian los filtros
@@ -190,14 +216,16 @@ const StatisticsScreen = ({ isDarkMode = false }) => {
     }
   };
 
-  // Renderizar header con filtros
+  // Renderizar header con filtros y sidebar toggle
   const renderHeader = () => (
     <View style={[styles.header, isDarkMode && styles.headerDark]}>
-      <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>
-        📊 Estadísticas del Banco
-      </Text>
+      <SideBarToggle onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
       
       <View style={styles.headerControls}>
+        <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>
+          Estadísticas
+        </Text>
+        
         <TouchableOpacity
           style={[styles.filterButton, isDarkMode && styles.filterButtonDark]}
           onPress={() => setShowFiltersModal(true)}
@@ -636,6 +664,16 @@ const StatisticsScreen = ({ isDarkMode = false }) => {
           onChange={handleDateChange}
         />
       )}
+
+      <SideBar
+        isVisible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        navigation={navigation}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={onToggleDarkMode}
+        onModeVisibilityChange={onModeVisibilityChange}
+        role={userRole}
+      />
     </View>
   );
 };
@@ -653,24 +691,42 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 100,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 4,
   },
   headerDark: {
     backgroundColor: '#2c3e50',
     borderBottomColor: '#34495e',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#2c3e50',
-    textAlign: 'center',
-    marginBottom: 12,
+    marginRight: 16,
   },
   headerTitleDark: {
     color: '#ecf0f1',
   },
+  sidebarButton: {
+    // Sin margen para que esté pegado al borde izquierdo
+  },
   headerControls: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 'auto',
   },
   filterButton: {
     backgroundColor: '#f8f9fa',
@@ -708,6 +764,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+    marginTop: 100,
   },
   tabsContainerDark: {
     backgroundColor: '#2c3e50',

@@ -28,6 +28,7 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVis
   const [selectedPlayType, setSelectedPlayType] = useState(null);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [currentBankId, setCurrentBankId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // Estados para modales
@@ -68,10 +69,13 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVis
 
   // Cargar loterías
   const fetchLotteries = async () => {
+    if (!currentBankId) return; // No cargar loterias si no tenemos el banco ID
+    
     try {
       const { data, error } = await supabase
         .from('loteria')
         .select('id, nombre')
+        .eq('id_banco', currentBankId) // Solo loterias del mismo banco
         .order('nombre');
 
       if (error) throw error;
@@ -118,12 +122,14 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVis
       if (user) {
         const { data, error } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, id_banco')
           .eq('id', user.id)
           .single();
 
         if (data) {
           setUserRole(data.role);
+          // Si es admin (banco), su propio ID es el banco ID, si es colector usa id_banco
+          setCurrentBankId(data.role === 'admin' ? user.id : data.id_banco);
         }
       }
     } catch (error) {
@@ -401,10 +407,15 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVis
 
   // Effects
   useEffect(() => {
-    fetchLotteries();
     fetchUserRole();
     loadGlobalLimits();
   }, []);
+
+  useEffect(() => {
+    if (currentBankId) {
+      fetchLotteries();
+    }
+  }, [currentBankId]);
 
   return (
     <SafeAreaView style={[styles.container, isDarkMode && styles.containerDark]}>

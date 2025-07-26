@@ -1,21 +1,19 @@
 // src/screens/ManageLotteriesScreen.js
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, Alert, FlatList, Pressable, TouchableOpacity, Platform, Modal, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, Alert, FlatList, TouchableOpacity, Platform, Modal, StyleSheet, ScrollView } from 'react-native';
 
 import { supabase } from '../supabaseClient';
 import InputField from '../components/InputField';
-import ActionButton from '../components/ActionButton';
-import DateTimePicker from '../components/DateTimePickerWrapper';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 
 
 const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   const [lotteries, setLotteries] = useState([]);
   const [newLottery, setNewLottery] = useState('');
-  const [loading, setLoading] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [currentBankId, setCurrentBankId] = useState(null);
   
   // Estados para gestión de horarios
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
@@ -29,14 +27,23 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
   const [editingSchedule, setEditingSchedule] = useState(null);
 
   const fetchLotteries = async () => {
+    console.log('fetchLotteries called with currentBankId:', currentBankId);
+    if (!currentBankId) {
+      console.log('No currentBankId, not loading lotteries');
+      return; // No cargar loterias si no tenemos el banco ID
+    }
+    
     const { data, error } = await supabase
       .from('loteria')
       .select('*')
+      .eq('id_banco', currentBankId) // Solo loterias del mismo banco
       .order('id', { ascending: true });
 
+    console.log('Lotteries query result:', { data, error, currentBankId });
     if (error) {
       console.error('Error al cargar lotería:', error.message);
     } else {
+      console.log('Setting lotteries:', data);
       setLotteries(data);
     }
   };
@@ -47,10 +54,19 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
       return;
     }
 
+    console.log('Creating lottery with:', { 
+      nombre: newLottery.trim(), 
+      id_banco: currentBankId 
+    });
+
     const { error } = await supabase
       .from('loteria')
-      .insert({ nombre: newLottery.trim() });
+      .insert({ 
+        nombre: newLottery.trim(),
+        id_banco: currentBankId
+      });
 
+    console.log('Insert lottery result:', { error });
     if (error) {
       Alert.alert('Error al agregar', error.message);
     } else {
@@ -281,21 +297,33 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
 
 
   useEffect(() => {
-    fetchLotteries();
-  }, []);
+    console.log('currentBankId changed:', currentBankId);
+    if (currentBankId) {
+      console.log('Calling fetchLotteries because currentBankId is available');
+      fetchLotteries();
+    }
+  }, [currentBankId]);
 
   useEffect(() => {
     const fetchUserRole = async () => {
       const { data: { user } } = await supabase.auth.getUser();
+      console.log('ManageLotteries - User from auth:', user);
       if (user) {
         const { data, error } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, id_banco')
           .eq('id', user.id)
           .single();
 
+        console.log('ManageLotteries - Profile data:', data);
+        console.log('ManageLotteries - Profile error:', error);
+
         if (data) {
           setUserRole(data.role);
+          // Si es admin (banco), su propio ID es el banco ID, si es colector usa id_banco
+          const bankId = data.role === 'admin' ? user.id : data.id_banco;
+          console.log('ManageLotteries - Calculated bankId:', bankId, 'for role:', data.role);
+          setCurrentBankId(bankId);
         } else {
           console.error('Error cargando rol:', error);
         }
@@ -542,10 +570,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     marginTop: 100, // Espacio para el header fijo (56 + 44 status bar)
-  },
-  container: {
-    flex: 1,
-    padding: 16,
   },
   title: {
     fontSize: 20,

@@ -16,6 +16,7 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
   const [result, setResult] = useState('');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [currentBankId, setCurrentBankId] = useState(null);
 
   // Estados para errores de validación
   const [errors, setErrors] = useState({
@@ -25,7 +26,13 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
   });
 
   const fetchLoterias = async () => {
-    const { data, error } = await supabase.from('loteria').select('id, nombre');
+    if (!currentBankId) return; // No cargar loterias si no tenemos el banco ID
+    
+    const { data, error } = await supabase
+      .from('loteria')
+      .select('id, nombre')
+      .eq('id_banco', currentBankId); // Solo loterias del mismo banco
+      
     if (error) {
       Alert.alert('Error cargando loterías');
       return;
@@ -64,31 +71,33 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
   };
 
   useEffect(() => {
-    fetchLoterias();
-  }, []);
+    if (currentBankId) {
+      fetchLoterias();
+    }
+  }, [currentBankId]);
 
   useEffect(() => {
-  const fetchUserRole = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data, error } = await supabase
-        .from('profiles') // o el nombre de tu tabla de usuarios
-        .select('role')
-        .eq('id', user.id)
-        .single();
+    const fetchUserRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role, id_banco')
+          .eq('id', user.id)
+          .single();
 
-      if (data) {
-        setUserRole(data.role);
-      } else {
-        console.error('Error cargando rol:', error);
+        if (data) {
+          setUserRole(data.role);
+          // Si es admin (banco), su propio ID es el banco ID, si es colector usa id_banco
+          setCurrentBankId(data.role === 'admin' ? user.id : data.id_banco);
+        } else {
+          console.error('Error cargando rol:', error);
+        }
       }
-    }
-  };
+    };
 
-  fetchUserRole();
-}, []);
-
-
+    fetchUserRole();
+  }, []);
   const handleInsert = async () => {
     // Resetear errores
     setErrors({
