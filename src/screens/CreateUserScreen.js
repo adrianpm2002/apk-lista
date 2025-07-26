@@ -20,6 +20,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   const [currentUserId, setCurrentUserId] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
+  const [updatingUsers, setUpdatingUsers] = useState(new Set()); // Para tracking de actualizaciones
 
   const createHierarchicalStructure = useCallback((userData) => {
     const hierarchical = [];
@@ -84,8 +85,11 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       .order('username');
     
     if (!error && data) {
+      console.log('Usuarios cargados:', data);
       setUsers(data);
       createHierarchicalStructure(data);
+    } else if (error) {
+      console.error('Error fetching users:', error);
     }
   }, [currentBankId, createHierarchicalStructure]);
 
@@ -125,6 +129,13 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     }
   }, [currentBankId, fetchUsers]);
 
+  // Recrear estructura jerárquica cuando cambien los usuarios
+  useEffect(() => {
+    if (users.length > 0) {
+      createHierarchicalStructure(users);
+    }
+  }, [users, createHierarchicalStructure]);
+
   const handleCreateOrUpdate = async () => {
     try {
       if (!username || (!isEditing && !password) || !role) {
@@ -151,13 +162,13 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       const fakeEmail = `${username.toLowerCase()}@example.com`;
 
       if (isEditing && editingUser) {
-        const { data, error } = await supabase.rpc('fn_actualizar_perfil_y_autenticacion', {
-          p_usuario_id: editingUser.id,
-          p_nuevo_username: username,
-          p_nuevo_rol: role,
-          p_nuevo_collector: selectedCollector || null,
-          p_activo: editingUser.activo !== undefined ? editingUser.activo : true,
-          p_ganancia: parseFloat(ganancia) || 0
+        const { data, error } = await supabase.rpc('update_user_profile_and_auth', {
+          user_id: editingUser.id,
+          new_username: username,
+          new_role: role,
+          new_assigned_collector: selectedCollector || null,
+          new_ganancia: parseFloat(ganancia) || 0,
+          new_activo: editingUser.activo !== undefined ? editingUser.activo : true
         });
 
         if (error) {
@@ -179,13 +190,17 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         }
       } else {
         // Verificar si ya existe un usuario con ese username
-        const { data: existingUser, error: checkError } = await supabase
+        const { data: existingUsers, error: checkError } = await supabase
           .from('profiles')
           .select('username')
-          .eq('username', username)
-          .single();
+          .eq('username', username);
 
-        if (existingUser) {
+        if (checkError) {
+          console.error('Check Error:', checkError);
+          return Alert.alert('Error', 'Error al verificar usuario existente');
+        }
+
+        if (existingUsers && existingUsers.length > 0) {
           return Alert.alert('Error', 'Ya existe un usuario con ese nombre. Por favor elige otro nombre.');
         }
 
@@ -280,41 +295,78 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     const newStatus = !currentStatus;
     const action = newStatus ? 'activar' : 'desactivar';
     
-    Alert.alert(
-      `${action.charAt(0).toUpperCase() + action.slice(1)} Usuario`,
-      `¿Estás seguro de que quieres ${action} este usuario?${!newStatus ? ' No podrá iniciar sesión.' : ''}`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: action.charAt(0).toUpperCase() + action.slice(1),
-          style: newStatus ? 'default' : 'destructive',
-          onPress: async () => {
-            try {
-              const { data, error } = await supabase.rpc('fn_toggle_usuario_activo', {
-                p_usuario_id: userId,
-                p_activo: newStatus
-              });
-
-              if (error) {
-                console.error('Toggle Active Error:', error);
-                return Alert.alert('Error', `Error al ${action} usuario: ${error.message}`);
-              }
-
-              if (data && !data.success) {
-                console.error('Function Toggle Error:', data.error);
-                return Alert.alert('Error', data.message || data.error);
-              }
-
-              Alert.alert('Éxito', data?.message || `Usuario ${action === 'activar' ? 'activado' : 'desactivado'} correctamente`);
-              fetchUsers();
-            } catch (error) {
-              console.error('Unexpected Toggle Error:', error);
-              Alert.alert('Error inesperado', error.message || `Ocurrió un problema al ${action} el usuario.`);
-            }
-          }
-        }
-      ]
+    console.log(`handleToggleActive - userId: ${userId}, currentStatus: ${currentStatus}, newStatus: ${newStatus}`);
+    
+    // Agregar al set de usuarios que se están actualizando
+    setUpdatingUsers(prev => new Set([...prev, userId]));
+    
+    // Actualizar el estado local inmediatamente para feedback visual
+    setUsers(prevUsers => 
+      prevUsers.map(user => 
+        user.id === userId ? { ...user, activo: newStatus } : user
+      )
     );
+    
+    try {
+      console.log(`Iniciando actualización: userId=${userId}, newStatus=${newStatus}`);
+      
+      // Actualizar directamente en la tabla profiles
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ activo: newStatus })
+        .eq('id', userId)
+        .select();
+
+      console.log('Resultado actualización:', { data, error });
+
+      if (error) {
+        console.error('Toggle Active Error:', error);
+        Alert.alert('Error', `Error al ${action} usuario: ${error.message}`);
+        // Revertir el cambio local si hubo error
+        setUsers(prevUsers => 
+          prevUsers.map(user => 
+            user.id === userId ? { ...user, activo: currentStatus } : user
+          )
+        );
+        // Recargar datos desde la BD para asegurar consistencia
+        fetchUsers();
+        return;
+      }
+
+      if (data && data.length > 0) {
+        console.log('Usuario actualizado exitosamente:', data[0]);
+        // La actualización fue exitosa, el estado local ya está correcto
+        // Solo mostrar mensaje de éxito sin Alert para mejor UX
+        console.log(`Usuario ${action === 'activar' ? 'activado' : 'desactivado'} correctamente`);
+      } else {
+        console.log('Actualización falló - no hay datos devueltos');
+        Alert.alert('Error', 'No se pudo actualizar el usuario');
+        // Revertir el cambio local
+        setUsers(prevUsers => 
+          prevUsers.map(user => 
+            user.id === userId ? { ...user, activo: currentStatus } : user
+          )
+        );
+        fetchUsers(); // Recargar para revertir
+      }
+    } catch (error) {
+      console.error('Unexpected Toggle Error:', error);
+      Alert.alert('Error inesperado', error.message || `Ocurrió un problema al ${action} el usuario.`);
+      // Revertir el cambio local
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user.id === userId ? { ...user, activo: currentStatus } : user
+        )
+      );
+      fetchUsers(); // Recargar para revertir
+    } finally {
+      // Remover del set de usuarios que se están actualizando
+      setUpdatingUsers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+    }
   };
 
   const toggleCollectorExpansion = (collectorId) => {
@@ -361,6 +413,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     const isCollector = item.type === 'collector';
     const isListero = item.type === 'listero';
     const isExpanded = expandedCollectors.has(item.id);
+    const isUpdating = updatingUsers.has(item.id);
     
     return (
       <View style={[
@@ -399,6 +452,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
             item.activo ? styles.statusActive : styles.statusInactive
           ]}>
             {item.activo ? '● Activo' : '● Inactivo'}
+            {isUpdating && ' (Actualizando...)'}
           </Text>
           
           <Text style={styles.userGanancia}>
@@ -413,7 +467,11 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
             </Text>
             <Switch
               value={item.activo}
-              onValueChange={() => handleToggleActive(item.id, item.activo)}
+              disabled={isUpdating}
+              onValueChange={() => {
+                console.log(`Cambiando estado de ${item.username} de ${item.activo} a ${!item.activo}`);
+                handleToggleActive(item.id, item.activo);
+              }}
               trackColor={{ false: '#ff6b6b', true: '#51cf66' }}
               thumbColor={item.activo ? '#2b8a3e' : '#e03131'}
             />
