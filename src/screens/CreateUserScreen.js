@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Alert, Modal, StyleSheet, TextInput, Button, FlatList, TouchableOpacity, Switch } from 'react-native';
 import { Picker } from '../components/PickerWrapper';
 import { SideBar, SideBarToggle } from '../components/SideBar';
@@ -21,70 +21,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
 
-  useEffect(() => {
-    const fetchUserRole = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      console.log('User from auth:', user);
-      if (user) {
-        setCurrentUserId(user.id);
-        
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role, id_banco')
-          .eq('id', user.id)
-          .single();
-
-        console.log('Profile data:', data);
-        console.log('Profile error:', error);
-        
-        if (data) {
-          if (data.role !== 'admin' && data.role !== 'collector') {
-            Alert.alert('No Autorizado', 'Solo los administradores pueden gestionar usuarios');
-            return;
-          }
-          
-          setUserRole(data.role);
-          const bankId = data.role === 'admin' ? user.id : data.id_banco;
-          console.log('Calculated bankId:', bankId, 'for role:', data.role);
-          setCurrentBankId(bankId);
-        } else {
-          console.error('Error cargando rol:', error);
-        }
-      }
-    };
-
-    fetchUserRole();
-  }, []);
-
-  useEffect(() => {
-    if (currentBankId) {
-      console.log('currentBankId changed, fetching users:', currentBankId);
-      fetchUsers();
-    }
-  }, [currentBankId]);
-
-  const fetchUsers = async () => {
-    console.log('fetchUsers called with currentBankId:', currentBankId);
-    if (!currentBankId) {
-      console.log('No currentBankId, not loading users');
-      return;
-    }
-    
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, username, role, id_banco, id_collector, activo, ganancia')
-      .eq('id_banco', currentBankId)
-      .order('role', { ascending: false })
-      .order('username');
-    
-    console.log('Users query result:', { data, error });
-    if (!error && data) {
-      setUsers(data);
-      createHierarchicalStructure(data);
-    }
-  };
-
-  const createHierarchicalStructure = (userData) => {
+  const createHierarchicalStructure = useCallback((userData) => {
     const hierarchical = [];
     const collectors = userData.filter(user => user.role === 'collector');
     const listeros = userData.filter(user => user.role === 'listero');
@@ -134,7 +71,59 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     });
     
     setHierarchicalUsers(hierarchical);
-  };
+  }, [expandedCollectors]);
+
+  const fetchUsers = useCallback(async () => {
+    if (!currentBankId) return;
+    
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username, role, id_banco, id_collector, activo, ganancia')
+      .eq('id_banco', currentBankId)
+      .order('role', { ascending: false })
+      .order('username');
+    
+    if (!error && data) {
+      setUsers(data);
+      createHierarchicalStructure(data);
+    }
+  }, [currentBankId, createHierarchicalStructure]);
+
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+        
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role, id_banco')
+          .eq('id', user.id)
+          .single();
+        
+        if (data) {
+          if (data.role !== 'admin' && data.role !== 'collector') {
+            Alert.alert('No Autorizado', 'Solo los administradores pueden gestionar usuarios');
+            return;
+          }
+          
+          setUserRole(data.role);
+          const bankId = data.role === 'admin' ? user.id : data.id_banco;
+          setCurrentBankId(bankId);
+        } else if (error) {
+          console.error('Error cargando rol:', error);
+        }
+      }
+    };
+
+    fetchUserRole();
+  }, []);
+
+  useEffect(() => {
+    if (currentBankId) {
+      fetchUsers();
+    }
+  }, [currentBankId, fetchUsers]);
 
   const handleCreateOrUpdate = async () => {
     try {
@@ -162,8 +151,6 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       const fakeEmail = `${username.toLowerCase()}@example.com`;
 
       if (isEditing && editingUser) {
-        console.log('Actualizando usuario:', editingUser.id, 'con datos:', { username, role, selectedCollector });
-        
         const { data, error } = await supabase.rpc('fn_actualizar_perfil_y_autenticacion', {
           p_usuario_id: editingUser.id,
           p_nuevo_username: username,
@@ -179,19 +166,15 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         }
 
         if (data && typeof data === 'object') {
-          console.log('Respuesta de la función:', data);
-          
           if (!data.success) {
             console.error('Function Error:', data.error);
             return Alert.alert('Error al actualizar', data.message || data.error || 'Error desconocido');
           }
           
           if (data.success) {
-            console.log('Usuario actualizado exitosamente:', data);
             Alert.alert('Éxito', data.message || 'Usuario actualizado correctamente');
           }
         } else {
-          console.log('Respuesta no JSON, asumiendo éxito:', data);
           Alert.alert('Éxito', 'Usuario actualizado correctamente');
         }
       } else {
@@ -265,14 +248,11 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     }
   };
 
-  const handleDelete = async (id) => {
-    console.log('handleDelete called with id:', id);
-    
+  const handleDelete = useCallback(async (id) => {
     const shouldDelete = window.confirm('¿Estás seguro de que quieres eliminar este usuario?');
     
     if (shouldDelete) {
       try {
-        console.log('Attempting to delete user:', id);
         const { data, error } = await supabase.rpc('delete_user_complete', {
           user_id: id
         });
@@ -293,10 +273,8 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         console.error('Unexpected Delete Error:', error);
         Alert.alert('Error inesperado', error.message || 'Ocurrió un problema al eliminar el usuario.');
       }
-    } else {
-      console.log('User cancelled deletion');
     }
-  };
+  }, []);
 
   const handleToggleActive = async (userId, currentStatus) => {
     const newStatus = !currentStatus;
@@ -347,7 +325,10 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       newExpanded.add(collectorId);
     }
     setExpandedCollectors(newExpanded);
-    createHierarchicalStructure(users);
+    // Solo recrear estructura si hay datos
+    if (users.length > 0) {
+      createHierarchicalStructure(users);
+    }
   };
 
   const openEditModal = (user) => {
@@ -359,6 +340,12 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     setGanancia(user.ganancia?.toString() || '0');
     setModalVisible(true);
   };
+
+  // Optimizar filtros con useMemo
+  const collectors = useMemo(() => 
+    users.filter(u => u.role === 'collector'), 
+    [users]
+  );
 
   const clearForm = () => {
     setUsername('');
@@ -381,49 +368,42 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         isListero && styles.listeroItem
       ]}>
         {isListero && (
-          <View style={styles.listeroIndicator}>
-            <Text style={styles.listeroConnector}>└─</Text>
-          </View>
+          <Text style={styles.listeroConnector}>└─</Text>
+        )}
+        
+        {isCollector && item.hasListeros && (
+          <TouchableOpacity 
+            onPress={() => toggleCollectorExpansion(item.id)}
+            style={styles.expandButton}
+          >
+            <Text style={styles.expandIcon}>
+              {isExpanded ? '▼' : '▶'}
+            </Text>
+          </TouchableOpacity>
         )}
         
         <View style={[styles.userInfo, isListero && styles.listeroInfo]}>
-          <View style={styles.userHeader}>
-            {isCollector && item.hasListeros && (
-              <TouchableOpacity 
-                onPress={() => toggleCollectorExpansion(item.id)}
-                style={styles.expandButton}
-              >
-                <Text style={styles.expandIcon}>
-                  {isExpanded ? '▼' : '▶'}
-                </Text>
-              </TouchableOpacity>
-            )}
-            
-            <View style={styles.userTitleContainer}>
-              <Text style={[
-                styles.userText, 
-                !item.activo && styles.userTextInactive,
-                isCollector && styles.collectorText,
-                isListero && styles.listeroText
-              ]}>
-                {isCollector && '👑 '}
-                {isListero && `   `}
-                {item.username} - {item.role}
-                {isListero && item.parentCollector && ` (de ${item.parentCollector})`}
-              </Text>
-              
-              <Text style={[
-                styles.userStatus,
-                item.activo ? styles.statusActive : styles.statusInactive
-              ]}>
-                {item.activo ? '● Activo' : '● Inactivo'}
-              </Text>
-              
-              <Text style={styles.userGanancia}>
-                💰 Ganancia: {item.ganancia || 0}%
-              </Text>
-            </View>
-          </View>
+          <Text style={[
+            styles.userText, 
+            !item.activo && styles.userTextInactive,
+            isCollector && styles.collectorText,
+            isListero && styles.listeroText
+          ]}>
+            {isCollector && '👑 '}
+            {isListero && `   `}
+            {item.username} - {item.role}
+          </Text>
+          
+          <Text style={[
+            styles.userStatus,
+            item.activo ? styles.statusActive : styles.statusInactive
+          ]}>
+            {item.activo ? '● Activo' : '● Inactivo'}
+          </Text>
+          
+          <Text style={styles.userGanancia}>
+            💰 Ganancia: {item.ganancia || 0}%
+          </Text>
         </View>
         
         <View style={styles.userControls}>
@@ -444,10 +424,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
               <Text style={styles.buttonText}>Editar</Text>
             </TouchableOpacity>
             <TouchableOpacity 
-              onPress={() => {
-                console.log('Delete button pressed for user:', item.id, item.username);
-                handleDelete(item.id);
-              }} 
+              onPress={() => handleDelete(item.id)} 
               style={styles.deleteButton}
               activeOpacity={0.7}
             >
@@ -516,7 +493,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
                   style={styles.picker}
                 >
                   <Picker.Item label="Selecciona un colector" value="" />
-                  {users.filter(u => u.role === 'collector').map((col) => (
+                  {collectors.map((col) => (
                     <Picker.Item key={col.id} label={col.username} value={col.id} />
                   ))}
                 </Picker>
@@ -625,31 +602,17 @@ const styles = StyleSheet.create({
     borderLeftColor: '#3498db',
     backgroundColor: '#f8f9fa',
   },
-  listeroIndicator: {
-    position: 'absolute',
-    left: -2,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-  },
   listeroConnector: {
     color: '#3498db',
     fontSize: 16,
     fontWeight: 'bold',
+    marginRight: 8,
   },
   userInfo: {
     flex: 1,
   },
   listeroInfo: {
     paddingLeft: 10,
-  },
-  userHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-  },
-  userTitleContainer: {
-    flex: 1,
   },
   expandButton: {
     marginRight: 8,
