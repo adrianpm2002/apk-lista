@@ -23,6 +23,7 @@
     "date-fns": "^4.1.0",
     "expo": "^53.0.0",
     "expo-status-bar": "~2.0.1",
+    "formik": "^2.4.6",
     "metro": "^0.81.0",
     "metro-config": "^0.82.5",
     "react": "18.3.1",
