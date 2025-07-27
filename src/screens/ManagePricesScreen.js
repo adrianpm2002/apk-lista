@@ -6,7 +6,8 @@ import {
   Alert, 
   StyleSheet, 
   Switch, 
-  TouchableOpacity 
+  TouchableOpacity,
+  ActivityIndicator 
 } from 'react-native';
 import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
@@ -17,6 +18,8 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   
   // Estados para tipos de jugada disponibles
   const [availablePlayTypes] = useState([
@@ -39,47 +42,102 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
 
   // Estados para precios de ganancias (por cada peso jugado)
   const [winningPrices, setWinningPrices] = useState({
-    fijo: { regular: '70', limited: '65' },
-    corrido: { regular: '50', limited: '45' },
-    posicion: { regular: '80', limited: '75' },
-    parle: { regular: '800', limited: '750' },
-    centena: { regular: '350', limited: '320' },
-    tripleta: { regular: '4500', limited: '4000' },
+    fijo: { regular: '70', limited: '65', active: true },
+    corrido: { regular: '50', limited: '45', active: true },
+    posicion: { regular: '80', limited: '75', active: true },
+    parle: { regular: '800', limited: '750', active: true },
+    centena: { regular: '350', limited: '320', active: true },
+    tripleta: { regular: '4500', limited: '4000', active: true },
   });
 
-  // Estados para límites de números
-  const [globalLimit, setGlobalLimit] = useState('');
-  const [specificLimits, setSpecificLimits] = useState([
-    { number: '', limit: '', id: Date.now() }
-  ]);
-
   useEffect(() => {
-    const fetchUserRole = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role, id_banco')
-          .eq('id', user.id)
-          .single();
-
-        if (data) {
-          setUserRole(data.role);
-          // Si es admin (banco), su propio ID es el banco ID, si es colector usa id_banco
-          setCurrentBankId(data.role === 'admin' ? user.id : data.id_banco);
-        } else {
-          console.error('Error cargando rol:', error);
-        }
-      }
-    };
-
-    fetchUserRole();
-    loadSavedConfiguration();
+    initializeScreen();
   }, []);
 
-  const loadSavedConfiguration = async () => {
-    // Aquí cargarías la configuración guardada desde la base de datos
-    // Por ahora usando valores por defecto
+  const initializeScreen = async () => {
+    try {
+      setLoading(true);
+      await fetchUserRole();
+    } catch (error) {
+      console.error('Error inicializando pantalla:', error);
+      Alert.alert('Error', 'No se pudo cargar la información del usuario');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUserRole = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role, id_banco')
+        .eq('id', user.id)
+        .single();
+
+      if (data) {
+        setUserRole(data.role);
+        // Si es admin (banco), su propio ID es el banco ID, si es colector usa id_banco
+        const bankId = data.role === 'admin' ? user.id : data.id_banco;
+        setCurrentBankId(bankId);
+        
+        // Solo los admins pueden acceder a esta pantalla
+        if (data.role !== 'admin') {
+          Alert.alert('Acceso Denegado', 'Solo los administradores pueden configurar precios');
+          navigation.goBack();
+          return;
+        }
+        
+        // Cargar configuración después de obtener el bankId
+        await loadSavedConfiguration(bankId);
+      } else {
+        console.error('Error cargando rol:', error);
+        Alert.alert('Error', 'No se pudo cargar el perfil del usuario');
+      }
+    }
+  };
+
+  const loadSavedConfiguration = async (bankId) => {
+    try {
+      console.log('Cargando configuración para banco:', bankId);
+      
+      const { data, error } = await supabase
+        .from('Precio')
+        .select('*')
+        .eq('id_banco', bankId);
+
+      if (error) {
+        console.error('Error cargando configuración:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        console.log('Configuración cargada:', data);
+        
+        // Convertir los datos de la base de datos al formato del estado
+        const newWinningPrices = { ...winningPrices };
+        const newEnabledPlayTypes = { ...enabledPlayTypes };
+        
+        data.forEach(config => {
+          const playType = config.jugada;
+          if (newWinningPrices[playType]) {
+            newWinningPrices[playType] = {
+              regular: config.precio.toString(),
+              limited: config.precio_limitado.toString(),
+              active: config['activo?']
+            };
+            newEnabledPlayTypes[playType] = config['activo?'];
+          }
+        });
+        
+        setWinningPrices(newWinningPrices);
+        setEnabledPlayTypes(newEnabledPlayTypes);
+      } else {
+        console.log('No hay configuración guardada, usando valores por defecto');
+      }
+    } catch (error) {
+      console.error('Error en loadSavedConfiguration:', error);
+    }
   };
 
   const toggleAllPlayTypes = (enable) => {
@@ -107,76 +165,92 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
     }));
   };
 
-  const addSpecificLimit = () => {
-    setSpecificLimits(prev => [
-      ...prev,
-      { number: '', limit: '', id: Date.now() }
-    ]);
-  };
-
-  const removeSpecificLimit = (id) => {
-    setSpecificLimits(prev => prev.filter(item => item.id !== id));
-  };
-
-  const updateSpecificLimit = (id, field, value) => {
-    setSpecificLimits(prev => prev.map(item =>
-      item.id === id ? { ...item, [field]: value } : item
-    ));
-  };
-
   const saveConfiguration = async () => {
-    try {
-      // Validar datos
-      if (!globalLimit || isNaN(globalLimit)) {
-        Alert.alert('Error', 'El límite global debe ser un número válido');
-        return;
-      }
+    if (!currentBankId) {
+      Alert.alert('Error', 'No se pudo identificar el banco');
+      return;
+    }
 
+    setSaving(true);
+    
+    try {
       // Validar precios de ganancias
       for (const [playType, prices] of Object.entries(winningPrices)) {
         if (enabledPlayTypes[playType]) {
           if (!prices.regular || isNaN(prices.regular)) {
             Alert.alert('Error', `Precio regular para ${playType} debe ser un número válido`);
+            setSaving(false);
             return;
           }
           if (!prices.limited || isNaN(prices.limited)) {
             Alert.alert('Error', `Precio limitado para ${playType} debe ser un número válido`);
+            setSaving(false);
             return;
           }
         }
       }
 
-      // Validar límites específicos
-      for (const limit of specificLimits) {
-        if (limit.number && (!limit.limit || isNaN(limit.limit))) {
-          Alert.alert('Error', `El límite para el número ${limit.number} debe ser un número válido`);
-          return;
-        }
-        if (limit.limit && (!limit.number || limit.number.length !== 2)) {
-          Alert.alert('Error', `El número ${limit.number} debe tener exactamente 2 dígitos`);
-          return;
-        }
+      console.log('Guardando configuración para banco:', currentBankId);
+
+      // Primero, eliminar configuración existente para este banco
+      const { error: deleteError } = await supabase
+        .from('Precio')
+        .delete()
+        .eq('id_banco', currentBankId);
+
+      if (deleteError) {
+        console.error('Error eliminando configuración anterior:', deleteError);
+        // No retornamos aquí, solo logueamos el error
       }
 
-      const configuration = {
-        enabled_play_types: enabledPlayTypes,
-        winning_prices: winningPrices,
-        global_limit: parseInt(globalLimit),
-        specific_limits: specificLimits.filter(item => item.number && item.limit),
-        updated_at: new Date().toISOString()
-      };
-
-      // Aquí guardarías en la base de datos
-      // const { error } = await supabase.from('price_configuration').upsert(configuration);
+      // Preparar datos para insertar
+      const configurationRows = [];
       
+      availablePlayTypes.forEach(playType => {
+        const prices = winningPrices[playType.id];
+        const isEnabled = enabledPlayTypes[playType.id];
+        
+        configurationRows.push({
+          id_banco: currentBankId,
+          jugada: playType.id,
+          'activo?': isEnabled,
+          precio: parseInt(prices.regular) || 0,
+          precio_limitado: parseInt(prices.limited) || 0
+        });
+      });
+
+      console.log('Datos a insertar:', configurationRows);
+
+      // Insertar nueva configuración
+      const { data, error } = await supabase
+        .from('Precio')
+        .insert(configurationRows);
+
+      if (error) {
+        console.error('Error guardando configuración:', error);
+        Alert.alert('Error', `No se pudo guardar la configuración: ${error.message}`);
+        return;
+      }
+
       Alert.alert('Éxito', 'Configuración guardada correctamente');
-      console.log('Configuración guardada:', configuration);
+      console.log('Configuración guardada exitosamente');
 
     } catch (error) {
       console.error('Error al guardar configuración:', error);
-      Alert.alert('Error', 'No se pudo guardar la configuración');
+      Alert.alert('Error', 'Ocurrió un error inesperado al guardar');
+    } finally {
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#27AE60" />
+        <Text style={styles.loadingText}>Cargando configuración...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -259,15 +333,14 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
           ))}
         </View>
 
-        
-
         {/* Botón Guardar */}
         <ActionButton
-          title="Guardar Configuración"
+          title={saving ? "Guardando..." : "Guardar Configuración"}
           onPress={saveConfiguration}
           variant="success"
           size="medium"
           style={styles.saveButton}
+          disabled={saving}
         />
 
       </ScrollView>
@@ -291,6 +364,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FDF5',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#2C3E50',
   },
   customHeader: {
     height: 100,
@@ -409,59 +491,6 @@ const styles = StyleSheet.create({
   },
   priceInput: {
     marginBottom: 0,
-  },
-  limitGroup: {
-    marginBottom: 20,
-  },
-  limitGroupTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2C3E50',
-    marginBottom: 12,
-  },
-  limitHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  addButton: {
-    backgroundColor: '#3498DB',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-  },
-  addButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  specificLimitRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginBottom: 12,
-  },
-  numberField: {
-    flex: 1,
-    marginRight: 8,
-  },
-  limitField: {
-    flex: 1,
-    marginRight: 8,
-  },
-  removeButton: {
-    backgroundColor: '#E74C3C',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  removeButtonText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   saveButton: {
     marginTop: 20,
