@@ -20,6 +20,7 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
   const [currentBankId, setCurrentBankId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   
   // Estados para tipos de jugada disponibles
   const [availablePlayTypes] = useState([
@@ -156,11 +157,23 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
   };
 
   const updateWinningPrice = (playType, priceType, value) => {
+    // Validar que solo contenga números
+    const numericValue = value.replace(/[^0-9]/g, '');
+    
+    // Limpiar error del campo si ahora es válido
+    const fieldKey = `${playType}_${priceType}`;
+    if (fieldErrors[fieldKey] && numericValue) {
+      setFieldErrors(prev => ({
+        ...prev,
+        [fieldKey]: false
+      }));
+    }
+    
     setWinningPrices(prev => ({
       ...prev,
       [playType]: {
         ...prev[playType],
-        [priceType]: value
+        [priceType]: numericValue
       }
     }));
   };
@@ -171,25 +184,34 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
       return;
     }
 
+    // Validar campos y marcar errores
+    const errors = {};
+    let hasErrors = false;
+
+    for (const [playType, prices] of Object.entries(winningPrices)) {
+      if (enabledPlayTypes[playType]) {
+        if (!prices.regular || prices.regular === '' || isNaN(prices.regular) || parseInt(prices.regular) <= 0) {
+          errors[`${playType}_regular`] = true;
+          hasErrors = true;
+        }
+        if (!prices.limited || prices.limited === '' || isNaN(prices.limited) || parseInt(prices.limited) <= 0) {
+          errors[`${playType}_limited`] = true;
+          hasErrors = true;
+        }
+      }
+    }
+
+    if (hasErrors) {
+      setFieldErrors(errors);
+      Alert.alert('Error de Validación', 'Por favor, corrige los campos resaltados en rojo. Todos los precios deben ser números mayores a 0.');
+      return;
+    }
+
+    // Limpiar errores si todo está bien
+    setFieldErrors({});
     setSaving(true);
     
     try {
-      // Validar precios de ganancias
-      for (const [playType, prices] of Object.entries(winningPrices)) {
-        if (enabledPlayTypes[playType]) {
-          if (!prices.regular || isNaN(prices.regular)) {
-            Alert.alert('Error', `Precio regular para ${playType} debe ser un número válido`);
-            setSaving(false);
-            return;
-          }
-          if (!prices.limited || isNaN(prices.limited)) {
-            Alert.alert('Error', `Precio limitado para ${playType} debe ser un número válido`);
-            setSaving(false);
-            return;
-          }
-        }
-      }
-
       console.log('Guardando configuración para banco:', currentBankId);
 
       // Primero, eliminar configuración existente para este banco
@@ -308,24 +330,48 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
                 <View style={styles.priceRow}>
                   <View style={styles.priceField}>
                     <Text style={styles.priceLabel}>Precio Regular</Text>
-                    <InputField
-                      value={winningPrices[playType.id].regular}
-                      onChangeText={(value) => updateWinningPrice(playType.id, 'regular', value)}
-                      placeholder="0"
-                      keyboardType="numeric"
-                      style={styles.priceInput}
-                    />
+                    <View style={[
+                      styles.priceInputContainer,
+                      fieldErrors[`${playType.id}_regular`] && styles.errorContainer
+                    ]}>
+                      <Text style={styles.currencySymbol}>$</Text>
+                      <InputField
+                        value={winningPrices[playType.id].regular}
+                        onChangeText={(value) => updateWinningPrice(playType.id, 'regular', value)}
+                        placeholder="0"
+                        keyboardType="numeric"
+                        style={[
+                          styles.priceInput,
+                          fieldErrors[`${playType.id}_regular`] && styles.errorInput
+                        ]}
+                      />
+                    </View>
+                    {fieldErrors[`${playType.id}_regular`] && (
+                      <Text style={styles.errorText}>Campo requerido (solo números)</Text>
+                    )}
                   </View>
                   
                   <View style={styles.priceField}>
                     <Text style={styles.priceLabel}>Precio Limitado</Text>
-                    <InputField
-                      value={winningPrices[playType.id].limited}
-                      onChangeText={(value) => updateWinningPrice(playType.id, 'limited', value)}
-                      placeholder="0"
-                      keyboardType="numeric"
-                      style={styles.priceInput}
-                    />
+                    <View style={[
+                      styles.priceInputContainer,
+                      fieldErrors[`${playType.id}_limited`] && styles.errorContainer
+                    ]}>
+                      <Text style={styles.currencySymbol}>$</Text>
+                      <InputField
+                        value={winningPrices[playType.id].limited}
+                        onChangeText={(value) => updateWinningPrice(playType.id, 'limited', value)}
+                        placeholder="0"
+                        keyboardType="numeric"
+                        style={[
+                          styles.priceInput,
+                          fieldErrors[`${playType.id}_limited`] && styles.errorInput
+                        ]}
+                      />
+                    </View>
+                    {fieldErrors[`${playType.id}_limited`] && (
+                      <Text style={styles.errorText}>Campo requerido (solo números)</Text>
+                    )}
                   </View>
                 </View>
               </View>
@@ -489,8 +535,39 @@ const styles = StyleSheet.create({
     color: '#34495E',
     marginBottom: 4,
   },
+  priceInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+  },
+  currencySymbol: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#27AE60',
+    marginRight: 8,
+  },
   priceInput: {
+    flex: 1,
     marginBottom: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+  },
+  errorContainer: {
+    borderColor: '#E74C3C',
+    backgroundColor: '#FCF3F3',
+  },
+  errorInput: {
+    color: '#E74C3C',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#E74C3C',
+    marginTop: 4,
+    fontWeight: '500',
   },
   saveButton: {
     marginTop: 20,
