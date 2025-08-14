@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, Alert, Modal, StyleSheet, TextInput, Button, FlatList, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, Alert, Modal, StyleSheet, TextInput, Button, FlatList, TouchableOpacity, Switch, Platform } from 'react-native';
 import { Picker } from '../components/PickerWrapper';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
@@ -263,107 +263,130 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     }
   };
 
-  const handleDelete = useCallback(async (id) => {
-    const shouldDelete = window.confirm('¿Estás seguro de que quieres eliminar este usuario?');
-    
-    if (shouldDelete) {
+  const handleDelete = useCallback((id) => {
+    const executeDeletion = async () => {
+      // Eliminación optimista local
+      setUsers(prev => {
+        const toDelete = prev.find(u => u.id === id);
+        const filtered = prev.filter(u => u.id !== id);
+        // Si era colector y el backend también elimina/ajusta listeros, dejamos que fetch sincronice.
+        // Si no, esos listeros quedarán como huérfanos tras fetch si siguen existiendo.
+        return filtered;
+      });
+      // Si estaba expandido quitarlo
+      setExpandedCollectors(prev => {
+        if (prev.has(id)) {
+          const n = new Set(prev);
+            n.delete(id);
+            return n;
+        }
+        return prev;
+      });
+      // Recalcular estructura rápidamente con el estado actualizado (esperar siguiente tick)
+      setTimeout(() => {
+        createHierarchicalStructure(
+          (prevUsersRef => prevUsersRef)(users.filter(u => u.id !== id))
+        );
+      }, 0);
+
       try {
-        const { data, error } = await supabase.rpc('delete_user_complete', {
-          user_id: id
-        });
-
-        if (error) {
-          console.error('Delete Error:', error);
-          return Alert.alert('Error al eliminar', error.message);
+        const { data, error } = await supabase.rpc('delete_user_complete', { user_id: id });
+        if (error) throw error;
+        if (data && data.success === false) {
+          throw new Error(data.message || data.error || 'Fallo al eliminar');
         }
-
-        if (data && !data.success) {
-          console.error('Function Delete Error:', data.error);
-          return Alert.alert('Error al eliminar', data.message || data.error);
-        }
-
-        Alert.alert('Éxito', 'Usuario eliminado completamente');
+      } catch (e) {
+        console.error('Delete Error:', e);
+        Alert.alert('Error', e.message || 'No se pudo eliminar. Refrescando.');
+        // Re-sincronizar lista real
+      } finally {
         fetchUsers();
-      } catch (error) {
-        console.error('Unexpected Delete Error:', error);
-        Alert.alert('Error inesperado', error.message || 'Ocurrió un problema al eliminar el usuario.');
       }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('¿Eliminar definitivamente este usuario?')) {
+        executeDeletion();
+      }
+    } else {
+      Alert.alert(
+        'Eliminar Usuario',
+        '¿Eliminar definitivamente este usuario?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Eliminar', style: 'destructive', onPress: executeDeletion }
+        ]
+      );
     }
-  }, []);
+  }, [users, fetchUsers, createHierarchicalStructure]);
 
   const handleToggleActive = async (userId, currentStatus) => {
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+
     const newStatus = !currentStatus;
     const action = newStatus ? 'activar' : 'desactivar';
-    
-    console.log(`handleToggleActive - userId: ${userId}, currentStatus: ${currentStatus}, newStatus: ${newStatus}`);
-    
-    // Agregar al set de usuarios que se están actualizando
-    setUpdatingUsers(prev => new Set([...prev, userId]));
-    
-    // Actualizar el estado local inmediatamente para feedback visual
-    setUsers(prevUsers => 
-      prevUsers.map(user => 
-        user.id === userId ? { ...user, activo: newStatus } : user
-      )
-    );
-    
-    try {
-      console.log(`Iniciando actualización: userId=${userId}, newStatus=${newStatus}`);
-      
-      // Actualizar directamente en la tabla profiles
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({ activo: newStatus })
-        .eq('id', userId)
-        .select();
+    const isCollector = targetUser.role === 'collector';
+    const isListero = targetUser.role === 'listero';
 
-      console.log('Resultado actualización:', { data, error });
-
-      if (error) {
-        console.error('Toggle Active Error:', error);
-        Alert.alert('Error', `Error al ${action} usuario: ${error.message}`);
-        // Revertir el cambio local si hubo error
-        setUsers(prevUsers => 
-          prevUsers.map(user => 
-            user.id === userId ? { ...user, activo: currentStatus } : user
-          )
-        );
-        // Recargar datos desde la BD para asegurar consistencia
-        fetchUsers();
+    // Bloqueo: no permitir activar listero si su colector está inactivo
+    if (isListero && newStatus) {
+      const parentCollector = users.find(u => u.id === targetUser.id_collector);
+      if (parentCollector && parentCollector.activo === false) {
+        Alert.alert('Acción no permitida', 'No puedes activar un listero cuyo colector está inactivo.');
         return;
       }
+    }
 
-      if (data && data.length > 0) {
-        console.log('Usuario actualizado exitosamente:', data[0]);
-        // La actualización fue exitosa, el estado local ya está correcto
-        // Solo mostrar mensaje de éxito sin Alert para mejor UX
-        console.log(`Usuario ${action === 'activar' ? 'activado' : 'desactivado'} correctamente`);
+    console.log(`handleToggleActive -> userId: ${userId} (${targetUser.role}) -> ${currentStatus} => ${newStatus}`);
+
+    // IDs afectados (cascade si colector)
+    let affectedIds = [userId];
+    if (isCollector) {
+      const collectorListeros = users.filter(u => u.id_collector === userId && u.role === 'listero');
+      affectedIds = [userId, ...collectorListeros.map(l => l.id)];
+    }
+
+    // Marcar todos como en actualización
+    setUpdatingUsers(prev => new Set([...prev, ...affectedIds]));
+
+    // Actualización local optimista
+    setUsers(prev => prev.map(u => (
+      affectedIds.includes(u.id) ? { ...u, activo: newStatus } : u
+    )));
+
+    try {
+      if (isCollector) {
+        // Actualizar colector y listeros vinculados en cascada
+        const { error: cascadeError } = await supabase
+          .from('profiles')
+          .update({ activo: newStatus })
+          .in('id', affectedIds);
+
+        if (cascadeError) throw cascadeError;
+        console.log(`Colector y ${affectedIds.length - 1} listeros ${action}ados`);
       } else {
-        console.log('Actualización falló - no hay datos devueltos');
-        Alert.alert('Error', 'No se pudo actualizar el usuario');
-        // Revertir el cambio local
-        setUsers(prevUsers => 
-          prevUsers.map(user => 
-            user.id === userId ? { ...user, activo: currentStatus } : user
-          )
-        );
-        fetchUsers(); // Recargar para revertir
+        // Actualización simple para listero / admin
+        const { error: singleError } = await supabase
+          .from('profiles')
+          .update({ activo: newStatus })
+          .eq('id', userId);
+        if (singleError) throw singleError;
+        console.log(`Usuario ${action}ado`);
       }
-    } catch (error) {
-      console.error('Unexpected Toggle Error:', error);
-      Alert.alert('Error inesperado', error.message || `Ocurrió un problema al ${action} el usuario.`);
-      // Revertir el cambio local
-      setUsers(prevUsers => 
-        prevUsers.map(user => 
-          user.id === userId ? { ...user, activo: currentStatus } : user
-        )
-      );
-      fetchUsers(); // Recargar para revertir
+    } catch (err) {
+      console.error('Error toggle activo:', err);
+      Alert.alert('Error', `No se pudo ${action} el usuario: ${err.message}`);
+      // Revertir local
+      setUsers(prev => prev.map(u => (
+        affectedIds.includes(u.id) ? { ...u, activo: currentStatus } : u
+      )));
+      fetchUsers();
     } finally {
-      // Remover del set de usuarios que se están actualizando
+      // Limpiar updating set
       setUpdatingUsers(prev => {
         const newSet = new Set(prev);
-        newSet.delete(userId);
+        affectedIds.forEach(id => newSet.delete(id));
         return newSet;
       });
     }
@@ -414,6 +437,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     const isListero = item.type === 'listero';
     const isExpanded = expandedCollectors.has(item.id);
     const isUpdating = updatingUsers.has(item.id);
+  const parentCollectorInactive = isListero && item.id_collector ? (users.find(u => u.id === item.id_collector)?.activo === false) : false;
     
     return (
       <View style={[
@@ -461,21 +485,27 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         </View>
         
         <View style={styles.userControls}>
-          <View style={styles.switchContainer}>
-            <Text style={styles.switchLabel}>
-              {item.activo ? 'Activo' : 'Inactivo'}
-            </Text>
-            <Switch
-              value={item.activo}
-              disabled={isUpdating}
-              onValueChange={() => {
-                console.log(`Cambiando estado de ${item.username} de ${item.activo} a ${!item.activo}`);
-                handleToggleActive(item.id, item.activo);
-              }}
-              trackColor={{ false: '#ff6b6b', true: '#51cf66' }}
-              thumbColor={item.activo ? '#2b8a3e' : '#e03131'}
-            />
-          </View>
+          {parentCollectorInactive ? (
+            <View style={[styles.switchContainer, styles.blockedContainer]}>
+              <Text style={styles.blockedBadge}>Colector inactivo</Text>
+            </View>
+          ) : (
+            <View style={styles.switchContainer}>
+              <Text style={styles.switchLabel}>
+                {item.activo ? 'Activo' : 'Inactivo'}
+              </Text>
+              <Switch
+                value={item.activo}
+                disabled={isUpdating}
+                onValueChange={() => {
+                  console.log(`Cambiando estado de ${item.username} de ${item.activo} a ${!item.activo}`);
+                  handleToggleActive(item.id, item.activo);
+                }}
+                trackColor={{ false: '#ff6b6b', true: '#51cf66' }}
+                thumbColor={item.activo ? '#2b8a3e' : '#e03131'}
+              />
+            </View>
+          )}
           
           <View style={styles.buttonRow}>
             <TouchableOpacity onPress={() => openEditModal(item)} style={styles.editButton}>
@@ -722,6 +752,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  blockedContainer: {
+    backgroundColor: '#fff5f5',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  blockedBadge: {
+    color: '#e03131',
+    fontSize: 11,
+    fontWeight: '600',
   },
   switchLabel: {
     fontSize: 12,

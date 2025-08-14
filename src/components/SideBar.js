@@ -9,7 +9,9 @@ import {
   Dimensions,
   StyleSheet,
   Alert,
+  Platform,
 } from 'react-native';
+import { supabase } from '../supabaseClient';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -117,17 +119,32 @@ const configOptions = roleOptionsMap[role] || [];
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Cerrar Sesión',
-      '¿Estás seguro de que quieres cerrar sesión?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Cerrar Sesión', style: 'destructive', onPress: () => {
-          handleClose();
-          navigation && navigation.navigate('Login');
-        }}
-      ]
-    );
+    const proceed = async () => {
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        // ignorar error de signOut para no bloquear la navegación
+      }
+      handleClose();
+      if (navigation && navigation.navigate) {
+        navigation.navigate('Login');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+        proceed();
+      }
+    } else {
+      Alert.alert(
+        'Cerrar Sesión',
+        '¿Estás seguro de que quieres cerrar sesión?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Cerrar Sesión', style: 'destructive', onPress: proceed }
+        ]
+      );
+    }
   };
 
   const handleModeVisibilityPress = () => {

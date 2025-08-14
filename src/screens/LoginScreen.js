@@ -163,13 +163,7 @@ export default function LoginScreen({ navigation }) {
                 </View>
               )}
 
-              <View style={styles.flexRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Pressable style={styles.checkbox} />
-                  <Text style={styles.remember}>Recordarme</Text>
-                </View>
-                <Text style={styles.span}>¿Olvidaste tu contraseña?</Text>
-              </View>
+              {/* Eliminado Recordarme y Olvidaste tu contraseña */}
 
               <Pressable 
                 style={({ pressed }) => [
@@ -250,24 +244,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#2C3E50',
   },
-  flexRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  remember: {
-    fontSize: 14,
-    color: 'black',
-    fontWeight: '400',
-    marginLeft: 5,
-  },
-  span: {
-    fontSize: 14,
-    color: '#2d79f3',
-    fontWeight: '500',
-  },
+  // estilos de Recordarme y Olvidaste removidos
   buttonSubmit: {
     marginVertical: 20,
     backgroundColor: '#151717',
@@ -306,14 +283,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginHorizontal: 5,
   },
-  checkbox: {
-    width: 18,
-    height: 18,
-    borderWidth: 1,
-    borderColor: '#ecedec',
-    borderRadius: 4,
-    backgroundColor: '#fff',
-  },
+  // checkbox removido
   buttonPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.98 }],
