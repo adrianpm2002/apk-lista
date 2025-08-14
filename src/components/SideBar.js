@@ -35,7 +35,6 @@ const roleOptionsMap = {
     { id: 'lotteries', icon: '🎰', title: 'Gestionar Loterías' },
     { id: 'createUser', icon: '🧑‍💼', title: 'Gestionar Usuarios' },
     { id: 'prices', icon: '💰', title: 'Configurar Precios' },
-    { id: 'listerLimits', icon: '📋', title: 'Limitar Usuarios' },
     { id: 'limitedNumbers', icon: '📊', title: 'Limitar Números' },
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
@@ -202,15 +201,17 @@ const configOptions = roleOptionsMap[role] || [];
               <Text style={styles.settingArrow}>▶</Text>
             </Pressable>
             
-            {/* Modos Visibles */}
-            <Pressable 
-              style={styles.settingOption}
-              onPress={() => handleModeVisibilityPress()}
-            >
-              <Text style={styles.settingIcon}>👁️</Text>
-              <Text style={styles.settingText}>Modos Visibles</Text>
-              <Text style={styles.settingArrow}>▶</Text>
-            </Pressable>
+            {/* Modos Visibles (solo listero) */}
+            {role === 'listero' && (
+              <Pressable 
+                style={styles.settingOption}
+                onPress={() => handleModeVisibilityPress()}
+              >
+                <Text style={styles.settingIcon}>👁️</Text>
+                <Text style={styles.settingText}>Modos Visibles</Text>
+                <Text style={styles.settingArrow}>▶</Text>
+              </Pressable>
+            )}
           </View>
           
           <Pressable style={styles.modalCloseButton} onPress={closeModal}>

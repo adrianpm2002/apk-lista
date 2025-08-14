@@ -16,7 +16,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('');
   const [selectedCollector, setSelectedCollector] = useState('');
-  const [ganancia, setGanancia] = useState('0');
+  // Eliminado campo de ganancia en creación/edición: el listero la elegirá luego en su propia vista
   const [currentUserId, setCurrentUserId] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
@@ -153,12 +153,6 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         return;
       }
 
-      const gananciaNum = parseFloat(ganancia);
-      if (isNaN(gananciaNum) || gananciaNum < 0 || gananciaNum > 100) {
-        Alert.alert('Error', 'La ganancia debe ser un número entre 0 y 100.');
-        return;
-      }
-
       const fakeEmail = `${username.toLowerCase()}@example.com`;
 
       if (isEditing && editingUser) {
@@ -167,7 +161,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           new_username: username,
           new_role: role,
           new_assigned_collector: selectedCollector || null,
-          new_ganancia: parseFloat(ganancia) || 0,
+          new_ganancia: null, // La ganancia será elegida posteriormente por el listero
           new_activo: editingUser.activo !== undefined ? editingUser.activo : true
         });
 
@@ -237,8 +231,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
             role,
             id_banco,
             id_collector,
-            ganancia: parseFloat(ganancia) || 0,
-          };
+          }; // sin ganancia; el listero la fijará después
 
           const { error: insertError } = await supabase
             .from('profiles')
@@ -412,7 +405,6 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     setUsername(user.username);
     setRole(user.role);
     setSelectedCollector(user.id_collector || '');
-    setGanancia(user.ganancia?.toString() || '0');
     setModalVisible(true);
   };
 
@@ -427,7 +419,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     setPassword('');
     setRole('');
     setSelectedCollector('');
-    setGanancia('0');
+  // ganancia eliminada del formulario
     setIsEditing(false);
     setEditingUser(null);
   };
@@ -479,9 +471,11 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
             {isUpdating && ' (Actualizando...)'}
           </Text>
           
-          <Text style={styles.userGanancia}>
-            💰 Ganancia: {item.ganancia || 0}%
-          </Text>
+          {isListero && (
+            <Text style={styles.userGanancia}>
+              💰 Ganancia: {item.ganancia ?? 0}%
+            </Text>
+          )}
         </View>
         
         <View style={styles.userControls}>
@@ -588,14 +582,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
               </>
             )}
 
-            <Text>Ganancia (%):</Text>
-            <TextInput
-              placeholder="Porcentaje de ganancia (0-100)"
-              value={ganancia}
-              onChangeText={setGanancia}
-              keyboardType="numeric"
-              style={styles.input}
-            />
+            {/* Campo de ganancia removido: el listero lo configurará después en su propia interfaz */}
 
             <Button title={isEditing ? 'Guardar Cambios' : 'Crear Usuario'} onPress={handleCreateOrUpdate} />
             <Button title="Cancelar" color="grey" onPress={() => setModalVisible(false)} />

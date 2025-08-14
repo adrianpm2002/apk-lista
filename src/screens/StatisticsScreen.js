@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import useStatistics from '../hooks/useStatistics';
-import KPICard from '../components/KPICard';
 import StatisticsChart from '../components/StatisticsChart';
 import DataTable from '../components/DataTable';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
@@ -36,7 +35,7 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
   
   // Estados para datos
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('charts');
 
   // Estados para sidebar
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -71,10 +70,8 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
 
   // Tabs de navegación
   const tabs = [
-    { id: 'overview', title: 'Resumen', icon: '📊' },
     { id: 'charts', title: 'Gráficos', icon: '📈' },
     { id: 'details', title: 'Detalles', icon: '📋' },
-    { id: 'reports', title: 'Reportes', icon: '📄' },
   ];
 
   // Cargar datos iniciales
@@ -274,34 +271,6 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
   );
 
   // Renderizar contenido del tab de resumen
-  const renderOverviewTab = () => (
-    <ScrollView style={styles.tabContent}>
-      {/* KPIs principales */}
-      <View style={styles.kpiGrid}>
-        {kpiData.map((kpi, index) => (
-          <KPICard
-            key={index}
-            title={kpi.title}
-            value={kpi.value}
-            change={kpi.change}
-            trend={kpi.trend}
-            icon={kpi.icon}
-            isDarkMode={isDarkMode}
-          />
-        ))}
-      </View>
-
-      {/* Gráfico de tendencias */}
-      {chartData.trends && chartData.trends.length > 0 && (
-        <StatisticsChart
-          type="line"
-          data={chartData.trends}
-          title="Tendencias de Apuestas"
-          isDarkMode={isDarkMode}
-        />
-      )}
-    </ScrollView>
-  );
 
   // Renderizar contenido del tab de gráficos
   const renderChartsTab = () => (
@@ -378,51 +347,6 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
   );
 
   // Renderizar contenido del tab de reportes
-  const renderReportsTab = () => (
-    <ScrollView style={styles.tabContent}>
-      <View style={styles.reportsContainer}>
-        <Text style={[styles.sectionTitle, isDarkMode && styles.sectionTitleDark]}>
-          📄 Reportes Disponibles
-        </Text>
-        
-        <TouchableOpacity
-          style={[styles.reportButton, isDarkMode && styles.reportButtonDark]}
-          onPress={() => handleExport('detailed')}
-        >
-          <Text style={[styles.reportButtonText, isDarkMode && styles.reportButtonTextDark]}>
-            📊 Reporte Detallado
-          </Text>
-          <Text style={[styles.reportDescription, isDarkMode && styles.reportDescriptionDark]}>
-            Incluye todas las jugadas con detalles completos
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.reportButton, isDarkMode && styles.reportButtonDark]}
-          onPress={() => handleExport('summary')}
-        >
-          <Text style={[styles.reportButtonText, isDarkMode && styles.reportButtonTextDark]}>
-            📈 Reporte de Resumen
-          </Text>
-          <Text style={[styles.reportDescription, isDarkMode && styles.reportDescriptionDark]}>
-            KPIs principales y métricas de rendimiento
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.reportButton, isDarkMode && styles.reportButtonDark]}
-          onPress={() => handleExport('commissions')}
-        >
-          <Text style={[styles.reportButtonText, isDarkMode && styles.reportButtonTextDark]}>
-            💰 Reporte de Comisiones
-          </Text>
-          <Text style={[styles.reportDescription, isDarkMode && styles.reportDescriptionDark]}>
-            Análisis detallado de comisiones generadas
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
-  );
 
   // Renderizar modal de filtros
   const renderFiltersModal = () => (
@@ -606,16 +530,12 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
   // Renderizar contenido según el tab activo
   const renderActiveTabContent = () => {
     switch (activeTab) {
-      case 'overview':
-        return renderOverviewTab();
       case 'charts':
         return renderChartsTab();
       case 'details':
         return renderDetailsTab();
-      case 'reports':
-        return renderReportsTab();
       default:
-        return renderOverviewTab();
+        return renderChartsTab();
     }
   };
 
@@ -805,12 +725,6 @@ const styles = StyleSheet.create({
   tabContent: {
     paddingBottom: 20,
   },
-  kpiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
@@ -820,39 +734,6 @@ const styles = StyleSheet.create({
   },
   sectionTitleDark: {
     color: '#ecf0f1',
-  },
-  reportsContainer: {
-    padding: 16,
-  },
-  reportButton: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  reportButtonDark: {
-    backgroundColor: '#34495e',
-  },
-  reportButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2c3e50',
-    marginBottom: 4,
-  },
-  reportButtonTextDark: {
-    color: '#ecf0f1',
-  },
-  reportDescription: {
-    fontSize: 14,
-    color: '#6c757d',
-  },
-  reportDescriptionDark: {
-    color: '#adb5bd',
   },
   modalOverlay: {
     flex: 1,
