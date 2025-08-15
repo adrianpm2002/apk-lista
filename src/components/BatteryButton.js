@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,22 +6,64 @@ import {
   StyleSheet,
 } from 'react-native';
 import CapacityModal from './CapacityModal';
+import { supabase } from '../supabaseClient';
 
-const BatteryButton = ({ onOptionSelect, selectedLotteries, lotteryOptions, onLotteryError }) => {
+const BatteryButton = ({ onOptionSelect, selectedLotteries, selectedSchedules, selectedPlayTypes, lotteryOptions, scheduleOptionsMap, getScheduleLabel, playTypeLabels, bankId, onLotteryError }) => {
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [capacityData, setCapacityData] = useState([]); // [{numero, limite, usado, loteriaValue, horarioValue, jugada}]
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchCapacities = async () => {
+    if(!bankId) return;
+    setLoading(true); setError(null);
+    try {
+      // Traer límites (limite_numero)
+      const { data: limits, error: limErr } = await supabase
+        .from('limite_numero')
+        .select('id, numero, limite, jugada, id_horario, horario: id_horario ( id, nombre, loteria: id_loteria ( id, nombre ) )')
+        .eq('id_banco', bankId);
+      if(limErr) throw limErr;
+      // Traer montos usados por número (numero_limitado) - asumiendo campo limite = monto acumulado actual
+      const { data: usedRows, error: usedErr } = await supabase
+        .from('numero_limitado')
+        .select('numero, limite, jugada, id_horario, horario: id_horario ( id, loteria: id_loteria ( id ) )')
+        .eq('id_banco', bankId);
+      if(usedErr) throw usedErr;
+      // Construir mapa usado: key = loteriaId|horarioId|jugada|numero
+      const usedMap = new Map();
+      (usedRows||[]).forEach(r=>{
+        const lotId = r.horario?.loteria?.id;
+        const key = `${lotId}|${r.id_horario}|${r.jugada}|${r.numero}`;
+        usedMap.set(key, (usedMap.get(key)||0) + (r.limite||0));
+      });
+      const rows = (limits||[]).map(l=>{
+        const lotId = l.horario?.loteria?.id;
+        const key = `${lotId}|${l.id_horario}|${l.jugada}|${l.numero}`;
+        const used = usedMap.get(key)||0;
+        return {
+          loteriaId: String(lotId),
+          horarioId: String(l.id_horario),
+          horarioNombre: l.horario?.nombre,
+          loteriaNombre: l.horario?.loteria?.nombre,
+          jugada: l.jugada,
+          numero: String(l.numero).padStart(2,'0'),
+          limite: l.limite,
+          usado: used,
+          porcentaje: l.limite ? Math.min(100, (used / l.limite)*100) : 0
+        };
+      });
+      setCapacityData(rows);
+    } catch(e){ setError(e.message||'Error cargando capacidad'); }
+    setLoading(false);
+  };
 
   const handlePress = () => {
-    // Validar que haya exactamente una lotería seleccionada
     if (!selectedLotteries || selectedLotteries.length === 0) {
-      onLotteryError && onLotteryError(true, 'Selecciona una lotería');
+      onLotteryError && onLotteryError(true, 'Selecciona al menos una lotería');
       return;
     }
-    
-    if (selectedLotteries.length > 1) {
-      onLotteryError && onLotteryError(true, 'Selecciona solo una lotería');
-      return;
-    }
-
+    fetchCapacities();
     setIsModalVisible(true);
   };
 
@@ -44,11 +86,13 @@ const BatteryButton = ({ onOptionSelect, selectedLotteries, lotteryOptions, onLo
       <CapacityModal
         isVisible={isModalVisible}
         onClose={handleCloseModal}
-        selectedLottery={
-          selectedLotteries && selectedLotteries.length === 1 && lotteryOptions
-            ? lotteryOptions.find(opt => opt.value === selectedLotteries[0])?.label || null
-            : null
-        }
+        selectedLottery={selectedLotteries.length===1 ? (lotteryOptions.find(o=>o.value===selectedLotteries[0])?.label) : null}
+        capacityData={capacityData}
+        loading={loading}
+        error={error}
+        filters={{ lotteries: selectedLotteries, schedules: selectedSchedules, playTypes: selectedPlayTypes }}
+        getScheduleLabel={getScheduleLabel}
+        playTypeLabels={playTypeLabels}
       />
     </View>
   );

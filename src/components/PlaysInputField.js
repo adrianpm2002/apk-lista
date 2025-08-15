@@ -67,27 +67,20 @@ const PlaysInputField = ({
   // Separar automáticamente números largos según el tipo de jugada
   const autoSeparateNumbers = (text) => {
     const requiredLength = getRequiredLength();
-    
-    // Si no hay tipo de jugada seleccionado, devolver el texto tal como está
-    if (!requiredLength) {
-      return text;
-    }
-    
-    const cleanText = text.replace(/[^0-9]/g, ''); // Solo números
-    
-    if (cleanText.length === 0) return '';
-    
+    if (!requiredLength) return text;
+    const cleanText = text.replace(/[^0-9]/g, '');
+    if (!cleanText) return '';
+    const fullLength = Math.floor(cleanText.length / requiredLength) * requiredLength; // solo bloques completos
     const numbers = [];
-    for (let i = 0; i < cleanText.length; i += requiredLength) {
+    for (let i = 0; i < fullLength; i += requiredLength) {
       const chunk = cleanText.slice(i, i + requiredLength);
-      if (chunk.length === requiredLength) {
-        numbers.push(formatNumber(chunk));
-      } else if (chunk.length > 0 && i + requiredLength >= cleanText.length) {
-        // Solo agregar el último chunk incompleto si estamos al final
-        numbers.push(chunk);
-      }
+      numbers.push(formatNumber(chunk));
     }
-    
+    // Agregar fragmento parcial (sin coma previa) solo como texto editable continuo
+    const partial = cleanText.slice(fullLength);
+    if (partial.length > 0) {
+      return numbers.length ? numbers.join(', ') + ', ' + partial : partial;
+    }
     return numbers.join(', ');
   };
 
@@ -118,35 +111,35 @@ const PlaysInputField = ({
 
   const handleChange = (text) => {
     const playTypeValue = typeof playType === 'object' ? playType?.value : playType;
-    
-    // Si hay un tipo de jugada seleccionado y el texto contiene caracteres no numéricos mezclados
-    if (playTypeValue && /[^0-9,*\-\s]/.test(text)) {
-      // Limpiar automáticamente y formatear
-      const cleaned = cleanAndFormatText(text);
-      setDisplayValue(cleaned);
-      onChangeText && onChangeText(cleaned);
+    const requiredLength = getRequiredLength();
+
+    // Siempre extraer todos los dígitos y reagrupar (idempotente) cuando hay tipo de jugada
+    if (playTypeValue && requiredLength) {
+      const digits = text.replace(/[^0-9]/g, '');
+      if (!digits) {
+        setDisplayValue('');
+        onChangeText && onChangeText('');
+        return;
+      }
+      // Reconstruir bloques completos + posible parcial visible
+      const fullLen = Math.floor(digits.length / requiredLength) * requiredLength;
+      const blocks = [];
+      for (let i = 0; i < fullLen; i += requiredLength) {
+        blocks.push(formatNumber(digits.slice(i, i + requiredLength)));
+      }
+      const partial = digits.slice(fullLen);
+      const formatted = partial.length > 0
+        ? (blocks.length ? blocks.join(', ') + ', ' + partial : partial)
+        : blocks.join(', ');
+      setDisplayValue(formatted);
+      onChangeText && onChangeText(formatted);
       return;
     }
-    
-    // Permitir solo números y separadores (comas, asteriscos, guiones, espacios)
-    const allowedChars = /[0-9,*\-\s]/g;
-    const filteredText = text.match(allowedChars)?.join('') || '';
-    
-    // Verificar si el texto contiene solo números (sin separadores)
-    const onlyNumbers = /^\d+$/.test(filteredText);
-    const requiredLength = getRequiredLength();
-    
-    // Solo aplicar auto-separación si hay un tipo de jugada seleccionado
-    if (playTypeValue && onlyNumbers && requiredLength && filteredText.length >= requiredLength) {
-      // Si hay números suficientes para formar al menos un grupo completo, auto-separar
-      const separated = autoSeparateNumbers(filteredText);
-      setDisplayValue(separated);
-      onChangeText && onChangeText(separated);
-    } else {
-      // En cualquier otro caso, usar el texto filtrado tal como está
-      setDisplayValue(filteredText);
-      onChangeText && onChangeText(filteredText);
-    }
+
+    // Sin tipo de jugada: solo limpiar caracteres inválidos, mantener texto tal cual
+    const cleaned = text.replace(/[^0-9,*\-\s]/g, '');
+    setDisplayValue(cleaned);
+    onChangeText && onChangeText(cleaned);
   };
 
   const handleBlur = () => {

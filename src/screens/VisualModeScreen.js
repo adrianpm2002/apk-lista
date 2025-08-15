@@ -7,7 +7,7 @@ import {
   Pressable,
   Animated,
 } from 'react-native';
-import { usePlaySubmission } from '../hooks/usePlaySubmission';
+import { supabase } from '../supabaseClient';
 import DropdownPicker from '../components/DropdownPicker';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import InputField from '../components/InputField';
@@ -20,13 +20,12 @@ import ListButton from '../components/ListButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 
 const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
-  // Hook para guardar jugadas
-  const { submitPlayWithConfirmation } = usePlaySubmission();
   
   // Estados para los campos
-  const [selectedLotteries, setSelectedLotteries] = useState([]); // Cambiado a array para múltiple selección
-  const [selectedSchedule, setSelectedSchedule] = useState(null);
-  const [selectedPlayType, setSelectedPlayType] = useState(null);
+  const [selectedLotteries, setSelectedLotteries] = useState([]); // values de loterías (máx 3)
+  const [selectedSchedules, setSelectedSchedules] = useState({}); // { lotteryValue: scheduleValue }
+  const [scheduleOptionsMap, setScheduleOptionsMap] = useState({}); // { lotteryValue: [{label,value}] }
+  const [selectedPlayTypes, setSelectedPlayTypes] = useState([]); // multi jugadas activas
   const [plays, setPlays] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -35,7 +34,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [lotteryError, setLotteryError] = useState(false);
   const [lotteryErrorMessage, setLotteryErrorMessage] = useState('');
-  const [scheduleError, setScheduleError] = useState(false);
+  const [scheduleError, setScheduleError] = useState(false); // true si falta algún horario
   const [playTypeError, setPlayTypeError] = useState(false);
   const [playsError, setPlaysError] = useState(false);
   const [amountError, setAmountError] = useState(false);
@@ -61,27 +60,90 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
   }, [plays, amount, isLocked]); // Agregado isLocked a las dependencias
 
   // Datos para los dropdowns
-  const lotteries = [
-    { label: 'Georgia', value: 'georgia' },
-    { label: 'Florida', value: 'florida' },
-    { label: 'New York', value: 'newyork' },
-  ];
+  const [lotteries, setLotteries] = useState([]); // desde BD
+  const [bankId, setBankId] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [isInserting, setIsInserting] = useState(false);
+  const [playTypes, setPlayTypes] = useState([]); // jugadas activas dinámicas
 
-  const schedules = [
-    { label: 'Mediodía', value: 'mediodia' },
-    { label: 'Noche', value: 'noche' },
-  ];
+  const PLAY_TYPE_LABELS = { fijo:'Fijo', corrido:'Corrido', posicion:'Posición', parle:'Parlé', centena:'Centena', tripleta:'Tripleta' };
 
-  const playTypes = [
-    { label: 'Fijo', value: 'fijo' },
-    { label: 'Corrido', value: 'corrido' },
-    { label: 'Posición', value: 'posicion' },
-    { label: 'Parlé', value: 'parle' },
-    { label: 'Centena', value: 'centena' },
-    { label: 'Tripleta', value: 'tripleta' },
-  ];
+  const getLotteryLabel = (value) => lotteries.find(l=>l.value===value)?.label || value;
+  const getScheduleLabel = (lotteryValue, scheduleValue) => (scheduleOptionsMap[lotteryValue]||[]).find(s=>s.value===scheduleValue)?.label || scheduleValue;
+  const getPlayTypeLabel = (v) => PLAY_TYPE_LABELS[v] || v;
+
+  // Cargar banco (id_banco) y luego loterías + jugadas activas
+  useEffect(()=>{
+  const loadContext = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if(!user) return;
+    setUserId(user.id);
+        const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).single();
+        if(!profile) return;
+        const bId = profile.role === 'admin' ? user.id : profile.id_banco;
+        setBankId(bId);
+      } catch(e) { /* silencioso */ }
+    };
+    loadContext();
+  },[]);
+
+  // Cargar loterías y jugadas activas cuando tengamos bankId
+  useEffect(()=>{
+    if(!bankId) return;
+    const loadData = async () => {
+      try {
+        const { data: lots } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
+        setLotteries((lots||[]).map(l=>({ label:l.nombre, value:l.id })));
+        const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
+        const jugadasObj = jugRow?.jugadas || { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
+        const enabled = Object.entries(jugadasObj)
+          .filter(([,v])=>v)
+          .map(([k])=>({ label: getPlayTypeLabel(k), value:k }));
+        const order = ['fijo','corrido','posicion','parle','centena','tripleta'];
+        const ordered = order
+          .filter(k => enabled.some(e=> e.value===k))
+          .map(k => enabled.find(e=> e.value===k));
+        setPlayTypes(ordered);
+      } catch(e){ /* ignore */ }
+    };
+    loadData();
+  },[bankId]);
+
+  // Cargar horarios de todas las loterías del banco en una sola consulta y agrupar
+  useEffect(()=>{
+    if(!bankId || lotteries.length===0) return;
+    let cancelled = false;
+    const loadAllSchedules = async () => {
+      try {
+        const lotIds = lotteries.map(l=> l.value); // UUID strings
+        const { data: rows } = await supabase
+          .from('horario')
+          .select('id,nombre,id_loteria')
+          .in('id_loteria', lotIds)
+          .order('nombre');
+        if(cancelled) return;
+        const grouped = {}; (rows||[]).forEach(r=> {
+          const key = r.id_loteria;
+          if(!grouped[key]) grouped[key] = [];
+          grouped[key].push({ label: r.nombre, value: r.id });
+        });
+        setScheduleOptionsMap(grouped);
+        setSelectedSchedules(prev => {
+          const next = { ...prev };
+          Object.keys(next).forEach(lv => { if(!grouped[lv] || !grouped[lv].some(o=>o.value===next[lv])) delete next[lv]; });
+          return next;
+        });
+      } catch(e){ /* ignore */ }
+    };
+    loadAllSchedules();
+    return ()=> { cancelled = true; };
+  },[bankId, lotteries]);
+
+  // (playTypes ahora proviene dinámicamente de la BD: estado playTypes)
 
   const handleInsert = async () => {
+    if (isInserting) return; // prevenir doble toque
     // Resetear errores
     setLotteryError(false);
     setScheduleError(false);
@@ -99,12 +161,14 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
       hasErrors = true;
     }
 
-    if (!selectedSchedule) {
+    // Validar que cada lotería seleccionada tenga un horario asignado
+    const missingSchedules = selectedLotteries.filter(lv => !selectedSchedules[lv]);
+    if (missingSchedules.length > 0) {
       setScheduleError(true);
       hasErrors = true;
     }
 
-    if (!selectedPlayType) {
+    if (!selectedPlayTypes.length) {
       setPlayTypeError(true);
       hasErrors = true;
     }
@@ -132,50 +196,71 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
       return;
     }
     
-    console.log('Insertar jugada:', {
-      lotteries: selectedLotteries,
-      schedule: selectedSchedule,
-      playType: selectedPlayType,
-      plays,
-      amount,
-      note,
+    // Formateo de números: dígitos separados por coma sin espacios
+    const numbersArrayRaw = plays
+      .split(/[\s,;]+/)
+      .map(n => n.trim())
+      .filter(n => n.length > 0);
+    // Orden numérico ascendente manteniendo padding (comparar como enteros)
+    const numbersSorted = [...numbersArrayRaw].sort((a,b)=> parseInt(a,10) - parseInt(b,10));
+    const numbersFormatted = numbersSorted.join(',');
+
+    let montoUnitario = parseInt(amount.toString().replace(/[^0-9]/g,'')) || 0;
+    const montoTotal = total; // ya calculado según candado / números
+    if (isLocked) {
+      // Recalcular: monto_unitario = monto_total / cantidad de números jugados
+      const numsCount = numbersFormatted ? numbersFormatted.split(',').filter(Boolean).length : 0;
+      if (numsCount > 0) {
+        montoUnitario = Math.floor(montoTotal / numsCount); // entero
+      }
+    }
+
+    const payloads = [];
+    selectedLotteries.forEach(lv => {
+      const id_horario = selectedSchedules[lv];
+      selectedPlayTypes.forEach(pt => {
+        payloads.push({
+          id_listero: userId,
+          id_horario,
+          jugada: pt,
+          numeros: numbersFormatted,
+          nota: note?.trim() || 'Sin nombre',
+          monto_unitario: montoUnitario,
+          monto_total: montoTotal,
+        });
+      });
     });
-    
-    // Guardar jugadas para cada lotería seleccionada
-    const savePromises = selectedLotteries.map(async (lottery) => {
-      const formData = {
-        lottery: lottery.value || lottery,
-        schedule: selectedSchedule.value || selectedSchedule,
-        playType: selectedPlayType.value || selectedPlayType,
-        numbers: plays,
-        amount: parseFloat(amount),
-        note: note || 'Sin nombre'
-      };
-      
-      console.log('Enviando datos para guardar:', formData);
-      return await submitPlayWithConfirmation(formData);
-    });
-    
+
+    if (!payloads.length) return;
+
     try {
-      const results = await Promise.all(savePromises);
-      const successCount = results.filter(r => r.success).length;
-      
-      if (successCount === selectedLotteries.length) {
-        // Solo limpiar plays, amount, note y total - mantener lotería, horario y jugada
+      setIsInserting(true);
+      const successes = [];
+      const failures = [];
+      // Inserción secuencial para confirmar cada una
+      for (const p of payloads) {
+        const { data, error } = await supabase.from('jugada').insert(p).select('id').single();
+        if (error) failures.push({ p, error }); else successes.push(data.id);
+      }
+      if (failures.length === 0) {
         setPlays('');
         setAmount('');
         setNote('');
         setTotal(0);
       }
-    } catch (error) {
-      console.error('Error al guardar jugadas:', error);
+      console.log(`Jugadas insertadas: ${successes.length}/${payloads.length}`);
+      if (failures.length) console.warn('Fallos insertando jugadas', failures.map(f=>f.error.message));
+    } catch(err) {
+      console.error('Error general insertando jugadas', err);
+    } finally {
+      setIsInserting(false);
     }
   };
 
   const handleClear = () => {
-    setSelectedLotteries([]);
-    setSelectedSchedule(null);
-    setSelectedPlayType(null);
+  setSelectedLotteries([]);
+  setSelectedSchedules({});
+  setSelectedPlayTypes([]);
     setPlays('');
     setAmount('');
     setNote('');
@@ -221,55 +306,118 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
     }
   };
 
+  // Manejo de selección de loterías (enforce máx 3)
+  const handleSelectLotteries = (values) => {
+    let next = values;
+    if (values.length > 3) {
+      // Mantener las primeras tres (orden de selección); asumimos values ya está en orden agregado
+      next = values.slice(0,3);
+    }
+    // Podar horarios de loterías deseleccionadas
+    setSelectedSchedules(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(k => { if (!next.includes(k)) delete updated[k]; });
+      return updated;
+    });
+    setSelectedLotteries(next);
+  };
+
+  // Loterías que actualmente carecen de horario (para marcar error individual)
+  const missingScheduleSet = new Set(scheduleError ? selectedLotteries.filter(lv => !selectedSchedules[lv]) : []);
+
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
       <View style={styles.toggleContainer}>
         <SideBarToggle onToggle={toggleSidebar} />
       </View>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Row 1: Lotería */}
-        <MultiSelectDropdown
-          label="Lotería"
-          selectedValues={selectedLotteries}
-          onSelect={setSelectedLotteries}
-          options={lotteries}
-          placeholder="Seleccionar loterias"
-          isDarkMode={isDarkMode}
-          hasError={lotteryError}
-          errorMessage={lotteryErrorMessage}
-        />
-
-        {/* Row 2: Horario y Jugada */}
-        <View style={styles.row}>
-          <View style={styles.halfWidth}>
-            <DropdownPicker
-              label="Horario"
-              value={selectedSchedule}
-              onSelect={setSelectedSchedule}
-              options={schedules}
-              placeholder="Seleccionar horario"
-              hasError={scheduleError}
+        {/* Row 1: Lotería & Jugada */}
+        <View style={styles.rowTwoCols}> 
+          <View style={styles.colHalf}>
+            <MultiSelectDropdown
+              label="Lotería"
+              selectedValues={selectedLotteries}
+              onSelect={handleSelectLotteries}
+              options={lotteries}
+              placeholder="Seleccionar loterías"
+              isDarkMode={isDarkMode}
+              hasError={lotteryError}
+              errorMessage={lotteryErrorMessage}
             />
           </View>
-          <View style={styles.halfWidth}>
-            <DropdownPicker
+          <View style={styles.colHalf}>
+            <MultiSelectDropdown
               label="Jugada"
-              value={selectedPlayType}
-              onSelect={setSelectedPlayType}
+              selectedValues={selectedPlayTypes}
+              onSelect={(vals)=> {
+                const groupA = ['fijo','corrido','posicion']; // combinables entre sí
+                const exclusivos = ['parle','centena','tripleta']; // no combinan
+                // Filtrar sólo valores válidos presentes en options
+                let clean = vals.filter(v=> playTypes.some(pt=> pt.value === v));
+                const prev = selectedPlayTypes;
+                const hasExclusive = clean.some(v=> exclusivos.includes(v));
+                const hasGroupA = clean.some(v=> groupA.includes(v));
+
+                if(hasExclusive && hasGroupA){
+                  // Conflicto: hay exclusivos y combinables a la vez
+                  const prevWasExclusiveOnly = prev.length === 1 && exclusivos.includes(prev[0]);
+                  if(prevWasExclusiveOnly){
+                    // Usuario partía de exclusivo y agregó combinables -> cambiar a modo combinables (quitar exclusivo)
+                    clean = clean.filter(v=> groupA.includes(v));
+                  } else {
+                    // Usuario partía de combinables y agregó un exclusivo -> quedarse solo con el exclusivo nuevo
+                    const lastExclusive = vals.filter(v=> exclusivos.includes(v)).slice(-1)[0];
+                    clean = [lastExclusive];
+                  }
+                } else if(hasExclusive){
+                  // Sólo exclusivos (puede que haya más de uno por interacción rápida) -> dejar el último
+                  const lastExclusive = vals.filter(v=> exclusivos.includes(v)).slice(-1)[0];
+                  clean = [lastExclusive];
+                } else {
+                  // Sólo combinables -> mantener subset de groupA
+                  clean = clean.filter(v=> groupA.includes(v));
+                }
+                setSelectedPlayTypes(clean);
+              }}
               options={playTypes}
-              placeholder="Seleccionar jugada"
+              placeholder="Seleccionar jugadas"
+              isDarkMode={isDarkMode}
               hasError={playTypeError}
+              errorMessage={playTypeError ? 'Selecciona al menos una jugada' : ''}
             />
           </View>
         </View>
+
+        {/* Row 2: Horarios dinámicos por lotería seleccionada + Jugada */}
+        {selectedLotteries.length > 0 && (
+          <View style={styles.dynamicSchedulesRow}>
+            {selectedLotteries.map(lv => {
+              const count = selectedLotteries.length;
+              const widthPct = count===1 ? '100%' : count===2 ? '48%' : '31.5%';
+              return (
+                <View key={lv} style={[styles.schedulePickerDynamic,{ width: widthPct }]}> 
+                  <DropdownPicker
+                    label={`Horario ${getLotteryLabel(lv)}`}
+                    value={selectedSchedules[lv] && getScheduleLabel(lv, selectedSchedules[lv])}
+                    onSelect={(item) => setSelectedSchedules(prev => ({ ...prev, [lv]: item.value || item }))}
+                    options={scheduleOptionsMap[lv] || []}
+                    placeholder={scheduleOptionsMap[lv]? 'Seleccionar horario':'Sin horarios'}
+                    hasError={missingScheduleSet.has(lv)}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        )}
+  {/* Selector de jugadas movido arriba junto a Lotería */}
 
         {/* Row 3: Jugadas */}
         <PlaysInputField
           label="Jugadas"
           value={plays}
           onChangeText={setPlays}
-          placeholder="Ej: 12, 34, 56"
-          playType={selectedPlayType}
+          placeholder=""
+          playType={selectedPlayTypes[0] || null}
           multiline={true}
           isDarkMode={isDarkMode}
           showPasteButton={true}
@@ -328,7 +476,13 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
           <BatteryButton 
             onOptionSelect={(option) => console.log('Battery option:', option)}
             selectedLotteries={selectedLotteries}
+            selectedSchedules={selectedSchedules}
+            selectedPlayTypes={selectedPlayTypes}
             lotteryOptions={lotteries}
+            scheduleOptionsMap={scheduleOptionsMap}
+            getScheduleLabel={getScheduleLabel}
+            playTypeLabels={PLAY_TYPE_LABELS}
+            bankId={bankId}
             onLotteryError={handleLotteryError}
           />
           
@@ -355,10 +509,11 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
           </View>
           <View style={styles.actionButton}>
             <ActionButton
-              title="Insertar"
+              title={isInserting ? 'Insertando...' : 'Insertar'}
               onPress={handleInsert}
               variant="success"
               size="medium"
+              disabled={isInserting}
             />
           </View>
         </View>
@@ -474,6 +629,32 @@ const styles = StyleSheet.create({
   lockButtonPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.95 }],
+  },
+  dynamicSchedulesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 6,
+  },
+  schedulePickerWrap: {
+    flexBasis: '48%',
+  },
+  dynamicSchedulesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    gap: 6,
+  },
+  schedulePickerDynamic: {
+    minWidth: 100,
+  },
+  rowTwoCols: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  colHalf: {
+    flexBasis: '48%',
   },
 });
 

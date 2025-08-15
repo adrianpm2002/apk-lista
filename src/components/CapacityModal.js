@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,73 +10,44 @@ import {
   FlatList,
 } from 'react-native';
 
-const CapacityModal = ({ isVisible, onClose, selectedLottery }) => {
+const CapacityModal = ({ isVisible, onClose, selectedLottery, capacityData = [], loading=false, error=null, filters, getScheduleLabel, playTypeLabels }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('capacity'); // 'capacity' o 'numeric'
-  const [capacityData, setCapacityData] = useState([]);
+  const [sortBy, setSortBy] = useState('capacity'); // 'capacity' | 'numeric'
 
-  // Datos simulados - en producción vendrían de la API
-  const mockCapacityData = [
-    { number: '05', used: 0, total: 2000, percentage: 0 },
-    { number: '12', used: 800, total: 1500, percentage: 53.3 },
-    { number: '23', used: 1200, total: 2000, percentage: 60 },
-    { number: '34', used: 1800, total: 2000, percentage: 90 },
-    { number: '45', used: 500, total: 1000, percentage: 50 },
-    { number: '56', used: 1500, total: 2000, percentage: 75 },
-    { number: '67', used: 300, total: 800, percentage: 37.5 },
-    { number: '78', used: 1900, total: 2000, percentage: 95 },
-    { number: '89', used: 600, total: 1200, percentage: 50 },
-    { number: '90', used: 700, total: 1000, percentage: 70 },
-  ];
+  useEffect(()=>{ if(!isVisible){ setSearchTerm(''); setSortBy('capacity'); } },[isVisible]);
 
-  useEffect(() => {
-    // Filtrar solo números que tienen jugadas (used > 0)
-    const activeNumbers = mockCapacityData.filter(item => item.used > 0);
-    setCapacityData(activeNumbers);
-  }, []);
+  const filteredRaw = useMemo(()=>{
+    const { lotteries=[], schedules={}, playTypes=[] } = filters || {};
+    return capacityData.filter(row => {
+      if(lotteries.length && !lotteries.includes(row.loteriaId)) return false;
+      if(playTypes.length && !playTypes.includes(row.jugada)) return false;
+      // Para horario: requiere que la lotería tenga un horario elegido si se proporcionó
+      const selectedForLottery = schedules[row.loteriaId];
+      if(selectedForLottery && String(selectedForLottery) !== String(row.horarioId)) return false;
+      return true;
+    });
+  },[capacityData, filters]);
 
   // Filtrar por búsqueda
-  const filteredData = capacityData.filter(item =>
-    item.number.includes(searchTerm)
-  );
+  const filteredData = filteredRaw.filter(item => item.numero?.includes?.(searchTerm) || item.numero?.toString().includes(searchTerm));
 
   // Ordenar datos
-  const sortedData = [...filteredData].sort((a, b) => {
-    if (sortBy === 'capacity') {
-      return b.percentage - a.percentage; // Mayor a menor capacidad
-    } else {
-      return parseInt(a.number) - parseInt(b.number); // Orden numérico
-    }
+  const sortedData = [...filteredData].sort((a,b)=>{
+    if(sortBy==='capacity') return b.porcentaje - a.porcentaje;
+    return parseInt(a.numero) - parseInt(b.numero);
   });
 
-  const getCapacityColor = (percentage) => {
-    if (percentage >= 80) return '#E74C3C'; // Rojo - Casi lleno
-    if (percentage >= 60) return '#F39C12'; // Naranja - Medio lleno
-    if (percentage >= 40) return '#F1C40F'; // Amarillo - Poco lleno
-    return '#27AE60'; // Verde - Disponible
-  };
+  const getCapacityColor = (pct) => pct>=80? '#E74C3C' : pct>=60? '#F39C12' : pct>=40? '#F1C40F' : '#27AE60';
 
   const renderCapacityItem = ({ item }) => (
     <View style={styles.capacityItem}>
-      <View style={styles.numberContainer}>
-        <Text style={styles.numberText}>{item.number}</Text>
-      </View>
-      
+      <View style={styles.numberContainer}><Text style={styles.numberText}>{item.numero}</Text></View>
       <View style={styles.capacityInfo}>
         <View style={styles.capacityBar}>
-          <View 
-            style={[
-              styles.capacityFill, 
-              { 
-                width: `${item.percentage}%`,
-                backgroundColor: getCapacityColor(item.percentage)
-              }
-            ]} 
-          />
+          <View style={[styles.capacityFill,{width:`${item.porcentaje}%`,backgroundColor:getCapacityColor(item.porcentaje)}]} />
         </View>
-        <Text style={styles.capacityText}>
-          ${item.used.toLocaleString()} / ${item.total.toLocaleString()}
-        </Text>
+        <Text style={styles.capacityText}>${item.usado.toLocaleString()} / ${item.limite?.toLocaleString?.()||'—'}</Text>
+        <Text style={styles.metaText}>{item.loteriaNombre} · {item.horarioNombre} · {playTypeLabels[item.jugada]||item.jugada}</Text>
       </View>
     </View>
   );
@@ -92,9 +63,7 @@ const CapacityModal = ({ isVisible, onClose, selectedLottery }) => {
         <View style={styles.modalContainer}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>
-              Capacidad de: {selectedLottery || 'No seleccionada'}
-            </Text>
+            <Text style={styles.title}>Capacidad {filters?.lotteries?.length>1? '(Múltiples Loterías)':''}</Text>
             <Pressable style={styles.closeButton} onPress={onClose}>
               <Text style={styles.closeText}>✕</Text>
             </Pressable>
@@ -112,11 +81,11 @@ const CapacityModal = ({ isVisible, onClose, selectedLottery }) => {
           </View>
 
           {/* Botones de ordenamiento */}
-          <View style={styles.sortContainer}>
+      <View style={styles.sortContainer}>
             <Pressable
               style={[
                 styles.sortButton,
-                sortBy === 'capacity' && styles.sortButtonActive
+        sortBy === 'capacity' && styles.sortButtonActive
               ]}
               onPress={() => setSortBy('capacity')}
             >
@@ -145,13 +114,19 @@ const CapacityModal = ({ isVisible, onClose, selectedLottery }) => {
           </View>
 
           {/* Lista de capacidades */}
-          <FlatList
-            data={sortedData}
-            keyExtractor={(item) => item.number}
-            renderItem={renderCapacityItem}
-            style={styles.list}
-            showsVerticalScrollIndicator={false}
-          />
+          {loading ? (
+            <Text style={styles.loadingText}>Cargando...</Text>
+          ) : error ? (
+            <Text style={styles.errorText}>{error}</Text>
+          ) : (
+            <FlatList
+              data={sortedData}
+              keyExtractor={(item,idx) => item.loteriaId+"-"+item.horarioId+"-"+item.jugada+"-"+item.numero+"-"+idx}
+              renderItem={renderCapacityItem}
+              style={styles.list}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
         </View>
       </View>
     </Modal>
@@ -282,6 +257,12 @@ const styles = StyleSheet.create({
     color: '#5D6D7E',
     marginBottom: 2,
   },
+  metaText: {
+    fontSize: 10,
+    color: '#7F8C8D'
+  },
+  loadingText: { textAlign:'center', marginTop:20, color:'#2C3E50' },
+  errorText: { textAlign:'center', marginTop:20, color:'#E74C3C' },
   footer: {
     marginTop: 15,
     paddingTop: 15,

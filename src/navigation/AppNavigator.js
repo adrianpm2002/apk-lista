@@ -8,6 +8,7 @@ import ManageLotteriesScreen from '../screens/ManageLotteriesScreen';
 import ManagePricesScreen from '../screens/ManagePricesScreen';
 import LimitNumero from '../screens/limitNumero';
 import StaticsBanck from '../screens/StatisticsScreen';
+import SavedPlaysScreen from '../screens/SavedPlaysScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -85,6 +86,14 @@ const AppNavigator = () => (
         headerShown: false,
       }}
     />
+    <Stack.Screen 
+      name="SavedPlays" 
+      component={SavedPlaysScreen} 
+      options={{
+        headerShown: false,
+      }}
+    />
+
 
   </Stack.Navigator>
 );
