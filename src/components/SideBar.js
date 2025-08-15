@@ -54,7 +54,9 @@ const roleOptionsMap = {
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   listero: [
-    { id: 'settings', icon: '⚙️', title: 'Configuración' },
+  { id: 'play', icon: '🎮', title: 'Inicio' },
+  { id: 'statistics', icon: '📈', title: 'Estadísticas' },
+  { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ]
 };
 
@@ -107,6 +109,9 @@ const configOptions = roleOptionsMap[role] || [];
       break;
     case 'statistics':
       navigation.navigate('Statistics');
+      break;
+    case 'play':
+      navigation.navigate('MainApp');
       break;
     case 'settings':
       setModalContent(option);
