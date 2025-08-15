@@ -32,8 +32,8 @@ const roleOptionsMap = {
   admin: [
     { id: 'statistics', icon: '📈', title: 'Estadísticas' },
     { id: 'insertResults', icon: '🎯', title: 'Insertar Resultados' },
-    { id: 'lotteries', icon: '🎰', title: 'Gestionar Loterías' },
     { id: 'createUser', icon: '🧑‍💼', title: 'Gestionar Usuarios' },
+    { id: 'lotteries', icon: '🎰', title: 'Gestionar Loterías' },
     { id: 'prices', icon: '💰', title: 'Configurar Precios' },
     { id: 'limitedNumbers', icon: '📊', title: 'Limitar Números' },
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
