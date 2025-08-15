@@ -460,7 +460,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           ]}>
             {isCollector && '👑 '}
             {isListero && `   `}
-            {item.username} - {item.role}
+            {item.username} - {item.role === 'collector' ? 'colector' : item.role}
           </Text>
           
           <Text style={[
@@ -473,7 +473,12 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           
           {isListero && (
             <Text style={styles.userGanancia}>
-              💰 Ganancia: {item.ganancia ?? 0}%
+              {(() => {
+                const g = item.ganancia;
+                if (g === null || g === undefined) return '💰 Ganancia: no seleccionada';
+                if (typeof g === 'string' && g.trim() === '') return '💰 Ganancia: no seleccionada';
+                return `💰 Ganancia: ${g}`; // ya no es porcentaje, se muestra tal cual
+              })()}
             </Text>
           )}
         </View>
