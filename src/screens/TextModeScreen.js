@@ -14,7 +14,8 @@ import MoneyInputField from '../components/MoneyInputField';
 import ActionButton from '../components/ActionButton';
 import HammerButton from '../components/HammerButton';
 import ListButton from '../components/ListButton';
-import InfoButton from '../components/InfoButton';
+import PricingInfoButton from '../components/PricingInfoButton';
+import NotificationsButton from '../components/NotificationsButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 
@@ -27,7 +28,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
   const [calculatedAmount, setCalculatedAmount] = useState(0);
   const [total, setTotal] = useState(0);
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [isLocked, setIsLocked] = useState(false);
+  const [isLocked, setIsLocked] = useState(false); // Candado oculto en este modo
   const [lotteryError, setLotteryError] = useState(false);
   const [lotteryErrorMessage, setLotteryErrorMessage] = useState('');
   const [scheduleError, setScheduleError] = useState(false);
@@ -180,9 +181,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     setSidebarVisible(false);
   };
 
-  const toggleLock = () => {
-    setIsLocked(!isLocked);
-  };
+  const toggleLock = () => { /* Candado no visible aquí */ };
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
@@ -214,7 +213,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
 
         {/* Row 3: Jugadas */}
         <InputField
-          label="Jugadas"
+          label="Números"
           value={plays}
           onChangeText={setPlays}
           placeholder="Ej: 123, 456, 789"
@@ -250,22 +249,10 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
 
         {/* Row 4: Botones de herramientas */}
         <View style={styles.toolsContainer}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.lockButton, 
-              isLocked && styles.lockButtonActive,
-              pressed && styles.lockButtonPressed
-            ]}
-            onPress={toggleLock}
-          >
-            <Text style={styles.lockIcon}>{isLocked ? '🔒' : '🔓'}</Text>
-          </Pressable>
-          
           <HammerButton onOptionSelect={(option) => console.log('Hammer option:', option)} />
-          
           <ListButton onOptionSelect={(option) => console.log('List option:', option)} />
-          
-          <InfoButton />
+          <PricingInfoButton />
+          <NotificationsButton />
         </View>
 
         {/* Row 5: Botones de acción */}

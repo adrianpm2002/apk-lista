@@ -16,7 +16,11 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('');
   const [selectedCollector, setSelectedCollector] = useState('');
-  // Eliminado campo de ganancia en creación/edición: el listero la elegirá luego en su propia vista
+  // Uso actualizado: se guarda id_precio (FK a tabla precio) en profiles; colector asigna configuración válida al listero
+  // Ganancias disponibles (tabla precio) y selección (solo colector asigna a listeros)
+  const [gainOptions, setGainOptions] = useState([]); // [{id,nombre,precios}]
+  const [selectedGainId, setSelectedGainId] = useState(null); // id_precio seleccionado
+  const [selectedGainDetail, setSelectedGainDetail] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
@@ -85,7 +89,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     }
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, role, id_banco, id_collector, activo, ganancia, limite_especifico')
+      .select('id, username, role, id_banco, id_collector, activo, id_precio, limite_especifico')
       .eq('id_banco', currentBankId)
       .order('role', { ascending: false })
       .order('username');
@@ -181,6 +185,43 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     }
   }, [currentBankId]);
 
+  // Cargar configuraciones de precio válidas: exactamente mismas jugadas activas
+  const fetchValidGains = useCallback(async () => {
+    if (userRole !== 'collector') return;
+    if (!currentBankId) return;
+    try {
+      const { data, error } = await supabase
+        .from('precio')
+        .select('id, nombre, precios, id_banco')
+        .eq('id_banco', currentBankId);
+      if (error) { console.error('Error precio:', error); return; }
+      const actSet = new Set(activePlayTypes);
+      const filtered = (data||[]).filter(cfg => {
+        if (!cfg || !cfg.precios || typeof cfg.precios !== 'object') return false;
+        const keys = Object.keys(cfg.precios);
+        if (keys.length !== actSet.size) return false;
+        for (const k of keys) {
+          if (!actSet.has(k)) return false;
+          const v = cfg.precios[k];
+          if (!v || typeof v !== 'object') return false;
+          const req = ['limited','regular','listeroPct','collectorPct'];
+          for (const r of req) { if (!(r in v)) return false; }
+        }
+        for (const a of actSet) { if (!(a in cfg.precios)) return false; }
+        return true;
+      });
+      setGainOptions(filtered);
+      if (selectedGainId && !filtered.some(f => f.id === selectedGainId)) {
+        setSelectedGainId(null);
+        setSelectedGainDetail(null);
+      }
+    } catch (e) {
+      console.error('Excepción fetchValidGains:', e);
+    }
+  }, [userRole, currentBankId, activePlayTypes, selectedGainId]);
+
+  useEffect(() => { fetchValidGains(); }, [fetchValidGains]);
+
   // Recrear estructura jerárquica cuando cambien los usuarios
   useEffect(() => {
     if (users.length === 0) return;
@@ -210,32 +251,72 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         Alert.alert('Error', 'Debes seleccionar un colector.');
         return;
       }
+      if (userRole === 'collector' && effectiveRole === 'listero' && !selectedGainId) {
+        // Validación no obligatoria (antes era obligatoria). Se permite continuar sin ganancia.
+      }
 
       const fakeEmail = `${username.toLowerCase()}@example.com`;
 
     if (isEditing && editingUser) {
-        const { data, error } = await supabase.rpc('update_user_profile_and_auth', {
+        const { data, error } = await supabase.rpc('update_user_profile_and_auth_v2', {
           user_id: editingUser.id,
-      new_username: username,
-      new_role: effectiveRole,
-      new_assigned_collector: userRole === 'collector' ? currentUserId : (selectedCollector || null),
-          new_ganancia: null, // La ganancia será elegida posteriormente por el listero
+          new_username: username,
+          new_role: effectiveRole,
+          new_assigned_collector: userRole === 'collector' ? currentUserId : (selectedCollector || null),
+          new_id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? (selectedGainId || null) : (editingUser.id_precio || null),
           new_activo: editingUser.activo !== undefined ? editingUser.activo : true
         });
 
         if (error) {
-          console.error('RPC Error:', error);
-          return Alert.alert('Error al actualizar', `Error de conexión: ${error.message}`);
+          console.error('RPC v2 Error:', error);
+          // Fallback: actualización directa si la función aún no existe o sigue vieja
+          try {
+            const directUpdate = {
+              username,
+              role: effectiveRole,
+              id_collector: userRole === 'collector' ? currentUserId : (selectedCollector || null),
+              id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? (selectedGainId || null) : (editingUser.id_precio || null),
+              activo: editingUser.activo !== undefined ? editingUser.activo : true
+            };
+            const { error: upErrFallback } = await supabase
+              .from('profiles')
+              .update(directUpdate)
+              .eq('id', editingUser.id);
+            if (upErrFallback) {
+              console.error('Fallback update error:', upErrFallback);
+              return Alert.alert('Error al actualizar', `Fallo RPC y fallback: ${upErrFallback.message}`);
+            }
+          } catch (fb) {
+            console.error('Excepción fallback:', fb);
+            return Alert.alert('Error al actualizar', fb.message || 'Fallo general');
+          }
         }
 
         if (data && typeof data === 'object') {
           if (!data.success) {
-            console.error('Function Error:', data.error);
-            return Alert.alert('Error al actualizar', data.message || data.error || 'Error desconocido');
+            console.error('Function v2 reported failure:', data.error);
+            // Intentar fallback si success false pero sin error explícito
+            try {
+              const { error: upErr2 } = await supabase
+                .from('profiles')
+                .update({
+                  username,
+                  role: effectiveRole,
+                  id_collector: userRole === 'collector' ? currentUserId : (selectedCollector || null),
+                  id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? (selectedGainId || null) : (editingUser.id_precio || null)
+                })
+                .eq('id', editingUser.id);
+              if (upErr2) {
+                console.error('Fallback tras success=false error:', upErr2);
+                return Alert.alert('Error al actualizar', upErr2.message);
+              }
+            } catch (e2) {
+              console.error('Excepción fallback success=false:', e2);
+              return Alert.alert('Error al actualizar', e2.message || 'Error desconocido');
+            }
           }
-          
           if (data.success) {
-            // Actualizar/limpiar limites especificos si es listero
+            // Límites específicos sólo si admin (collector no los toca)
             if (effectiveRole === 'listero' && userRole !== 'collector') {
               try {
                 if (enableSpecificLimits) {
@@ -265,7 +346,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
             }
             Alert.alert('Éxito', data.message || 'Usuario actualizado correctamente');
           }
-        } else {
+        } else if (!error) {
           Alert.alert('Éxito', 'Usuario actualizado correctamente');
         }
   } else {
@@ -309,12 +390,13 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           }
 
           const insertData = {
-            id: newUserId,
-            username,
-            role: effectiveRole,
-            id_banco,
-            id_collector,
-          }; // sin ganancia
+             id: newUserId,
+             username,
+             role: effectiveRole,
+             id_banco,
+             id_collector,
+             id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? (selectedGainId || null) : null,
+           }; // sin ganancia
 
           if (effectiveRole === 'listero' && enableSpecificLimits && userRole !== 'collector') {
             const limitsObj = {};
@@ -540,6 +622,12 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       } else {
         setEnableSpecificLimits(false);
       }
+      if (userRole === 'collector') {
+        const gid = user.id_precio || null;
+        setSelectedGainId(gid);
+        const detail = gainOptions.find(go => go.id === gid);
+        setSelectedGainDetail(detail ? detail.precios : null);
+      }
     } else {
       setEnableSpecificLimits(false);
     }
@@ -557,10 +645,11 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     setPassword('');
     setRole('');
     setSelectedCollector('');
-  // ganancia eliminada del formulario
+    setSelectedGainId(null);
+    setSelectedGainDetail(null);
     setIsEditing(false);
     setEditingUser(null);
-  setEnableSpecificLimits(false);
+    setEnableSpecificLimits(false);
   };
 
   const renderUserItem = ({ item }) => {
@@ -615,10 +704,11 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
             <>
               <Text style={styles.userGanancia}>
                 {(() => {
-                  const g = item.ganancia;
-                  if (g === null || g === undefined) return '💰 Ganancia: no seleccionada';
-                  if (typeof g === 'string' && g.trim() === '') return '💰 Ganancia: no seleccionada';
-                  return `💰 Ganancia: ${g}`;
+                  const gid = item.id_precio;
+                  if (!gid) return '💰 Ganancia: no seleccionada';
+                  const cfg = gainOptions.find(o => o.id === gid);
+                  if (!cfg) return '💰 Ganancia: (inválida)';
+                  return `💰 Ganancia: ${cfg.nombre}`;
                 })()}
               </Text>
               <Text style={styles.userLimits}>
@@ -774,7 +864,41 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
               </>
             )}
 
-            {/* Campo de ganancia removido: el listero lo configurará después en su propia interfaz */}
+            {userRole === 'collector' && (role === 'listero' || isEditing) && (
+              <>
+                <Text style={{ fontWeight:'600' }}>Ganancia:</Text>
+                <Picker
+                  selectedValue={selectedGainId || ''}
+                   onValueChange={(val) => {
+                    setSelectedGainId(val || null);
+                    const f = gainOptions.find(g => g.id === val);
+                     setSelectedGainDetail(f ? f.precios : null);
+                   }}
+                   style={styles.picker}
+                 >
+                   <Picker.Item label="Selecciona una ganancia" value="" />
+                  {gainOptions.map(g => (
+                    <Picker.Item key={g.id} label={g.nombre} value={g.id} />
+                  ))}
+                  {selectedGainId && !gainOptions.some(g => g.id === selectedGainId) && (
+                    <Picker.Item label={`Configuración no válida`} value={selectedGainId} />
+                  )}
+                </Picker>
+                {selectedGainDetail && (
+                  <View style={{ borderWidth:1, borderColor:'#ccc', padding:10, borderRadius:6, backgroundColor:'#fff', marginBottom:15 }}>
+                    {activePlayTypes.map(pt => {
+                       const d = selectedGainDetail[pt];
+                       if (!d) return null;
+                       return (
+                         <Text key={pt} style={{ fontSize:12, marginBottom:4 }}>
+                           <Text style={{ fontWeight:'700', color:'#1d6fd1' }}>{pt.toUpperCase()}</Text>: regular {d.regular}, limitado {d.limited}, listero% {d.listeroPct}, colector% {d.collectorPct}
+                         </Text>
+                       );
+                     })}
+                  </View>
+                )}
+               </>
+             )}
 
             <Button title={isEditing ? 'Guardar Cambios' : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')} onPress={handleCreateOrUpdate} />
             <Button title="Cancelar" color="grey" onPress={() => setModalVisible(false)} />
@@ -1009,7 +1133,7 @@ const styles = StyleSheet.create({
   },
   limitsHint: {
     fontSize: 12,
-    color: '#7f8c8d',
+    color: '#7f8c8c',
     fontStyle: 'italic',
   },
   limitInputRow: {

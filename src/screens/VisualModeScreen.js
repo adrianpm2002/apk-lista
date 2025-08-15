@@ -17,6 +17,8 @@ import ActionButton from '../components/ActionButton';
 import BatteryButton from '../components/BatteryButton';
 import HammerButton from '../components/HammerButton';
 import ListButton from '../components/ListButton';
+import PricingInfoButton from '../components/PricingInfoButton';
+import NotificationsButton from '../components/NotificationsButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 
 const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
@@ -196,14 +198,12 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
       return;
     }
     
-    // Formateo de números: dígitos separados por coma sin espacios
+    // Mantener orden EXACTO de entrada (el usuario ya no quiere orden ascendente)
     const numbersArrayRaw = plays
       .split(/[\s,;]+/)
       .map(n => n.trim())
       .filter(n => n.length > 0);
-    // Orden numérico ascendente manteniendo padding (comparar como enteros)
-    const numbersSorted = [...numbersArrayRaw].sort((a,b)=> parseInt(a,10) - parseInt(b,10));
-    const numbersFormatted = numbersSorted.join(',');
+    const numbersFormatted = numbersArrayRaw.join(',');
 
     let montoUnitario = parseInt(amount.toString().replace(/[^0-9]/g,'')) || 0;
     const montoTotal = total; // ya calculado según candado / números
@@ -350,34 +350,35 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
               label="Jugada"
               selectedValues={selectedPlayTypes}
               onSelect={(vals)=> {
-                const groupA = ['fijo','corrido','posicion']; // combinables entre sí
-                const exclusivos = ['parle','centena','tripleta']; // no combinan
-                // Filtrar sólo valores válidos presentes en options
-                let clean = vals.filter(v=> playTypes.some(pt=> pt.value === v));
-                const prev = selectedPlayTypes;
-                const hasExclusive = clean.some(v=> exclusivos.includes(v));
-                const hasGroupA = clean.some(v=> groupA.includes(v));
-
-                if(hasExclusive && hasGroupA){
-                  // Conflicto: hay exclusivos y combinables a la vez
-                  const prevWasExclusiveOnly = prev.length === 1 && exclusivos.includes(prev[0]);
-                  if(prevWasExclusiveOnly){
-                    // Usuario partía de exclusivo y agregó combinables -> cambiar a modo combinables (quitar exclusivo)
-                    clean = clean.filter(v=> groupA.includes(v));
-                  } else {
-                    // Usuario partía de combinables y agregó un exclusivo -> quedarse solo con el exclusivo nuevo
-                    const lastExclusive = vals.filter(v=> exclusivos.includes(v)).slice(-1)[0];
-                    clean = [lastExclusive];
-                  }
-                } else if(hasExclusive){
-                  // Sólo exclusivos (puede que haya más de uno por interacción rápida) -> dejar el último
-                  const lastExclusive = vals.filter(v=> exclusivos.includes(v)).slice(-1)[0];
-                  clean = [lastExclusive];
-                } else {
-                  // Sólo combinables -> mantener subset de groupA
-                  clean = clean.filter(v=> groupA.includes(v));
+                // Reglas NUEVAS permitidas:
+                //  - fijo
+                //  - corrido
+                //  - centena
+                //  - parle (exclusivo)
+                //  - fijo + corrido
+                //  - fijo + centena
+                // Nada más.
+                const valid = vals.filter(v => playTypes.some(pt => pt.value === v));
+                const exclusive = ['parle','tripleta']; // parle exclusivo; tripleta se mantiene restringida si aparece
+                const exclusiveChosen = valid.filter(v=> exclusive.includes(v)).pop();
+                if (exclusiveChosen) { setSelectedPlayTypes([exclusiveChosen]); return; }
+                let pool = Array.from(new Set(valid.filter(v => ['fijo','corrido','centena'].includes(v))));
+                if (pool.length > 2) {
+                  // Reducir a dupla válida o última selección
+                  const last = [...valid].reverse().find(v=> pool.includes(v));
+                  if (last === 'fijo') pool = ['fijo'];
+                  else if (['corrido','centena'].includes(last)) pool = ['fijo', last];
+                  else pool = [last];
                 }
-                setSelectedPlayTypes(clean);
+                if (pool.length === 2) {
+                  const key = pool.slice().sort().join('|');
+                  const allowed = ['corrido|fijo','centena|fijo'];
+                  if (!allowed.includes(key)) {
+                    const last = [...valid].reverse().find(v=> pool.includes(v));
+                    pool = [last];
+                  }
+                }
+                setSelectedPlayTypes(pool);
               }}
               options={playTypes}
               placeholder="Seleccionar jugadas"
@@ -413,7 +414,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
 
         {/* Row 3: Jugadas */}
         <PlaysInputField
-          label="Jugadas"
+          label="Números"
           value={plays}
           onChangeText={setPlays}
           placeholder=""
@@ -462,16 +463,18 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
 
         {/* Row 5: Botones de herramientas */}
         <View style={styles.toolsContainer}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.lockButton, 
-              isLocked && styles.lockButtonActive,
-              pressed && styles.lockButtonPressed
-            ]}
-            onPress={toggleLock}
-          >
-            <Text style={styles.lockIcon}>{isLocked ? '🔒' : '🔓'}</Text>
-          </Pressable>
+          {selectedPlayTypes.length === 1 && selectedPlayTypes[0] === 'parle' && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.lockButton, 
+                isLocked && styles.lockButtonActive,
+                pressed && styles.lockButtonPressed
+              ]}
+              onPress={toggleLock}
+            >
+              <Text style={styles.lockIcon}>{isLocked ? '🔒' : '🔓'}</Text>
+            </Pressable>
+          )}
           
           <BatteryButton 
             onOptionSelect={(option) => console.log('Battery option:', option)}
@@ -495,6 +498,8 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
             onOptionSelect={(option) => console.log('List option:', option)}
             isDarkMode={isDarkMode}
           />
+          <PricingInfoButton />
+          <NotificationsButton />
         </View>
 
         {/* Row 6: Botones de acción */}
