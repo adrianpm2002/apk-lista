@@ -17,6 +17,7 @@ import ListButton from '../components/ListButton';
 import PricingInfoButton from '../components/PricingInfoButton';
 import NotificationsButton from '../components/NotificationsButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
+import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 
 const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
@@ -185,17 +186,21 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
-      <View style={styles.toggleContainer}>
-        <SideBarToggle onToggle={toggleSidebar} />
+      <View style={styles.headerFloating} pointerEvents="box-none">
+        <View style={styles.inlineHeaderRow} pointerEvents="box-none">
+          <SideBarToggle inline onToggle={toggleSidebar} />
+          <PricingInfoButton />
+          <NotificationsButton />
+        </View>
       </View>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Row 1: Lotería */}
         <MultiSelectDropdown
-          label="Lotería"
+          label={t('common.lottery')}
           selectedValues={selectedLotteries}
           onSelect={setSelectedLotteries}
           options={lotteries}
-          placeholder="Seleccionar loterias"
+          placeholder={t('placeholders.selectLotteries')}
           isDarkMode={isDarkMode}
           hasError={lotteryError}
           errorMessage={lotteryErrorMessage}
@@ -203,17 +208,17 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
 
         {/* Row 2: Horario */}
         <DropdownPicker
-          label="Horario"
+          label={t('common.schedule')}
           value={selectedSchedule}
           onSelect={setSelectedSchedule}
           options={schedules}
-          placeholder="Seleccionar horario"
+          placeholder={t('placeholders.selectSchedule')}
           hasError={scheduleError}
         />
 
         {/* Row 3: Jugadas */}
         <InputField
-          label="Números"
+          label={t('common.numbers')}
           value={plays}
           onChangeText={setPlays}
           placeholder="Ej: 123, 456, 789"
@@ -227,7 +232,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
         <View style={styles.row}>
           <View style={styles.halfWidth}>
             <InputField
-              label="Nota"
+              label={t('common.note')}
               value={note}
               onChangeText={setNote}
               placeholder=""
@@ -237,7 +242,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           </View>
           <View style={styles.halfWidth}>
             <MoneyInputField
-              label="Total"
+              label={t('common.total')}
               value={total.toString()}
               editable={false}
               placeholder="$0"
@@ -251,15 +256,13 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
         <View style={styles.toolsContainer}>
           <HammerButton onOptionSelect={(option) => console.log('Hammer option:', option)} />
           <ListButton onOptionSelect={(option) => console.log('List option:', option)} />
-          <PricingInfoButton />
-          <NotificationsButton />
         </View>
 
         {/* Row 5: Botones de acción */}
         <View style={styles.actionRow}>
           <View style={styles.actionButton}>
             <ActionButton
-              title="Borrar"
+              title={t('actions.clear')}
               onPress={handleClear}
               variant="danger"
               size="small"
@@ -267,7 +270,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           </View>
           <View style={styles.actionButton}>
             <ActionButton
-              title="Verificar"
+              title={t('actions.verify')}
               onPress={handleVerify}
               variant="warning"
               size="small"
@@ -275,7 +278,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           </View>
           <View style={styles.actionButton}>
             <ActionButton
-              title="Insertar"
+              title={t('actions.insert')}
               onPress={handleInsert}
               variant="success"
               size="small"
@@ -306,12 +309,23 @@ const styles = StyleSheet.create({
   containerDark: {
     backgroundColor: '#2c3e50',
   },
-  toggleContainer: {
+  headerFloating: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 1000,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    zIndex: 3000,
+    paddingRight: 8,
+  },
+  inlineHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingLeft: 6,
+    paddingTop: 4,
   },
   content: {
     flex: 1,

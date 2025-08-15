@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, Pressable, Modal, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { supabase } from '../supabaseClient';
+import { t } from '../utils/i18n';
 
 // Botón que muestra la configuración de precios (id_precio) asignada al listero
 // Obtiene el id_precio del perfil del usuario actual y luego la fila de precio
@@ -36,10 +37,10 @@ const PricingInfoButton = () => {
   const renderContent = () => {
     if (loading) return <ActivityIndicator size="large" color="#2D5016" style={{ marginVertical: 20 }} />;
     if (error) return <Text style={styles.errorText}>{error}</Text>;
-    if (!precioRow) return <Text style={styles.infoText}>Sin configuración asignada.</Text>;
+  if (!precioRow) return <Text style={styles.infoText}>{t('pricing.noConfig')}</Text>;
     const precios = precioRow.precios || {};
     const entries = Object.entries(precios);
-    if (!entries.length) return <Text style={styles.infoText}>Configuración vacía.</Text>;
+  if (!entries.length) return <Text style={styles.infoText}>{t('pricing.emptyConfig')}</Text>;
     return (
       <View>
         <Text style={styles.configName}>{precioRow.nombre}</Text>
@@ -51,10 +52,10 @@ const PricingInfoButton = () => {
           return (
             <View key={tipo} style={styles.playRow}>
               <Text style={styles.playType}>{tipo.toUpperCase()}</Text>
-              <Text style={styles.detailText}>LIMITED: {limited}</Text>
-              <Text style={styles.detailText}>REGULAR: {regular}</Text>
-              <Text style={styles.detailText}>LISTER0%: {lPct}%</Text>
-              <Text style={styles.detailText}>COLECTOR%: {cPct}%</Text>
+              <Text style={styles.detailText}>{t('pricing.limited')}: {limited}</Text>
+              <Text style={styles.detailText}>{t('pricing.regular')}: {regular}</Text>
+              <Text style={styles.detailText}>{t('pricing.listeroPct')}: {lPct}%</Text>
+              <Text style={styles.detailText}>{t('pricing.collectorPct')}: {cPct}%</Text>
             </View>
           );
         })}
@@ -75,7 +76,7 @@ const PricingInfoButton = () => {
           <View style={styles.modal}>
             <ScrollView showsVerticalScrollIndicator={false}>{renderContent()}</ScrollView>
             <Pressable style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]} onPress={close}>
-              <Text style={styles.closeText}>Cerrar</Text>
+              <Text style={styles.closeText}>{t('common.close')}</Text>
             </Pressable>
           </View>
         </View>

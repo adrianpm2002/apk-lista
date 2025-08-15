@@ -550,17 +550,13 @@ const configOptions = roleOptionsMap[role] || [];
   );
 };
 
-const SideBarToggle = ({ onToggle }) => {
-  const handlePress = () => {
-    onToggle && onToggle();
-  };
-
+const SideBarToggle = ({ onToggle, inline = false }) => {
+  const handlePress = () => { onToggle && onToggle(); };
+  const baseStyle = inline ? styles.toggleButtonInline : styles.toggleButton;
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.toggleButton,
-        pressed && styles.toggleButtonPressed
-      ]}
+      style={({ pressed }) => [baseStyle, pressed && styles.toggleButtonPressed]}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       onPress={handlePress}
     >
       <Text style={styles.toggleIcon}>☰</Text>
@@ -814,20 +810,34 @@ const styles = StyleSheet.create({
   // Toggle Button
   toggleButton: {
     position: 'absolute',
-    top: 50,
-    left: 15,
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
+    top: 8,
+    left: 8,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 10,
-    zIndex: 99999,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 12,
+    zIndex: 2000,
+  },
+  toggleButtonInline: {
+    position: 'relative',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 6,
   },
   toggleButtonPressed: {
     opacity: 0.8,

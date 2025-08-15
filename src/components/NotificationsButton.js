@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, Modal, StyleSheet } from 'react-native';
+import { t } from '../utils/i18n';
 
 // Botón de notificaciones (placeholder)
 // Muestra modal simple indicando que no hay notificaciones
@@ -16,10 +17,10 @@ const NotificationsButton = () => {
       <Modal visible={visible} transparent animationType="fade" onRequestClose={()=> setVisible(false)}>
         <View style={styles.overlay}>
           <View style={styles.modal}>
-            <Text style={styles.title}>Notificaciones</Text>
-            <Text style={styles.body}>No hay notificaciones por ahora.</Text>
+            <Text style={styles.title}>{t('notifications.title')}</Text>
+            <Text style={styles.body}>{t('notifications.empty')}</Text>
             <Pressable style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]} onPress={()=> setVisible(false)}>
-              <Text style={styles.closeText}>Cerrar</Text>
+              <Text style={styles.closeText}>{t('common.close')}</Text>
             </Pressable>
           </View>
         </View>

@@ -20,6 +20,8 @@ import ListButton from '../components/ListButton';
 import PricingInfoButton from '../components/PricingInfoButton';
 import NotificationsButton from '../components/NotificationsButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
+import { t, translatePlayTypeLabel } from '../utils/i18n';
+import { applyPlayTypeSelection } from '../utils/playTypeCombinations';
 
 const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   
@@ -68,7 +70,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
   const [isInserting, setIsInserting] = useState(false);
   const [playTypes, setPlayTypes] = useState([]); // jugadas activas dinámicas
 
-  const PLAY_TYPE_LABELS = { fijo:'Fijo', corrido:'Corrido', posicion:'Posición', parle:'Parlé', centena:'Centena', tripleta:'Tripleta' };
+  const PLAY_TYPE_LABELS = { fijo:translatePlayTypeLabel('fijo'), corrido:translatePlayTypeLabel('corrido'), posicion:translatePlayTypeLabel('posicion'), parle:translatePlayTypeLabel('parle'), centena:translatePlayTypeLabel('centena'), tripleta:translatePlayTypeLabel('tripleta') };
 
   const getLotteryLabel = (value) => lotteries.find(l=>l.value===value)?.label || value;
   const getScheduleLabel = (lotteryValue, scheduleValue) => (scheduleOptionsMap[lotteryValue]||[]).find(s=>s.value===scheduleValue)?.label || scheduleValue;
@@ -159,7 +161,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
 
     if (!selectedLotteries.length) {
       setLotteryError(true);
-      setLotteryErrorMessage('Selecciona una lotería');
+  setLotteryErrorMessage(t('errors.selectLottery'));
       hasErrors = true;
     }
 
@@ -327,19 +329,23 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
-      <View style={styles.toggleContainer}>
-        <SideBarToggle onToggle={toggleSidebar} />
+      <View style={styles.headerFloating} pointerEvents="box-none">
+        <View style={styles.inlineHeaderRow} pointerEvents="box-none">
+          <SideBarToggle inline onToggle={toggleSidebar} />
+          <PricingInfoButton />
+          <NotificationsButton />
+        </View>
       </View>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Row 1: Lotería & Jugada */}
         <View style={styles.rowTwoCols}> 
           <View style={styles.colHalf}>
             <MultiSelectDropdown
-              label="Lotería"
+              label={t('common.lottery')}
               selectedValues={selectedLotteries}
               onSelect={handleSelectLotteries}
               options={lotteries}
-              placeholder="Seleccionar loterías"
+              placeholder={t('placeholders.selectLotteries')}
               isDarkMode={isDarkMode}
               hasError={lotteryError}
               errorMessage={lotteryErrorMessage}
@@ -347,44 +353,14 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
           </View>
           <View style={styles.colHalf}>
             <MultiSelectDropdown
-              label="Jugada"
+              label={t('common.playType')}
               selectedValues={selectedPlayTypes}
-              onSelect={(vals)=> {
-                // Reglas NUEVAS permitidas:
-                //  - fijo
-                //  - corrido
-                //  - centena
-                //  - parle (exclusivo)
-                //  - fijo + corrido
-                //  - fijo + centena
-                // Nada más.
-                const valid = vals.filter(v => playTypes.some(pt => pt.value === v));
-                const exclusive = ['parle','tripleta']; // parle exclusivo; tripleta se mantiene restringida si aparece
-                const exclusiveChosen = valid.filter(v=> exclusive.includes(v)).pop();
-                if (exclusiveChosen) { setSelectedPlayTypes([exclusiveChosen]); return; }
-                let pool = Array.from(new Set(valid.filter(v => ['fijo','corrido','centena'].includes(v))));
-                if (pool.length > 2) {
-                  // Reducir a dupla válida o última selección
-                  const last = [...valid].reverse().find(v=> pool.includes(v));
-                  if (last === 'fijo') pool = ['fijo'];
-                  else if (['corrido','centena'].includes(last)) pool = ['fijo', last];
-                  else pool = [last];
-                }
-                if (pool.length === 2) {
-                  const key = pool.slice().sort().join('|');
-                  const allowed = ['corrido|fijo','centena|fijo'];
-                  if (!allowed.includes(key)) {
-                    const last = [...valid].reverse().find(v=> pool.includes(v));
-                    pool = [last];
-                  }
-                }
-                setSelectedPlayTypes(pool);
-              }}
+              onSelect={(vals)=> setSelectedPlayTypes(applyPlayTypeSelection(selectedPlayTypes, vals, playTypes))}
               options={playTypes}
-              placeholder="Seleccionar jugadas"
+              placeholder={t('placeholders.selectPlayTypes')}
               isDarkMode={isDarkMode}
               hasError={playTypeError}
-              errorMessage={playTypeError ? 'Selecciona al menos una jugada' : ''}
+              errorMessage={playTypeError ? t('errors.selectAtLeastOnePlayType') : ''}
             />
           </View>
         </View>
@@ -398,11 +374,11 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
               return (
                 <View key={lv} style={[styles.schedulePickerDynamic,{ width: widthPct }]}> 
                   <DropdownPicker
-                    label={`Horario ${getLotteryLabel(lv)}`}
+                    label={`${t('common.schedule')} ${getLotteryLabel(lv)}`}
                     value={selectedSchedules[lv] && getScheduleLabel(lv, selectedSchedules[lv])}
                     onSelect={(item) => setSelectedSchedules(prev => ({ ...prev, [lv]: item.value || item }))}
                     options={scheduleOptionsMap[lv] || []}
-                    placeholder={scheduleOptionsMap[lv]? 'Seleccionar horario':'Sin horarios'}
+                    placeholder={scheduleOptionsMap[lv]? t('placeholders.selectSchedule'):t('placeholders.noSchedules')}
                     hasError={missingScheduleSet.has(lv)}
                   />
                 </View>
@@ -414,7 +390,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
 
         {/* Row 3: Jugadas */}
         <PlaysInputField
-          label="Números"
+          label={t('common.numbers')}
           value={plays}
           onChangeText={setPlays}
           placeholder=""
@@ -430,7 +406,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
         <View style={styles.threeColumnRow}>
           <View style={styles.thirdWidth}>
             <InputField
-              label="Nota"
+              label={t('common.note')}
               value={note}
               onChangeText={setNote}
               placeholder=""
@@ -440,7 +416,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
           </View>
           <View style={styles.thirdWidth}>
             <MoneyInputField
-              label="Monto"
+              label={t('common.amount')}
               value={amount}
               onChangeText={setAmount}
               placeholder="$0"
@@ -451,7 +427,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
           </View>
           <View style={styles.thirdWidth}>
             <MoneyInputField
-              label="Total"
+              label={t('common.total')}
               value={total.toString()}
               editable={false}
               placeholder="$0"
@@ -498,15 +474,13 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
             onOptionSelect={(option) => console.log('List option:', option)}
             isDarkMode={isDarkMode}
           />
-          <PricingInfoButton />
-          <NotificationsButton />
         </View>
 
         {/* Row 6: Botones de acción */}
         <View style={styles.actionRow}>
           <View style={styles.actionButton}>
             <ActionButton
-              title="Borrar"
+              title={t('actions.clear')}
               onPress={handleClear}
               variant="danger"
               size="medium"
@@ -514,7 +488,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
           </View>
           <View style={styles.actionButton}>
             <ActionButton
-              title={isInserting ? 'Insertando...' : 'Insertar'}
+              title={isInserting ? 'Insertando...' : t('actions.insert')}
               onPress={handleInsert}
               variant="success"
               size="medium"
@@ -543,13 +517,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FDF5',
   },
-  toggleContainer: {
+  headerFloating: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 1000,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    zIndex: 3000,
+    paddingTop: 0,
+    paddingRight: 8,
   },
+  inlineHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingLeft: 6,
+    paddingTop: 4,
+  },
+  
   content: {
     flex: 1,
     paddingHorizontal: 16,
