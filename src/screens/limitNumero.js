@@ -149,13 +149,18 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     if (sch && bankId) {
       setLoadingJugadas(true);
       try {
-        // jugadas activas del banco (columna "activo?" no filtrable fácilmente vía REST por el '?', filtramos cliente)
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('jugadas_activas')
-          .select('id, jugada, "activo?"')
-          .eq('id_banco', bankId);
-        const filtered = (data || []).filter(j => j['activo?'] === true);
-        setJugadas(filtered);
+          .select('jugadas')
+          .eq('id_banco', bankId)
+          .maybeSingle();
+        if (!error) {
+          const jugadasJson = data?.jugadas || {};
+          const activeList = Object.entries(jugadasJson)
+            .filter(([,v]) => v)
+            .map(([k]) => ({ id: k, jugada: k }));
+          setJugadas(activeList);
+        }
       } catch {}
       setLoadingJugadas(false);
     }
@@ -175,24 +180,29 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     if (!bankId) return;
     setLoadingNumeros(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('numero_limitado')
-  .select('id, numero, id_horario, id_jugada, horario: id_horario (nombre, loteria: id_loteria (nombre)), jugada: id_jugada (jugada)')
+        .select('id, numero, id_horario, jugada, horario: id_horario (nombre, loteria: id_loteria (nombre))')
         .eq('id_banco', bankId)
         .order('numero', { ascending: true });
-      if (!error) {
-        const sorted = (data || []).slice().sort((a,b)=> {
-          const numDiff = (a.numero||0)-(b.numero||0);
-          if (numDiff !== 0) return numDiff;
-          const ja = a.jugada?.jugada || '';
-          const jb = b.jugada?.jugada || '';
-          const ia = JUGADA_ORDER.indexOf(ja);
-            const ib = JUGADA_ORDER.indexOf(jb);
-          return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-        });
-        setNumerosLimitados(sorted);
+      const { data, error } = await query;
+      if (error) {
+        console.error('[numero_limitado] Error consulta principal:', error);
       }
-    } catch {}
+  const rows = (data || []).map(r => ({ ...r, jugadaKey: r.jugada }));
+      const sorted = rows.slice().sort((a,b)=> {
+        const numDiff = (a.numero||0)-(b.numero||0);
+        if (numDiff !== 0) return numDiff;
+        const ja = a.jugadaKey || '';
+        const jb = b.jugadaKey || '';
+        const ia = JUGADA_ORDER.indexOf(ja);
+        const ib = JUGADA_ORDER.indexOf(jb);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+      });
+      setNumerosLimitados(sorted);
+    } catch (e) {
+      console.error('[numero_limitado] Excepción:', e);
+    }
     setLoadingNumeros(false);
   };
 
@@ -203,11 +213,16 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   const loadActives = useCallback(async () => {
     if(!bankId) return;
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('jugadas_activas')
-        .select('jugada, "activo?"')
-        .eq('id_banco', bankId);
-      setActiveJugadas((data||[]).filter(j=> j['activo?']===true));
+        .select('jugadas')
+        .eq('id_banco', bankId)
+        .maybeSingle();
+      if (!error) {
+        const jugadasJson = data?.jugadas || {};
+        const activeList = Object.entries(jugadasJson).filter(([,v]) => v).map(([k]) => ({ jugada: k }));
+        setActiveJugadas(activeList);
+      }
     } catch {}
   }, [bankId]);
 
@@ -241,8 +256,8 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
         .from('numero_limitado')
         .select('id')
         .eq('id_banco', bankId)
-        .eq('id_horario', selectedSchedule.id)
-        .eq('id_jugada', selectedJugada.id)
+  .eq('id_horario', selectedSchedule.id)
+  .eq('jugada', selectedJugada.jugada)
         .eq('numero', numericValue)
         .limit(1);
       if (!dupError && dupData && dupData.length > 0) {
@@ -256,7 +271,7 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       const { error } = await supabase.from('numero_limitado').insert({
         id_banco: bankId,
         id_horario: selectedSchedule.id,
-        id_jugada: selectedJugada.id,
+        jugada: selectedJugada.jugada,
         numero: numericValue,
         created_at: new Date().toISOString()
       });
@@ -304,12 +319,18 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     setJugadas2([]);
     if(sch && bankId){
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('jugadas_activas')
-          .select('id, jugada, "activo?"')
-          .eq('id_banco', bankId);
-        const filtered = (data||[]).filter(j=> j['activo?']===true);
-        setJugadas2(filtered);
+          .select('jugadas')
+          .eq('id_banco', bankId)
+          .maybeSingle();
+        if (!error) {
+          const jugadasJson = data?.jugadas || {};
+          const activeList = Object.entries(jugadasJson)
+            .filter(([,v]) => v)
+            .map(([k]) => ({ id: k, jugada: k }));
+          setJugadas2(activeList);
+        }
       } catch {}
     }
   };
@@ -320,20 +341,24 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     try {
       const { data, error } = await supabase
         .from('limite_numero')
-        .select('id, numero, limite, id_horario, id_jugada, horario: id_horario (nombre, loteria: id_loteria (nombre)), jugada: id_jugada (jugada)')
+  .select('id, numero, limite, id_horario, jugada, horario: id_horario (nombre, loteria: id_loteria (nombre))')
         .eq('id_banco', bankId)
         .order('numero', { ascending:true });
-      if(!error){
-        const sorted = (data||[]).slice().sort((a,b)=> {
-          const numDiff = (a.numero||0)-(b.numero||0);
-          if(numDiff!==0) return numDiff;
-          const ja=a.jugada?.jugada||''; const jb=b.jugada?.jugada||'';
-          const ia=JUGADA_ORDER.indexOf(ja); const ib=JUGADA_ORDER.indexOf(jb);
-          return (ia===-1?999:ia)-(ib===-1?999:ib);
-        });
-        setLimitesNumeros(sorted);
+      if (error) {
+        console.error('[limite_numero] Error consulta principal:', error);
       }
-    } catch {}
+  const rows = (data || []).map(r => ({ ...r, jugadaKey: r.jugada }));
+      const sorted = rows.slice().sort((a,b)=> {
+        const numDiff = (a.numero||0)-(b.numero||0);
+        if(numDiff!==0) return numDiff;
+        const ja=a.jugadaKey||''; const jb=b.jugadaKey||'';
+        const ia=JUGADA_ORDER.indexOf(ja); const ib=JUGADA_ORDER.indexOf(jb);
+        return (ia===-1?999:ia)-(ib===-1?999:ib);
+      });
+      setLimitesNumeros(sorted);
+    } catch (e) {
+      console.error('[limite_numero] Excepción:', e);
+    }
     setLoadingLimites(false);
   };
 
@@ -352,8 +377,8 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
         .from('limite_numero')
         .select('id')
         .eq('id_banco', bankId)
-        .eq('id_horario', selectedSchedule2.id)
-        .eq('id_jugada', selectedJugada2.id)
+  .eq('id_horario', selectedSchedule2.id)
+  .eq('jugada', selectedJugada2.jugada)
         .eq('numero', numericValue)
         .limit(1);
       if(!dupErr && dup && dup.length>0){
@@ -366,7 +391,7 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       const { error } = await supabase.from('limite_numero').insert({
         id_banco: bankId,
         id_horario: selectedSchedule2.id,
-        id_jugada: selectedJugada2.id,
+        jugada: selectedJugada2.jugada,
         numero: numericValue,
         limite: parseInt(tempLimit2,10),
         created_at: new Date().toISOString()
@@ -395,7 +420,7 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       const lotName = lotteries.find(l=> l.id===filterLotteryId)?.nombre;
       if (lotName && item.horario?.loteria?.nombre !== lotName) return false;
     }
-    if (filterJugadaKey && item.jugada?.jugada !== filterJugadaKey) return false;
+    if (filterJugadaKey && item.jugadaKey !== filterJugadaKey) return false;
     return true;
   });
   const filteredLimitesNumeros = limitesNumeros.filter(item => {
@@ -403,7 +428,7 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       const lotName = lotteries.find(l=> l.id===filterLotteryId)?.nombre;
       if (lotName && item.horario?.loteria?.nombre !== lotName) return false;
     }
-    if (filterJugadaKey && item.jugada?.jugada !== filterJugadaKey) return false;
+    if (filterJugadaKey && item.jugadaKey !== filterJugadaKey) return false;
     return true;
   });
 
@@ -532,11 +557,11 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
                 renderItem={({item}) => (
                   <View style={[styles.item, isDarkMode && styles.itemDark, {flexDirection:'row', justifyContent:'space-between', alignItems:'center'}]}> 
                     <View style={{flex:1, paddingRight:8}}>
-          <Text style={[styles.itemNumber, isDarkMode && styles.itemNumberDark, !activeJugadasSet.has(item.jugada?.jugada) && styles.inactiveJugada]}>
+          <Text style={[styles.itemNumber, isDarkMode && styles.itemNumberDark, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
                         {(item.horario?.loteria?.nombre || '') + (item.horario?.loteria?.nombre ? ' - ' : '') + (item.horario?.nombre || '')}
                       </Text>
-          <Text style={[styles.itemLimit, isDarkMode && styles.itemLimitDark, !activeJugadasSet.has(item.jugada?.jugada) && styles.inactiveJugada]}>
-                        {formatNumberDisplay(item.numero, item.jugada?.jugada)} {item.jugada?.jugada ? `(${item.jugada.jugada})` : ''}
+          <Text style={[styles.itemLimit, isDarkMode && styles.itemLimitDark, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
+                        {formatNumberDisplay(item.numero, item.jugadaKey)} {item.jugadaKey ? `(${item.jugadaKey})` : ''}
                       </Text>
                     </View>
                     <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item)}>
@@ -647,11 +672,11 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
                 renderItem={({item}) => (
                   <View style={[styles.item, isDarkMode && styles.itemDark, {flexDirection:'row', justifyContent:'space-between', alignItems:'center'}]}>
                     <View style={{flex:1, paddingRight:8}}>
-                      <Text style={[styles.itemNumber, isDarkMode && styles.itemNumberDark, !activeJugadasSet.has(item.jugada?.jugada) && styles.inactiveJugada]}>
+                      <Text style={[styles.itemNumber, isDarkMode && styles.itemNumberDark, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
                         {(item.horario?.loteria?.nombre || '') + (item.horario?.loteria?.nombre ? ' - ' : '') + (item.horario?.nombre || '')}
                       </Text>
-                      <Text style={[styles.itemLimit, isDarkMode && styles.itemLimitDark, !activeJugadasSet.has(item.jugada?.jugada) && styles.inactiveJugada]}>
-                        {String(item.numero).padStart((DIGIT_RULES[item.jugada?.jugada]||2),'0')} {item.jugada?.jugada? `(${item.jugada.jugada})`: ''}  Límite: {item.limite}
+                      <Text style={[styles.itemLimit, isDarkMode && styles.itemLimitDark, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
+                        {String(item.numero).padStart((DIGIT_RULES[item.jugadaKey]||2),'0')} {item.jugadaKey? `(${item.jugadaKey})`: ''}  Límite: {item.limite}
                       </Text>
                     </View>
                     <TouchableOpacity style={styles.deleteBtn} onPress={()=> handleDeleteLimite(item)}>

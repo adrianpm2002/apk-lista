@@ -64,22 +64,15 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVis
   // Cargar tipos de jugada activos del banco
   const fetchActivePlayTypes = async () => {
     if (!currentBankId) return;
-    
     try {
       const { data, error } = await supabase
-        .from('Precio')
-        .select('jugada, "activo?"')
+        .from('jugadas_activas')
+        .select('jugadas')
         .eq('id_banco', currentBankId)
-        .eq('"activo?"', true);
-
-      if (error) throw error;
-      
-      // Mapear a formato compatible
-      const activeTypes = data.map(item => ({
-        label: getPlayTypeLabel(item.jugada),
-        value: item.jugada
-      }));
-      
+        .maybeSingle();
+      if (error && error.code !== 'PGRST116') throw error;
+      const jugadas = data?.jugadas || { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
+      const activeTypes = Object.keys(jugadas).filter(k => jugadas[k]).map(k => ({ label: getPlayTypeLabel(k), value: k }));
       setActivePlayTypes(activeTypes);
     } catch (error) {
       console.error('Error cargando tipos de jugada activos:', error);

@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Alert,
   Platform,
+  TextInput,
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 
@@ -26,6 +27,12 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
     visual: true,
     text: true
   });
+  // Cambio de contraseña
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwStatus, setPwStatus] = useState(null); // {type, text}
 
   // Opciones del sidebar por rol
 const roleOptionsMap = {
@@ -42,7 +49,8 @@ const roleOptionsMap = {
   // Ajustado: solo las pantallas permitidas para collector
   { id: 'statistics', icon: '📈', title: 'Estadísticas' },
   { id: 'insertResults', icon: '🎯', title: 'Insertar Resultados' },
-  { id: 'createUser', icon: '👥', title: 'Gestionar Usuarios' },
+  // Icono corregido: el anterior tenía un carácter inválido que mostraba signo de interrogación
+  { id: 'createUser', icon: '🧑‍💼', title: 'Gestionar Usuarios' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   listero: [
@@ -213,6 +221,78 @@ const configOptions = roleOptionsMap[role] || [];
                 <Text style={styles.settingText}>Modos Visibles</Text>
                 <Text style={styles.settingArrow}>▶</Text>
               </Pressable>
+            )}
+            {/* Cambiar contraseña (admin, collector y listero) */}
+            {(role === 'collector' || role === 'listero' || role === 'admin') && !showChangePassword && (
+              <Pressable 
+                style={styles.settingOption}
+                onPress={() => {
+                  setShowChangePassword(true); setPwStatus(null); setNewPassword(''); setConfirmPassword('');
+                }}
+              >
+                <Text style={styles.settingIcon}>🔑</Text>
+                <Text style={styles.settingText}>Cambiar contraseña</Text>
+                <Text style={styles.settingArrow}>▶</Text>
+              </Pressable>
+            )}
+            {showChangePassword && (
+              <View style={styles.passwordBox}>
+                <Text style={styles.passwordTitle}>Cambiar contraseña</Text>
+                <TextInput
+                  secureTextEntry
+                  placeholder="Nueva contraseña"
+                  placeholderTextColor="#95a5a6"
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  style={styles.passwordInput}
+                />
+                <TextInput
+                  secureTextEntry
+                  placeholder="Confirmar contraseña"
+                  placeholderTextColor="#95a5a6"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  style={styles.passwordInput}
+                />
+                {pwStatus && (
+                  <Text style={[styles.pwStatusText, pwStatus.type==='error'? styles.pwStatusError: styles.pwStatusOk]}>
+                    {pwStatus.text}
+                  </Text>
+                )}
+                <View style={styles.passwordButtonsRow}>
+                  <Pressable
+                    style={[styles.passwordButton, styles.passwordCancelBtn]}
+                    onPress={()=> { if(!pwLoading){ setShowChangePassword(false); setPwStatus(null);} }}
+                  >
+                    <Text style={styles.passwordButtonText}>Cancelar</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.passwordButton, styles.passwordSaveBtn, (pwLoading) && { opacity:0.7 }]}
+                    disabled={pwLoading}
+                    onPress={async ()=> {
+                      if (pwLoading) return;
+                      setPwStatus(null);
+                      if (!newPassword || newPassword.length < 6) { setPwStatus({type:'error', text:'Mínimo 6 caracteres'}); return; }
+                      if (newPassword !== confirmPassword) { setPwStatus({type:'error', text:'No coinciden'}); return; }
+                      setPwLoading(true);
+                      try {
+                        const { error } = await supabase.auth.updateUser({ password: newPassword });
+                        if (error) {
+                          setPwStatus({type:'error', text:error.message || 'Error al actualizar'});
+                        } else {
+                          setPwStatus({type:'ok', text:'Contraseña actualizada'});
+                          setTimeout(()=> { setShowChangePassword(false); }, 1200);
+                        }
+                      } catch (e) {
+                        setPwStatus({type:'error', text:e.message});
+                      }
+                      setPwLoading(false);
+                    }}
+                  >
+                    <Text style={styles.passwordButtonText}>{pwLoading? 'Guardando...' : 'Guardar'}</Text>
+                  </Pressable>
+                </View>
+              </View>
             )}
           </View>
           
@@ -849,6 +929,34 @@ const styles = StyleSheet.create({
   buttonPressed: {
     opacity: 0.7,
   },
+  // Cambio contraseña estilos
+  passwordBox: {
+    marginTop: 12,
+    backgroundColor: '#f0f4f5',
+    padding: 12,
+    borderRadius: 8,
+    width: '100%',
+  },
+  passwordTitle: { fontSize:16, fontWeight:'600', color:'#2c3e50', marginBottom:8 },
+  passwordInput: {
+    backgroundColor:'#fff',
+    borderWidth:1,
+    borderColor:'#dce2e6',
+    borderRadius:6,
+    paddingHorizontal:10,
+    paddingVertical:8,
+    fontSize:14,
+    color:'#2c3e50',
+    marginBottom:8,
+  },
+  passwordButtonsRow: { flexDirection:'row', justifyContent:'flex-end', gap:8, marginTop:4 },
+  passwordButton: { paddingHorizontal:14, paddingVertical:10, borderRadius:6 },
+  passwordCancelBtn: { backgroundColor:'#95a5a6' },
+  passwordSaveBtn: { backgroundColor:'#27ae60' },
+  passwordButtonText: { color:'#fff', fontWeight:'600', fontSize:13 },
+  pwStatusText: { fontSize:12, fontWeight:'600', marginBottom:4 },
+  pwStatusError: { color:'#c0392b' },
+  pwStatusOk: { color:'#27ae60' },
 });
 
 export { SideBar, SideBarToggle };

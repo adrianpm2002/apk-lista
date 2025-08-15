@@ -64,13 +64,13 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       }
     });
     
-    // Agregar listeros sin collector asignado
-    const orphanListeros = listeros.filter(listero => !listero.id_collector);
+    // Agregar listeros sin collector asignado O cuyo collector no está en la lista (fallback)
+    const orphanListeros = listeros.filter(listero => !listero.id_collector || !collectors.some(c => c.id === listero.id_collector));
     orphanListeros.forEach(listero => {
       hierarchical.push({
         ...listero,
-        type: 'orphan_listero',
-        level: 0
+        type: 'listero',
+        level: collectors.some(c => c.id === listero.id_collector) ? 1 : 0
       });
     });
     
@@ -79,22 +79,38 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
 
   const fetchUsers = useCallback(async () => {
     if (!currentBankId) return;
-    
+    if (userRole === 'collector' && !currentUserId) {
+      console.log('[fetchUsers] Collector sin currentUserId aún, esperando...');
+      return;
+    }
     const { data, error } = await supabase
       .from('profiles')
       .select('id, username, role, id_banco, id_collector, activo, ganancia, limite_especifico')
       .eq('id_banco', currentBankId)
       .order('role', { ascending: false })
       .order('username');
-    
-    if (!error && data) {
-      console.log('Usuarios cargados:', data);
-      setUsers(data);
-      createHierarchicalStructure(data);
-    } else if (error) {
+    if (error) {
       console.error('Error fetching users:', error);
+      return;
     }
-  }, [currentBankId, createHierarchicalStructure]);
+    if (userRole === 'collector') {
+      console.log('[fetchUsers] Datos crudos banco:', data);
+      const onlyListeros = (data || []).filter(u => (u.role === 'listero') && u.id_collector === currentUserId);
+      console.log('[fetchUsers] currentUserId:', currentUserId, 'listeros filtrados:', onlyListeros.length);
+      // Log de casos donde no se encontró nada
+      if (onlyListeros.length === 0) {
+        const withCollector = (data || []).filter(u => u.role === 'listero' && !!u.id_collector);
+        console.log('[fetchUsers][diagnóstico] Total listeros con id_collector:', withCollector.length);
+        const listingCollectorIds = [...new Set(withCollector.map(u => u.id_collector))];
+        console.log('[fetchUsers][diagnóstico] id_collector distintos presentes:', listingCollectorIds);
+      }
+      setUsers(onlyListeros);
+      setHierarchicalUsers(onlyListeros.map(u => ({ ...u, type: 'listero', level: 0 })));
+      return;
+    }
+    setUsers(data || []);
+    createHierarchicalStructure(data || []);
+  }, [currentBankId, userRole, currentUserId, createHierarchicalStructure]);
 
   useEffect(() => {
     const fetchUserRole = async () => {
@@ -110,7 +126,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         
         if (data) {
           if (data.role !== 'admin' && data.role !== 'collector') {
-            Alert.alert('No Autorizado', 'Solo los administradores pueden gestionar usuarios');
+            Alert.alert('No Autorizado', 'Solo administradores o colectores autorizados');
             return;
           }
           
@@ -133,18 +149,27 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     }
   }, [currentBankId, fetchUsers]);
 
+  // Asegurar recarga cuando se determina el rol (collector) después de haber seteado bankId
+  useEffect(() => {
+    if (currentBankId) {
+      fetchUsers();
+    }
+  }, [userRole, currentBankId, currentUserId, fetchUsers]);
+
   const fetchActivePlayTypes = useCallback(async () => {
     if (!currentBankId) return;
     try {
       const { data, error } = await supabase
         .from('jugadas_activas')
-        .select('jugada, "activo?"')
-        .eq('id_banco', currentBankId);
-      if (error) {
+        .select('jugadas')
+        .eq('id_banco', currentBankId)
+        .maybeSingle();
+      if (error && error.code !== 'PGRST116') { // ignorar no rows
         console.error('Error cargando jugadas activas:', error);
         return;
       }
-      const actives = (data || []).filter(r => r['activo?']).map(r => r.jugada);
+      const jugadas = data?.jugadas || { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
+      const actives = Object.keys(jugadas).filter(k => jugadas[k]);
       setActivePlayTypes(actives);
       setLimitsValues(prev => {
         const draft = { ...prev };
@@ -158,14 +183,21 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
 
   // Recrear estructura jerárquica cuando cambien los usuarios
   useEffect(() => {
-    if (users.length > 0) {
+    if (users.length === 0) return;
+    if (userRole === 'collector') {
+      // Para collector, la lista es plana de sus listeros; reflejar cambios (ej. activo) inmediatamente
+      setHierarchicalUsers(users.map(u => ({ ...u, type: 'listero', level: 0 })));
+    } else {
       createHierarchicalStructure(users);
     }
-  }, [users, createHierarchicalStructure]);
+  }, [users, createHierarchicalStructure, userRole]);
 
   const handleCreateOrUpdate = async () => {
     try {
-      if (!username || (!isEditing && !password) || !role) {
+      // Forzar role listero si collector
+      const effectiveRole = userRole === 'collector' ? 'listero' : role;
+
+      if (!username || (!isEditing && !password) || !effectiveRole) {
         Alert.alert('Error', 'Todos los campos son obligatorios.');
         return;
       }
@@ -174,20 +206,19 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         Alert.alert('Error', 'El nombre de usuario no debe contener "@".');
         return;
       }
-
-      if (role === 'listero' && !selectedCollector) {
+      if (userRole !== 'collector' && effectiveRole === 'listero' && !selectedCollector) {
         Alert.alert('Error', 'Debes seleccionar un colector.');
         return;
       }
 
       const fakeEmail = `${username.toLowerCase()}@example.com`;
 
-      if (isEditing && editingUser) {
+    if (isEditing && editingUser) {
         const { data, error } = await supabase.rpc('update_user_profile_and_auth', {
           user_id: editingUser.id,
-          new_username: username,
-          new_role: role,
-          new_assigned_collector: selectedCollector || null,
+      new_username: username,
+      new_role: effectiveRole,
+      new_assigned_collector: userRole === 'collector' ? currentUserId : (selectedCollector || null),
           new_ganancia: null, // La ganancia será elegida posteriormente por el listero
           new_activo: editingUser.activo !== undefined ? editingUser.activo : true
         });
@@ -205,7 +236,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           
           if (data.success) {
             // Actualizar/limpiar limites especificos si es listero
-            if (role === 'listero') {
+            if (effectiveRole === 'listero' && userRole !== 'collector') {
               try {
                 if (enableSpecificLimits) {
                   const limitsObj = {};
@@ -237,7 +268,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         } else {
           Alert.alert('Éxito', 'Usuario actualizado correctamente');
         }
-      } else {
+  } else {
         // Verificar si ya existe un usuario con ese username
         const { data: existingUsers, error: checkError } = await supabase
           .from('profiles')
@@ -269,26 +300,23 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         const newUserId = signUpData.user?.id;
 
         if (newUserId) {
-          let id_banco = null;
+          let id_banco = currentBankId;
           let id_collector = null;
-
-          if (role === 'collector') {
-            id_banco = currentBankId;
+          if (effectiveRole === 'collector') {
             id_collector = null;
-          } else if (role === 'listero') {
-            id_banco = currentBankId;
-            id_collector = selectedCollector;
+          } else if (effectiveRole === 'listero') {
+            id_collector = userRole === 'collector' ? currentUserId : selectedCollector;
           }
 
           const insertData = {
             id: newUserId,
             username,
-            role,
+            role: effectiveRole,
             id_banco,
             id_collector,
-          }; // sin ganancia; el listero la fijará después
+          }; // sin ganancia
 
-          if (role === 'listero' && enableSpecificLimits) {
+          if (effectiveRole === 'listero' && enableSpecificLimits && userRole !== 'collector') {
             const limitsObj = {};
             activePlayTypes.forEach(pt => {
               const val = limitsValues[pt];
@@ -383,6 +411,14 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   }, [users, fetchUsers, createHierarchicalStructure]);
 
   const handleToggleActive = async (userId, currentStatus) => {
+    // Permitir a collector solo sobre sus listeros
+    if (userRole === 'collector') {
+      const target = users.find(u => u.id === userId);
+      if (!target || target.role !== 'listero' || target.id_collector !== currentUserId) {
+        Alert.alert('Acción no permitida', 'Solo puedes cambiar estado de tus listeros.');
+        return;
+      }
+    }
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return;
 
@@ -413,9 +449,16 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     setUpdatingUsers(prev => new Set([...prev, ...affectedIds]));
 
     // Actualización local optimista
-    setUsers(prev => prev.map(u => (
-      affectedIds.includes(u.id) ? { ...u, activo: newStatus } : u
-    )));
+    setUsers(prev => {
+      const updated = prev.map(u => (
+        affectedIds.includes(u.id) ? { ...u, activo: newStatus } : u
+      ));
+      // Si collector, también actualizar hierarchicalUsers inmediatamente
+      if (userRole === 'collector') {
+        setHierarchicalUsers(updated.map(u => ({ ...u, type: 'listero', level: 0 })));
+      }
+      return updated;
+    });
 
     try {
       if (isCollector) {
@@ -440,9 +483,15 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       console.error('Error toggle activo:', err);
       Alert.alert('Error', `No se pudo ${action} el usuario: ${err.message}`);
       // Revertir local
-      setUsers(prev => prev.map(u => (
-        affectedIds.includes(u.id) ? { ...u, activo: currentStatus } : u
-      )));
+      setUsers(prev => {
+        const reverted = prev.map(u => (
+          affectedIds.includes(u.id) ? { ...u, activo: currentStatus } : u
+        ));
+        if (userRole === 'collector') {
+          setHierarchicalUsers(reverted.map(u => ({ ...u, type: 'listero', level: 0 })));
+        }
+        return reverted;
+      });
       fetchUsers();
     } finally {
       // Limpiar updating set
@@ -472,12 +521,17 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     setIsEditing(true);
     setEditingUser(user);
     setUsername(user.username);
-    setRole(user.role);
-    setSelectedCollector(user.id_collector || '');
+    if (userRole === 'collector') {
+      setRole('listero');
+      setSelectedCollector(currentUserId);
+    } else {
+      setRole(user.role);
+      setSelectedCollector(user.id_collector || '');
+    }
     if (user.role === 'listero') {
       const raw = user.limite_especifico;
       if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) {
-        setEnableSpecificLimits(true);
+        setEnableSpecificLimits(userRole === 'collector' ? false : true);
         setLimitsValues(prev => {
           const draft = { ...prev };
           Object.entries(raw).forEach(([k,v]) => { draft[k] = v?.toString?.() || `${v}`; });
@@ -515,6 +569,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     const isExpanded = expandedCollectors.has(item.id);
     const isUpdating = updatingUsers.has(item.id);
   const parentCollectorInactive = isListero && item.id_collector ? (users.find(u => u.id === item.id_collector)?.activo === false) : false;
+  const canToggleActive = userRole !== 'collector' || (userRole === 'collector' && isListero && item.id_collector === currentUserId);
     
     return (
       <View style={[
@@ -584,7 +639,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
             <View style={[styles.switchContainer, styles.blockedContainer]}>
               <Text style={styles.blockedBadge}>Colector inactivo</Text>
             </View>
-          ) : (
+          ) : canToggleActive ? (
             <View style={styles.switchContainer}>
               <Text style={styles.switchLabel}>
                 {item.activo ? 'Activo' : 'Inactivo'}
@@ -599,6 +654,11 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
                 trackColor={{ false: '#ff6b6b', true: '#51cf66' }}
                 thumbColor={item.activo ? '#2b8a3e' : '#e03131'}
               />
+            </View>
+          ) : (
+            <View style={styles.switchContainer}>
+              <Text style={styles.switchLabel}>{item.activo ? 'Activo' : 'Inactivo'}</Text>
+              <Text style={{ fontSize: 10, color: '#999' }}>Bloqueado</Text>
             </View>
           )}
           
@@ -627,17 +687,21 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       </View>
 
       <View style={styles.content}>
-        <Button title="Crear Usuario" onPress={() => { clearForm(); setModalVisible(true); }} />
+  <Button title={userRole === 'collector' ? 'Crear Listero' : 'Crear Usuario'} onPress={() => { clearForm(); if (userRole==='collector'){ setRole('listero'); setSelectedCollector(currentUserId);} setModalVisible(true); }} />
 
+        {userRole === 'collector' && hierarchicalUsers.length === 0 && (
+          <Text style={styles.emptyListText}>No tienes listeros asignados todavía.</Text>
+        )}
         <FlatList
           data={hierarchicalUsers}
           keyExtractor={(item) => `${item.id}-${item.type}`}
           renderItem={renderUserItem}
+          ListFooterComponent={<View style={{ height: 40 }} />}
         />
 
         <Modal visible={modalVisible} animationType="slide">
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{isEditing ? 'Editar Usuario' : 'Crear Usuario'}</Text>
+            <Text style={styles.modalTitle}>{isEditing ? (userRole==='collector' ? 'Editar Listero' : 'Editar Usuario') : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')}</Text>
 
             <TextInput
               placeholder="Nombre de usuario"
@@ -656,18 +720,22 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
               />
             )}
 
-            <Text>Rol:</Text>
-            <Picker
-              selectedValue={role}
-              onValueChange={setRole}
-              style={styles.picker}
-            >
-              <Picker.Item label="Selecciona un rol" value="" />
-              <Picker.Item label="Colector" value="collector" />
-              <Picker.Item label="Listero" value="listero" />
-            </Picker>
+            {userRole !== 'collector' && (
+              <>
+                <Text>Rol:</Text>
+                <Picker
+                  selectedValue={role}
+                  onValueChange={setRole}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Selecciona un rol" value="" />
+                  <Picker.Item label="Colector" value="collector" />
+                  <Picker.Item label="Listero" value="listero" />
+                </Picker>
+              </>
+            )}
 
-            {role === 'listero' && (
+            {role === 'listero' && userRole !== 'collector' && (
               <>
                 <Text>Seleccionar colector:</Text>
                 <Picker
@@ -708,7 +776,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
 
             {/* Campo de ganancia removido: el listero lo configurará después en su propia interfaz */}
 
-            <Button title={isEditing ? 'Guardar Cambios' : 'Crear Usuario'} onPress={handleCreateOrUpdate} />
+            <Button title={isEditing ? 'Guardar Cambios' : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')} onPress={handleCreateOrUpdate} />
             <Button title="Cancelar" color="grey" onPress={() => setModalVisible(false)} />
           </View>
         </Modal>
@@ -964,4 +1032,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: '#fff',
   },
+  emptyListText: {
+    textAlign: 'center',
+    marginVertical: 20,
+    color: '#7f8c8d',
+    fontSize: 14,
+    fontStyle: 'italic'
+  }
 });

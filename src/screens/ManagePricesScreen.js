@@ -37,6 +37,7 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
     { id: 'tripleta', label: 'Tripleta', enabled: true },
   ]);
   
+  // Estado de jugadas activas basado en la nueva estructura jsonb (una fila por banco)
   const [enabledPlayTypes, setEnabledPlayTypes] = useState({
     fijo: true,
     corrido: true,
@@ -45,6 +46,7 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
     centena: true,
     tripleta: true,
   });
+  const [jugadasRecordId, setJugadasRecordId] = useState(null); // id de la fila en jugadas_activas
 
   // Estado de precios (se gestionará vía modal). Cada entrada representa un tipo de jugada y sus valores.
   const [winningPrices, setWinningPrices] = useState({
@@ -125,35 +127,75 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
     }
   };
 
+  const DEFAULT_JUGADAS_JSON = { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
+
   const loadSavedConfiguration = async (bankId) => {
     try {
-      console.log('Cargando configuración para banco:', bankId);
-      
-      const { data, error } = await supabase
+      console.log('[jugadas_activas] Cargando configuración (jsonb) para banco:', bankId);
+      // Traer TODAS las filas (si hubiera duplicadas) para este banco
+      const { data: rows, error } = await supabase
         .from('jugadas_activas')
-        .select('*')
-        .eq('id_banco', bankId);
-
+        .select('id, jugadas, created_at')
+        .eq('id_banco', bankId)
+        .order('created_at', { ascending: true });
       if (error) {
-        console.error('Error cargando configuración:', error);
+        console.error('[jugadas_activas] Error cargando filas:', error);
         return;
       }
-
-      if (data && data.length > 0) {
-        console.log('Configuración cargada:', data);
-        
-        // Convertir los datos de la base de datos al formato del estado
-        const newEnabledPlayTypes = { ...enabledPlayTypes };
-        data.forEach(config => {
-          const playType = config.jugada;
-          if (newEnabledPlayTypes[playType] !== undefined) {
-            newEnabledPlayTypes[playType] = config['activo?'];
-          }
-        });
-        setEnabledPlayTypes(newEnabledPlayTypes);
-      } else {
-        console.log('No hay configuración guardada, usando valores por defecto');
+      if (!rows || rows.length === 0) {
+        // No existe fila: crear una (nota: esto aún podría duplicar si se abre la pantalla en paralelo en 2 clientes sin constraint en DB)
+        console.log('[jugadas_activas] No existe fila; creando por defecto');
+        const now = new Date().toISOString();
+        const { data: inserted, error: insErr } = await supabase
+          .from('jugadas_activas')
+          .insert({ id_banco: bankId, created_at: now, jugadas: DEFAULT_JUGADAS_JSON })
+          .select('id, jugadas')
+          .maybeSingle();
+        if (insErr) {
+          console.error('[jugadas_activas] Error creando fila:', insErr);
+          return;
+        }
+        setJugadasRecordId(inserted.id);
+        setEnabledPlayTypes(inserted.jugadas || DEFAULT_JUGADAS_JSON);
+        return;
       }
+      // Si hay más de una fila, consolidar y eliminar duplicadas
+      let baseRow = rows[0]; // más antigua (por orden ascendente)
+      if (rows.length > 1) {
+        console.warn(`[jugadas_activas] Detectadas ${rows.length} filas duplicadas para banco ${bankId}. Consolidando...`);
+        // Estrategia de consolidación: OR lógico (si alguna fila tiene true lo conservamos en true)
+        const consolidated = { ...DEFAULT_JUGADAS_JSON };
+        rows.forEach(r => {
+          const jug = r.jugadas || {};
+            Object.keys(consolidated).forEach(k => {
+              if (jug[k] === true) consolidated[k] = true;
+            });
+        });
+        // Actualizar la fila base con la consolidación (solo si difiere)
+        const needsUpdate = Object.keys(consolidated).some(k => (baseRow.jugadas||{})[k] !== consolidated[k]);
+        if (needsUpdate) {
+          const { error: updErr } = await supabase
+            .from('jugadas_activas')
+            .update({ jugadas: consolidated })
+            .eq('id', baseRow.id);
+          if (updErr) console.error('[jugadas_activas] Error actualizando fila base tras consolidación:', updErr);
+          else baseRow = { ...baseRow, jugadas: consolidated };
+        }
+        // Eliminar filas sobrantes (todas excepto baseRow)
+        const duplicateIds = rows.slice(1).map(r => r.id);
+        if (duplicateIds.length > 0) {
+          const { error: delErr } = await supabase
+            .from('jugadas_activas')
+            .delete()
+            .in('id', duplicateIds);
+          if (delErr) console.error('[jugadas_activas] Error eliminando duplicadas:', delErr);
+          else console.log('[jugadas_activas] Duplicadas eliminadas:', duplicateIds.length);
+        }
+      }
+      // Usar la fila base resultante
+      setJugadasRecordId(baseRow.id);
+      const merged = { ...DEFAULT_JUGADAS_JSON, ...(baseRow.jugadas || {}) };
+      setEnabledPlayTypes(merged);
     } catch (error) {
       console.error('Error en loadSavedConfiguration:', error);
     }
@@ -220,36 +262,25 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
     if (!currentBankId) return;
     const prevVal = enabledPlayTypes[typeId];
     const newValue = !prevVal;
-    // Optimista
     setEnabledPlayTypes(prev => ({ ...prev, [typeId]: newValue }));
     setUpdatingTypes(prev => new Set(prev).add(typeId));
     try {
-      // Verificar si existe fila
-      const { data: existing, error: selectError } = await supabase
+      // Asegurar fila existente
+      let recordId = jugadasRecordId;
+      if (!recordId) {
+  // Reutilizamos lógica de carga para sanear duplicados si surgieron por carrera
+  await loadSavedConfiguration(currentBankId);
+  recordId = jugadasRecordId; // estado se actualizará dentro de loadSavedConfiguration
+  if (!recordId) throw new Error('No se pudo obtener/crear fila jugadas_activas');
+      }
+      const updatedJugadas = { ...enabledPlayTypes, [typeId]: newValue };
+      const { error: updErr } = await supabase
         .from('jugadas_activas')
-        .select('id_banco,jugada')
-        .eq('id_banco', currentBankId)
-        .eq('jugada', typeId)
-        .maybeSingle();
-      if (selectError && selectError.code !== 'PGRST116') { // PGRST116 = no rows
-        throw selectError;
-      }
-      if (existing) {
-        const { error: updateError } = await supabase
-          .from('jugadas_activas')
-          .update({ 'activo?': newValue })
-          .eq('id_banco', currentBankId)
-          .eq('jugada', typeId);
-        if (updateError) throw updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from('jugadas_activas')
-          .insert({ id_banco: currentBankId, jugada: typeId, 'activo?': newValue });
-        if (insertError) throw insertError;
-      }
+        .update({ jugadas: updatedJugadas })
+        .eq('id', recordId);
+      if (updErr) throw updErr;
     } catch (e) {
       console.error('Error togglePlayType:', e);
-      // Revertir
       setEnabledPlayTypes(prev => ({ ...prev, [typeId]: prevVal }));
       Alert.alert('Error', e.message || 'No se pudo actualizar la jugada');
     } finally {
