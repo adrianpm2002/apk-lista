@@ -1,6 +1,7 @@
 // src/screens/ManageLotteriesScreen.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, Alert, FlatList, TouchableOpacity, Platform, Modal, StyleSheet, ScrollView } from 'react-native';
 
 import { supabase } from '../supabaseClient';
@@ -297,12 +298,18 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
 
 
   useEffect(() => {
-    console.log('currentBankId changed:', currentBankId);
-    if (currentBankId) {
-      console.log('Calling fetchLotteries because currentBankId is available');
-      fetchLotteries();
-    }
+    if (currentBankId) fetchLotteries();
   }, [currentBankId]);
+
+  const focusRefresh = useCallback(() => {
+    if (currentBankId) fetchLotteries();
+  }, [currentBankId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      focusRefresh();
+    }, [focusRefresh])
+  );
 
   useEffect(() => {
     const fetchUserRole = async () => {

@@ -21,6 +21,9 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
   const [updatingUsers, setUpdatingUsers] = useState(new Set()); // Para tracking de actualizaciones
+  const [activePlayTypes, setActivePlayTypes] = useState([]); // jugadas activas del banco
+  const [enableSpecificLimits, setEnableSpecificLimits] = useState(false); // toggle crear listero
+  const [limitsValues, setLimitsValues] = useState({}); // valores ingresados para limites específicos
 
   const createHierarchicalStructure = useCallback((userData) => {
     const hierarchical = [];
@@ -79,7 +82,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, role, id_banco, id_collector, activo, ganancia')
+      .select('id, username, role, id_banco, id_collector, activo, ganancia, limite_especifico')
       .eq('id_banco', currentBankId)
       .order('role', { ascending: false })
       .order('username');
@@ -126,8 +129,32 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   useEffect(() => {
     if (currentBankId) {
       fetchUsers();
+      fetchActivePlayTypes();
     }
   }, [currentBankId, fetchUsers]);
+
+  const fetchActivePlayTypes = useCallback(async () => {
+    if (!currentBankId) return;
+    try {
+      const { data, error } = await supabase
+        .from('jugadas_activas')
+        .select('jugada, "activo?"')
+        .eq('id_banco', currentBankId);
+      if (error) {
+        console.error('Error cargando jugadas activas:', error);
+        return;
+      }
+      const actives = (data || []).filter(r => r['activo?']).map(r => r.jugada);
+      setActivePlayTypes(actives);
+      setLimitsValues(prev => {
+        const draft = { ...prev };
+        actives.forEach(j => { if (draft[j] === undefined) draft[j] = ''; });
+        return draft;
+      });
+    } catch (e) {
+      console.error('Excepción fetchActivePlayTypes:', e);
+    }
+  }, [currentBankId]);
 
   // Recrear estructura jerárquica cuando cambien los usuarios
   useEffect(() => {
@@ -177,6 +204,34 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           }
           
           if (data.success) {
+            // Actualizar/limpiar limites especificos si es listero
+            if (role === 'listero') {
+              try {
+                if (enableSpecificLimits) {
+                  const limitsObj = {};
+                  activePlayTypes.forEach(pt => {
+                    const val = limitsValues[pt];
+                    if (val && !isNaN(val)) {
+                      const num = parseInt(val, 10);
+                      if (num > 0) limitsObj[pt] = num;
+                    }
+                  });
+                  const { error: upErr } = await supabase
+                    .from('profiles')
+                    .update({ limite_especifico: Object.keys(limitsObj).length ? limitsObj : null })
+                    .eq('id', editingUser.id);
+                  if (upErr) console.error('Error actualizando limites especificos:', upErr);
+                } else {
+                  const { error: clearErr } = await supabase
+                    .from('profiles')
+                    .update({ limite_especifico: null })
+                    .eq('id', editingUser.id);
+                  if (clearErr) console.error('Error limpiando limites especificos:', clearErr);
+                }
+              } catch (ee) {
+                console.error('Excepción límites específicos edición:', ee);
+              }
+            }
             Alert.alert('Éxito', data.message || 'Usuario actualizado correctamente');
           }
         } else {
@@ -232,6 +287,20 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
             id_banco,
             id_collector,
           }; // sin ganancia; el listero la fijará después
+
+          if (role === 'listero' && enableSpecificLimits) {
+            const limitsObj = {};
+            activePlayTypes.forEach(pt => {
+              const val = limitsValues[pt];
+              if (val && !isNaN(val)) {
+                const num = parseInt(val, 10);
+                if (num > 0) limitsObj[pt] = num;
+              }
+            });
+            if (Object.keys(limitsObj).length > 0) {
+              insertData.limite_especifico = limitsObj; // JSONB
+            }
+          }
 
           const { error: insertError } = await supabase
             .from('profiles')
@@ -405,6 +474,21 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     setUsername(user.username);
     setRole(user.role);
     setSelectedCollector(user.id_collector || '');
+    if (user.role === 'listero') {
+      const raw = user.limite_especifico;
+      if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) {
+        setEnableSpecificLimits(true);
+        setLimitsValues(prev => {
+          const draft = { ...prev };
+          Object.entries(raw).forEach(([k,v]) => { draft[k] = v?.toString?.() || `${v}`; });
+          return draft;
+        });
+      } else {
+        setEnableSpecificLimits(false);
+      }
+    } else {
+      setEnableSpecificLimits(false);
+    }
     setModalVisible(true);
   };
 
@@ -422,6 +506,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   // ganancia eliminada del formulario
     setIsEditing(false);
     setEditingUser(null);
+  setEnableSpecificLimits(false);
   };
 
   const renderUserItem = ({ item }) => {
@@ -472,14 +557,25 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           </Text>
           
           {isListero && (
-            <Text style={styles.userGanancia}>
-              {(() => {
-                const g = item.ganancia;
-                if (g === null || g === undefined) return '💰 Ganancia: no seleccionada';
-                if (typeof g === 'string' && g.trim() === '') return '💰 Ganancia: no seleccionada';
-                return `💰 Ganancia: ${g}`; // ya no es porcentaje, se muestra tal cual
-              })()}
-            </Text>
+            <>
+              <Text style={styles.userGanancia}>
+                {(() => {
+                  const g = item.ganancia;
+                  if (g === null || g === undefined) return '💰 Ganancia: no seleccionada';
+                  if (typeof g === 'string' && g.trim() === '') return '💰 Ganancia: no seleccionada';
+                  return `💰 Ganancia: ${g}`;
+                })()}
+              </Text>
+              <Text style={styles.userLimits}>
+                {(() => {
+                  const raw = item.limite_especifico;
+                  if (!raw || (typeof raw === 'object' && Object.keys(raw).length === 0)) return '🛑 Limite: No';
+                  const entries = Object.entries(raw).filter(([k]) => activePlayTypes.includes(k));
+                  if (entries.length === 0) return '🛑 Limite: No';
+                  return '🔒 Limite: ' + entries.map(([k,v]) => `${k} ${v}`).join(', ');
+                })()}
+              </Text>
+            </>
           )}
         </View>
         
@@ -584,6 +680,29 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
                     <Picker.Item key={col.id} label={col.username} value={col.id} />
                   ))}
                 </Picker>
+                <View style={styles.limitsToggleRow}>
+                  <Text style={styles.limitsToggleLabel}>Límites específicos</Text>
+                  <Switch value={enableSpecificLimits} onValueChange={setEnableSpecificLimits} />
+                </View>
+                {enableSpecificLimits && (
+                  <View style={styles.limitsContainer}>
+                    {activePlayTypes.length === 0 && (
+                      <Text style={styles.limitsHint}>No hay jugadas activas.</Text>
+                    )}
+                    {activePlayTypes.map(pt => (
+                      <View key={pt} style={styles.limitInputRow}>
+                        <Text style={styles.limitPlayType}>{pt}</Text>
+                        <TextInput
+                          placeholder="Limite"
+                          keyboardType="numeric"
+                          value={limitsValues[pt] || ''}
+                          onChangeText={val => setLimitsValues(prev => ({ ...prev, [pt]: val.replace(/[^0-9]/g,'') }))}
+                          style={styles.limitInput}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                )}
               </>
             )}
 
@@ -737,6 +856,12 @@ const styles = StyleSheet.create({
     color: '#f39c12',
     fontWeight: '600',
   },
+  userLimits: {
+    fontSize: 11,
+    marginTop: 2,
+    color: '#8e44ad',
+    fontWeight: '600',
+  },
   userControls: {
     alignItems: 'center',
   },
@@ -794,5 +919,49 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 20,
+  },
+  limitsToggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  limitsToggleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+  limitsContainer: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 15,
+    backgroundColor: '#fafafa',
+  },
+  limitsHint: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    fontStyle: 'italic',
+  },
+  limitInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  limitPlayType: {
+    width: 70,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#34495e',
+  },
+  limitInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#fff',
   },
 });

@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Alert, StyleSheet, SafeAreaView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, Alert, StyleSheet, Pressable, TextInput, Platform } from 'react-native';
 import DropdownPicker from '../components/DropdownPicker';
 import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
+import { useFocusEffect } from '@react-navigation/native';
 
 const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   const [lotteryOptions, setLotteryOptions] = useState([]);
@@ -17,6 +18,25 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
+  const [todayResults, setTodayResults] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const [editingValue, setEditingValue] = useState('');
+  const [loadingResults, setLoadingResults] = useState(false);
+  const [deniedEditId, setDeniedEditId] = useState(null);
+
+  // Sanitiza la entrada del campo de resultado respetando:
+  // - Máximo 7 dígitos
+  // - Permitir formato "1234567" o "123 4567"
+  // - Ignora otros caracteres
+  const sanitizeResultInput = (text) => {
+    if (!text) return '';
+    // Mantener solo dígitos y espacios
+    let cleaned = text.replace(/[^0-9 ]/g, '');
+    // Extraer dígitos (tope 7)
+    const digits = cleaned.replace(/\D/g, '').slice(0, 7);
+  if (digits.length <= 3) return digits; // Aún no insertar espacio
+  return digits.slice(0, 3) + ' ' + digits.slice(3);
+  };
 
   // Estados para errores de validación
   const [errors, setErrors] = useState({
@@ -73,6 +93,7 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
   useEffect(() => {
     if (currentBankId) {
       fetchLoterias();
+  loadTodayResults();
     }
   }, [currentBankId]);
 
@@ -98,6 +119,111 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
 
     fetchUserRole();
   }, []);
+
+  // Cargar resultados del día actual
+  const loadTodayResults = async () => {
+    if (!currentBankId) return;
+    setLoadingResults(true);
+    const { data, error } = await supabase
+      .from('resultado')
+      .select('id, numeros, created_at, rol, horario:id_horario ( id, nombre, loteria:id_loteria ( id, nombre, id_banco ) )')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Error cargando resultados:', error);
+      setLoadingResults(false);
+      return;
+    }
+    const startOfDay = new Date();
+    startOfDay.setHours(0,0,0,0);
+    const filtered = (data || []).filter(r => {
+      const created = new Date(r.created_at);
+      return created >= startOfDay && r.horario?.loteria?.id_banco === currentBankId;
+    });
+    setTodayResults(filtered);
+    setLoadingResults(false);
+  };
+
+  // Refresco automático al volver a la pantalla
+  useFocusEffect(
+    useCallback(() => {
+      if (currentBankId) {
+        loadTodayResults();
+        fetchLoterias();
+      }
+    }, [currentBankId])
+  );
+
+  const startEditing = (item) => {
+    // Permisos: collector no puede editar resultados de admin
+    if (userRole === 'collector' && item.rol === 'admin') {
+  setDeniedEditId(item.id);
+  // Limpiar después de 5 segundos
+  setTimeout(() => setDeniedEditId(prev => (prev === item.id ? null : prev)), 5000);
+      return;
+    }
+    setEditingId(item.id);
+    const raw = item.numeros.replace(/\D/g, '');
+    setEditingValue(raw);
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditingValue('');
+  };
+
+  const saveEditing = async () => {
+    if (!editingId) return;
+    const digits = editingValue.trim().replace(/\D/g, '');
+    if (digits.length !== 7) {
+      Alert.alert('Error', 'El resultado debe tener exactamente 7 números');
+      return;
+    }
+    const formatted = digits.substring(0,3) + ' ' + digits.substring(3,7);
+    const { error } = await supabase
+      .from('resultado')
+      .update({ numeros: formatted })
+      .eq('id', editingId);
+    if (error) {
+      Alert.alert('Error', error.message);
+      return;
+    }
+  // Actualizar localmente para respuesta más rápida
+  setTodayResults(prev => prev.map(r => r.id === editingId ? { ...r, numeros: formatted } : r));
+    cancelEditing();
+  // Se puede refrescar silenciosamente en background
+  loadTodayResults();
+  };
+
+  const deleteResult = async (item) => {
+    if (userRole === 'collector' && item.rol === 'admin') {
+      Alert.alert('Acceso denegado', 'Ese resultado lo subió un banco y no puede eliminarse.');
+      return;
+    }
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('¿Eliminar este resultado?');
+      if (!confirmed) return;
+      const { error } = await supabase.from('resultado').delete().eq('id', item.id);
+      if (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
+      setTodayResults(prev => prev.filter(r => r.id !== item.id));
+      loadTodayResults();
+      return;
+    }
+    Alert.alert('Confirmar', '¿Eliminar este resultado?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => {
+        const { error } = await supabase.from('resultado').delete().eq('id', item.id);
+        if (error) {
+          Alert.alert('Error', error.message);
+          return;
+        }
+        setTodayResults(prev => prev.filter(r => r.id !== item.id));
+        loadTodayResults();
+      }}
+    ]);
+  };
   const handleInsert = async () => {
     // Resetear errores
     setErrors({
@@ -157,7 +283,7 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
       {
         id_horario: selectedHorario,
         numeros: cleanResult,
-        // created_at se crea automáticamente en la base de datos
+        rol: userRole || 'collector',
       }
     ]);
 
@@ -167,7 +293,7 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
       return;
     }
 
-    Alert.alert('Éxito', 'Resultado guardado correctamente');
+  Alert.alert('Éxito', 'Resultado guardado correctamente');
     
     // Limpiar formulario y errores
     setResult('');
@@ -180,6 +306,9 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
       horario: false,
       result: false
     });
+
+  // Recargar lista de hoy
+  loadTodayResults();
   };
 
 
@@ -226,9 +355,9 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
           label="Resultado (7 números)"
           value={result}
           onChangeText={(text) => {
-            setResult(text);
-            // Limpiar error cuando se escribe
-            if (text.trim()) {
+            const sanitized = sanitizeResultInput(text);
+            setResult(sanitized);
+            if (sanitized.replace(/\D/g, '').length === 7) {
               setErrors(prev => ({ ...prev, result: false }));
             }
           }}
@@ -244,6 +373,68 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
           size="medium"
           style={styles.submitButton}
         />
+
+        {/* Listado resultados hoy */}
+        <View style={styles.todayContainer}>
+          <Text style={styles.todayTitle}>Resultados de Hoy</Text>
+          {loadingResults && (
+            <Text style={styles.loadingText}>Cargando...</Text>
+          )}
+          {!loadingResults && todayResults.length === 0 && (
+            <Text style={styles.emptyText}>No hay resultados registrados hoy.</Text>
+          )}
+          {!loadingResults && todayResults.map(item => {
+            const isEditing = editingId === item.id;
+            return (
+              <View key={item.id} style={[styles.resultRow, item.id === deniedEditId && styles.resultRowDenied]}>
+                <View style={styles.resultInfo}>
+                  <Text style={styles.resultLottery}>{item.horario?.loteria?.nombre || 'Lotería'}</Text>
+                  <Text style={styles.resultHorario}>{item.horario?.nombre || 'Horario'}</Text>
+                  {isEditing ? (
+                    <TextInput
+                      style={styles.editInput}
+                      value={editingValue.length > 3 ? editingValue.slice(0,3) + ' ' + editingValue.slice(3) : editingValue}
+                      onChangeText={(text)=> {
+                        const digits = text.replace(/\D/g,'').slice(0,7);
+                        setEditingValue(digits);
+                      }}
+                      keyboardType="numeric"
+                      placeholder="7 dígitos"
+                      // maxLength 8 (7 dígitos + espacio); el filtrado asegura 7 dígitos
+                      maxLength={8}
+                    />
+                  ) : (
+                    <Text style={styles.resultNumber}>{item.numeros}</Text>
+                  )}
+                  {item.id === deniedEditId && (
+                    <Text style={styles.deniedText}>Este resultado fue subido por el banco, no es posible editar.</Text>
+                  )}
+                </View>
+                <View style={styles.resultActions}>
+                  {isEditing ? (
+                    <>
+                      <Pressable style={styles.actionBtnSave} onPress={saveEditing}>
+                        <Text style={styles.actionText}>💾</Text>
+                      </Pressable>
+                      <Pressable style={styles.actionBtnCancel} onPress={cancelEditing}>
+                        <Text style={styles.actionText}>✕</Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <>
+                      <Pressable style={styles.actionBtn} onPress={() => startEditing(item)}>
+                        <Text style={styles.actionText}>✎</Text>
+                      </Pressable>
+                      <Pressable style={styles.actionBtnDelete} onPress={() => deleteResult(item)}>
+                        <Text style={styles.actionText}>🗑️</Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </View>
       </ScrollView>
 
       <SideBar
@@ -307,4 +498,118 @@ const styles = StyleSheet.create({
     marginTop: 10,
     width: '100%',
   },
+  todayContainer: {
+    marginTop: 30,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0'
+  },
+  todayTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginBottom: 10
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#64748B'
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#94A3B8'
+  },
+  resultRow: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+    alignItems: 'flex-start'
+  },
+  resultInfo: {
+    flex: 1
+  },
+  resultLottery: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155'
+  },
+  resultHorario: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 4
+  },
+  resultNumber: {
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: '#1E293B'
+  },
+  resultRole: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#64748B'
+  },
+  resultActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8
+  },
+  actionBtn: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    marginLeft: 6
+  },
+  actionBtnDelete: {
+    backgroundColor: '#EF4444',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    marginLeft: 6
+  },
+  // Aumentar área táctil opcional mediante hitSlop al usar
+  actionBtnSave: {
+    backgroundColor: '#10B981',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    marginLeft: 6
+  },
+  actionBtnCancel: {
+    backgroundColor: '#64748B',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    marginLeft: 6
+  },
+  actionText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600'
+  },
+  resultRowDenied: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#EF4444'
+  },
+  deniedText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#B91C1C',
+    fontWeight: '500'
+  },
+  editInput: {
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 16,
+    color: '#1E293B',
+    marginTop: 4,
+    width: 120
+  }
 });

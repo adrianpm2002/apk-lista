@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { 
   View, 
   Text, 
@@ -65,9 +66,20 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
   const [modalFieldErrors, setModalFieldErrors] = useState({}); // { playType: { regular:true, limited:true, collectorPct:true, listeroPct:true } }
   const [editingConfigId, setEditingConfigId] = useState(null); // id de la configuración que se está editando (update), null = insert
 
-  useEffect(() => {
-    initializeScreen();
-  }, []);
+  useEffect(() => { initializeScreen(); }, []);
+
+  const refreshOnFocus = useCallback(async () => {
+    if (currentBankId) {
+      await loadSavedConfiguration(currentBankId);
+      await loadPriceConfigs(currentBankId);
+    }
+  }, [currentBankId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshOnFocus();
+    }, [refreshOnFocus])
+  );
 
   const initializeScreen = async () => {
     try {

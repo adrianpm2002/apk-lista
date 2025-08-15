@@ -39,9 +39,11 @@ const roleOptionsMap = {
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   collector: [
-    { id: 'createUser', icon: '🧑‍💼', title: 'Crear Listero' },
-    { id: 'listerLimits', icon: '📋', title: 'Limitar Listeros' },
-    { id: 'settings', icon: '⚙️', title: 'Configuración' },
+  // Ajustado: solo las pantallas permitidas para collector
+  { id: 'statistics', icon: '📈', title: 'Estadísticas' },
+  { id: 'insertResults', icon: '🎯', title: 'Insertar Resultados' },
+  { id: 'createUser', icon: '👥', title: 'Gestionar Usuarios' },
+  { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   listero: [
     { id: 'settings', icon: '⚙️', title: 'Configuración' },

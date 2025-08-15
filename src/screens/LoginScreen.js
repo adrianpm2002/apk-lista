@@ -84,7 +84,8 @@ export default function LoginScreen({ navigation }) {
       if (userRole === 'admin') {
         navigation.navigate('Statistics');
       } else if (userRole === 'collector') {
-        navigation.navigate('MainApp');
+        // Collector también inicia en estadísticas según nueva especificación
+        navigation.navigate('Statistics');
       } else if (userRole === 'listero') {
         navigation.navigate('MainApp');
       } else {
