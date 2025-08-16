@@ -68,7 +68,7 @@ const ListerLimitsButton = ({ onOptionSelect }) => {
         noche: {
           label: 'Noche',
           playTypes: {
-            parle: { label: 'Parlé', limit: 620 }
+            parle: { label: 'Parle', limit: 620 }
           }
         }
       }

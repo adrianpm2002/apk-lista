@@ -15,6 +15,7 @@ const PlaysInputField = ({
   onChangeText, 
   placeholder,
   playType, // 'fijo', 'corrido', 'parle', 'centena', 'tripleta'
+  selectedPlayTypes = [], // para detectar combo centena+fijo
   isDarkMode = false,
   multiline = true,
   showPasteButton = false, // Cambiado a false por defecto
@@ -42,7 +43,7 @@ const PlaysInputField = ({
       case 'corrido':
       case 'posicion':
       case 'parle':
-        return 2;
+        return 4; // Parle ahora requiere bloques de 4 dígitos
       case 'centena':
         return 3;
       case 'tripleta':
@@ -222,7 +223,7 @@ const PlaysInputField = ({
         'fijo': 'Fijo',
         'corrido': 'Corrido',
         'posicion': 'Posición',
-        'parle': 'Parlé',
+  'parle': 'Parle',
         'centena': 'Centena',
         'tripleta': 'Tripleta'
       };
@@ -235,90 +236,33 @@ const PlaysInputField = ({
     return '';
   };
 
-  // Función para identificar números con errores
-  const getErrorNumbers = () => {
-    const playTypeValue = typeof playType === 'object' ? playType?.value : playType;
-    if (!playTypeValue) return [];
-    
-    const requiredLength = getRequiredLength();
-    if (!requiredLength) return [];
-    
-    const numbers = displayValue.split(/[,*\-\s]+/).filter(num => num.trim() !== '');
-    const cleanNumbers = numbers.map(num => num.replace(/[^0-9]/g, ''));
-    const errorNumbers = [];
-
-    numbers.forEach((num, index) => {
-      const cleanNum = num.replace(/[^0-9]/g, '');
-      
-      // Error por longitud incorrecta
-      if (cleanNum.length !== requiredLength) {
-        errorNumbers.push(cleanNum);
-      }
-      
-  // Duplicados ya no se incluyen como error crítico
-    });
-
-    return [...new Set(errorNumbers)]; // Remover duplicados del array de errores
-  };
-
-  // Renderizar texto con números de error resaltados
-  const renderFormattedText = () => {
-    if (!displayValue) return null;
-    
-    const errorNumbers = getErrorNumbers();
-    if (errorNumbers.length === 0) return null;
-
-    const parts = [];
-    let currentText = displayValue;
-    let key = 0;
-
-    // Encontrar y resaltar números con errores
-    errorNumbers.forEach(errorNum => {
-      const regex = new RegExp(`(${errorNum})`, 'g');
-      currentText = currentText.replace(regex, '|||ERROR|||$1|||ERROR|||');
-    });
-
-    const segments = currentText.split('|||ERROR|||');
-    
-    segments.forEach((segment, index) => {
-      if (errorNumbers.includes(segment)) {
-        parts.push(
-          <Text key={key++} style={styles.errorText}>
-            {segment}
-          </Text>
-        );
-      } else if (segment) {
-        parts.push(
-          <Text key={key++} style={[styles.normalText, isDarkMode && styles.normalTextDark]}>
-            {segment}
-          </Text>
-        );
-      }
-    });
-
-    return parts;
-  };
-
   const validationMessage = getValidationMessage();
   const hasErrors = validationMessage !== '';
-  const errorNumbers = getErrorNumbers();
-  // Detectar duplicados (advertencia)
-  const detectDuplicates = () => {
-    const playTypeValue = typeof playType === 'object' ? playType?.value : playType;
-    if (!playTypeValue) return [];
-    const requiredLength = getRequiredLength();
-    if (!requiredLength) return [];
-    const numbers = displayValue.split(/[,*\-\s]+/).filter(num => num.trim() !== '');
-    const cleanNumbers = numbers.map(num => num.replace(/[^0-9]/g, ''));
-    const duplicates = [];
-    cleanNumbers.forEach(n => {
-      if (n.length === requiredLength && cleanNumbers.filter(x=>x===n).length > 1) duplicates.push(n);
-    });
-    return [...new Set(duplicates)];
-  };
-  const duplicateNumbers = detectDuplicates();
-  const showErrorOverlay = hasErrors && errorNumbers.length > 0;
-  const showDuplicateOverlay = !hasErrors && duplicateNumbers.length > 0;
+  const requiredLength = getRequiredLength();
+  const partsForLast = displayValue.split(/[,*\-\s]+/).filter(p=>p.trim()!=='');
+  const lastPart = partsForLast.length ? partsForLast[partsForLast.length-1] : null;
+  const lastClean = lastPart ? lastPart.replace(/[^0-9]/g,'') : '';
+  const lastIncomplete = lastClean && requiredLength && lastClean.length < requiredLength;
+  // Duplicados (advertencia amarilla)
+  const duplicateNumbers = (()=>{
+    if(!requiredLength) return [];
+    const all = partsForLast.map(p=>p.replace(/[^0-9]/g,''));
+    const dups = [];
+    all.forEach(n=>{ if(n.length===requiredLength && all.filter(x=>x===n).length>1) dups.push(n); });
+    return [...new Set(dups)];
+  })();
+
+  // Detección de duplicados de Fijo cuando combo centena+fijo (comparar últimos 2 dígitos de cada centena)
+  const hasCentenaFijoCombo = selectedPlayTypes.includes('centena') && selectedPlayTypes.includes('fijo');
+  const duplicateFijos = (() => {
+    if(!hasCentenaFijoCombo) return [];
+    const all = partsForLast.map(p=>p.replace(/[^0-9]/g,'')).filter(n=>n.length>=2);
+    const last2List = all.map(n=> n.slice(-2));
+    const dups = [];
+    last2List.forEach(n=>{ if(last2List.filter(x=>x===n).length>1) dups.push(n); });
+    return [...new Set(dups)];
+  })();
+  const anyFijoDup = duplicateFijos.length>0;
 
   return (
     <View style={styles.container}>
@@ -355,7 +299,7 @@ const PlaysInputField = ({
             multiline && styles.multilineInput,
             validationMessage && styles.inputError,
             hasError && styles.inputFieldError,
-      (showErrorOverlay || showDuplicateOverlay) && styles.inputWithOverlay, // ocultar texto base cuando hay overlay
+  (lastIncomplete || duplicateNumbers.length>0) && styles.inputWithOverlay,
           ]}
           value={displayValue}
           onChangeText={handleChange}
@@ -366,28 +310,31 @@ const PlaysInputField = ({
           numberOfLines={multiline ? 3 : 1}
         />
         
-        {/* Overlay de texto formateado con errores resaltados */}
-  {showErrorOverlay && (
-          <View style={[
-            styles.textOverlay,
-            multiline && styles.textOverlayMultiline
-          ]} pointerEvents="none">
-            <Text style={styles.overlayContainer}>
-              {renderFormattedText()}
-            </Text>
-          </View>
-        )}
-        {/* Overlay parcial para duplicados (advertencia) */}
-  {showDuplicateOverlay && (
-          <View style={[
-            styles.textOverlay,
-            multiline && styles.textOverlayMultiline
-          ]} pointerEvents="none">
+        {(lastIncomplete || duplicateNumbers.length>0 || anyFijoDup) && (
+          <View style={[styles.textOverlay, multiline && styles.textOverlayMultiline]} pointerEvents="none">
             <Text style={styles.overlayContainer}>
               {displayValue.split(/([,*\-\s]+)/).map((part, idx) => {
                 const clean = part.replace(/[^0-9]/g,'');
-                if (duplicateNumbers.includes(clean)) {
+                if(clean && clean===lastClean && lastIncomplete) {
+                  return <Text key={idx} style={styles.errorText}>{part}</Text>;
+                }
+                if(clean && duplicateNumbers.includes(clean)) {
+                  // Centena duplicada -> resaltar todo el número
                   return <Text key={idx} style={styles.duplicateText}>{part}</Text>;
+                }
+                if(clean && hasCentenaFijoCombo && clean.length>=2 && !duplicateNumbers.includes(clean)) {
+                  const last2 = clean.slice(-2);
+                  if(duplicateFijos.includes(last2)) {
+                    // Resaltar únicamente los últimos 2 dígitos (fijo) sin duplicar el texto
+                    const prefix = clean.slice(0, clean.length-2);
+                    const suffix = clean.slice(-2);
+                    return (
+                      <Text key={idx} style={[styles.normalText, isDarkMode && styles.normalTextDark]}>
+                        {prefix}
+                        <Text style={styles.duplicateFijoSuffix}>{suffix}</Text>
+                      </Text>
+                    );
+                  }
                 }
                 return <Text key={idx} style={[styles.normalText, isDarkMode && styles.normalTextDark]}>{part}</Text>;
               })}
@@ -410,8 +357,12 @@ const PlaysInputField = ({
       </View>
       {validationMessage ? (
         <Text style={styles.validationText}>{validationMessage}</Text>
-      ) : duplicateNumbers.length > 0 ? (
-        <Text style={styles.warningText}>Hay números duplicados (se permiten pero verifique).</Text>
+      ) : duplicateNumbers.length>0 && anyFijoDup ? (
+        <Text style={styles.warningText}>Centenas y fijos duplicados (permitido).</Text>
+      ) : duplicateNumbers.length>0 ? (
+        <Text style={styles.warningText}>Centenas duplicadas (permitido).</Text>
+      ) : anyFijoDup ? (
+        <Text style={styles.warningText}>Fijos duplicados (permitido).</Text>
       ) : null}
     </View>
   );
@@ -567,6 +518,14 @@ const styles = StyleSheet.create({
   duplicateText: {
     color: '#B9770E',
     backgroundColor: '#FCF3CF',
+    fontSize: 16,
+    fontWeight: '600',
+    paddingHorizontal: 2,
+    borderRadius: 3,
+  },
+  duplicateFijoSuffix: {
+    color: '#B9770E',
+    backgroundColor: '#FEF7D1',
     fontSize: 16,
     fontWeight: '600',
     paddingHorizontal: 2,

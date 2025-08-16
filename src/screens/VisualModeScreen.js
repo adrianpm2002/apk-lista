@@ -43,27 +43,38 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
   const [playTypeError, setPlayTypeError] = useState(false);
   const [playsError, setPlaysError] = useState(false);
   const [amountError, setAmountError] = useState(false); // se usará si cualquier monto requerido falta
+  const [showFieldErrors, setShowFieldErrors] = useState(false); // sólo mostrar bordes rojos tras intento
+  const [limitViolations, setLimitViolations] = useState([]); // [{numero, jugada, permitido, usado}]
 
   // Calcular total automáticamente basado en cantidad de números y monto
   useEffect(() => {
     const nums = plays.match(/\d+/g) || [];
     const numbersCount = nums.length;
     if (!numbersCount) { setTotal(0); return; }
-    // Total por lotería (suma de jugadas seleccionadas)
     let perLottery = 0;
     selectedPlayTypes.forEach(pt => {
       const raw = amounts[pt] || '0';
-      const amt = parseInt(raw.toString().replace(/[^0-9]/g,'')) || 0;
-      if (!amt) return;
+      const amt = parseInt(raw.toString().replace(/[^0-9]/g,''),10) || 0;
+      if (!amt) return; // si monto cero, ignorar jugada
       if (pt === 'parle' && isLocked) {
-        perLottery += amt; // total directo
+        perLottery += amt; // parle bloqueada: monto total directo
       } else {
         perLottery += amt * numbersCount;
       }
     });
-    const general = perLottery * (selectedLotteries.length || 1);
-    setTotal(general);
+    setTotal(perLottery * (selectedLotteries.length || 1));
   }, [plays, amounts, isLocked, selectedPlayTypes, selectedLotteries]);
+
+  // Validación reactiva: cualquier jugada seleccionada con monto vacío o 0 marca error inmediato
+  useEffect(() => {
+    if (!selectedPlayTypes.length) { setAmountError(false); return; }
+    const invalid = selectedPlayTypes.some(pt => {
+      const raw = amounts[pt];
+      const val = parseInt((raw||'').toString().replace(/[^0-9]/g,''),10) || 0;
+      return !raw || val <= 0;
+    });
+    setAmountError(invalid);
+  }, [amounts, selectedPlayTypes]);
 
   // Datos para los dropdowns
   const [lotteries, setLotteries] = useState([]); // desde BD
@@ -158,6 +169,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
           return next;
         });
       } catch(e){ /* ignore */ }
+    setLimitViolations([]);
     };
     loadAllSchedules();
     return ()=> { cancelled = true; };
@@ -173,6 +185,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
     setPlayTypeError(false);
     setPlaysError(false);
   setAmountError(false);
+  setShowFieldErrors(false);
     setLotteryErrorMessage('');
 
     // Validar campos requeridos
@@ -207,8 +220,29 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
       if (!raw || raw === '0') { setAmountError(true); hasErrors = true; break; }
     }
 
+    // Validación específica: 'parle' ahora exige que cada bloque sea de 4 dígitos (cantidad libre)
+    if (!hasErrors && selectedPlayTypes.includes('parle')) {
+      const nums = plays.split(/[\s,;,]+/).map(n=>n.trim()).filter(Boolean);
+      const invalid = nums.some(n => n.replace(/[^0-9]/g,'').length !== 4);
+      if (invalid || nums.length===0) {
+        setPlaysError(true);
+        hasErrors = true;
+      }
+    }
+
+    // Validación combo centena + fijo: tratar todo como centena (3 dígitos obligatorios)
+    if (!hasErrors && selectedPlayTypes.includes('centena') && selectedPlayTypes.includes('fijo')) {
+      const nums = plays.split(/[\s,;,]+/).map(n=>n.trim()).filter(Boolean);
+      const invalid = nums.some(n => n.replace(/[^0-9]/g,'').length !== 3);
+      if (invalid || nums.length===0) {
+        setPlaysError(true);
+        hasErrors = true;
+      }
+    }
+
     if (hasErrors) {
       // Quitar errores después de 3 segundos
+      setShowFieldErrors(true);
       setTimeout(() => {
         setLotteryError(false);
         setScheduleError(false);
@@ -216,6 +250,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
         setPlaysError(false);
         setAmountError(false);
         setLotteryErrorMessage('');
+        setShowFieldErrors(false);
       }, 3000);
       return;
     }
@@ -226,6 +261,11 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
       .map(n => n.trim())
       .filter(n => n.length > 0);
     const numbersFormatted = numbersArrayRaw.join(',');
+    const hasCentenaFijoCombo = selectedPlayTypes.includes('centena') && selectedPlayTypes.includes('fijo');
+    // Para el combo centena + fijo: en fijo se guardan los últimos 2 dígitos, en centena el número completo
+    const numbersFormattedFijo = hasCentenaFijoCombo
+      ? numbersArrayRaw.map(n => n.slice(-2)).join(',')
+      : numbersFormatted;
 
   const numsCount = numbersFormatted ? numbersFormatted.split(',').filter(Boolean).length : 0;
 
@@ -243,11 +283,13 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
         } else {
           rowTotal = unit * numsCount;
         }
+        // Determinar números a insertar según regla especial centena+fijo
+        const numerosForThisPlay = (pt === 'fijo' && hasCentenaFijoCombo) ? numbersFormattedFijo : numbersFormatted;
         payloads.push({
           id_listero: userId,
           id_horario,
           jugada: pt,
-          numeros: numbersFormatted,
+          numeros: numerosForThisPlay,
           nota: note?.trim() || 'Sin nombre',
           monto_unitario: unit,
           monto_total: rowTotal,
@@ -271,6 +313,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
   setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
         setNote('');
         setTotal(0);
+  setShowFieldErrors(false);
       }
       console.log(`Jugadas insertadas: ${successes.length}/${payloads.length}`);
       if (failures.length) console.warn('Fallos insertando jugadas', failures.map(f=>f.error.message));
@@ -289,6 +332,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
   setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
     setNote('');
     setTotal(0);
+  setShowFieldErrors(false);
   };
 
   const handleTopBarOption = (option) => {
@@ -367,6 +411,18 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
             <NotificationsButton />
           </View>
         </View>
+        {limitViolations.length > 0 && (
+          <View style={{ marginTop:8, backgroundColor:'#fff5f5', borderWidth:1, borderColor:'#ffc9c9', padding:8, borderRadius:6 }}>
+            {limitViolations.slice(0,5).map((v,idx)=>(
+              <Text key={idx} style={{ color:'#c92a2a', fontSize:12 }}>
+                Número {v.numero} ({v.jugada}) excede límite: usado {v.usado} + intento {'>'} permitido {v.permitido}
+              </Text>
+            ))}
+            {limitViolations.length>5 && (
+              <Text style={{ color:'#c92a2a', fontSize:12, marginTop:2 }}>+{limitViolations.length-5} más...</Text>
+            )}
+          </View>
+        )}
       </View>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Row 1: Lotería & Jugada */}
@@ -427,6 +483,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
           onChangeText={setPlays}
           placeholder=""
           playType={selectedPlayTypes[0] || null}
+          selectedPlayTypes={selectedPlayTypes}
           multiline={true}
           isDarkMode={isDarkMode}
           showPasteButton={true}
@@ -443,22 +500,26 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
               onChangeText={setNote}
               placeholder=""
               style={styles.fieldContainer}
-              inputStyle={styles.unifiedInput}
+              inputStyle={[styles.unifiedInput, (showFieldErrors && !note.trim()) && styles.errorBorder]}
             />
           </View>
             <View style={styles.amountsContainer}>
-            {selectedPlayTypes.map(pt => (
-              <MoneyInputField
-                key={pt}
-                label={`Monto ${getPlayTypeLabel(pt)}`}
-                value={amounts[pt]}
-                onChangeText={(val)=> setAmounts(a=>({...a,[pt]:val}))}
-                placeholder="$0"
-                style={styles.fieldContainer}
-                inputStyle={styles.unifiedInput}
-                hasError={amountError && (!amounts[pt] || amounts[pt]==='0')}
-              />
-            ))}
+            {selectedPlayTypes.map(pt => {
+              const raw = amounts[pt];
+              const invalid = (showFieldErrors && (!raw || raw === '0'));
+              return (
+                <MoneyInputField
+                  key={pt}
+                  label={`Monto ${getPlayTypeLabel(pt)}`}
+                  value={raw}
+                  onChangeText={(val)=> setAmounts(a=>({...a,[pt]:val}))}
+                  placeholder="$0"
+                  style={styles.fieldContainer}
+                  inputStyle={[styles.unifiedInput, invalid && styles.errorBorder]}
+                  hasError={invalid}
+                />
+              );
+            })}
           </View>
             <View style={styles.generalTotalContainer}>
             <MoneyInputField
@@ -719,6 +780,11 @@ const styles = StyleSheet.create({
   },
   generalTotalContainer: {
     width: 120, // ancho pequeño solicitado para Monto General
+  },
+  errorBorder:{
+    borderColor:'#E74C3C',
+    borderWidth:2,
+    backgroundColor:'#FDEDEC'
   },
 });
 

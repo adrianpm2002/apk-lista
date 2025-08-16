@@ -18,52 +18,108 @@ const BatteryButton = ({ onOptionSelect, selectedLotteries, selectedSchedules, s
     if(!bankId) return;
     setLoading(true); setError(null);
     try {
+      // Perfil para límites específicos del listero
+      const { data: { user } } = await supabase.auth.getUser();
+      let specificLimits = null;
+      if (user) {
+        const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', user.id).maybeSingle();
+        specificLimits = profile?.limite_especifico || null;
+      }
       // Traer límites (limite_numero)
       const { data: limits, error: limErr } = await supabase
         .from('limite_numero')
-        .select('id, numero, limite, jugada, id_horario, horario: id_horario ( id, nombre, loteria: id_loteria ( id, nombre ) )')
+        .select('id, numero, limite, jugada, id_horario, horario: id_horario ( id, nombre, hora_inicio, hora_fin, loteria: id_loteria ( id, nombre ) )')
         .eq('id_banco', bankId);
       if(limErr) throw limErr;
-      // Traer montos usados por número (numero_limitado) - asumiendo campo limite = monto acumulado actual
-      const { data: usedRows, error: usedErr } = await supabase
-        .from('numero_limitado')
-        .select('numero, limite, jugada, id_horario, horario: id_horario ( id, loteria: id_loteria ( id ) )')
-        .eq('id_banco', bankId);
-      if(usedErr) throw usedErr;
-      // Construir mapa usado: key = loteriaId|horarioId|jugada|numero
+      // Traer montos usados por número (numero_limitado) - simplificado para evitar error 400
+      const horarioIds = [...new Set((limits||[]).map(l=>l.id_horario).filter(Boolean))];
+      let usedRows = [];
+      if (horarioIds.length) {
+        try {
+          const { data: ur, error: ue } = await supabase
+            .from('numero_limitado')
+            .select('numero, limite, jugada, id_horario')
+            .in('id_horario', horarioIds)
+            .eq('id_banco', bankId);
+          if (ue) throw ue;
+          usedRows = ur || [];
+        } catch(firstErr) {
+          // Fallback sin filtro id_banco si la columna no existe o causa error
+          try {
+            const { data: ur2, error: ue2 } = await supabase
+              .from('numero_limitado')
+              .select('numero, limite, jugada, id_horario')
+              .in('id_horario', horarioIds);
+            if (ue2) throw ue2;
+            usedRows = ur2 || [];
+          } catch(secondErr) {
+            console.warn('No se pudieron cargar montos usados:', secondErr.message);
+          }
+        }
+      }
+      // Construir mapa usado: key = horarioId|jugada|numero
       const usedMap = new Map();
       (usedRows||[]).forEach(r=>{
-        const lotId = r.horario?.loteria?.id;
-        const key = `${lotId}|${r.id_horario}|${r.jugada}|${r.numero}`;
+        const key = `${r.id_horario}|${r.jugada}|${r.numero}`;
         usedMap.set(key, (usedMap.get(key)||0) + (r.limite||0));
       });
+      // Utilidades para evaluar si el horario está abierto según hora actual
+      const now = new Date();
+      const nowMinutes = now.getHours()*60 + now.getMinutes();
+      const parseToMinutes = (timeStr) => {
+        if(!timeStr) return null;
+        const parts = timeStr.split(':');
+        const h = parseInt(parts[0]);
+        const m = parseInt(parts[1]||'0');
+        return h*60 + m;
+      };
       const rows = (limits||[]).map(l=>{
         const lotId = l.horario?.loteria?.id;
-        const key = `${lotId}|${l.id_horario}|${l.jugada}|${l.numero}`;
-        const used = usedMap.get(key)||0;
+        const used = usedMap.get(`${l.id_horario}|${l.jugada}|${l.numero}`)||0;
+        // Determinar si horario abierto
+        const startMin = parseToMinutes(l.horario?.hora_inicio);
+        const endMin = parseToMinutes(l.horario?.hora_fin);
+        let abierto = true;
+        if(startMin!=null && endMin!=null){
+          if(startMin <= endMin){
+            abierto = nowMinutes >= startMin && nowMinutes <= endMin;
+          } else { // cruza medianoche
+            abierto = (nowMinutes >= startMin) || (nowMinutes <= endMin);
+          }
+        }
+        // Límite efectivo = menor entre límite_numero y límite específico (si existe para esa jugada)
+        let effectiveLimit = l.limite;
+        if (specificLimits && specificLimits[l.jugada] !== undefined) {
+          const spec = specificLimits[l.jugada];
+            if (typeof spec === 'number') {
+              if (spec < effectiveLimit) {
+                effectiveLimit = spec;
+              }
+            }
+        }
+        if (!effectiveLimit) return null; // ignorar si no hay límite resolvible
         return {
           loteriaId: String(lotId),
           horarioId: String(l.id_horario),
           horarioNombre: l.horario?.nombre,
           loteriaNombre: l.horario?.loteria?.nombre,
+          abierto,
           jugada: l.jugada,
           numero: String(l.numero).padStart(2,'0'),
-          limite: l.limite,
+          limite: effectiveLimit,
           usado: used,
-          porcentaje: l.limite ? Math.min(100, (used / l.limite)*100) : 0
+          porcentaje: effectiveLimit ? Math.min(100, (used / effectiveLimit)*100) : 0
         };
-      });
-      setCapacityData(rows);
+      }).filter(Boolean);
+      // Filtrar solo horarios abiertos
+      setCapacityData(rows.filter(r => r.abierto));
     } catch(e){ setError(e.message||'Error cargando capacidad'); }
     setLoading(false);
   };
 
-  const handlePress = () => {
-    if (!selectedLotteries || selectedLotteries.length === 0) {
-      onLotteryError && onLotteryError(true, 'Selecciona al menos una lotería');
-      return;
-    }
-    fetchCapacities();
+  const handlePress = async () => {
+    // Cargar datos primero para que filtros iniciales tengan contenido
+    await fetchCapacities();
     setIsModalVisible(true);
   };
 
@@ -86,11 +142,10 @@ const BatteryButton = ({ onOptionSelect, selectedLotteries, selectedSchedules, s
       <CapacityModal
         isVisible={isModalVisible}
         onClose={handleCloseModal}
-        selectedLottery={selectedLotteries.length===1 ? (lotteryOptions.find(o=>o.value===selectedLotteries[0])?.label) : null}
+        selectedLottery={null}
         capacityData={capacityData}
         loading={loading}
         error={error}
-        filters={{ lotteries: selectedLotteries, schedules: selectedSchedules, playTypes: selectedPlayTypes }}
         getScheduleLabel={getScheduleLabel}
         playTypeLabels={playTypeLabels}
       />

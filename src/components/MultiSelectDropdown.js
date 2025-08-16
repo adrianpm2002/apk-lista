@@ -123,54 +123,36 @@ const MultiSelectDropdown = ({
         visible={isVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setIsVisible(false)}
+        onRequestClose={() => { setIsVisible(false); }}
       >
-        <Pressable 
-          style={styles.overlay}
-          onPress={() => setIsVisible(false)}
-        >
+        <Pressable style={styles.overlay} onPress={() => { setIsVisible(false); }}>
           <View style={[styles.modal, isDarkMode && styles.modalDark]}>
-            <Pressable>
-              <View style={[styles.header, isDarkMode && styles.headerDark]}>
-                <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>
-                  Seleccionar {label || 'Opciones'}
-                </Text>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.closeButton,
-                    pressed && styles.closeButtonPressed
-                  ]}
-                  onPress={() => setIsVisible(false)}
-                >
-                  <Text style={styles.closeButtonText}>✕</Text>
-                </Pressable>
-              </View>
-              
-              <FlatList
-                data={options}
-                renderItem={renderOption}
-                keyExtractor={(item) => item.value}
-                style={styles.optionsList}
-                showsVerticalScrollIndicator={false}
-              />
-              
-              {selectedValues.length > 0 && (
-                <View style={[styles.footer, isDarkMode && styles.footerDark]}>
-                  <Text style={[styles.footerText, isDarkMode && styles.footerTextDark]}>
-                    {selectedValues.length} seleccionada{selectedValues.length > 1 ? 's' : ''}
-                  </Text>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.clearButton,
-                      pressed && styles.clearButtonPressed
-                    ]}
-                    onPress={() => onSelect && onSelect([])}
-                  >
-                    <Text style={styles.clearButtonText}>Limpiar</Text>
-                  </Pressable>
-                </View>
-              )}
-            </Pressable>
+            <View style={[styles.header, isDarkMode && styles.headerDark]}>
+              <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>
+                Seleccionar {label || 'Opciones'}
+              </Text>
+            </View>
+            <FlatList
+              data={options}
+              renderItem={renderOption}
+              keyExtractor={(item) => item.value}
+              style={styles.optionsList}
+              showsVerticalScrollIndicator={false}
+            />
+            <View style={[styles.footerBar, isDarkMode && styles.footerBarDark]}>
+              <Pressable
+                style={({ pressed }) => [styles.clearButtonInline, pressed && styles.clearButtonPressed]}
+                onPress={() => onSelect && onSelect([])}
+              >
+                <Text style={styles.clearButtonText}>Limpiar</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.acceptButton, pressed && styles.acceptButtonPressed]}
+                onPress={() => setIsVisible(false)}
+              >
+                <Text style={styles.acceptButtonText}>Aceptar</Text>
+              </Pressable>
+            </View>
           </View>
         </Pressable>
       </Modal>
@@ -303,6 +285,38 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  footerBar:{
+    flexDirection:'row',
+    justifyContent:'space-between',
+    alignItems:'center',
+    padding:12,
+    borderTopWidth:1,
+    borderTopColor:'#ECF0F1'
+  },
+  footerBarDark:{
+    borderTopColor:'#34495E'
+  },
+  clearButtonInline:{
+    paddingHorizontal:14,
+    paddingVertical:8,
+    backgroundColor:'#E74C3C',
+    borderRadius:6,
+  },
+  acceptButton:{
+    paddingHorizontal:16,
+    paddingVertical:8,
+    backgroundColor:'#2E7D32',
+    borderRadius:6,
+  },
+  acceptButtonPressed:{
+    opacity:0.85,
+    transform:[{scale:0.97}]
+  },
+  acceptButtonText:{
+    color:'#FFFFFF',
+    fontSize:14,
+    fontWeight:'600'
   },
   optionsList: {
     maxHeight: 300,

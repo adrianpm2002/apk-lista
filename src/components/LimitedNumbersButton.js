@@ -35,7 +35,7 @@ const LimitedNumbersButton = ({ onOptionSelect }) => {
               numbers: ['234', '567']
             },
             parle: {
-              label: 'Parlé',
+              label: 'Parle',
               numbers: ['345']
             }
           }
@@ -98,7 +98,7 @@ const LimitedNumbersButton = ({ onOptionSelect }) => {
           label: 'Noche',
           playTypes: {
             parle: {
-              label: 'Parlé',
+              label: 'Parle',
               numbers: ['004']
             }
           }

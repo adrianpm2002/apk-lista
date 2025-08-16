@@ -315,7 +315,7 @@ const HammerButton = ({ onOptionSelect, isDarkMode = false }) => {
               </Pressable>
             </View>
 
-            {/* Combinar Parlé y Pareja */}
+            {/* Combinar Parle y Pareja */}
             <View style={styles.combineRow}>
               <View style={styles.combineGroup}>
                 <Pressable
@@ -331,7 +331,7 @@ const HammerButton = ({ onOptionSelect, isDarkMode = false }) => {
                     styles.combineSwitchText,
                     combinarParleEnabled && styles.combineSwitchTextActive,
                     isDarkMode && styles.combineSwitchTextDark
-                  ]}>Combinar Parlé</Text>
+                  ]}>Combinar Parle</Text>
                 </Pressable>
               </View>
 

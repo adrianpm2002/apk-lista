@@ -20,6 +20,7 @@ import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
+import { supabase } from '../supabaseClient';
 
 const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   // Estados para los campos
@@ -35,6 +36,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
   const [lotteryErrorMessage, setLotteryErrorMessage] = useState('');
   const [scheduleError, setScheduleError] = useState(false);
   const [playsError, setPlaysError] = useState(false);
+  const [limitViolations, setLimitViolations] = useState([]); // [{numero, jugada, permitido, usado}]
 
   // Hook para enviar jugadas al almacenamiento
   const { submitPlayWithConfirmation } = usePlaySubmission();
@@ -99,6 +101,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     setScheduleError(false);
     setPlaysError(false);
     setLotteryErrorMessage('');
+  setLimitViolations([]);
 
     // Validar campos requeridos
     let hasErrors = false;
@@ -119,6 +122,64 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
       hasErrors = true;
     }
 
+    // Validación de límites (simplificada para modo texto: cada jugada vale 1 unidad)
+    if (!hasErrors) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        let specificLimits = null;
+        if (user) {
+          const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', user.id).maybeSingle();
+            specificLimits = profile?.limite_especifico || null;
+        }
+        const horarios = selectedSchedule ? [selectedSchedule] : [];
+        if (horarios.length) {
+          const { data: limitRows } = await supabase
+            .from('limite_numero')
+            .select('numero, limite, jugada, id_horario')
+            .in('id_horario', horarios);
+          const { data: usedRows } = await supabase
+            .from('numero_limitado')
+            .select('numero, limite, jugada, id_horario')
+            .in('id_horario', horarios);
+          const limitMap = new Map();
+          (limitRows||[]).forEach(r=>{
+            limitMap.set(r.id_horario+"|"+r.jugada+"|"+r.numero, r.limite);
+          });
+          const usedMap = new Map();
+            (usedRows||[]).forEach(r=>{
+              const k = r.id_horario+"|"+r.jugada+"|"+r.numero;
+              usedMap.set(k, (usedMap.get(k)||0)+(r.limite||0));
+            });
+          const playList = plays.split(',').map(p=>p.trim()).filter(Boolean);
+          const numbers = playList.map(p=>p.replace(/[^0-9]/g,''));
+          const violations = [];
+          numbers.forEach(numRaw=>{
+            const numInt = parseInt(numRaw,10);
+            // Jugadas base asumidas: fijo,corrido,posicion,parle,centena,tripleta si hay limites específicos
+            const jugadas = specificLimits ? Object.keys(specificLimits) : [];
+            jugadas.forEach(j=>{
+              horarios.forEach(h=>{
+                const key = h+"|"+j+"|"+numInt;
+                const byNumber = limitMap.get(key);
+                const specific = specificLimits && specificLimits[j];
+                let effective;
+                if (byNumber !== undefined && specific !== undefined) effective = Math.min(byNumber, specific); else if (byNumber !== undefined) effective = byNumber; else if (specific !== undefined) effective = specific; else return;
+                const used = usedMap.get(key) || 0;
+                const amt = 1; // cada jugada vale 1 en este modo
+                if ((used + amt) > effective) {
+                  violations.push({ numero:numRaw, jugada:j, permitido:effective, usado:used });
+                }
+              });
+            });
+          });
+          if (violations.length) {
+            setLimitViolations(violations);
+            hasErrors = true;
+          }
+        }
+      } catch(e) { /* silencioso */ }
+    }
+
     if (hasErrors) {
       // Quitar errores después de 3 segundos
       setTimeout(() => {
@@ -126,6 +187,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
         setScheduleError(false);
         setPlaysError(false);
         setLotteryErrorMessage('');
+  setLimitViolations([]);
       }, 3000);
       return;
     }
@@ -238,6 +300,18 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           pasteButtonOverlay={true}
           hasError={playsError}
         />
+        {limitViolations.length > 0 && (
+          <View style={{ marginTop:8, backgroundColor:'#fff5f5', borderWidth:1, borderColor:'#ffc9c9', padding:8, borderRadius:6 }}>
+            {limitViolations.slice(0,5).map((v,idx)=>(
+              <Text key={idx} style={{ color:'#c92a2a', fontSize:12 }}>
+                Número {v.numero} ({v.jugada}) excede límite: usado {v.usado} + intento {'>'} permitido {v.permitido}
+              </Text>
+            ))}
+            {limitViolations.length>5 && (
+              <Text style={{ color:'#c92a2a', fontSize:12, marginTop:2 }}>+{limitViolations.length-5} más...</Text>
+            )}
+          </View>
+        )}
 
         {/* Row 4: Nota y Total */}
         <View style={styles.row}>
