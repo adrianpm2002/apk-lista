@@ -11,6 +11,7 @@ const PricingInfoButton = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [precioRow, setPrecioRow] = useState(null); // { nombre, precios }
+  const [limits, setLimits] = useState(null); // limite_especifico
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -18,12 +19,16 @@ const PricingInfoButton = () => {
       const { data: { user }, error: uErr } = await supabase.auth.getUser();
       if (uErr) throw uErr;
       if (!user) throw new Error('Usuario no autenticado');
-      const { data: profile, error: pErr } = await supabase.from('profiles').select('id_precio').eq('id', user.id).maybeSingle();
+      const { data: profile, error: pErr } = await supabase.from('profiles').select('id_precio, limite_especifico').eq('id', user.id).maybeSingle();
       if (pErr) throw pErr;
-      if (!profile?.id_precio) { setPrecioRow(null); return; }
-      const { data: row, error: rErr } = await supabase.from('precio').select('nombre,precios').eq('id', profile.id_precio).maybeSingle();
-      if (rErr) throw rErr;
-      setPrecioRow(row || null);
+      setLimits(profile?.limite_especifico || null);
+      if (profile?.id_precio) {
+        const { data: row, error: rErr } = await supabase.from('precio').select('nombre,precios').eq('id', profile.id_precio).maybeSingle();
+        if (rErr) throw rErr;
+        setPrecioRow(row || null);
+      } else {
+        setPrecioRow(null);
+      }
     } catch(e){
       setError(e.message || 'Error cargando configuración');
     } finally {
@@ -41,24 +46,42 @@ const PricingInfoButton = () => {
     const precios = precioRow.precios || {};
     const entries = Object.entries(precios);
   if (!entries.length) return <Text style={styles.infoText}>{t('pricing.emptyConfig')}</Text>;
+    // Orden canónico
+    const ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
+    const orderedEntries = ORDER.filter(k=> precios[k]).map(k=> [k, precios[k]]);
     return (
       <View>
-        <Text style={styles.configName}>{precioRow.nombre}</Text>
-        {entries.map(([tipo, obj]) => {
-          const limited = obj?.limited ?? '-';
-          const regular = obj?.regular ?? '-';
-          const lPct = obj?.listeroPct ?? '-';
-          const cPct = obj?.collectorPct ?? '-';
-          return (
-            <View key={tipo} style={styles.playRow}>
-              <Text style={styles.playType}>{tipo.toUpperCase()}</Text>
-              <Text style={styles.detailText}>{t('pricing.limited')}: {limited}</Text>
-              <Text style={styles.detailText}>{t('pricing.regular')}: {regular}</Text>
-              <Text style={styles.detailText}>{t('pricing.listeroPct')}: {lPct}%</Text>
-              <Text style={styles.detailText}>{t('pricing.collectorPct')}: {cPct}%</Text>
+        <Text style={styles.configName}>Ganancias por Jugada</Text>
+        <View style={styles.grid}>
+          {orderedEntries.map(([tipo, obj]) => {
+            const limited = obj?.limited ?? '-';
+            const regular = obj?.regular ?? '-';
+            const lPct = obj?.listeroPct ?? '-';
+            return (
+              <View key={tipo} style={styles.playCard}>
+                <Text style={styles.playType}>{tipo.charAt(0).toUpperCase()+tipo.slice(1)}</Text>
+                <Text style={styles.inlineDetail}><Text style={styles.inlineLabel}>Precio regular:</Text> {regular}</Text>
+                <Text style={styles.inlineDetail}><Text style={styles.inlineLabel}>Precio limitado:</Text> {limited}</Text>
+                <Text style={styles.inlineDetail}><Text style={styles.inlineLabel}>Porciento listero:</Text> {lPct}%</Text>
+              </View>
+            );
+          })}
+        </View>
+        <View style={styles.limitsBlock}>
+          <Text style={styles.limitsTitle}>Límites Específicos</Text>
+          {!limits || Object.keys(limits).length===0 ? (
+            <Text style={styles.noLimits}>No tiene límites específicos.</Text>
+          ) : (
+            <View style={styles.limitsGrid}>
+              {['fijo','corrido','posicion','parle','centena','tripleta'].filter(k=> limits[k] !== undefined).map(k => (
+                <View key={k} style={styles.limitCard}>
+                  <Text style={styles.limitPlay}>{k.toUpperCase()}</Text>
+                  <Text style={styles.limitValue}>{limits[k]}</Text>
+                </View>
+              ))}
             </View>
-          );
-        })}
+          )}
+        </View>
       </View>
     );
   };
@@ -94,9 +117,18 @@ const styles = StyleSheet.create({
   overlay: { flex:1, backgroundColor:'rgba(0,0,0,0.45)', justifyContent:'center', alignItems:'center', padding:16 },
   modal: { backgroundColor:'#fff', borderRadius:16, width:'100%', maxWidth:420, maxHeight:'80%', padding:20 },
   configName: { fontSize:18, fontWeight:'700', textAlign:'center', marginBottom:12, color:'#2C3E50' },
-  playRow: { marginBottom:12, padding:10, backgroundColor:'#F4F9F2', borderRadius:8, borderWidth:1, borderColor:'#E0E6E0' },
+  grid: { flexDirection:'row', flexWrap:'wrap', marginHorizontal:-6 },
+  playCard: { width:'50%', padding:8, paddingBottom:10, backgroundColor:'#FFFFFF', borderRadius:10, borderWidth:1, borderColor:'#E2E8E5', shadowColor:'#000', shadowOpacity:0.03, shadowOffset:{width:0,height:1}, shadowRadius:2, marginBottom:12, paddingHorizontal:10 },
   playType: { fontSize:14, fontWeight:'700', color:'#2D5016', marginBottom:4 },
-  detailText: { fontSize:12, color:'#34495E' },
+  inlineDetail: { fontSize:11, color:'#34495E', marginBottom:2, lineHeight:14 },
+  inlineLabel: { fontWeight:'600', color:'#4a5b4f' },
+  limitsBlock: { marginTop:16, paddingTop:12, borderTopWidth:1, borderTopColor:'#E2E8E5' },
+  limitsTitle: { fontSize:16, fontWeight:'700', color:'#2C3E50', marginBottom:10 },
+  noLimits: { fontSize:13, color:'#566573', fontStyle:'italic' },
+  limitsGrid: { flexDirection:'row', flexWrap:'wrap', marginHorizontal:-4 },
+  limitCard: { width:'33.33%', padding:6, backgroundColor:'#F4F9F2', borderRadius:8, borderWidth:1, borderColor:'#E0E6E0', marginBottom:8, paddingHorizontal:8 },
+  limitPlay: { fontSize:11, fontWeight:'700', color:'#2D5016', marginBottom:2 },
+  limitValue: { fontSize:12, fontWeight:'600', color:'#1d6fd1' },
   closeButton: { marginTop:12, backgroundColor:'#2D5016', paddingVertical:10, borderRadius:8, alignItems:'center' },
   closeButtonPressed: { opacity:0.8 },
   closeText: { color:'#fff', fontSize:16, fontWeight:'600' },

@@ -4,6 +4,9 @@ import { Picker } from '../components/PickerWrapper';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 
+// Orden canónico unificado de jugadas en toda la app
+const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
+
 const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   const [users, setUsers] = useState([]);
   const [hierarchicalUsers, setHierarchicalUsers] = useState([]);
@@ -174,6 +177,12 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       }
       const jugadas = data?.jugadas || { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
       const actives = Object.keys(jugadas).filter(k => jugadas[k]);
+      // Ordenar según orden canónico
+      actives.sort((a,b) => {
+        const ia = JUGADA_ORDER.indexOf(a);
+        const ib = JUGADA_ORDER.indexOf(b);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+      });
       setActivePlayTypes(actives);
       setLimitsValues(prev => {
         const draft = { ...prev };
@@ -187,7 +196,6 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
 
   // Cargar configuraciones de precio válidas: exactamente mismas jugadas activas
   const fetchValidGains = useCallback(async () => {
-    if (userRole !== 'collector') return;
     if (!currentBankId) return;
     try {
       const { data, error } = await supabase
@@ -195,25 +203,30 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         .select('id, nombre, precios, id_banco')
         .eq('id_banco', currentBankId);
       if (error) { console.error('Error precio:', error); return; }
-      const actSet = new Set(activePlayTypes);
-      const filtered = (data||[]).filter(cfg => {
-        if (!cfg || !cfg.precios || typeof cfg.precios !== 'object') return false;
-        const keys = Object.keys(cfg.precios);
-        if (keys.length !== actSet.size) return false;
-        for (const k of keys) {
-          if (!actSet.has(k)) return false;
-          const v = cfg.precios[k];
-          if (!v || typeof v !== 'object') return false;
-          const req = ['limited','regular','listeroPct','collectorPct'];
-          for (const r of req) { if (!(r in v)) return false; }
+      if (userRole === 'collector') {
+        const actSet = new Set(activePlayTypes);
+        const filtered = (data||[]).filter(cfg => {
+          if (!cfg || !cfg.precios || typeof cfg.precios !== 'object') return false;
+            const keys = Object.keys(cfg.precios);
+            if (keys.length !== actSet.size) return false;
+            for (const k of keys) {
+              if (!actSet.has(k)) return false;
+              const v = cfg.precios[k];
+              if (!v || typeof v !== 'object') return false;
+              const req = ['limited','regular','listeroPct','collectorPct'];
+              for (const r of req) { if (!(r in v)) return false; }
+            }
+            for (const a of actSet) { if (!(a in cfg.precios)) return false; }
+            return true;
+        });
+        setGainOptions(filtered);
+        if (selectedGainId && !filtered.some(f => f.id === selectedGainId)) {
+          setSelectedGainId(null);
+          setSelectedGainDetail(null);
         }
-        for (const a of actSet) { if (!(a in cfg.precios)) return false; }
-        return true;
-      });
-      setGainOptions(filtered);
-      if (selectedGainId && !filtered.some(f => f.id === selectedGainId)) {
-        setSelectedGainId(null);
-        setSelectedGainDetail(null);
+      } else {
+        // Admin: mostrar todas para poder resolver nombres incluso si no encajan exactamente con jugadas activas actuales
+        setGainOptions(data || []);
       }
     } catch (e) {
       console.error('Excepción fetchValidGains:', e);
@@ -257,19 +270,48 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
 
       const fakeEmail = `${username.toLowerCase()}@example.com`;
 
-    if (isEditing && editingUser) {
-        const { data, error } = await supabase.rpc('update_user_profile_and_auth_v2', {
-          user_id: editingUser.id,
-          new_username: username,
-          new_role: effectiveRole,
-          new_assigned_collector: userRole === 'collector' ? currentUserId : (selectedCollector || null),
-          new_id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? (selectedGainId || null) : (editingUser.id_precio || null),
-          new_activo: editingUser.activo !== undefined ? editingUser.activo : true
-        });
-
-        if (error) {
-          console.error('RPC v2 Error:', error);
-          // Fallback: actualización directa si la función aún no existe o sigue vieja
+  if (isEditing && editingUser) {
+    let refreshedAfterEdit = false;
+        // 1. Intentar RPC v2, luego RPC antigua, luego update directo
+        let updateOk = false;
+        let rpcTried = false;
+        try {
+          rpcTried = true;
+          const { data: dataV2, error: errV2 } = await supabase.rpc('update_user_profile_and_auth_v2', {
+            user_id: editingUser.id,
+            new_username: username,
+            new_role: effectiveRole,
+            new_assigned_collector: userRole === 'collector' ? currentUserId : (selectedCollector || null),
+            new_id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? (selectedGainId || null) : (editingUser.id_precio || null),
+            new_activo: editingUser.activo !== undefined ? editingUser.activo : true
+          });
+          if (errV2) {
+            console.warn('RPC v2 fallo, intentando versión legacy:', errV2);
+          } else if (dataV2 && typeof dataV2 === 'object' && dataV2.success) {
+            updateOk = true;
+          } else if (dataV2 && dataV2.success === false) {
+            console.warn('RPC v2 devolvió success=false, intentando legacy. Detalle:', dataV2.error);
+          }
+          if (!updateOk) {
+            const { data: dataLegacy, error: errLegacy } = await supabase.rpc('update_user_profile_and_auth', {
+              user_id: editingUser.id,
+              new_username: username,
+              new_role: effectiveRole,
+              new_assigned_collector: userRole === 'collector' ? currentUserId : (selectedCollector || null),
+              new_id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? (selectedGainId || null) : (editingUser.id_precio || null),
+              new_activo: editingUser.activo !== undefined ? editingUser.activo : true
+            });
+            if (errLegacy) {
+              console.warn('RPC legacy fallo, usando update directo:', errLegacy);
+            } else if (dataLegacy && typeof dataLegacy === 'object' && dataLegacy.success) {
+              updateOk = true;
+            }
+          }
+        } catch (rpcEx) {
+          console.warn('Excepción llamando RPC(s), se usará update directo:', rpcEx);
+        }
+        if (!updateOk) {
+          // Fallback update directo
           try {
             const directUpdate = {
               username,
@@ -284,70 +326,52 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
               .eq('id', editingUser.id);
             if (upErrFallback) {
               console.error('Fallback update error:', upErrFallback);
-              return Alert.alert('Error al actualizar', `Fallo RPC y fallback: ${upErrFallback.message}`);
+              return Alert.alert('Error al actualizar', `Fallo actualización: ${upErrFallback.message}`);
             }
+            updateOk = true;
           } catch (fb) {
             console.error('Excepción fallback:', fb);
             return Alert.alert('Error al actualizar', fb.message || 'Fallo general');
           }
         }
-
-        if (data && typeof data === 'object') {
-          if (!data.success) {
-            console.error('Function v2 reported failure:', data.error);
-            // Intentar fallback si success false pero sin error explícito
-            try {
-              const { error: upErr2 } = await supabase
-                .from('profiles')
-                .update({
-                  username,
-                  role: effectiveRole,
-                  id_collector: userRole === 'collector' ? currentUserId : (selectedCollector || null),
-                  id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? (selectedGainId || null) : (editingUser.id_precio || null)
-                })
-                .eq('id', editingUser.id);
-              if (upErr2) {
-                console.error('Fallback tras success=false error:', upErr2);
-                return Alert.alert('Error al actualizar', upErr2.message);
-              }
-            } catch (e2) {
-              console.error('Excepción fallback success=false:', e2);
-              return Alert.alert('Error al actualizar', e2.message || 'Error desconocido');
-            }
-          }
-          if (data.success) {
-            // Límites específicos sólo si admin (collector no los toca)
-            if (effectiveRole === 'listero' && userRole !== 'collector') {
-              try {
-                if (enableSpecificLimits) {
-                  const limitsObj = {};
-                  activePlayTypes.forEach(pt => {
-                    const val = limitsValues[pt];
-                    if (val && !isNaN(val)) {
-                      const num = parseInt(val, 10);
-                      if (num > 0) limitsObj[pt] = num;
-                    }
-                  });
-                  const { error: upErr } = await supabase
-                    .from('profiles')
-                    .update({ limite_especifico: Object.keys(limitsObj).length ? limitsObj : null })
-                    .eq('id', editingUser.id);
-                  if (upErr) console.error('Error actualizando limites especificos:', upErr);
-                } else {
-                  const { error: clearErr } = await supabase
-                    .from('profiles')
-                    .update({ limite_especifico: null })
-                    .eq('id', editingUser.id);
-                  if (clearErr) console.error('Error limpiando limites especificos:', clearErr);
+        // 2. Aplicar límites específicos si corresponde (independiente de método usado)
+        if (updateOk && effectiveRole === 'listero' && userRole !== 'collector') {
+          try {
+            if (enableSpecificLimits) {
+              const limitsObj = {};
+              activePlayTypes.forEach(pt => {
+                const val = limitsValues[pt];
+                if (val && !isNaN(val)) {
+                  const num = parseInt(val, 10);
+                  if (num > 0) limitsObj[pt] = num;
                 }
-              } catch (ee) {
-                console.error('Excepción límites específicos edición:', ee);
-              }
+              });
+              const { error: upErr } = await supabase
+                .from('profiles')
+                .update({ limite_especifico: Object.keys(limitsObj).length ? limitsObj : null })
+                .eq('id', editingUser.id);
+              if (upErr) console.error('Error actualizando limites especificos:', upErr);
+            } else {
+              const { error: clearErr } = await supabase
+                .from('profiles')
+                .update({ limite_especifico: null })
+                .eq('id', editingUser.id);
+              if (clearErr) console.error('Error limpiando limites especificos:', clearErr);
             }
-            Alert.alert('Éxito', data.message || 'Usuario actualizado correctamente');
+          } catch (ee) {
+            console.error('Excepción límites específicos edición:', ee);
           }
-        } else if (!error) {
+        }
+        if (updateOk) {
+          // Refresh inmediato para reflejar limite_especifico actualizado antes de cerrar modal
+          try {
+            await fetchUsers();
+            refreshedAfterEdit = true;
+          } catch {}
           Alert.alert('Éxito', 'Usuario actualizado correctamente');
+        } else if (rpcTried) {
+          Alert.alert('Error', 'No se pudo actualizar el usuario (RPC y fallback fallidos)');
+          return;
         }
   } else {
         // Verificar si ya existe un usuario con ese username
@@ -428,7 +452,10 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
 
       setModalVisible(false);
       clearForm();
-      fetchUsers();
+      // Evitar doble fetch si ya se hizo refresh tras edición
+      if (!(isEditing && editingUser)) {
+        fetchUsers();
+      }
     } catch (error) {
       console.error('Unexpected Error:', error);
       Alert.alert('Error inesperado', error.message || 'Ocurrió un problema inesperado.');
@@ -715,7 +742,13 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
                 {(() => {
                   const raw = item.limite_especifico;
                   if (!raw || (typeof raw === 'object' && Object.keys(raw).length === 0)) return '🛑 Limite: No';
-                  const entries = Object.entries(raw).filter(([k]) => activePlayTypes.includes(k));
+                  let entries = Object.entries(raw).filter(([k]) => activePlayTypes.includes(k));
+                  // Ordenar las entradas según orden canónico para visualización consistente
+                  entries.sort((a,b) => {
+                    const ia = JUGADA_ORDER.indexOf(a[0]);
+                    const ib = JUGADA_ORDER.indexOf(b[0]);
+                    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+                  });
                   if (entries.length === 0) return '🛑 Limite: No';
                   return '🔒 Limite: ' + entries.map(([k,v]) => `${k} ${v}`).join(', ');
                 })()}
@@ -772,7 +805,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   return (
     <View style={styles.container}>
       <View style={styles.customHeader}>
-        <SideBarToggle onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
+        <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
         <Text style={styles.headerTitle}>Gestionar Usuarios</Text>
       </View>
 
@@ -948,6 +981,8 @@ const styles = StyleSheet.create({
   },
   sidebarButton: {
     marginRight: 16,
+    marginLeft: 4,
+    marginBottom: 4,
   },
   headerTitle: {
     fontSize: 18,

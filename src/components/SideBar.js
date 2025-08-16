@@ -550,12 +550,12 @@ const configOptions = roleOptionsMap[role] || [];
   );
 };
 
-const SideBarToggle = ({ onToggle, inline = false }) => {
+const SideBarToggle = ({ onToggle, inline = false, style }) => {
   const handlePress = () => { onToggle && onToggle(); };
   const baseStyle = inline ? styles.toggleButtonInline : styles.toggleButton;
   return (
     <Pressable
-      style={({ pressed }) => [baseStyle, pressed && styles.toggleButtonPressed]}
+      style={({ pressed }) => [baseStyle, style, pressed && styles.toggleButtonPressed]}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       onPress={handlePress}
     >

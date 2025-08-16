@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,39 +8,58 @@ import {
   ScrollView,
 } from 'react-native';
 
+import { supabase } from '../supabaseClient';
+
+const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
+
 const InfoButton = ({ onClose }) => {
   const [isVisible, setIsVisible] = useState(false);
+  const [limits, setLimits] = useState(null); // objeto limite_especifico
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const infoSections = [
     {
       title: 'Tipos de Jugadas',
       items: [
-        'Fijo: Número exacto en posición exacta',
+        'Fijo: Número exacto',
         'Corrido: Número en cualquier posición',
-        'Parlé: Combinación de números',
-        'Centena: Números de 3 dígitos',
-        'Tripleta: Tres números iguales'
+        'Posición: Número en posición específica',
+        'Parle: Combinación de 2 números',
+        'Centena: 3 dígitos',
+        'Tripleta: 6 dígitos (combinación larga)'
       ]
     },
     {
-      title: 'Información General',
+      title: 'Instrucciones Rápidas',
       items: [
-        'Costo por jugada: $1.00',
-        'Horarios disponibles: Mediodía y Noche',
-        'Loterías: Georgia, Florida, New York',
-        'Formato de jugadas: separar con comas'
-      ]
-    },
-    {
-      title: 'Instrucciones',
-      items: [
-        'Seleccione la lotería y horario',
-        'Ingrese las jugadas separadas por comas',
-        'El monto se calcula automáticamente',
-        'Use el botón verificar antes de insertar'
+        'Seleccione lotería y horario abiertos',
+        'Elija tipos de jugada permitidos',
+        'Ingrese números separados por coma o espacio',
+        'Verifique antes de insertar para evitar errores'
       ]
     }
   ];
+
+  const loadLimits = useCallback( async () => {
+    setLoading(true); setError(null);
+    try {
+      const { data: { user }, error: uErr } = await supabase.auth.getUser();
+      if (uErr) throw uErr;
+      if (!user) throw new Error('Sin usuario');
+      const { data: profile, error: pErr } = await supabase
+        .from('profiles')
+        .select('limite_especifico')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (pErr) throw pErr;
+      setLimits(profile?.limite_especifico || null);
+    } catch(e){
+      setError(e.message || 'Error cargando límites');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const handleClose = () => {
     setIsVisible(false);
@@ -54,7 +73,7 @@ const InfoButton = ({ onClose }) => {
           styles.button,
           pressed && styles.buttonPressed
         ]}
-        onPress={() => setIsVisible(true)}
+  onPress={() => { setIsVisible(true); loadLimits(); }}
       >
         <Text style={styles.buttonIcon}>i</Text>
       </Pressable>
@@ -68,7 +87,24 @@ const InfoButton = ({ onClose }) => {
         <View style={styles.overlay}>
           <View style={styles.modal}>
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-              <Text style={styles.title}>Información del Sistema</Text>
+              <Text style={styles.title}>Información</Text>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Límites Específicos</Text>
+                {loading && <Text style={styles.infoText}>Cargando límites...</Text>}
+                {error && <Text style={[styles.infoText, {color:'#c0392b'}]}>{error}</Text>}
+                {!loading && !error && (!limits || Object.keys(limits).length===0) && (
+                  <Text style={styles.infoText}>No tiene límites específicos.</Text>
+                )}
+                {!loading && !error && limits && Object.keys(limits).length>0 && (
+                  JUGADA_ORDER.filter(k => limits[k] !== undefined).map(k => (
+                    <View key={k} style={styles.limitRow}>
+                      <Text style={styles.limitPlay}>{k.toUpperCase()}</Text>
+                      <Text style={styles.limitValue}>{limits[k]}</Text>
+                    </View>
+                  ))
+                )}
+              </View>
               
               {infoSections.map((section, index) => (
                 <View key={index} style={styles.section}>
@@ -156,6 +192,19 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 16,
   },
+  limitRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#F4F9F2',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#E0E6E0'
+  },
+  limitPlay: { fontSize: 13, fontWeight: '700', color: '#2D5016' },
+  limitValue: { fontSize: 13, fontWeight: '600', color: '#34495e' },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',

@@ -344,7 +344,7 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
     <View style={styles.container}>
       {/* Header personalizado - arriba del todo */}
       <View style={styles.customHeader}>
-        <SideBarToggle onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
+        <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
         <Text style={styles.headerTitle}>Gestionar Loterías</Text>
       </View>
         
@@ -564,6 +564,8 @@ const styles = StyleSheet.create({
   },
   sidebarButton: {
     marginRight: 16,
+    marginLeft: 4,
+    marginBottom: 4,
   },
   headerTitle: {
     fontSize: 18,

@@ -316,7 +316,7 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
     <View style={styles.container}>
       {/* Header personalizado - arriba del todo */}
       <View style={styles.customHeader}>
-        <SideBarToggle onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
+        <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
         <Text style={styles.headerTitle}>Insertar Resultado</Text>
       </View>
 
@@ -479,6 +479,8 @@ const styles = StyleSheet.create({
   },
   sidebarButton: {
     marginRight: 16,
+    marginLeft: 4,
+    marginBottom: 4,
   },
   headerTitle: {
     fontSize: 18,

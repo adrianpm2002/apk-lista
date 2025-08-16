@@ -158,7 +158,8 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
           const jugadasJson = data?.jugadas || {};
           const activeList = Object.entries(jugadasJson)
             .filter(([,v]) => v)
-            .map(([k]) => ({ id: k, jugada: k }));
+            .map(([k]) => ({ id: k, jugada: k }))
+            .sort((a,b)=> JUGADA_ORDER.indexOf(a.jugada)-JUGADA_ORDER.indexOf(b.jugada));
           setJugadas(activeList);
         }
       } catch {}
@@ -166,8 +167,8 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     }
   };
 
-  const DIGIT_RULES = { fijo:2, corrido:2, posicion:2, parlet:4, parle:4, centena:3, tripleta:6 };
-  const JUGADA_ORDER = ['fijo','corrido','posicion','parlet','centena','tripleta'];
+  const DIGIT_RULES = { fijo:2, corrido:2, posicion:2, parle:4, centena:3, tripleta:6 };
+  const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
 
   // Formatear número mostrado con ceros a la izquierda
   const formatNumberDisplay = (raw, jugadaKey) => {
@@ -220,7 +221,10 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
         .maybeSingle();
       if (!error) {
         const jugadasJson = data?.jugadas || {};
-        const activeList = Object.entries(jugadasJson).filter(([,v]) => v).map(([k]) => ({ jugada: k }));
+        const activeList = Object.entries(jugadasJson)
+          .filter(([,v]) => v)
+          .map(([k]) => ({ jugada: k }))
+          .sort((a,b)=> JUGADA_ORDER.indexOf(a.jugada)-JUGADA_ORDER.indexOf(b.jugada));
         setActiveJugadas(activeList);
       }
     } catch {}
@@ -328,7 +332,8 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
           const jugadasJson = data?.jugadas || {};
           const activeList = Object.entries(jugadasJson)
             .filter(([,v]) => v)
-            .map(([k]) => ({ id: k, jugada: k }));
+            .map(([k]) => ({ id: k, jugada: k }))
+            .sort((a,b)=> JUGADA_ORDER.indexOf(a.jugada)-JUGADA_ORDER.indexOf(b.jugada));
           setJugadas2(activeList);
         }
       } catch {}
@@ -435,7 +440,7 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   return (
     <SafeAreaView style={[styles.container, isDarkMode && styles.containerDark]}>
       <View style={[styles.header, isDarkMode && styles.headerDark]}>
-        <SideBarToggle onToggle={() => setSidebarVisible(!sidebarVisible)} />
+        <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
         <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>Limitar Número</Text>
         <TouchableOpacity style={styles.filterToggleBtn} onPress={()=> setFiltersVisible(v=>!v)}>
           <Text style={styles.filterToggleText}>🔍 Filtros</Text>
@@ -709,8 +714,9 @@ const styles = StyleSheet.create({
     height: 90,
     backgroundColor: '#F8F9FA',
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     paddingHorizontal: 16,
+    paddingTop: 40,
     paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
@@ -719,6 +725,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 3,
+  },
+  sidebarButton: {
+    marginRight: 12,
+    marginLeft: 4,
+    marginTop: 2,
   },
   headerDark: { backgroundColor: '#2c3e50', borderBottomColor: '#34495e' },
   headerTitle: { flex: 1, textAlign: 'center', color: '#2C3E50', fontSize: 18, fontWeight: '600', marginRight: 44 },
@@ -775,15 +786,16 @@ const styles = StyleSheet.create({
   listBody: { flex: 1 },
   emptyText: { fontSize: 14, fontStyle: 'italic', color: '#7f8c8d' },
   emptyTextDark: { color: '#bdc3c7' },
-  item: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 12, marginBottom: 10, borderLeftWidth: 4, borderLeftColor: '#27ae60' },
+  // Ítems más compactos para ver más registros por pantalla
+  item: { backgroundColor: '#f8f9fa', borderRadius: 8, padding: 8, marginBottom: 6, borderLeftWidth: 4, borderLeftColor: '#27ae60' },
   itemDark: { backgroundColor: '#34495e' },
-  itemNumber: { fontSize: 16, fontWeight: '700', color: '#2c3e50' },
+  itemNumber: { fontSize: 14, fontWeight: '700', color: '#2c3e50' },
   itemNumberDark: { color: '#ecf0f1' },
-  itemLimit: { fontSize: 14, marginTop: 4, color: '#34495e' },
+  itemLimit: { fontSize: 12, marginTop: 2, color: '#34495e' },
   itemLimitDark: { color: '#bdc3c7' },
   inactiveJugada: { color:'#c0392b' },
-  deleteBtn: { backgroundColor:'#c0392b', paddingHorizontal:12, paddingVertical:8, borderRadius:8 },
-  deleteBtnText: { color:'#fff', fontSize:10, fontWeight:'700' }
+  deleteBtn: { backgroundColor:'#c0392b', paddingHorizontal:10, paddingVertical:6, borderRadius:6 },
+  deleteBtnText: { color:'#fff', fontSize:9, fontWeight:'700' }
 });
 
 export default LimitNumberScreen;

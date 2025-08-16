@@ -218,21 +218,19 @@ const PlaysInputField = ({
     );
 
     if (invalidLengthNumbers.length > 0) {
-      const typeNames = {
-        'fijo': 'Fijo/Corrido/Posición/Parlé',
-        'corrido': 'Fijo/Corrido/Posición/Parlé', 
-        'posicion': 'Fijo/Corrido/Posición/Parlé',
-        'parle': 'Fijo/Corrido/Posición/Parlé',
+      const labelMap = {
+        'fijo': 'Fijo',
+        'corrido': 'Corrido',
+        'posicion': 'Posición',
+        'parle': 'Parlé',
         'centena': 'Centena',
         'tripleta': 'Tripleta'
       };
-      
-      return `${typeNames[playTypeValue]} requiere números de ${requiredLength} dígitos`;
+      const label = labelMap[playTypeValue] || playTypeValue;
+      return `${label} requiere números de ${requiredLength} dígitos`;
     }
 
-    if (duplicates.length > 0) {
-      return 'No se permiten números duplicados en la misma jugada';
-    }
+  // Duplicados ahora NO son error: se mostrará advertencia aparte
     
     return '';
   };
@@ -257,10 +255,7 @@ const PlaysInputField = ({
         errorNumbers.push(cleanNum);
       }
       
-      // Error por duplicado
-      if (cleanNumbers.filter(n => n === cleanNum && n.length === requiredLength).length > 1) {
-        errorNumbers.push(cleanNum);
-      }
+  // Duplicados ya no se incluyen como error crítico
     });
 
     return [...new Set(errorNumbers)]; // Remover duplicados del array de errores
@@ -307,6 +302,23 @@ const PlaysInputField = ({
   const validationMessage = getValidationMessage();
   const hasErrors = validationMessage !== '';
   const errorNumbers = getErrorNumbers();
+  // Detectar duplicados (advertencia)
+  const detectDuplicates = () => {
+    const playTypeValue = typeof playType === 'object' ? playType?.value : playType;
+    if (!playTypeValue) return [];
+    const requiredLength = getRequiredLength();
+    if (!requiredLength) return [];
+    const numbers = displayValue.split(/[,*\-\s]+/).filter(num => num.trim() !== '');
+    const cleanNumbers = numbers.map(num => num.replace(/[^0-9]/g, ''));
+    const duplicates = [];
+    cleanNumbers.forEach(n => {
+      if (n.length === requiredLength && cleanNumbers.filter(x=>x===n).length > 1) duplicates.push(n);
+    });
+    return [...new Set(duplicates)];
+  };
+  const duplicateNumbers = detectDuplicates();
+  const showErrorOverlay = hasErrors && errorNumbers.length > 0;
+  const showDuplicateOverlay = !hasErrors && duplicateNumbers.length > 0;
 
   return (
     <View style={styles.container}>
@@ -336,14 +348,14 @@ const PlaysInputField = ({
         </Text>
       )}
       <View style={styles.inputContainer}>
-        <TextInput
+    <TextInput
           style={[
             styles.input,
             isDarkMode && styles.inputDark,
             multiline && styles.multilineInput,
             validationMessage && styles.inputError,
             hasError && styles.inputFieldError,
-            hasErrors && errorNumbers.length > 0 && styles.inputWithOverlay,
+      (showErrorOverlay || showDuplicateOverlay) && styles.inputWithOverlay, // ocultar texto base cuando hay overlay
           ]}
           value={displayValue}
           onChangeText={handleChange}
@@ -355,13 +367,30 @@ const PlaysInputField = ({
         />
         
         {/* Overlay de texto formateado con errores resaltados */}
-        {hasErrors && errorNumbers.length > 0 && (
+  {showErrorOverlay && (
           <View style={[
             styles.textOverlay,
             multiline && styles.textOverlayMultiline
           ]} pointerEvents="none">
             <Text style={styles.overlayContainer}>
               {renderFormattedText()}
+            </Text>
+          </View>
+        )}
+        {/* Overlay parcial para duplicados (advertencia) */}
+  {showDuplicateOverlay && (
+          <View style={[
+            styles.textOverlay,
+            multiline && styles.textOverlayMultiline
+          ]} pointerEvents="none">
+            <Text style={styles.overlayContainer}>
+              {displayValue.split(/([,*\-\s]+)/).map((part, idx) => {
+                const clean = part.replace(/[^0-9]/g,'');
+                if (duplicateNumbers.includes(clean)) {
+                  return <Text key={idx} style={styles.duplicateText}>{part}</Text>;
+                }
+                return <Text key={idx} style={[styles.normalText, isDarkMode && styles.normalTextDark]}>{part}</Text>;
+              })}
             </Text>
           </View>
         )}
@@ -381,6 +410,8 @@ const PlaysInputField = ({
       </View>
       {validationMessage ? (
         <Text style={styles.validationText}>{validationMessage}</Text>
+      ) : duplicateNumbers.length > 0 ? (
+        <Text style={styles.warningText}>Hay números duplicados (se permiten pero verifique).</Text>
       ) : null}
     </View>
   );
@@ -533,10 +564,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
     borderRadius: 3,
   },
+  duplicateText: {
+    color: '#B9770E',
+    backgroundColor: '#FCF3CF',
+    fontSize: 16,
+    fontWeight: '600',
+    paddingHorizontal: 2,
+    borderRadius: 3,
+  },
   validationText: {
     marginTop: 4,
     fontSize: 12,
     color: '#E74C3C',
+  },
+  warningText: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#B9770E',
   },
 });
 

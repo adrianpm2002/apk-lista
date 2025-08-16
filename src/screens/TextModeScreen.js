@@ -16,11 +16,12 @@ import HammerButton from '../components/HammerButton';
 import ListButton from '../components/ListButton';
 import PricingInfoButton from '../components/PricingInfoButton';
 import NotificationsButton from '../components/NotificationsButton';
+import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 
-const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
@@ -189,8 +190,18 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
       <View style={styles.headerFloating} pointerEvents="box-none">
         <View style={styles.inlineHeaderRow} pointerEvents="box-none">
           <SideBarToggle inline onToggle={toggleSidebar} />
-          <PricingInfoButton />
-          <NotificationsButton />
+          <View style={styles.modeSelectorWrapper}>
+            <ModeSelector 
+              currentMode={currentMode}
+              onModeChange={onModeChange}
+              isDarkMode={isDarkMode}
+              visibleModes={visibleModes || { visual: true, text: true }}
+            />
+          </View>
+          <View style={styles.rightButtonsGroup} pointerEvents="box-none">
+            <PricingInfoButton />
+            <NotificationsButton />
+          </View>
         </View>
       </View>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -318,14 +329,33 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
     zIndex: 3000,
-    paddingRight: 8,
+  paddingTop: 12,
+  paddingBottom: 10,
+  paddingHorizontal: 20,
+  backgroundColor: 'rgba(255,255,255,0.96)',
+  borderBottomWidth: 1,
+  borderBottomColor: '#E2E6EA',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.12,
+  shadowRadius: 4,
+  elevation: 4,
   },
   inlineHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingLeft: 6,
-    paddingTop: 4,
+    flex: 1,
+    paddingTop: 0,
+  },
+  rightButtonsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 'auto',
+  },
+  modeSelectorWrapper: {
+    marginLeft: 14,
   },
   content: {
     flex: 1,

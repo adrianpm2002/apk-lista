@@ -216,7 +216,7 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
   // Renderizar header con filtros y sidebar toggle
   const renderHeader = () => (
     <View style={[styles.header, isDarkMode && styles.headerDark]}>
-      <SideBarToggle onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
+  <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
       
       <View style={styles.headerControls}>
         <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>
@@ -640,7 +640,8 @@ const styles = StyleSheet.create({
     color: '#ecf0f1',
   },
   sidebarButton: {
-    // Sin margen para que esté pegado al borde izquierdo
+    marginLeft: 4,
+    marginBottom: 4,
   },
   headerControls: {
     flexDirection: 'row',

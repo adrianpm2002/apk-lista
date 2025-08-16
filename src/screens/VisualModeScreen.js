@@ -19,11 +19,12 @@ import HammerButton from '../components/HammerButton';
 import ListButton from '../components/ListButton';
 import PricingInfoButton from '../components/PricingInfoButton';
 import NotificationsButton from '../components/NotificationsButton';
+import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { t, translatePlayTypeLabel } from '../utils/i18n';
 import { applyPlayTypeSelection } from '../utils/playTypeCombinations';
 
-const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // values de loterías (máx 3)
@@ -31,7 +32,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
   const [scheduleOptionsMap, setScheduleOptionsMap] = useState({}); // { lotteryValue: [{label,value}] }
   const [selectedPlayTypes, setSelectedPlayTypes] = useState([]); // multi jugadas activas
   const [plays, setPlays] = useState('');
-  const [amount, setAmount] = useState('');
+  const [amounts, setAmounts] = useState({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
   const [note, setNote] = useState('');
   const [total, setTotal] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
@@ -41,27 +42,28 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
   const [scheduleError, setScheduleError] = useState(false); // true si falta algún horario
   const [playTypeError, setPlayTypeError] = useState(false);
   const [playsError, setPlaysError] = useState(false);
-  const [amountError, setAmountError] = useState(false);
+  const [amountError, setAmountError] = useState(false); // se usará si cualquier monto requerido falta
 
   // Calcular total automáticamente basado en cantidad de números y monto
   useEffect(() => {
-    if (plays.trim() && amount) {
-      const amountNum = parseInt(amount.toString().replace(/[^0-9]/g, '')) || 0;
-      
-      if (isLocked) {
-        // Cuando el candado está cerrado: Total = Monto (sin importar cantidad de números)
-        setTotal(amountNum);
+    const nums = plays.match(/\d+/g) || [];
+    const numbersCount = nums.length;
+    if (!numbersCount) { setTotal(0); return; }
+    // Total por lotería (suma de jugadas seleccionadas)
+    let perLottery = 0;
+    selectedPlayTypes.forEach(pt => {
+      const raw = amounts[pt] || '0';
+      const amt = parseInt(raw.toString().replace(/[^0-9]/g,'')) || 0;
+      if (!amt) return;
+      if (pt === 'parle' && isLocked) {
+        perLottery += amt; // total directo
       } else {
-        // Cuando el candado está abierto: Total = Cantidad de números × Monto
-        const allNumbers = plays.match(/\d+/g) || [];
-        const totalNumbers = allNumbers.length;
-        const calculatedTotal = totalNumbers * amountNum;
-        setTotal(calculatedTotal);
+        perLottery += amt * numbersCount;
       }
-    } else {
-      setTotal(0);
-    }
-  }, [plays, amount, isLocked]); // Agregado isLocked a las dependencias
+    });
+    const general = perLottery * (selectedLotteries.length || 1);
+    setTotal(general);
+  }, [plays, amounts, isLocked, selectedPlayTypes, selectedLotteries]);
 
   // Datos para los dropdowns
   const [lotteries, setLotteries] = useState([]); // desde BD
@@ -72,9 +74,11 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
 
   const PLAY_TYPE_LABELS = { fijo:translatePlayTypeLabel('fijo'), corrido:translatePlayTypeLabel('corrido'), posicion:translatePlayTypeLabel('posicion'), parle:translatePlayTypeLabel('parle'), centena:translatePlayTypeLabel('centena'), tripleta:translatePlayTypeLabel('tripleta') };
 
+  // Función que faltaba y causaba que no aparecieran las jugadas (se usaba más abajo)
+  const getPlayTypeLabel = (key) => PLAY_TYPE_LABELS[key] || key;
+
   const getLotteryLabel = (value) => lotteries.find(l=>l.value===value)?.label || value;
   const getScheduleLabel = (lotteryValue, scheduleValue) => (scheduleOptionsMap[lotteryValue]||[]).find(s=>s.value===scheduleValue)?.label || scheduleValue;
-  const getPlayTypeLabel = (v) => PLAY_TYPE_LABELS[v] || v;
 
   // Cargar banco (id_banco) y luego loterías + jugadas activas
   useEffect(()=>{
@@ -114,7 +118,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
     loadData();
   },[bankId]);
 
-  // Cargar horarios de todas las loterías del banco en una sola consulta y agrupar
+  // Cargar horarios de todas las loterías del banco, filtrar solo los que están abiertos actualmente y agrupar
   useEffect(()=>{
     if(!bankId || lotteries.length===0) return;
     let cancelled = false;
@@ -123,15 +127,30 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
         const lotIds = lotteries.map(l=> l.value); // UUID strings
         const { data: rows } = await supabase
           .from('horario')
-          .select('id,nombre,id_loteria')
+          .select('id,nombre,id_loteria,hora_inicio,hora_fin')
           .in('id_loteria', lotIds)
           .order('nombre');
         if(cancelled) return;
-        const grouped = {}; (rows||[]).forEach(r=> {
-          const key = r.id_loteria;
-          if(!grouped[key]) grouped[key] = [];
-          grouped[key].push({ label: r.nombre, value: r.id });
-        });
+        const now = new Date();
+        const nowMinutes = now.getHours()*60 + now.getMinutes();
+        const isOpen = (hi, hf) => {
+          if(!hi || !hf) return false;
+          const [shi,smi] = hi.split(':');
+          const [shf,smf] = hf.split(':');
+            const start = parseInt(shi,10)*60 + parseInt(smi||'0',10);
+            const end = parseInt(shf,10)*60 + parseInt(smf||'0',10);
+            if(start === end) return true; // intervalo 24h
+            if(end > start) return nowMinutes >= start && nowMinutes < end; // mismo día
+            // cruza medianoche
+            return (nowMinutes >= start) || (nowMinutes < end);
+        };
+        const grouped = {}; (rows||[])
+          .filter(r => isOpen(r.hora_inicio, r.hora_fin))
+          .forEach(r=> {
+            const key = r.id_loteria;
+            if(!grouped[key]) grouped[key] = [];
+            grouped[key].push({ label: r.nombre, value: r.id });
+          });
         setScheduleOptionsMap(grouped);
         setSelectedSchedules(prev => {
           const next = { ...prev };
@@ -153,7 +172,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
     setScheduleError(false);
     setPlayTypeError(false);
     setPlaysError(false);
-    setAmountError(false);
+  setAmountError(false);
     setLotteryErrorMessage('');
 
     // Validar campos requeridos
@@ -182,9 +201,10 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
       hasErrors = true;
     }
 
-    if (!amount || amount === '0') {
-      setAmountError(true);
-      hasErrors = true;
+    // Validar montos por cada jugada seleccionada
+    for (const pt of selectedPlayTypes) {
+      const raw = amounts[pt];
+      if (!raw || raw === '0') { setAmountError(true); hasErrors = true; break; }
     }
 
     if (hasErrors) {
@@ -207,28 +227,30 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
       .filter(n => n.length > 0);
     const numbersFormatted = numbersArrayRaw.join(',');
 
-    let montoUnitario = parseInt(amount.toString().replace(/[^0-9]/g,'')) || 0;
-    const montoTotal = total; // ya calculado según candado / números
-    if (isLocked) {
-      // Recalcular: monto_unitario = monto_total / cantidad de números jugados
-      const numsCount = numbersFormatted ? numbersFormatted.split(',').filter(Boolean).length : 0;
-      if (numsCount > 0) {
-        montoUnitario = Math.floor(montoTotal / numsCount); // entero
-      }
-    }
+  const numsCount = numbersFormatted ? numbersFormatted.split(',').filter(Boolean).length : 0;
 
     const payloads = [];
     selectedLotteries.forEach(lv => {
       const id_horario = selectedSchedules[lv];
       selectedPlayTypes.forEach(pt => {
+        const raw = amounts[pt] || '0';
+        let unit = parseInt(raw.toString().replace(/[^0-9]/g,'')) || 0;
+        let rowTotal;
+        if (pt === 'parle' && isLocked) {
+          rowTotal = unit; // total igual al monto directo
+          // Ajustar unitario dividiendo entre números
+          if (numsCount>0) unit = Math.floor(rowTotal / numsCount) || 0;
+        } else {
+          rowTotal = unit * numsCount;
+        }
         payloads.push({
           id_listero: userId,
           id_horario,
           jugada: pt,
           numeros: numbersFormatted,
           nota: note?.trim() || 'Sin nombre',
-          monto_unitario: montoUnitario,
-          monto_total: montoTotal,
+          monto_unitario: unit,
+          monto_total: rowTotal,
         });
       });
     });
@@ -246,7 +268,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
       }
       if (failures.length === 0) {
         setPlays('');
-        setAmount('');
+  setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
         setNote('');
         setTotal(0);
       }
@@ -264,7 +286,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
   setSelectedSchedules({});
   setSelectedPlayTypes([]);
     setPlays('');
-    setAmount('');
+  setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
     setNote('');
     setTotal(0);
   };
@@ -332,8 +354,18 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
       <View style={styles.headerFloating} pointerEvents="box-none">
         <View style={styles.inlineHeaderRow} pointerEvents="box-none">
           <SideBarToggle inline onToggle={toggleSidebar} />
-          <PricingInfoButton />
-          <NotificationsButton />
+          <View style={styles.modeSelectorWrapper}>
+            <ModeSelector 
+              currentMode={currentMode}
+              onModeChange={onModeChange}
+              isDarkMode={isDarkMode}
+              visibleModes={visibleModes || { visual: true, text: true }}
+            />
+          </View>
+          <View style={styles.rightButtonsGroup} pointerEvents="box-none">
+            <PricingInfoButton />
+            <NotificationsButton />
+          </View>
         </View>
       </View>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -389,7 +421,7 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
   {/* Selector de jugadas movido arriba junto a Lotería */}
 
         {/* Row 3: Jugadas */}
-        <PlaysInputField
+  <PlaysInputField
           label={t('common.numbers')}
           value={plays}
           onChangeText={setPlays}
@@ -403,8 +435,8 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
         />
 
         {/* Row 4: Nota, Monto y Total */}
-        <View style={styles.threeColumnRow}>
-          <View style={styles.thirdWidth}>
+        <View style={styles.multiAmountSection}>
+            <View style={styles.noteContainer}>
             <InputField
               label={t('common.note')}
               value={note}
@@ -414,20 +446,23 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
               inputStyle={styles.unifiedInput}
             />
           </View>
-          <View style={styles.thirdWidth}>
-            <MoneyInputField
-              label={t('common.amount')}
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="$0"
-              style={styles.fieldContainer}
-              inputStyle={styles.unifiedInput}
-              hasError={amountError}
-            />
+            <View style={styles.amountsContainer}>
+            {selectedPlayTypes.map(pt => (
+              <MoneyInputField
+                key={pt}
+                label={`Monto ${getPlayTypeLabel(pt)}`}
+                value={amounts[pt]}
+                onChangeText={(val)=> setAmounts(a=>({...a,[pt]:val}))}
+                placeholder="$0"
+                style={styles.fieldContainer}
+                inputStyle={styles.unifiedInput}
+                hasError={amountError && (!amounts[pt] || amounts[pt]==='0')}
+              />
+            ))}
           </View>
-          <View style={styles.thirdWidth}>
+            <View style={styles.generalTotalContainer}>
             <MoneyInputField
-              label={t('common.total')}
+              label={'Monto General'}
               value={total.toString()}
               editable={false}
               placeholder="$0"
@@ -526,15 +561,33 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
     zIndex: 3000,
-    paddingTop: 0,
-    paddingRight: 8,
+  paddingTop: 12,
+  paddingBottom: 10,
+  paddingHorizontal: 20,
+  backgroundColor: 'rgba(255,255,255,0.96)',
+  borderBottomWidth: 1,
+  borderBottomColor: '#E2E6EA',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.12,
+  shadowRadius: 4,
+  elevation: 4,
   },
   inlineHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingLeft: 6,
-    paddingTop: 4,
+    flex: 1,
+    paddingTop: 0,
+  },
+  rightButtonsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 'auto',
+  },
+  modeSelectorWrapper: {
+    marginLeft: 14,
   },
   
   content: {
@@ -647,6 +700,25 @@ const styles = StyleSheet.create({
   },
   colHalf: {
     flexBasis: '48%',
+  },
+  multiAmountSection: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  noteContainer: {
+    width: 120, // ancho pequeño solicitado para Nota
+  },
+  amountsContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    gap: 4,
+  },
+  generalTotalContainer: {
+    width: 120, // ancho pequeño solicitado para Monto General
   },
 });
 

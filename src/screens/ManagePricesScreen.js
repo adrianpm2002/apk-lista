@@ -550,7 +550,7 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
     <View style={styles.container}>
       {/* Header personalizado */}
       <View style={styles.customHeader}>
-        <SideBarToggle onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
+        <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
         <Text style={styles.headerTitle}>Configurar Precios</Text>
       </View>
 
@@ -837,12 +837,13 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
   },
   customHeader: {
-    height: 100,
+    height: 90,
     backgroundColor: '#F8F9FA',
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingTop: 40,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
     shadowColor: '#000',
@@ -858,6 +859,8 @@ const styles = StyleSheet.create({
   },
   sidebarButton: {
     marginRight: 16,
+    marginLeft: 4,
+    marginTop: 2,
   },
   headerTitle: {
     fontSize: 18,
@@ -871,7 +874,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    marginTop: 100,
+    marginTop: 90,
   },
   section: {
     backgroundColor: '#FFFFFF',

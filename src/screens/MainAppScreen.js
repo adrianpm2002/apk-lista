@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
-import ModeSelector from '../components/ModeSelector';
 
 const MainAppScreen = ({ navigation }) => {
   const [currentMode, setCurrentMode] = useState('Visual');
@@ -49,17 +48,7 @@ const MainAppScreen = ({ navigation }) => {
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
-      {/* Mode Selector - Visible si hay al menos un modo disponible */}
-      {(visibleModes.visual || visibleModes.text) && (
-        <View style={[styles.modeSelectorContainer, isDarkMode && styles.modeSelectorContainerDark]}>
-          <ModeSelector 
-            currentMode={currentMode} 
-            onModeChange={handleModeChange}
-            isDarkMode={isDarkMode}
-            visibleModes={visibleModes}
-          />
-        </View>
-      )}
+  {/* Mode Selector movido a los headers de cada pantalla */}
       
       {/* Renderizar solo la pantalla del modo actual si está visible */}
       {currentMode === 'Visual' && visibleModes.visual ? (
@@ -70,6 +59,7 @@ const MainAppScreen = ({ navigation }) => {
           isDarkMode={isDarkMode}
           onToggleDarkMode={handleToggleDarkMode}
           onModeVisibilityChange={handleModeVisibilityChange}
+          visibleModes={visibleModes}
         />
       ) : visibleModes.text ? (
         <TextModeScreen 
@@ -79,6 +69,7 @@ const MainAppScreen = ({ navigation }) => {
           isDarkMode={isDarkMode}
           onToggleDarkMode={handleToggleDarkMode}
           onModeVisibilityChange={handleModeVisibilityChange}
+          visibleModes={visibleModes}
         />
       ) : null}
     </View>

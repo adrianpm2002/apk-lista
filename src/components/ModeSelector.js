@@ -55,7 +55,7 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
             isDarkMode && styles.modeTextDark,
             currentMode === 'Visual' && styles.activeText
           ]}>
-            👁️ Modo Visual
+            👁️ Visual
           </Text>
         </Pressable>
       )}
@@ -75,7 +75,7 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
             isDarkMode && styles.modeTextDark,
             currentMode === 'Texto' && styles.activeText
           ]}>
-            📝 Modo Texto
+            📝 Texto
           </Text>
         </Pressable>
       )}
