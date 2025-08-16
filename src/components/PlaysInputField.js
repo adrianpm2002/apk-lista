@@ -192,6 +192,11 @@ const PlaysInputField = ({
     }
   };
 
+  const handleClear = () => {
+    setDisplayValue('');
+    onChangeText && onChangeText('');
+  };
+
   const getValidationMessage = () => {
     // Extraer el valor del playType
     const playTypeValue = typeof playType === 'object' ? playType?.value : playType;
@@ -333,16 +338,28 @@ const PlaysInputField = ({
         )}
         
         {pasteButtonOverlay && showPasteButton && (
-          <Pressable
-            style={({ pressed }) => [
-              styles.pasteButtonOverlay,
-              pressed && styles.pasteButtonOverlayPressed,
-              isDarkMode && styles.pasteButtonOverlayDark
-            ]}
-            onPress={handlePaste}
-          >
-            <Text style={[styles.pasteButtonOverlayText, isDarkMode && styles.pasteButtonOverlayTextDark]}>📋</Text>
-          </Pressable>
+          <>
+            <Pressable
+              style={({ pressed }) => [
+                styles.pasteButtonOverlay,
+                pressed && styles.pasteButtonOverlayPressed,
+                isDarkMode && styles.pasteButtonOverlayDark
+              ]}
+              onPress={handlePaste}
+            >
+              <Text style={[styles.pasteButtonOverlayText, isDarkMode && styles.pasteButtonOverlayTextDark]}>📋</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.clearButtonOverlay,
+                pressed && styles.pasteButtonOverlayPressed,
+                isDarkMode && styles.pasteButtonOverlayDark
+              ]}
+              onPress={handleClear}
+            >
+              <Text style={[styles.pasteButtonOverlayText, isDarkMode && styles.pasteButtonOverlayTextDark]}>🧹</Text>
+            </Pressable>
+          </>
         )}
       </View>
       {validationMessage ? (
@@ -423,6 +440,22 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  clearButtonOverlay: {
+    position: 'absolute',
+    top: 50,
+    right: 8,
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#B8D4A8',
+    shadowColor: '#2D5016',
+    shadowOffset: { width:0, height:1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
   pasteButtonOverlayDark: {
     backgroundColor: '#2C3E50',
     borderColor: '#5D6D7E',
@@ -465,7 +498,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FDEDEC',
   },
   multilineInput: {
-    height: 80,
+  height: 104, // aumentado para que quepa la escobita y más líneas visibles
     textAlignVertical: 'top',
   },
   inputWithOverlay: {
@@ -482,7 +515,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   textOverlayMultiline: {
-    height: 80,
+  height: 104, // mantener sincronía con multilineInput
     alignItems: 'flex-start',
   },
   overlayContainer: {

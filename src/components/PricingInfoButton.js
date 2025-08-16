@@ -17,6 +17,7 @@ const PricingInfoButton = () => {
   const [scheduleMap, setScheduleMap] = useState({}); // { id_horario: { nombre, id_loteria } }
   const [lotteryMap, setLotteryMap] = useState({}); // { id_loteria: nombre }
   const [limitedNumbers, setLimitedNumbers] = useState([]); // numero_limitado rows
+  const [lotterySchedules, setLotterySchedules] = useState({}); // { loteriaId: { nombre: 'Lotería', schedules: [{id,nombre,hora_inicio,hora_fin}] } }
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -37,7 +38,7 @@ const PricingInfoButton = () => {
       } else {
         setPrecioRow(null);
       }
-      // Cargar límites por número y números limitados si hay bankId
+  // Cargar límites por número y números limitados si hay bankId
       if (effectiveBankId) {
         const { data: rows, error: nlErr } = await supabase
           .from('limite_numero')
@@ -103,6 +104,39 @@ const PricingInfoButton = () => {
         setLotteryMap({});
         setLimitedNumbers([]);
       }
+
+      // Cargar todas las loterías con sus horarios (independiente de límites) – primero
+      try {
+        const { data: horariosAll, error: hAllErr } = await supabase
+          .from('horario')
+          .select('id,nombre,hora_inicio,hora_fin,id_loteria');
+        if (hAllErr) throw hAllErr;
+        const lotIds = Array.from(new Set((horariosAll||[]).map(h=>h.id_loteria).filter(Boolean)));
+        let lotNames = {};
+        if (lotIds.length) {
+          const { data: lotsAll, error: lotsAllErr } = await supabase
+            .from('loteria')
+            .select('id,nombre')
+            .in('id', lotIds);
+          if (lotsAllErr) throw lotsAllErr;
+          (lotsAll||[]).forEach(l=>{ lotNames[l.id] = l.nombre; });
+        }
+        const map = {};
+        (horariosAll||[]).forEach(h=>{
+          if(!h.id_loteria) return; // ignorar sin lotería
+          if(!map[h.id_loteria]) map[h.id_loteria] = { nombre: lotNames[h.id_loteria] || 'Sin Nombre', schedules: [] };
+          map[h.id_loteria].schedules.push({ id:h.id, nombre:h.nombre, hora_inicio:h.hora_inicio, hora_fin:h.hora_fin });
+        });
+        // ordenar por nombre lotería y hora inicio
+        Object.values(map).forEach(obj=>{
+          obj.schedules.sort((a,b)=> (a.hora_inicio||'').localeCompare(b.hora_inicio||''));
+        });
+        const orderedEntries = Object.entries(map).sort((a,b)=> a[1].nombre.localeCompare(b[1].nombre)).reduce((acc,[k,v])=>{ acc[k]=v; return acc; }, {});
+        setLotterySchedules(orderedEntries);
+      } catch(e2) {
+        // No bloquear si falla
+        console.warn('Error cargando loterías/horarios', e2.message);
+      }
     } catch(e){
       setError(e.message || 'Error cargando configuración');
     } finally {
@@ -117,7 +151,7 @@ const PricingInfoButton = () => {
     if (loading) return <ActivityIndicator size="large" color="#2D5016" style={{ marginVertical: 20 }} />;
     if (error) return <Text style={styles.errorText}>{error}</Text>;
   if (!precioRow) return <Text style={styles.infoText}>{t('pricing.noConfig')}</Text>;
-    const precios = precioRow.precios || {};
+  const precios = precioRow.precios || {};
     const entries = Object.entries(precios);
   if (!entries.length) return <Text style={styles.infoText}>{t('pricing.emptyConfig')}</Text>;
     // Orden canónico
@@ -125,6 +159,22 @@ const PricingInfoButton = () => {
     const orderedEntries = ORDER.filter(k=> precios[k]).map(k=> [k, precios[k]]);
     return (
       <View>
+        {/* Loterías y Horarios */}
+        <View style={styles.lotteriesBlock}>
+          <Text style={styles.lotteriesTitle}>Loterías y Horarios</Text>
+          {Object.keys(lotterySchedules).length === 0 && (
+            <Text style={styles.noLimits}>No hay horarios disponibles.</Text>
+          )}
+          {Object.values(lotterySchedules).map(lot => (
+            <View key={lot.nombre} style={styles.lotteryCardFull}>
+              <Text style={styles.lotteryName}>{lot.nombre}</Text>
+              {lot.schedules.map(sch => (
+                <Text key={sch.id} style={styles.scheduleItem}>• {sch.nombre}: {sch.hora_inicio?.toString().slice(0,5)} - {sch.hora_fin?.toString().slice(0,5)}</Text>
+              ))}
+            </View>
+          ))}
+        </View>
+        {/* Ganancias por Jugada */}
         <Text style={styles.configName}>Ganancias por Jugada</Text>
         <View style={styles.grid}>
           {orderedEntries.map(([tipo, obj]) => {
@@ -279,6 +329,11 @@ const styles = StyleSheet.create({
   overlay: { flex:1, backgroundColor:'rgba(0,0,0,0.45)', justifyContent:'center', alignItems:'center', padding:16 },
   modal: { backgroundColor:'#fff', borderRadius:16, width:'100%', maxWidth:420, maxHeight:'80%', padding:20 },
   configName: { fontSize:18, fontWeight:'700', textAlign:'center', marginBottom:12, color:'#2C3E50' },
+  lotteriesBlock: { marginBottom:18, backgroundColor:'#FAFCF9', borderWidth:1, borderColor:'#E2E8E5', borderRadius:12, padding:12 },
+  lotteriesTitle: { fontSize:16, fontWeight:'700', color:'#2C3E50', marginBottom:8, textAlign:'center' },
+  lotteryCardFull: { marginBottom:10, backgroundColor:'#FFFFFF', borderRadius:8, borderWidth:1, borderColor:'#E8EEE7', padding:8 },
+  lotteryName: { fontSize:13, fontWeight:'700', color:'#1B3E0F', marginBottom:4, textTransform:'uppercase', letterSpacing:0.5 },
+  scheduleItem: { fontSize:11, color:'#34495E', marginBottom:2 },
   grid: { flexDirection:'row', flexWrap:'wrap', marginHorizontal:-6 },
   playCard: { width:'50%', padding:8, paddingBottom:10, backgroundColor:'#FFFFFF', borderRadius:10, borderWidth:1, borderColor:'#E2E8E5', shadowColor:'#000', shadowOpacity:0.03, shadowOffset:{width:0,height:1}, shadowRadius:2, marginBottom:12, paddingHorizontal:10 },
   playType: { fontSize:14, fontWeight:'700', color:'#2D5016', marginBottom:4 },
@@ -290,7 +345,7 @@ const styles = StyleSheet.create({
   limitsGrid: { flexDirection:'row', flexWrap:'wrap', marginHorizontal:-4 },
   limitCard: { width:'33.33%', padding:6, backgroundColor:'#F4F9F2', borderRadius:8, borderWidth:1, borderColor:'#E0E6E0', marginBottom:8, paddingHorizontal:8 },
   limitPlay: { fontSize:11, fontWeight:'700', color:'#2D5016', marginBottom:2 },
-  limitValue: { fontSize:12, fontWeight:'600', color:'#1d6fd1' },
+  limitValue: { fontSize:12, fontWeight:'600', color:'#2D5016' },
   numLimitsSection: { marginTop:16 },
   numLimitsTitle: { fontSize:15, fontWeight:'700', color:'#2C3E50', marginBottom:8, marginTop:4 },
   numGroup: { marginBottom:10, backgroundColor:'#FAFCF9', borderWidth:1, borderColor:'#E0E6E0', borderRadius:8, padding:8 },
