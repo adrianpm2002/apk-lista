@@ -30,26 +30,23 @@ const PlaysInputField = ({
 
   // Obtener la longitud requerida según el tipo de jugada
   const getRequiredLength = () => {
-    // Extraer el valor del playType (puede ser un objeto {label, value} o directamente el valor)
     const playTypeValue = typeof playType === 'object' ? playType?.value : playType;
-    
-    // Si no hay tipo de jugada seleccionado, no hacer separación automática
-    if (!playTypeValue) {
-      return null;
-    }
-    
+    if (!playTypeValue) return null;
+    // Regla especial: combo centena + fijo => se digitan centenas de 3 dígitos aunque exista fijo
+    if (selectedPlayTypes.includes('centena') && selectedPlayTypes.includes('fijo')) return 3;
     switch (playTypeValue) {
       case 'fijo':
       case 'corrido':
       case 'posicion':
+        return 2;
       case 'parle':
-        return 4; // Parle ahora requiere bloques de 4 dígitos
+        return 4; // parle sigue en 4
       case 'centena':
         return 3;
       case 'tripleta':
         return 6;
       default:
-        return 2; // Default a fijo
+        return 2;
     }
   };
 
@@ -223,7 +220,7 @@ const PlaysInputField = ({
         'fijo': 'Fijo',
         'corrido': 'Corrido',
         'posicion': 'Posición',
-  'parle': 'Parle',
+        'parle': 'Parle',
         'centena': 'Centena',
         'tripleta': 'Tripleta'
       };
@@ -299,7 +296,7 @@ const PlaysInputField = ({
             multiline && styles.multilineInput,
             validationMessage && styles.inputError,
             hasError && styles.inputFieldError,
-  (lastIncomplete || duplicateNumbers.length>0) && styles.inputWithOverlay,
+            (lastIncomplete || duplicateNumbers.length>0 || anyFijoDup) && styles.inputWithOverlay,
           ]}
           value={displayValue}
           onChangeText={handleChange}
@@ -325,15 +322,8 @@ const PlaysInputField = ({
                 if(clean && hasCentenaFijoCombo && clean.length>=2 && !duplicateNumbers.includes(clean)) {
                   const last2 = clean.slice(-2);
                   if(duplicateFijos.includes(last2)) {
-                    // Resaltar únicamente los últimos 2 dígitos (fijo) sin duplicar el texto
-                    const prefix = clean.slice(0, clean.length-2);
-                    const suffix = clean.slice(-2);
-                    return (
-                      <Text key={idx} style={[styles.normalText, isDarkMode && styles.normalTextDark]}>
-                        {prefix}
-                        <Text style={styles.duplicateFijoSuffix}>{suffix}</Text>
-                      </Text>
-                    );
+                    // Resaltar el número completo pero la alerta se refiere a fijos duplicados
+                    return <Text key={idx} style={styles.duplicateFijoSuffix}>{part}</Text>;
                   }
                 }
                 return <Text key={idx} style={[styles.normalText, isDarkMode && styles.normalTextDark]}>{part}</Text>;
@@ -525,7 +515,7 @@ const styles = StyleSheet.create({
   },
   duplicateFijoSuffix: {
     color: '#B9770E',
-    backgroundColor: '#FEF7D1',
+    backgroundColor: '#FCF3CF',
     fontSize: 16,
     fontWeight: '600',
     paddingHorizontal: 2,

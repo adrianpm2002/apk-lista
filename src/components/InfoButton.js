@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,24 @@ const InfoButton = ({ onClose }) => {
   const [limits, setLimits] = useState(null); // objeto limite_especifico
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [numberLimits, setNumberLimits] = useState([]); // filas de limite_numero
+  const [bankId, setBankId] = useState(null);
+
+  // Cargar id_banco al montar (para poder traer limite_numero)
+  useEffect(()=>{
+    const loadBank = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if(!user) return;
+        const { data: profile } = await supabase.from('profiles').select('id_banco, role').eq('id', user.id).maybeSingle();
+        if(profile){
+          const bId = profile.role === 'admin' ? user.id : profile.id_banco;
+          setBankId(bId);
+        }
+      } catch(e){ /* ignore */ }
+    };
+    loadBank();
+  },[]);
 
   const infoSections = [
     {
@@ -54,12 +72,30 @@ const InfoButton = ({ onClose }) => {
         .maybeSingle();
       if (pErr) throw pErr;
       setLimits(profile?.limite_especifico || null);
+      // Cargar límites por número si tenemos bankId
+      if(bankId){
+        const { data: rows, error: lErr } = await supabase
+          .from('limite_numero')
+          .select('numero, limite, jugada, id_horario')
+          .eq('id_banco', bankId)
+          .order('jugada', { ascending: true })
+          .order('numero', { ascending: true });
+        if(lErr) throw lErr;
+        setNumberLimits(rows||[]);
+      } else {
+        setNumberLimits([]);
+      }
     } catch(e){
       setError(e.message || 'Error cargando límites');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [bankId]);
+
+  // Re-cargar límites numéricos cuando cambie bankId y el modal esté visible
+  useEffect(()=>{
+    if(isVisible) loadLimits();
+  },[bankId, isVisible, loadLimits]);
 
   const handleClose = () => {
     setIsVisible(false);
@@ -103,6 +139,32 @@ const InfoButton = ({ onClose }) => {
                       <Text style={styles.limitValue}>{limits[k]}</Text>
                     </View>
                   ))
+                )}
+
+                {/* Sección adicional: números limitados y límites por número */}
+                {!loading && !error && numberLimits.length>0 && (
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={styles.subSectionTitle}>Números Limitados</Text>
+                    {JUGADA_ORDER.map(j => {
+                      const rows = numberLimits.filter(r => r.jugada === j);
+                      if(!rows.length) return null;
+                      // Agrupar por jugada: mostrar línea con lista de números y su límite base si homogéneo
+                      return (
+                        <View key={j} style={styles.numberLimitGroup}>
+                          <Text style={styles.numberLimitHeader}>{j.toUpperCase()}</Text>
+                          {rows.slice(0,50).map((r,idx)=>(
+                            <Text key={idx} style={styles.infoText}>• {r.numero} → {r.limite}</Text>
+                          ))}
+                          {rows.length>50 && (
+                            <Text style={[styles.infoText,{fontStyle:'italic'}]}>… +{rows.length-50} más</Text>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+                {!loading && !error && numberLimits.length===0 && (
+                  <Text style={[styles.infoText,{marginTop:8}]}>No hay números limitados.</Text>
                 )}
               </View>
               
@@ -213,6 +275,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#ecf0f1',
     paddingBottom: 4,
+  },
+  subSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  numberLimitGroup: {
+    marginBottom: 10,
+    backgroundColor: '#FAFCF9',
+    borderWidth: 1,
+    borderColor: '#E6ECE6',
+    borderRadius: 6,
+    padding: 8,
+  },
+  numberLimitHeader: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2D5016',
+    marginBottom: 4,
   },
   infoText: {
     fontSize: 14,

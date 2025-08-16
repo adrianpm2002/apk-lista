@@ -143,21 +143,55 @@ const SavedPlaysScreen = ({ navigation, route }) => {
 
   const renderPlayItem = ({ item }) => (
     <View style={[styles.playCard, isDarkMode && styles.playCardDark]}>
-      <View style={styles.rowBetween}>
-  <Text style={[styles.lotteryName, isDarkMode && styles.lotteryNameDark]}>{item.lottery}</Text>
-        <Text style={[styles.resultBadge, isDarkMode && styles.resultBadgeDark]}>{item.result}</Text>
+      <View style={styles.topRow}>
+        <View style={styles.topLeft}>
+          <View style={styles.lotteryLine}>
+            <Text style={[styles.lotteryName, isDarkMode && styles.lotteryNameDark]} numberOfLines={1}>{item.lottery}</Text>
+            <Text style={[styles.scheduleTag, isDarkMode && styles.scheduleTagDark]} numberOfLines={1}>{item.schedule}</Text>
+            <Text style={[styles.playTypeInline, isDarkMode && styles.playTypeInlineDark]}>{getPlayTypeLabel(item.playType)}</Text>
+          </View>
+          <View style={styles.namePriceInline}>
+            {!!item.note && (
+              <Text style={[styles.noteStronger, isDarkMode && styles.noteStrongerDark]} numberOfLines={1}>{(item.note || '').toUpperCase()}</Text>
+            )}
+            <Text style={[styles.priceCalc, isDarkMode && styles.priceCalcDark]}>${item.amount} × {item.numbers.split(',').filter(Boolean).length} = ${item.total}</Text>
+          </View>
+        </View>
+        <View style={styles.resultBox}>
+          <Text
+            style={[
+              styles.resultLabel,
+              isDarkMode && styles.resultLabelDark,
+              item.result === 'no disponible' && styles.resultUnavailable,
+              item.result === 'no disponible' && isDarkMode && styles.resultUnavailableDark
+            ]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            Resultado: {item.result}
+          </Text>
+          {!item.hasPrize && <Text style={[styles.pendingText, styles.pendingUnderResult]}>⏳ Pendiente</Text>}
+        </View>
       </View>
-      <View style={styles.rowBetween}>
-        <Text style={[styles.note, isDarkMode && styles.noteDark]} numberOfLines={1}>{item.note}</Text>
-        <Text style={[styles.playType, isDarkMode && styles.playTypeDark]}>{getPlayTypeLabel(item.playType)}</Text>
+      <View style={styles.numbersRow}>
+        {(() => {
+          const parts = item.numbers.split(',').map(n=> n.trim()).filter(Boolean);
+          const counts = parts.reduce((acc,n)=> (acc[n]=(acc[n]||0)+1, acc), {});
+          return (
+            <Text style={[styles.numbers, isDarkMode && styles.numbersDark]}>
+              {parts.map((n,i)=> (
+                <Text key={i}>
+                  {counts[n]>1 ? <Text style={styles.dupNumber}>{n}</Text> : n}
+                  {i < parts.length-1 ? ', ' : ''}
+                </Text>
+              ))}
+            </Text>
+          );
+        })()}
       </View>
-      <View style={styles.rowBetween}>
-        <Text style={[styles.numbers, isDarkMode && styles.numbersDark]}>{item.numbers}</Text>
-  <Text style={[styles.amount, isDarkMode && styles.amountDark]}>${item.amount} × {item.numbers.split(',').filter(Boolean).length} = ${item.total}</Text>
-      </View>
-      <View style={styles.rowBetween}>
-        <Text style={[styles.prize, item.hasPrize && styles.prizeWinner]}>{item.hasPrize ? `🏆 $${item.prize}` : '⏳ PENDIENTE'}</Text>
-        <Text style={[styles.timestamp, isDarkMode && styles.timestampDark]}>{formatTime(item.timestamp)} - {item.schedule}</Text>
+      <View style={styles.statusRow}>
+        {item.hasPrize ? <Text style={[styles.prize, styles.prizeWinner]}>🏆 ${item.prize}</Text> : <View />}
+        <Text style={[styles.timestamp, isDarkMode && styles.timestampDark]}>{formatTime(item.timestamp)}</Text>
       </View>
     </View>
   );
@@ -204,15 +238,15 @@ const SavedPlaysScreen = ({ navigation, route }) => {
               {renderFilterButton('all', selectedPlayTypeFilter, setSelectedPlayTypeFilter,'Todas')}
               {playTypeOptions.map(pt=> renderFilterButton(pt.value, selectedPlayTypeFilter, setSelectedPlayTypeFilter, pt.label))}
             </View>
-          <View style={styles.inlineTotals}>
-            <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Recogido: ${totalRecogido}</Text>
-            <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Pendiente: ${pendientePago}</Text>
-            <Pressable style={[styles.prizeFilterButton, showOnlyWinners && styles.prizeFilterButtonActive]} onPress={()=> setShowOnlyWinners(p=>!p)}>
-              <Text style={styles.prizeFilterText}>{showOnlyWinners? '🏆 Ganadores':'🎯 Todos'}</Text>
-            </Pressable>
-          </View>
         </View>
       )}
+      <View style={[styles.inlineTotalsOutside, isDarkMode && styles.inlineTotalsOutsideDark]}>
+        <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Recogido: ${totalRecogido}</Text>
+        <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Pendiente: ${pendientePago}</Text>
+        <Pressable style={[styles.prizeFilterButton, showOnlyWinners && styles.prizeFilterButtonActive]} onPress={()=> setShowOnlyWinners(p=>!p)}>
+          <Text style={styles.prizeFilterText}>{showOnlyWinners? '🏆 Ganadores':'🎯 Todos'}</Text>
+        </Pressable>
+      </View>
       {isLoading ? (
         <View style={styles.loadingContainer}><Text style={[styles.loadingText, isDarkMode && styles.loadingTextDark]}>Cargando...</Text></View>
       ) : (
@@ -265,20 +299,53 @@ const styles = StyleSheet.create({
   prizeFilterButton:{ backgroundColor:'#F39C12', paddingHorizontal:10, paddingVertical:4, borderRadius:6 },
   prizeFilterButtonActive:{ backgroundColor:'#27AE60' },
   prizeFilterText:{ color:'#FFFFFF', fontSize:10, fontWeight:'600' },
+  inlineTotalsOutside:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#F1F4F0', borderWidth:1, borderColor:'#E1E8E3', borderRadius:8, paddingHorizontal:10, paddingVertical:6, marginBottom:6 },
+  inlineTotalsOutsideDark:{ backgroundColor:'#2C3E50', borderColor:'#5D6D7E' },
   list:{ flex:1 },
   playCard:{ backgroundColor:'#F8F9FA', borderRadius:8, padding:6, marginBottom:6, borderWidth:1, borderColor:'#E8F1E4' },
   playCardDark:{ backgroundColor:'#34495E', borderColor:'#5D6D7E' },
   rowBetween:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:2 },
-  lotteryName:{ fontSize:13, fontWeight:'700', color:'#2D5016' },
+  lotteryName:{ fontSize:14, fontWeight:'700', color:'#2D5016' },
   lotteryNameDark:{ color:'#ECF0F1' },
+  firstRowWrap:{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', marginBottom:4 },
+  scheduleTag:{ marginLeft:6, fontSize:11, fontWeight:'600', color:'#1B4F72', backgroundColor:'#EAF2F8', paddingHorizontal:6, paddingVertical:2, borderRadius:4 },
+  scheduleTagDark:{ backgroundColor:'#2C3E50', color:'#AED6F1' },
+  playTypeInline:{ marginLeft:6, fontSize:11, fontWeight:'600', color:'#8E44AD', backgroundColor:'#F4ECF7', paddingHorizontal:6, paddingVertical:2, borderRadius:4 },
+  playTypeInlineDark:{ backgroundColor:'#5D6D7E', color:'#D2B4DE' },
+  noteStronger:{ marginLeft:0, fontSize:13, fontWeight:'700', color:'#0B6B32', maxWidth:150 },
+  noteStrongerDark:{ color:'#F0F3F4' },
+  topRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 },
+  topLeft:{ flex:1, paddingRight:6 },
+  lotteryLine:{ flexDirection:'row', flexWrap:'wrap', alignItems:'center' },
+  resultText:{ fontSize:10, fontWeight:'600', color:'#2C3E50', textAlign:'right', maxWidth:90, textTransform:'lowercase' },
+  resultTextDark:{ color:'#ECF0F1' },
+  resultBox:{ alignItems:'flex-end', maxWidth:180 },
+  resultLabel:{ fontSize:11, fontWeight:'700', color:'#1F2D3A', backgroundColor:'#EAF4FF', paddingHorizontal:6, paddingVertical:3, borderRadius:6, textAlign:'right' },
+  resultLabelDark:{ backgroundColor:'#2C3E50', color:'#D6EAF8' },
+  resultUnavailable:{ backgroundColor:'transparent', color:'#566573' },
+  resultUnavailableDark:{ backgroundColor:'transparent', color:'#BDC3C7' },
+  pendingUnderResult:{ marginTop:2 },
+  namePriceRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:4 },
+  namePriceInline:{ flexDirection:'row', alignItems:'center', marginTop:2 },
+  priceCalc:{ fontSize:12, fontWeight:'600', color:'#1E8449', marginLeft:6, flexShrink:1 },
+  priceCalcDark:{ color:'#58D68D' },
+  numbersRow:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 },
+  totalInline:{ fontSize:11, fontWeight:'600', color:'#27AE60', marginLeft:8 },
+  totalInlineDark:{ color:'#58D68D' },
+  statusRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-end' },
+  resultColumn:{ flexDirection:'column', alignItems:'flex-start' },
   resultBadge:{ backgroundColor:'#E8F5E8', borderColor:'#27AE60', borderWidth:1, borderRadius:12, paddingHorizontal:8, paddingVertical:2, fontSize:11, fontWeight:'600', color:'#27AE60' },
   resultBadgeDark:{ backgroundColor:'#2C3E50', borderColor:'#27AE60', color:'#27AE60' },
+  pendingText:{ fontSize:10, fontWeight:'600', color:'#7F8C8D', marginTop:2 },
+  pendingTextHidden:{ opacity:0 },
+  rightInfo:{ alignItems:'flex-end' },
   note:{ fontSize:11, color:'#5D6D7E', flex:1, marginRight:6 },
   noteDark:{ color:'#BDC3C7' },
   playType:{ fontSize:11, fontWeight:'600', color:'#8E44AD', backgroundColor:'#F4ECF7', paddingHorizontal:5, paddingVertical:1, borderRadius:4 },
   playTypeDark:{ color:'#BB8FCE', backgroundColor:'#5D6D7E' },
-  numbers:{ fontSize:13, fontWeight:'600', color:'#2D5016', flex:1 },
+  numbers:{ fontSize:14, fontWeight:'700', color:'#2D5016', flex:1 },
   numbersDark:{ color:'#ECF0F1' },
+  dupNumber:{ backgroundColor:'#FFE878', borderRadius:4, paddingHorizontal:3, paddingVertical:1, fontWeight:'700', color:'#5C4B00' },
   amount:{ fontSize:11, fontWeight:'600', color:'#27AE60' },
   amountDark:{ color:'#58D68D' },
   prize:{ fontSize:11, fontWeight:'600', color:'#7F8C8D' },
