@@ -42,7 +42,8 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
     const numbersPart = parts[0];
     const amount1 = toInt(parts[1]);
     const amount2 = parts.length > 2 ? toInt(parts[2]) : 0;
-    const rawNums = numbersPart.split(numberSepRegex).map(n => n.replace(/[^0-9]/g, '')).filter(Boolean);
+  const rawNums = numbersPart.split(numberSepRegex).map(n => n.replace(/[^0-9]/g, '')).filter(Boolean);
+  if(rawNums.some(n=> n.length===1 || n.length===5 || n.length>=7)) { errors.push({ line: idx+1, message:'Longitud inválida (1, 5 o >=7 dígitos)' }); return; }
     if (!rawNums.length) { errors.push({ line: idx + 1, message: 'Sin números' }); return; }
     const lenSet = new Set(rawNums.map(n => n.length));
     if (lenSet.size !== 1) { errors.push({ line: idx + 1, message: 'Longitudes mezcladas' }); return; }
@@ -71,17 +72,34 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
     }
   });
 
-  // Duplicados únicos por tipo
+  // Duplicados únicos por tipo (parle considera inversión AB|CD == CD|AB)
   const duplicateMap = {};
+  const parleCanonical = (n) => {
+    if(n.length!==4) return n;
+    const a = n.slice(0,2); const b = n.slice(2);
+    // ordenar par lexicográficamente para canónico
+    return [a,b].sort().join('');
+  };
   instructions.forEach(inst => {
     inst.numbers.forEach(n => {
-      const key = inst.playType + '|' + n;
+      let keyNumber = n;
+      if(inst.playType==='parle') keyNumber = parleCanonical(n);
+      const key = inst.playType + '|' + keyNumber;
       duplicateMap[key] = (duplicateMap[key] || 0) + 1;
     });
   });
   const duplicateSet = new Set();
-  Object.keys(duplicateMap).forEach(k => { if (duplicateMap[k] > 1) duplicateSet.add(k.split('|')[1]); });
-  const instructionsWithMeta = instructions.map(inst => ({ ...inst, duplicates: Array.from(new Set(inst.numbers.filter(n => duplicateSet.has(n)))) }));
+  Object.keys(duplicateMap).forEach(k => { if (duplicateMap[k] > 1) duplicateSet.add(k); });
+  const instructionsWithMeta = instructions.map(inst => {
+    const dups = new Set();
+    inst.numbers.forEach(n => {
+      let keyNumber = n;
+      if(inst.playType==='parle') keyNumber = parleCanonical(n);
+      const key = inst.playType + '|' + keyNumber;
+      if(duplicateSet.has(key)) dups.add(n);
+    });
+    return { ...inst, duplicates: Array.from(dups) };
+  });
 
   const perLotterySum = instructions.reduce((acc, i) => acc + (i.totalPerLottery || 0), 0);
   return { instructions: instructionsWithMeta, errors, perLotterySum };

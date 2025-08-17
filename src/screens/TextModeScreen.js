@@ -19,7 +19,9 @@ import PricingInfoButton from '../components/PricingInfoButton';
 import NotificationsButton from '../components/NotificationsButton';
 // InfoButton general sustituido por versión específica de modo texto
 import TextModeInfoButton from '../components/TextModeInfoButton';
-import InfoButton from '../components/InfoButton'; // (si aún se usa en otro lugar)
+// Eliminamos CapacityModal directo; usaremos BatteryButton que lo incluye internamente
+import BatteryButton from '../components/BatteryButton';
+// import CapacityModal from '../components/CapacityModal';
 import { parseTextMode } from '../utils/textModeParser';
 import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
@@ -46,6 +48,9 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
   const [noteError, setNoteError] = useState(false);
   const [limitViolations, setLimitViolations] = useState([]); // [{numero, jugada, permitido, usado}]
   const [showFieldErrors, setShowFieldErrors] = useState(false);
+  // Capacidades ahora manejadas por BatteryButton (se eliminan estados locales duplicados)
+
+  // Lógica de capacidad eliminada (delegada a BatteryButton)
 
   // Datos dinámicos
   const [lotteries, setLotteries] = useState([]); // {label,value}
@@ -216,7 +221,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     // Validar campos requeridos
     let hasErrors = !validateForm();
 
-    // Validación de límites (simplificada para modo texto: cada jugada vale 1 unidad)
+    // Validación de límites basada en instrucciones parseadas
     if (!hasErrors) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -225,8 +230,9 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', user.id).maybeSingle();
             specificLimits = profile?.limite_especifico || null;
         }
-        const horarios = selectedSchedule ? [selectedSchedule] : [];
-        if (horarios.length) {
+        // Horarios seleccionados (uno por lotería)
+        const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
+        if (horarios.length && parsedInstructions.length) {
           const { data: limitRows } = await supabase
             .from('limite_numero')
             .select('numero, limite, jugada, id_horario')
@@ -244,24 +250,23 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
               const k = r.id_horario+"|"+r.jugada+"|"+r.numero;
               usedMap.set(k, (usedMap.get(k)||0)+(r.limite||0));
             });
-          const playList = plays.split(',').map(p=>p.trim()).filter(Boolean);
-          const numbers = playList.map(p=>p.replace(/[^0-9]/g,''));
           const violations = [];
-          numbers.forEach(numRaw=>{
-            const numInt = parseInt(numRaw,10);
-            // Jugadas base asumidas: fijo,corrido,posicion,parle,centena,tripleta si hay limites específicos
-            const jugadas = specificLimits ? Object.keys(specificLimits) : [];
-            jugadas.forEach(j=>{
+          // Para cada instrucción y número usamos amountEach como cantidad base
+          parsedInstructions.forEach(instr=>{
+            const jugada = instr.playType;
+            instr.numbers.forEach(numRaw => {
+              const numInt = parseInt(numRaw,10);
               horarios.forEach(h=>{
-                const key = h+"|"+j+"|"+numInt;
+                const key = h+"|"+jugada+"|"+numInt;
                 const byNumber = limitMap.get(key);
-                const specific = specificLimits && specificLimits[j];
+                const specific = specificLimits && specificLimits[jugada];
+                if(byNumber===undefined && specific===undefined) return; // sin límite aplicable
                 let effective;
-                if (byNumber !== undefined && specific !== undefined) effective = Math.min(byNumber, specific); else if (byNumber !== undefined) effective = byNumber; else if (specific !== undefined) effective = specific; else return;
+                if(byNumber!==undefined && specific!==undefined) effective = Math.min(byNumber, specific); else if(byNumber!==undefined) effective = byNumber; else effective = specific; 
                 const used = usedMap.get(key) || 0;
-                const amt = 1; // cada jugada vale 1 en este modo
-                if ((used + amt) > effective) {
-                  violations.push({ numero:numRaw, jugada:j, permitido:effective, usado:used });
+                const amt = instr.amountEach || 0;
+                if((used + amt) > effective){
+                  violations.push({ numero:numRaw, jugada, permitido:effective, usado:used });
                 }
               });
             });
@@ -423,7 +428,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           hasError={showFieldErrors && (playsError || !plays.trim())}
         />
   {/* Se eliminan botones superiores duplicados */}
-  {parsedInstructions.length>0 && (
+  {(plays.length>0) && (
           <View style={{ marginTop:4, marginBottom:4 }}>
             {parsedInstructions.slice(0,5).map((i,idx)=>(
               <Text key={idx} style={{ fontSize:11 }}>
@@ -447,7 +452,17 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
                 Duplicados: {Array.from(new Set(parsedInstructions.flatMap(i=> i.duplicates || []))).length}
               </Text>
             )}
-            {playsError && (
+            {/* Contador dinámico de combinaciones */}
+            {parsedInstructions.length>0 && (
+              (()=>{
+                const counts = parsedInstructions.reduce((acc,i)=>{ acc[i.playType]=(acc[i.playType]||0)+i.numbers.length; return acc; },{});
+                const totalComb = Object.values(counts).reduce((a,b)=>a+b,0);
+                const order = ['fijo','corrido','parle','centena','tripleta'];
+                const parts = order.filter(k=> counts[k]).map(k=> `${k.charAt(0).toUpperCase()+k.slice(1)}: ${counts[k]}`);
+                return <Text style={{ fontSize:11, color:'#2D5016', marginTop:2 }}>Total combinaciones: {totalComb}{parts.length? ' ('+parts.join(', ')+')':''}</Text>;
+              })()
+            )}
+            {parseErrors.length>0 && (
               <View style={{ marginTop:4 }}>
                 {parseErrors.slice(0,4).map((e,i)=>(
                   <Text key={i} style={{ fontSize:11, color:'#C0392B' }}>Línea {e.line}: {e.message}</Text>
@@ -495,44 +510,36 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           </View>
         </View>
 
-        {/* Barra de herramientas inferior: Candado (izq), Martillo, Lista, Info (der) */}
-        <View style={[styles.toolsContainer,{ justifyContent:'space-between', paddingHorizontal:4 }]}> 
-          <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
-            <Pressable onPress={()=> setIsLocked(l=> !l)} style={[styles.lockButton, isLocked && styles.lockButtonActive]}>
-              <Text style={styles.lockIcon}>{isLocked ? '🔒' : '🔓'}</Text>
-            </Pressable>
-            <HammerButton onOptionSelect={(option) => console.log('Hammer option:', option)} />
-            <ListButton onOptionSelect={(option) => console.log('List option:', option)} />
-          </View>
-          <TextModeInfoButton />
+        {/* Barra de herramientas inferior: candado, capacidad, martillo, lista, info, registro (insert) */}
+        <View style={[styles.toolsContainer,{ justifyContent:'center', flexWrap:'wrap', gap:12 }]}> 
+          <Pressable onPress={()=> setIsLocked(l=> !l)} style={[styles.lockButton, isLocked && styles.lockButtonActive]}>
+            <Text style={styles.lockIcon}>{isLocked ? '🔒' : '🔓'}</Text>
+          </Pressable>
+          <BatteryButton
+            bankId={bankId}
+            selectedLotteries={selectedLotteries}
+            selectedSchedules={selectedSchedules}
+            selectedPlayTypes={[]}
+            lotteryOptions={lotteries}
+            scheduleOptionsMap={scheduleOptionsMap}
+            getScheduleLabel={getScheduleLabel}
+            playTypeLabels={{ fijo:'fijo', corrido:'corrido', centena:'centena', parle:'parle', tripleta:'tripleta' }}
+            animationProps={{ scaleFrom:0.9, duration:180 }}
+          />
+          <HammerButton numbersSeparator={'. '} onOptionSelect={(opt) => {
+            if(opt?.action==='insert' && opt.numbers){
+              setPlays(prev => prev ? prev + (prev.endsWith('\n')?'':'\n') + opt.numbers : opt.numbers);
+            }
+          }} />
+          <ListButton onOptionSelect={(option) => console.log('List option:', option)} />
+          <TextModeInfoButton icon="ℹ︎" />
         </View>
 
         {/* Row 5: Botones de acción */}
-        <View style={styles.actionRow}>
-          <View style={styles.actionButton}>
-            <ActionButton
-              title={t('actions.clear')}
-              onPress={handleClear}
-              variant="danger"
-              size="small"
-            />
-          </View>
-          <View style={styles.actionButton}>
-            <ActionButton
-              title={t('actions.verify')}
-              onPress={handleVerify}
-              variant="warning"
-              size="small"
-            />
-          </View>
-          <View style={styles.actionButton}>
-            <ActionButton
-              title={t('actions.insert')}
-              onPress={handleInsert}
-              variant="success"
-              size="small"
-            />
-          </View>
+        <View style={[styles.actionRow,{ justifyContent:'center' }]}>
+          <View style={styles.actionButton}><ActionButton title={t('actions.clear')} onPress={handleClear} variant="danger" size="small" /></View>
+          <View style={styles.actionButton}><ActionButton title={t('actions.verify')} onPress={handleVerify} variant="warning" size="small" /></View>
+          <View style={styles.actionButton}><ActionButton title={t('actions.insert')} onPress={handleInsert} variant="success" size="small" /></View>
         </View>
       </ScrollView>
       
@@ -553,6 +560,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
         onModeVisibilityChange={onModeVisibilityChange}
         role="listero"
       />
+  {/* CapacityModal ahora gestionado por BatteryButton (🔋) */}
     </View>
   );
 };

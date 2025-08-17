@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, Pressable, Modal, StyleSheet, Clipboard, Platform, Alert, ScrollView, TextInput } from 'react-native';
+import AnimatedModalWrapper from './AnimatedModalWrapper';
 
 // Componente HammerButton actualizado según nuevos requisitos
-const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
+const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', ' }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [rawDigits, setRawDigits] = useState(''); // cadena de dígitos crudos para tokens de 2
   const [tokens, setTokens] = useState([]); // tokens (2 o 4 dígitos tras amarrar)
@@ -226,7 +227,7 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
   const handleInsertar = () => {
     const finalTokens = parleMode ? tokens : displayTokens.filter(t=> t.length===2);
     if (!finalTokens.length) return Alert.alert('Vacío','Agrega números');
-    onOptionSelect && onOptionSelect({ action:'insert', numbers: finalTokens.join(', ') });
+  onOptionSelect && onOptionSelect({ action:'insert', numbers: finalTokens.join(numbersSeparator) });
     setIsVisible(false);
     handleClear();
   };
@@ -262,8 +263,9 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
         <Text style={styles.buttonIcon}>🔨</Text>
       </Pressable>
 
-      <Modal visible={isVisible} transparent animationType="fade" onRequestClose={handleCancel}>
+      <Modal visible={isVisible} transparent animationType="none" onRequestClose={handleCancel}>
         <View style={styles.overlay}>
+          <AnimatedModalWrapper visible={isVisible} scaleFrom={0.9} duration={180}>
           <View style={[styles.modal, isDarkMode && styles.modalDark]}>
             {/* Header */}
             <View style={styles.headerRow}>
@@ -438,6 +440,7 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
               <Pressable style={[styles.footerBtnInsert, isDarkMode && styles.footerBtnInsertDark]} onPress={handleInsertar}><Text style={styles.footerBtnInsertText}>Insertar ({parleMode ? tokens.length : displayTokens.filter(t=>t.length===2).length})</Text></Pressable>
             </View>
           </View>
+          </AnimatedModalWrapper>
         </View>
       </Modal>
     </>
@@ -628,8 +631,27 @@ const styles = StyleSheet.create({
   tokenDup:{ backgroundColor:'#FFF9C4', borderColor:'#F7DC6F' },
   tokenParle:{ backgroundColor:'#D6EAF8', borderColor:'#85C1E9', width:44 },
   tokenText:{ fontSize:12, fontWeight:'600', color:'#2D5016' },
-  tokenEditing:{ backgroundColor:'#FFF4E0', borderColor:'#F5CBA7' },
-  parleEditInput:{ fontSize:12, fontWeight:'600', color:'#2D5016', padding:0, margin:0, textAlign:'center', width:'100%' },
+  // Evitar que la cápsula cambie de tamaño al editar (mantener mismo ancho/alto)
+  tokenEditing:{
+    backgroundColor:'#FFF4E0',
+    borderColor:'#F5CBA7',
+    width:44, // mismo que token
+    minWidth:44,
+    maxWidth:44,
+    paddingVertical:0,
+    justifyContent:'center'
+  },
+  parleEditInput:{
+    fontSize:12,
+    fontWeight:'600',
+    color:'#2D5016',
+    padding:0,
+    margin:0,
+    textAlign:'center',
+    width:'100%',
+    includeFontPadding:false, // Android: evita crecer vertical
+    textAlignVertical:'center'
+  },
   tokenParleInput:{ justifyContent:'center' },
   parleEntryInput:{ fontSize:12, fontWeight:'600', color:'#2D5016', textAlign:'center', padding:0, margin:0, width:'100%' },
   caretIndicator:{ width:8, alignItems:'center', justifyContent:'center', margin:4 },

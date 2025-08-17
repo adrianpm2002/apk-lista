@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, Modal, Pressable, StyleSheet, ScrollView } from 'react-native';
 
-const TextModeInfoButton = () => {
+const TextModeInfoButton = ({ icon='ℹ️' }) => {
   const [open, setOpen] = useState(false);
 
   return (
     <>
       <Pressable onPress={() => setOpen(true)} style={({ pressed }) => [styles.btn, pressed && styles.btnPressed]}>
-        <Text style={styles.btnTxt}>ℹ️</Text>
+  <Text style={styles.btnTxt}>{icon}</Text>
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={()=> setOpen(false)}>
         <View style={styles.backdrop}>
