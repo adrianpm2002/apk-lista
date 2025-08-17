@@ -47,6 +47,15 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const [showFieldErrors, setShowFieldErrors] = useState(false); // sólo mostrar bordes rojos tras intento
   const [limitViolations, setLimitViolations] = useState([]); // [{numero, jugada, permitido, usado}]
 
+  // Feedback de inserción: éxito, fallos y duplicados
+  const [insertFeedback, setInsertFeedback] = useState(null); // { success, fail, duplicates:[] }
+  useEffect(() => {
+    if (insertFeedback && insertFeedback.fail === 0) {
+      const timer = setTimeout(() => setInsertFeedback(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [insertFeedback]);
+
   // Calcular total automáticamente basado en cantidad de números y monto
   useEffect(() => {
     const nums = plays.match(/\d+/g) || [];
@@ -86,6 +95,10 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   // Edición
   const [editingId, setEditingId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [editingInitialNumbers, setEditingInitialNumbers] = useState('');
+  const editBannerOpacity = useRef(new Animated.Value(0)).current;
+  // Forzar remount del PlaysInputField para limpiar internamente
+  const [inputInstanceKey, setInputInstanceKey] = useState(0);
 
   const PLAY_TYPE_LABELS = { fijo:translatePlayTypeLabel('fijo'), corrido:translatePlayTypeLabel('corrido'), posicion:translatePlayTypeLabel('posicion'), parle:translatePlayTypeLabel('parle'), centena:translatePlayTypeLabel('centena'), tripleta:translatePlayTypeLabel('tripleta') };
 
@@ -185,58 +198,86 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   useEffect(()=>{
     const payload = route?.params?.editPayload;
     if(payload && payload.id !== editingId){
-      // Poblar campos
       setEditingId(payload.id);
       setIsEditing(true);
-      setPlays(payload.numbers);
-      setNote(payload.note || '');
-      // Ajustar selección de tipos (single a partir del playType de la jugada)
       setSelectedPlayTypes([payload.playType]);
-      // Lotería y horario: necesitamos mapear nombre a id existente ya cargado en lotteries/scheduleOptionsMap
-      // Intento: buscar por label
+      setEditingInitialNumbers(payload.numbers || '');
+      setNote(payload.note || '');
       const lot = lotteries.find(l=> l.label === payload.lottery);
-      if(lot){
-        setSelectedLotteries([lot.value]);
-      }
-      // Horario se completará cuando scheduleOptionsMap esté listo
+      if(lot){ setSelectedLotteries([lot.value]); }
       const scheduleSetter = () => {
-        if(lot){
-          const schedules = scheduleOptionsMap[lot.value] || [];
-          const sch = schedules.find(s=> s.label === payload.schedule);
-          if(sch){
-            setSelectedSchedules(prev=> ({ ...prev, [lot.value]: sch.value }));
-          }
-        }
+        if(!lot) return;
+        const schedules = scheduleOptionsMap[lot.value] || [];
+        const sch = schedules.find(s=> s.label === payload.schedule);
+        if(sch){ setSelectedSchedules(prev=> ({ ...prev, [lot.value]: sch.value })); }
       };
       scheduleSetter();
-      // Montos: asignar al tipo correspondiente, conservar otros vacíos
       setAmounts(a=> ({ ...a, [payload.playType]: String(payload.amount || payload.monto_unitario || '') }));
+      navigation?.setParams?.({ editPayload: undefined });
     }
   },[route?.params?.editPayload, lotteries, scheduleOptionsMap]);
 
+  // Una vez que tenemos tipos y aún no se cargaron los números, cargarlos
+  useEffect(()=> {
+    if(isEditing && editingInitialNumbers && !plays){
+      setPlays(editingInitialNumbers);
+    }
+  }, [isEditing, editingInitialNumbers, selectedPlayTypes]);
+
+  // Animación banner edición
+  useEffect(()=> {
+    if(isEditing){
+      editBannerOpacity.setValue(0);
+      Animated.timing(editBannerOpacity,{ toValue:1, duration:250, useNativeDriver:true }).start();
+    }
+  }, [isEditing]);
+
   const handleInsert = async () => {
+    // Limpiar feedback previo
+    setInsertFeedback(null);
     if(isEditing && editingId){
-      // Actualizar jugada existente
-      if(!plays.trim()) return; // simple
+    const valid = validateCurrentForm();
+    if(!valid) return; // resalta y aborta
       try {
         const primaryType = selectedPlayTypes[0];
         const raw = amounts[primaryType];
         const unit = parseInt((raw||'').toString().replace(/[^0-9]/g,''),10) || 0;
         const numsCount = (plays.match(/\d+/g)||[]).length;
         const totalCalc = primaryType==='parle' && isLocked ? unit : unit * numsCount;
-        const { error } = await supabase.from('jugada').update({
+        // Actualizar marca de tiempo (created_at) para reflejar edición
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2,'0');
+        const tsLocal = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        // Determinar nuevos id_horario y jugada si el usuario los cambió
+        const newLottery = selectedLotteries[0];
+        const newHorario = selectedSchedules[newLottery];
+        const updatePayload = {
           numeros: plays.replace(/\s+/g,'').replace(/,+/g,','),
           nota: note?.trim() || 'Sin nombre',
           monto_unitario: unit,
           monto_total: totalCalc,
+          created_at: tsLocal,
+        };
+        if(newHorario) updatePayload.id_horario = newHorario;
+        if(primaryType) updatePayload.jugada = primaryType;
+        const { error } = await supabase.from('jugada').update({
+          ...updatePayload,
         }).eq('id', editingId);
         if(!error){
+          // Mostrar feedback usando banner estándar (auto-cierre 3s)
+          setInsertFeedback({ success:1, fail:0, duplicates:[], edit:true });
+          // Limpiar estado completo
+          handleClear(); // esto limpia plays y montos
+          setPlays(''); // refuerzo explícito
+          setInputInstanceKey(k=>k+1); // forzar remount
           setIsEditing(false);
           setEditingId(null);
-          // feedback
+          setEditingInitialNumbers('');
           Alert.alert('Editado','Jugada actualizada');
         }
-      } catch(e){ /* ignore */ }
+      } catch(e){
+        Alert.alert('Error','No se pudo actualizar la jugada');
+      }
       return;
     }
     if (isInserting) return; // prevenir doble toque
@@ -398,19 +439,48 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       // Inserción secuencial para confirmar cada una
       for (const p of payloads) {
         const { data, error } = await supabase.from('jugada').insert(p).select('id').single();
-        if (error) failures.push({ p, error }); else successes.push(data.id);
+        if (error) {
+          // Clasificar duplicado (trigger) por texto / código
+          const msg = (error.message || '').toLowerCase();
+          const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || error.code === '23505';
+          failures.push({ p, error, isDuplicate });
+        } else successes.push(data.id);
       }
       if (failures.length === 0) {
         setPlays('');
-  setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
+        setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
         setNote('');
         setTotal(0);
-  setShowFieldErrors(false);
+        setShowFieldErrors(false);
       }
       console.log(`Jugadas insertadas: ${successes.length}/${payloads.length}`);
       if (failures.length) console.warn('Fallos insertando jugadas', failures.map(f=>f.error.message));
+
+      // Preparar feedback estructurado
+      if (failures.length) {
+        const duplicateFails = failures.filter(f=> f.isDuplicate);
+        setInsertFeedback({
+          success: successes.length,
+            fail: failures.length,
+          duplicates: duplicateFails.map(f=> ({
+            jugada: f.p.jugada,
+            numeros: f.p.numeros,
+            nota: f.p.nota,
+            horario: f.p.id_horario,
+          })),
+        });
+        // Alerta rápida (solo resumen) la primera vez
+        Alert.alert(
+          'Algunas jugadas no se guardaron',
+          `${successes.length} guardada(s), ${failures.length} fallida(s)` + (duplicateFails.length ? `\nDuplicadas: ${duplicateFails.length}` : ''),
+          [{ text:'OK' }]
+        );
+      } else {
+        setInsertFeedback({ success: successes.length, fail: 0, duplicates: [] });
+      }
     } catch(err) {
       console.error('Error general insertando jugadas', err);
+      Alert.alert('Error', 'Ocurrió un error inesperado al insertar.');
     } finally {
       setIsInserting(false);
     }
@@ -425,6 +495,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     setNote('');
     setTotal(0);
   setShowFieldErrors(false);
+  setEditingInitialNumbers('');
+  setInputInstanceKey(k=>k+1); // remount del input para asegurar limpieza visual
   };
 
   const handleTopBarOption = (option) => {
@@ -455,6 +527,53 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         setLotteryErrorMessage('');
       }, 3000);
     }
+  };
+
+  // Validación reutilizable para inserción y edición
+  const validateCurrentForm = () => {
+    let hasErrors = false;
+    // Reset (sin limpiar showFieldErrors aún)
+    setLotteryError(false); setScheduleError(false); setPlayTypeError(false);
+    setPlaysError(false); setAmountError(false); setLotteryErrorMessage('');
+
+    if(!selectedLotteries.length){ setLotteryError(true); setLotteryErrorMessage(t('errors.selectLottery')); hasErrors = true; }
+    const missingSchedules = selectedLotteries.filter(lv => !selectedSchedules[lv]);
+    if(missingSchedules.length){ setScheduleError(true); hasErrors = true; }
+    if(!selectedPlayTypes.length){ setPlayTypeError(true); hasErrors = true; }
+    if(!plays.trim()){ setPlaysError(true); hasErrors = true; }
+    // Nota requerida también
+    if(!note.trim()){ hasErrors = true; }
+    if(selectedPlayTypes.some(pt => { const raw = amounts[pt]; const val = parseInt((raw||'').toString().replace(/[^0-9]/g,''),10)||0; return !raw || val<=0; })){ setAmountError(true); hasErrors = true; }
+    if(!hasErrors){
+      const primary = selectedPlayTypes[0];
+      const comboCF = selectedPlayTypes.includes('centena') && selectedPlayTypes.includes('fijo');
+      let expectedLen = null;
+      if(comboCF) expectedLen = 3; else {
+        switch(primary){
+          case 'fijo': case 'corrido': case 'posicion': expectedLen=2; break;
+          case 'parle': expectedLen=4; break;
+          case 'centena': expectedLen=3; break;
+          case 'tripleta': expectedLen=6; break;
+        }
+      }
+      if(expectedLen){
+        const digits = plays.replace(/[^0-9]/g,'');
+        const remainder = digits.length % expectedLen;
+        const tokens = plays.split(/[\s,;]+/).filter(Boolean);
+        const partialTokens = tokens.filter(t => { const d=t.replace(/[^0-9]/g,''); return d.length>0 && d.length<expectedLen; });
+        if(remainder!==0 || partialTokens.length){ setPlaysError(true); hasErrors = true; }
+      }
+      if(!hasErrors && selectedPlayTypes.includes('parle')){
+        const nums = plays.split(/[\s,;,]+/).map(n=>n.trim()).filter(Boolean);
+        if(nums.some(n=> n.replace(/[^0-9]/g,'').length!==4) || !nums.length){ setPlaysError(true); hasErrors = true; }
+      }
+      if(!hasErrors && selectedPlayTypes.includes('centena') && selectedPlayTypes.includes('fijo')){
+        const nums = plays.split(/[\s,;,]+/).map(n=>n.trim()).filter(Boolean);
+        if(nums.some(n=> n.replace(/[^0-9]/g,'').length!==3) || !nums.length){ setPlaysError(true); hasErrors = true; }
+      }
+    }
+    if(hasErrors){ setShowFieldErrors(true); }
+    return !hasErrors;
   };
 
   // Función para manejar opciones del HammerButton
@@ -506,7 +625,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       const full = Math.floor(digits.length/expectedLen)*expectedLen;
       for(let i=0;i<full;i+=expectedLen){ groups.push(digits.slice(i,i+expectedLen)); }
       const partial = digits.slice(full); // se mantiene si incompleto (mostrado en input)
-      const out = partial ? (groups.length? groups.join(', ')+', '+partial: partial) : groups.join(', ');
+      const out = partial ? (groups.length? groups.join(', ')+', '+partial: partial) : groups.join(',');
       if (out !== plays) setPlays(out);
     } else {
       // sin modo -> solo dígitos sin comas
@@ -549,11 +668,42 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           </View>
         )}
         {isEditing && (
-          <View style={{ marginTop:8, backgroundColor:'#F4D03F', borderWidth:1, borderColor:'#D4AC0D', padding:8, borderRadius:6, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
-            <Text style={{ fontSize:12, fontWeight:'700', color:'#5C4B00', flex:1 }}>Editando jugada #{editingId}</Text>
-            <Pressable onPress={()=> { setIsEditing(false); setEditingId(null); }}>
-              <Text style={{ fontWeight:'700', color:'#5C4B00' }}>✖</Text>
+          <Animated.View style={{ opacity: editBannerOpacity, marginTop:10, width:'100%', alignItems:'center' }}>
+            <View style={{ backgroundColor:'#F9E79F', borderWidth:1, borderColor:'#D4AC0D', paddingVertical:12, paddingHorizontal:18, borderRadius:14, flexDirection:'row', justifyContent:'space-between', alignItems:'center', width:'90%', maxWidth:620, shadowColor:'#000', shadowOpacity:0.12, shadowRadius:6, shadowOffset:{width:0,height:3}, elevation:5 }}>
+            <Text style={{ fontSize:16, fontWeight:'800', color:'#5C4B00', flex:1 }}>Editando jugada</Text>
+            <Pressable onPress={()=> {
+              Animated.timing(editBannerOpacity,{ toValue:0, duration:200, useNativeDriver:true }).start(({finished})=> {
+                if(finished){
+                  handleClear();
+                  setPlays(''); // refuerzo limpieza números
+                  setIsEditing(false); setEditingId(null); setEditingInitialNumbers('');
+                }
+              });
+            }} style={{ backgroundColor:'#D4AC0D', paddingVertical:6, paddingHorizontal:10, borderRadius:8 }}>
+              <Text style={{ fontSize:13, fontWeight:'700', color:'#FFFFFF' }}>Cancelar</Text>
             </Pressable>
+            </View>
+          </Animated.View>
+        )}
+        {insertFeedback && (
+          <View style={[{ marginTop:8, padding:8, borderRadius:6, borderWidth:1 }, insertFeedback.fail? { backgroundColor:'#FFF4E5', borderColor:'#F5C07A' } : { backgroundColor:'#E8F8F2', borderColor:'#27AE60' }]}>
+            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+              <Text style={{ fontSize:12, fontWeight:'700', color: insertFeedback.fail? '#8C4B00':'#1E8449' }}>
+                {insertFeedback.fail ? `${insertFeedback.success} guardada(s), ${insertFeedback.fail} fallida(s)` : `${insertFeedback.success} jugada(s) guardada(s)`}
+              </Text>
+              <Pressable onPress={()=> setInsertFeedback(null)}><Text style={{ fontSize:12, fontWeight:'700', color:'#666' }}>✖</Text></Pressable>
+            </View>
+            {!!insertFeedback.duplicates?.length && (
+              <View style={{ marginTop:4 }}>
+                {insertFeedback.duplicates.slice(0,4).map((d,i)=>(
+                  <Text key={i} style={{ fontSize:11, color:'#8C4B00' }}>Duplicada: {d.jugada} [{d.numeros}]</Text>
+                ))}
+                {insertFeedback.duplicates.length > 4 && (
+                  <Text style={{ fontSize:11, color:'#8C4B00' }}>+{insertFeedback.duplicates.length - 4} más...</Text>
+                )}
+                <Text style={{ fontSize:10, color:'#A65F00', marginTop:2 }}>Modifica números o nota para reintentar.</Text>
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -611,6 +761,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
 
         {/* Row 3: Jugadas */}
   <PlaysInputField
+          key={inputInstanceKey}
           label={t('common.numbers')}
           value={plays}
           onChangeText={setPlays}

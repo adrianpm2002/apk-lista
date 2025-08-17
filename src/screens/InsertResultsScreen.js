@@ -120,27 +120,39 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
     fetchUserRole();
   }, []);
 
-  // Cargar resultados del día actual
+  // Utilidad para rango del día local (created_at es timestamp sin zona)
+  const buildLocalDayRange = (base = new Date()) => {
+    const pad = (n) => String(n).padStart(2, '0');
+    const y = base.getFullYear();
+    const m = pad(base.getMonth() + 1);
+    const d = pad(base.getDate());
+    return {
+      start: `${y}-${m}-${d} 00:00:00`,
+      end: `${y}-${m}-${d} 23:59:59.999`
+    };
+  };
+
+  // Cargar resultados del día actual (rango local) directamente desde la consulta
   const loadTodayResults = async () => {
     if (!currentBankId) return;
     setLoadingResults(true);
-    const { data, error } = await supabase
-      .from('resultado')
-      .select('id, numeros, created_at, rol, horario:id_horario ( id, nombre, loteria:id_loteria ( id, nombre, id_banco ) )')
-      .order('created_at', { ascending: false });
-    if (error) {
-      console.error('Error cargando resultados:', error);
+    const { start, end } = buildLocalDayRange();
+    try {
+      const { data, error } = await supabase
+        .from('resultado')
+        .select('id, numeros, created_at, rol, horario:id_horario ( id, nombre, loteria:id_loteria ( id, nombre, id_banco ) )')
+        .gte('created_at', start)
+        .lte('created_at', end)
+        .eq('horario.loteria.id_banco', currentBankId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      // Ya viene filtrado; no se necesita filtrado en cliente salvo fallback
+      setTodayResults(data || []);
+    } catch (e) {
+      console.error('Error cargando resultados del día:', e.message);
+    } finally {
       setLoadingResults(false);
-      return;
     }
-    const startOfDay = new Date();
-    startOfDay.setHours(0,0,0,0);
-    const filtered = (data || []).filter(r => {
-      const created = new Date(r.created_at);
-      return created >= startOfDay && r.horario?.loteria?.id_banco === currentBankId;
-    });
-    setTodayResults(filtered);
-    setLoadingResults(false);
   };
 
   // Refresco automático al volver a la pantalla

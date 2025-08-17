@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Animated } from 'react-native';
 import { View, Text, StyleSheet, Pressable, FlatList, TextInput, ScrollView, RefreshControl, Alert, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../supabaseClient';
@@ -33,18 +34,27 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   const [selectedPlayTypeFilter, setSelectedPlayTypeFilter] = useState('all');
   // Estados de edición / selección
   const [editingPlay, setEditingPlay] = useState(null);
+  const editBannerOpacity = useRef(new Animated.Value(0)).current;
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   const loadSavedPlays = async () => {
     try {
       setIsLoading(true);
-      // Traer solo jugadas del día (comparar fecha)
+      // Construir rango local del día (00:00:00 a 23:59:59.999) SIN convertir a UTC para columnas timestamp without time zone
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const y = now.getFullYear();
+      const m = pad(now.getMonth() + 1);
+      const d = pad(now.getDate());
+      const startStr = `${y}-${m}-${d} 00:00:00`; // inicio día local
+      const endStr = `${y}-${m}-${d} 23:59:59.999`; // fin día local
+      // NOTA: Antes se usaba toISOString() (UTC) lo que desplazaba el inicio a las 04:00 para UTC-4 y omitía jugadas tempranas.
       const { data, error } = await supabase
         .from('jugada')
-        .select('id, id_horario, jugada, numeros, monto_unitario, monto_total, created_at, nota, horario:horario(id,nombre,loteria:loteria(id,nombre)))')
-        .gte('created_at', new Date(new Date().setHours(0,0,0,0)).toISOString())
-        .lt('created_at', new Date(new Date().setHours(24,0,0,0)).toISOString())
+        .select('id, id_horario, jugada, numeros, monto_unitario, monto_total, created_at, nota, horario:horario(id,nombre,hora_inicio,hora_fin,loteria:loteria(id,nombre)))')
+        .gte('created_at', startStr)
+        .lte('created_at', endStr)
         .order('created_at', { ascending: false });
       if (error) throw error;
       const mapped = (data||[]).map(r=> ({
@@ -53,6 +63,8 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         lotteryId: r.horario?.loteria?.id || 'unknown',
         schedule: r.horario?.nombre || 'Horario',
         scheduleId: r.horario?.id || 'unknown',
+        scheduleStart: r.horario?.hora_inicio || null,
+        scheduleEnd: r.horario?.hora_fin || null,
         playType: r.jugada,
         numbers: r.numeros,
         amount: r.monto_unitario,
@@ -130,12 +142,10 @@ const SavedPlaysScreen = ({ navigation, route }) => {
 
   const onRefresh = async () => { setIsRefreshing(true); await loadSavedPlays(); setIsRefreshing(false); };
 
-  const getTotals = () => {
-    const totalRecogido = filteredPlays.filter(p=> p.hasPrize).reduce((s,p)=> s + (typeof p.prize==='number'? p.prize : p.total),0);
-    const pendientePago = filteredPlays.filter(p=> p.result==='no disponible').reduce((s,p)=> s + p.total,0);
-    return { totalRecogido, pendientePago };
-  };
-  const { totalRecogido, pendientePago } = getTotals();
+  // Totales: Recogido = suma de monto_total de TODAS las jugadas del día (sin filtrar)
+  // Pendiente = suma de las jugadas (filtradas) cuyo resultado no está disponible
+  const totalRecogido = savedPlays.reduce((s,p)=> s + (p.total || 0), 0);
+  const pendientePago = filteredPlays.filter(p=> p.result==='no disponible').reduce((s,p)=> s + (p.total || 0),0);
 
   const formatTime = ts => ts.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
 
@@ -210,7 +220,27 @@ const SavedPlaysScreen = ({ navigation, route }) => {
             Resultado: {item.result}
           </Text>
           {!item.hasPrize && <Text style={[styles.pendingText, styles.pendingUnderResult]}>⏳ Pendiente</Text>}
-          <Pressable style={styles.editUnderPendingBtn} onPress={()=> confirm('Editar','¿Abrir esta jugada en modo Visual para editarla?', ()=> setEditingPlay(item))}>
+          <Pressable style={styles.editUnderPendingBtn} onPress={()=> {
+            // Validar horario
+            const isOpen = (()=> {
+              const hi = item.scheduleStart; const hf = item.scheduleEnd; if(!hi || !hf) return true; // si faltan datos permitir
+              const now = new Date();
+              const [shi,smi] = hi.split(':');
+              const [shf,smf] = hf.split(':');
+              const start = parseInt(shi,10)*60 + parseInt(smi||'0',10);
+              const end = parseInt(shf,10)*60 + parseInt(smf||'0',10);
+              const current = now.getHours()*60 + now.getMinutes();
+              if(start === end) return true; // 24h
+              if(end > start) return current >= start && current < end; // mismo día
+              return current >= start || current < end; // cruza medianoche
+            })();
+            if(!isOpen){
+              if(Platform.OS === 'web') { window.alert('No se puede editar porque esta lotería está cerrada'); }
+              else { Alert.alert('Cerrada','No se puede editar porque esta lotería está cerrada'); }
+              return;
+            }
+            confirm('Editar','¿Abrir esta jugada en modo Visual para editarla?', ()=> { setEditingPlay(item); navigation.navigate('MainApp', { editPayload: item }); });
+          }}>
             <Text style={styles.editUnderPendingTxt}>Editar</Text>
           </Pressable>
         </View>
@@ -239,6 +269,25 @@ const SavedPlaysScreen = ({ navigation, route }) => {
 
   const handleDeleteSelected = () => {
     if(selectedIds.size===0) return;
+    // Validar que todas las seleccionadas estén en horarios abiertos
+    const now = new Date();
+    const nowMin = now.getHours()*60 + now.getMinutes();
+    const isOpen = (hi,hf) => {
+      if(!hi || !hf) return true;
+      const [shi,smi] = hi.split(':');
+      const [shf,smf] = hf.split(':');
+      const start = parseInt(shi,10)*60 + parseInt(smi||'0',10);
+      const end = parseInt(shf,10)*60 + parseInt(smf||'0',10);
+      if(start === end) return true;
+      if(end > start) return nowMin >= start && nowMin < end;
+      return nowMin >= start || nowMin < end; // cruza medianoche
+    };
+    const closed = savedPlays.filter(p=> selectedIds.has(p.id) && !isOpen(p.scheduleStart, p.scheduleEnd));
+    if(closed.length){
+      if(Platform.OS==='web') window.alert('No se pueden eliminar porque alguna lotería está cerrada');
+      else Alert.alert('Cerrada','No se pueden eliminar porque alguna lotería está cerrada');
+      return;
+    }
     const proceed = async () => {
       try {
         const idsArray = Array.from(selectedIds);
@@ -261,10 +310,10 @@ const SavedPlaysScreen = ({ navigation, route }) => {
 
   useEffect(()=>{
     if(editingPlay){
-      // Navegar al contenedor principal solicitando modo Visual con payload
-      navigation.navigate('MainApp', { screen:'Visual', params:{ editPayload: editingPlay }});
+      editBannerOpacity.setValue(0);
+      Animated.timing(editBannerOpacity,{ toValue:1, duration:250, useNativeDriver:true }).start();
     }
-  },[editingPlay]);
+  }, [editingPlay]);
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
@@ -325,10 +374,14 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         </Pressable>
       </View>
       {editingPlay && (
-        <View style={styles.editBanner}>
-          <Text style={styles.editBannerText}>Editando jugada ID {editingPlay.id} (abrir modo Visual)</Text>
-          <Pressable onPress={()=> setEditingPlay(null)}><Text style={styles.editBannerClose}>✖</Text></Pressable>
-        </View>
+        <Animated.View style={[styles.editBanner, { opacity: editBannerOpacity, backgroundColor:'#F9E79F', borderColor:'#D4AC0D', borderWidth:1, paddingVertical:12, paddingHorizontal:14, borderRadius:10, flexDirection:'row', alignItems:'center' }] }>
+          <Text style={[styles.editBannerText, { fontSize:16, fontWeight:'800', color:'#5C4B00', flex:1 }]}>Editando jugada</Text>
+          <Pressable onPress={()=> {
+            Animated.timing(editBannerOpacity,{ toValue:0, duration:200, useNativeDriver:true }).start(({finished})=> { if(finished) setEditingPlay(null); });
+          }} style={{ backgroundColor:'#D4AC0D', paddingVertical:6, paddingHorizontal:10, borderRadius:8 }}>
+            <Text style={{ fontSize:13, fontWeight:'700', color:'#FFFFFF' }}>Cancelar</Text>
+          </Pressable>
+        </Animated.View>
       )}
       {isLoading ? (
         <View style={styles.loadingContainer}><Text style={[styles.loadingText, isDarkMode && styles.loadingTextDark]}>Cargando...</Text></View>

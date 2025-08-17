@@ -33,6 +33,15 @@ const MainAppScreen = ({ navigation, route }) => {
     }
   },[route?.params?.editPayload, currentMode]);
 
+  // Asegurar que VisualModeScreen vea cambios subsecuentes de editPayload aun si ya está en Visual
+  const visualRoute = {
+    ...route,
+    params: {
+      ...route?.params,
+      editPayload: route?.params?.editPayload
+    }
+  };
+
   const handleModeChange = (newMode) => {
     if (newMode === currentMode) return;
     setCurrentMode(newMode);
@@ -62,7 +71,7 @@ const MainAppScreen = ({ navigation, route }) => {
       {currentMode === 'Visual' && visibleModes.visual ? (
         <VisualModeScreen 
           navigation={navigation} 
-          route={route}
+          route={visualRoute}
           currentMode={currentMode}
           onModeChange={handleModeChange}
           isDarkMode={isDarkMode}
