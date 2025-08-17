@@ -3,6 +3,7 @@ import { View, Text, Alert, Modal, StyleSheet, TextInput, Button, FlatList, Touc
 import { Picker } from '../components/PickerWrapper';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
+import { adminResetPasswordByUsername } from '../utils/adminUtils';
 
 // Orden canónico unificado de jugadas en toda la app
 const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
@@ -31,6 +32,12 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   const [activePlayTypes, setActivePlayTypes] = useState([]); // jugadas activas del banco
   const [enableSpecificLimits, setEnableSpecificLimits] = useState(false); // toggle crear listero
   const [limitsValues, setLimitsValues] = useState({}); // valores ingresados para limites específicos
+  // Estado para reset de contraseña (solo admin)
+  const [resetModalVisible, setResetModalVisible] = useState(false);
+  const [resetTargetUser, setResetTargetUser] = useState(null);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetPassword2, setResetPassword2] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
 
   const createHierarchicalStructure = useCallback((userData) => {
     const hierarchical = [];
@@ -661,6 +668,51 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     setModalVisible(true);
   };
 
+  // Abrir modal de cambio de contraseña (solo admin)
+  const openResetPasswordModal = (user) => {
+    if (userRole !== 'admin') return;
+    setResetTargetUser(user);
+    setResetPassword('');
+    setResetPassword2('');
+    setResetModalVisible(true);
+  };
+
+  // Confirmar cambio de contraseña llamando a la Edge Function
+  const handleConfirmResetPassword = async () => {
+    try {
+      if (!resetTargetUser) return;
+      const pwd = (resetPassword || '').trim();
+      const pwd2 = (resetPassword2 || '').trim();
+      if (pwd.length < 6) {
+        Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres.');
+        return;
+      }
+      if (pwd !== pwd2) {
+        Alert.alert('Error', 'Las contraseñas no coinciden.');
+        return;
+      }
+      setIsResetting(true);
+      
+      await adminResetPasswordByUsername(resetTargetUser.username, pwd);
+      
+      Alert.alert('Éxito', 'Contraseña actualizada correctamente.');
+      setResetModalVisible(false);
+    } catch (e) {
+      console.error('Reset password error:', e);
+      let errorMessage = 'No se pudo cambiar la contraseña.';
+      
+      if (e.message?.includes('CORS') || e.message?.includes('Failed to fetch')) {
+        errorMessage = 'Error de configuración del servidor. La función no está disponible.';
+      } else if (e.message) {
+        errorMessage = e.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   // Optimizar filtros con useMemo
   const collectors = useMemo(() => 
     users.filter(u => u.role === 'collector'), 
@@ -789,6 +841,15 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
             <TouchableOpacity onPress={() => openEditModal(item)} style={styles.editButton}>
               <Text style={styles.buttonText}>Editar</Text>
             </TouchableOpacity>
+            {userRole === 'admin' && (
+              <TouchableOpacity
+                onPress={() => openResetPasswordModal(item)}
+                style={styles.resetButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.buttonText}>Contraseña</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity 
               onPress={() => handleDelete(item.id)} 
               style={styles.deleteButton}
@@ -935,6 +996,30 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
 
             <Button title={isEditing ? 'Guardar Cambios' : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')} onPress={handleCreateOrUpdate} />
             <Button title="Cancelar" color="grey" onPress={() => setModalVisible(false)} />
+          </View>
+        </Modal>
+
+        {/* Modal para cambiar contraseña (solo admin) */}
+        <Modal visible={resetModalVisible} animationType="fade">
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Cambiar contraseña</Text>
+            <Text style={{ marginBottom: 8 }}>Usuario: {resetTargetUser?.username}</Text>
+            <TextInput
+              placeholder="Nueva contraseña"
+              secureTextEntry
+              value={resetPassword}
+              onChangeText={setResetPassword}
+              style={styles.input}
+            />
+            <TextInput
+              placeholder="Confirmar contraseña"
+              secureTextEntry
+              value={resetPassword2}
+              onChangeText={setResetPassword2}
+              style={styles.input}
+            />
+            <Button title={isResetting ? 'Actualizando…' : 'Actualizar'} disabled={isResetting} onPress={handleConfirmResetPassword} />
+            <Button title="Cancelar" color="grey" onPress={() => setResetModalVisible(false)} />
           </View>
         </Modal>
       </View>
@@ -1120,6 +1205,12 @@ const styles = StyleSheet.create({
   },
   editButton: {
     backgroundColor: '#3498db',
+    padding: 8,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+  resetButton: {
+    backgroundColor: '#6c5ce7',
     padding: 8,
     borderRadius: 5,
     marginRight: 10,
