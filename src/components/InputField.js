@@ -1,24 +1,19 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Pressable,
-  Platform,
-} from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, Platform } from 'react-native';
 
-const InputField = ({ 
-  label, 
-  value, 
-  onChangeText, 
-  placeholder, 
+const InputField = ({
+  label,
+  value,
+  onChangeText,
+  placeholder,
   multiline = false,
   keyboardType = 'default',
   style,
   inputStyle,
   showPasteButton = false,
   pasteButtonOverlay = false,
+  showClearButtonOverlay = false,
+  onClear,
   editable = true,
   hasError = false,
   ...otherProps
@@ -26,30 +21,31 @@ const InputField = ({
   const handlePaste = async () => {
     try {
       let text = '';
-      
       if (Platform.OS === 'web') {
-        // Para web usamos la API del navegador
         if (navigator.clipboard && navigator.clipboard.readText) {
           text = await navigator.clipboard.readText();
         } else {
-          // Fallback para navegadores más antiguos
-          alert('Por favor, usa Ctrl+V para pegar');
+          alert('Usa Ctrl+V para pegar');
           return;
         }
       } else {
-        // Para React Native móvil
         const { Clipboard } = require('react-native');
         text = await Clipboard.getString();
       }
-      
       if (text && onChangeText) {
         onChangeText(value ? value + '\n' + text : text);
       }
-    } catch (error) {
-      console.error('Error al pegar:', error);
-      alert('No se pudo pegar el texto. Intenta usar Ctrl+V');
+    } catch (e) {
+      console.error('Error al pegar', e);
+      alert('No se pudo pegar. Usa Ctrl+V');
     }
   };
+
+  const handleClear = () => {
+    if (onClear) onClear();
+    else if (onChangeText) onChangeText('');
+  };
+
   return (
     <View style={[styles.container, style]}>
       {!pasteButtonOverlay && (
@@ -57,10 +53,7 @@ const InputField = ({
           <Text style={styles.label}>{label}</Text>
           {showPasteButton && (
             <Pressable
-              style={({ pressed }) => [
-                styles.pasteButton,
-                pressed && styles.pasteButtonPressed
-              ]}
+              style={({ pressed }) => [styles.pasteButton, pressed && styles.pasteButtonPressed]}
               onPress={handlePaste}
             >
               <Text style={styles.pasteButtonText}>📋 Pegar</Text>
@@ -68,11 +61,8 @@ const InputField = ({
           )}
         </View>
       )}
-      
-      {pasteButtonOverlay && (
-        <Text style={styles.label}>{label}</Text>
-      )}
-      
+      {pasteButtonOverlay && <Text style={styles.label}>{label}</Text>}
+
       <View style={styles.inputWrapper}>
         <TextInput
           style={[
@@ -80,7 +70,8 @@ const InputField = ({
             multiline && styles.multilineInput,
             !editable && styles.readOnlyInput,
             hasError && styles.inputError,
-            inputStyle
+            pasteButtonOverlay && (showPasteButton || showClearButtonOverlay) && styles.inputWithOverlayPadding,
+            inputStyle,
           ]}
           value={value}
           onChangeText={onChangeText}
@@ -92,17 +83,25 @@ const InputField = ({
           editable={editable}
           {...otherProps}
         />
-        
-        {pasteButtonOverlay && showPasteButton && (
-          <Pressable
-            style={({ pressed }) => [
-              styles.pasteButtonOverlay,
-              pressed && styles.pasteButtonOverlayPressed
-            ]}
-            onPress={handlePaste}
-          >
-            <Text style={styles.pasteButtonOverlayText}>📋</Text>
-          </Pressable>
+        {pasteButtonOverlay && (showPasteButton || showClearButtonOverlay) && (
+          <View style={styles.overlayButtonsContainer} pointerEvents="box-none">
+            {showPasteButton && (
+              <Pressable
+                style={({ pressed }) => [styles.smallOverlayButton, pressed && styles.pasteButtonOverlayPressed]}
+                onPress={handlePaste}
+              >
+                <Text style={styles.pasteButtonOverlayText}>📋</Text>
+              </Pressable>
+            )}
+            {showClearButtonOverlay && (
+              <Pressable
+                style={({ pressed }) => [styles.smallOverlayButton, pressed && styles.pasteButtonOverlayPressed, { marginTop: 8 }]}
+                onPress={handleClear}
+              >
+                <Text style={styles.pasteButtonOverlayText}>🧹</Text>
+              </Pressable>
+            )}
+          </View>
         )}
       </View>
     </View>
@@ -141,10 +140,13 @@ const styles = StyleSheet.create({
   inputWrapper: {
     position: 'relative',
   },
-  pasteButtonOverlay: {
+  overlayButtonsContainer: {
     position: 'absolute',
     top: 8,
     right: 8,
+    alignItems: 'flex-end',
+  },
+  smallOverlayButton: {
     backgroundColor: '#E8F5E8',
     paddingHorizontal: 8,
     paddingVertical: 6,
@@ -152,18 +154,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#B8D4A8',
     shadowColor: '#2D5016',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
   },
-  pasteButtonOverlayText: {
-    fontSize: 16,
-    color: '#2D5016',
-  },
+  pasteButtonOverlayText: { fontSize: 16, color: '#2D5016' },
   input: {
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
@@ -182,16 +178,9 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
-  multilineInput: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  readOnlyInput: {
-    backgroundColor: '#e8f5e8',
-    color: '#27ae60',
-    fontWeight: 'bold',
-    borderColor: '#27ae60',
-  },
+  multilineInput: { minHeight: 80, textAlignVertical: 'top' },
+  readOnlyInput: { backgroundColor: '#e8f5e8', color: '#27ae60', fontWeight: 'bold', borderColor: '#27ae60' },
+  inputWithOverlayPadding: { paddingRight: 56 },
   inputError: {
     borderColor: '#E74C3C',
     borderWidth: 2,
