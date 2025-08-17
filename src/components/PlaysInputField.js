@@ -309,6 +309,7 @@ const PlaysInputField = ({
           placeholder={placeholder}
           placeholderTextColor={isDarkMode ? '#7F8C8D' : '#95A5A6'}
           multiline={multiline}
+          scrollEnabled={multiline}
           numberOfLines={multiline ? 3 : 1}
         />
         
@@ -499,6 +500,7 @@ const styles = StyleSheet.create({
   },
   multilineInput: {
   height: 104, // aumentado para que quepa la escobita y más líneas visibles
+  maxHeight: 140,
     textAlignVertical: 'top',
   },
   inputWithOverlay: {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, Pressable, Modal, StyleSheet, Clipboard, Platform, Alert, ScrollView, TextInput } from 'react-native';
 
 // Componente HammerButton actualizado según nuevos requisitos
@@ -12,6 +12,11 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
   const [parleType, setParleType] = useState('terminal'); // 'terminal' | 'centena'
   const [inputFocused, setInputFocused] = useState(false);
   const [markIncompleteRed, setMarkIncompleteRed] = useState(false); // resalta último dígito suelto al intentar amarrar
+  const [editingIndex, setEditingIndex] = useState(null); // índice de token en edición (2 o 4)
+  const [editingValue, setEditingValue] = useState('');
+  const [parleEntry, setParleEntry] = useState(''); // entrada de parle manual (4 dígitos)
+  const [parejasAdded, setParejasAdded] = useState(false); // impedir múltiples inserciones de parejas AA
+  const hiddenInputRef = useRef(null);
 
   // Construir tokens de 2 dígitos a partir de rawDigits (solo cuando no estamos en modo parle)
   const deriveTokensFromRaw = () => {
@@ -30,25 +35,62 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
   const displayTokens = deriveTokensFromRaw();
   const lastTwoDigitToken = [...displayTokens].reverse().find(t=> t.length===2) || null;
   const duplicateCounts = displayTokens.reduce((acc,t)=>{ if(t.length===2 || t.length===4){ acc[t]=(acc[t]||0)+1;} return acc; },{});
-  const hasDuplicates = Object.values(duplicateCounts).some(c=>c>1);
+  // Duplicados parle por pares no ordenados (ABCD == CDAB si AB y CD son pares) y conteo lógico
+  let unorderedParleDupSet = new Set();
+  let logicalParleDuplicateGroups = 0;
+  if (parleMode) {
+    const pairCounts = {};
+    displayTokens.forEach(tok => {
+      if (tok.length === 4) {
+        const p1 = tok.slice(0,2);
+        const p2 = tok.slice(2);
+        const key = [p1,p2].sort().join('|');
+        pairCounts[key] = (pairCounts[key]||0)+1;
+      }
+    });
+    Object.entries(pairCounts).forEach(([key,count])=>{
+      if (count>1) {
+        logicalParleDuplicateGroups += 1; // un grupo por key
+        const [a,b] = key.split('|');
+        displayTokens.forEach(tok => {
+          if (tok.length===4) {
+            const p1 = tok.slice(0,2); const p2 = tok.slice(2);
+            if ((p1===a && p2===b) || (p1===b && p2===a)) unorderedParleDupSet.add(tok);
+          }
+        });
+      }
+    });
+  }
+  // Grupos duplicados de pares simples (2 dígitos)
+  const twoDigitTokens = displayTokens.filter(t=> t.length===2);
+  const pairDuplicateGroupCount = (()=>{
+    const freq = {};
+    twoDigitTokens.forEach(t=>{ freq[t]=(freq[t]||0)+1; });
+    return Object.values(freq).filter(c=>c>1).length;
+  })();
+  const hasDuplicates = parleMode ? logicalParleDuplicateGroups>0 : pairDuplicateGroupCount>0;
 
   const toggleDigit = (d) => {
     setSelectedDigits(prev => prev.includes(d) ? prev.filter(x=>x!==d) : [...prev, d]);
   };
 
-  const mergeNumbersIntoInput = (nums) => {
+  const mergeNumbersIntoInput = (nums, { sortAfter = true } = {}) => {
     if (!nums.length) return;
     if (parleMode) {
-      // añadir evitando duplicados en tokens (4 dígitos)
+      // En modo parle seguimos evitando duplicados exactos de 4 dígitos
       const setAll = new Set(tokens);
       nums.forEach(n=> { if(!setAll.has(n)) setAll.add(n); });
-      setTokens(Array.from(setAll));
+      let arr = Array.from(setAll);
+      if (sortAfter) arr.sort((a,b)=> parseInt(a,10)-parseInt(b,10));
+      setTokens(arr);
     } else {
-      // agregar a rawDigits como 2 dígitos
-      const existingPairs = new Set(displayTokens.filter(t=>t.length===2));
-      let extra = '';
-      nums.forEach(n=> { if(n.length===2 && !existingPairs.has(n)) extra += n; });
-      setRawDigits(prev=> prev + extra);
+      // Permitir duplicados en pares de 2 dígitos (requisito actualizado)
+      // Tomar tokens actuales completos + nuevos y ordenar
+      const currentPairs = displayTokens.filter(t=> t.length===2);
+      const trailing = (rawDigits.length %2 ===1) ? rawDigits.slice(-1) : '';
+      const all = [...currentPairs, ...nums.filter(n=>n.length===2)];
+      if (sortAfter) all.sort((a,b)=> parseInt(a,10)-parseInt(b,10));
+      setRawDigits(all.join('') + trailing);
     }
   };
 
@@ -76,6 +118,9 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
     setSelectedDigits([]);
     setTokens([]);
     setParleMode(false);
+    setEditingIndex(null);
+    setEditingValue('');
+    setParejasAdded(false);
   };
 
   const handleAmarrar = () => {
@@ -90,7 +135,7 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
     if (!selectedDigits.length) return Alert.alert('Falta selección','Selecciona uno o más dígitos del teclado');
     // Generar parle según tipo seleccionado
     let generated = [];
-    if (parleType === 'terminal') {
+  if (parleType === 'terminal') {
       // Terminal seleccionado ocupa la 4ta posición; 3ra recorre 0-9
       baseTokens.forEach(base => {
         for (let d=0; d<=9; d++) {
@@ -99,7 +144,7 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
           });
         }
       });
-    } else { // centena: dígito seleccionado en 3ra, 4ta recorre 0-9
+  } else { // decena (antes centena): dígito seleccionado en 3ra, 4ta recorre 0-9
       baseTokens.forEach(base => {
         selectedDigits.forEach(sel => {
           for (let d=0; d<=9; d++) {
@@ -109,6 +154,7 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
       });
     }
   // Mantener duplicados (no filtrar) para reflejar repetidos en base
+  generated.sort((a,b)=> parseInt(a,10)-parseInt(b,10));
   setTokens(generated);
     setParleMode(true);
     setMarkIncompleteRed(false);
@@ -119,20 +165,62 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
   if (rawDigits.length %2 === 1) { setMarkIncompleteRed(true); return; }
     const base = displayTokens.filter(t=> t.length===2);
     if (base.length < 2) return Alert.alert('Insuficiente','Se requieren al menos 2 números de 2 dígitos');
-    const seen = new Set();
+    // Generar todas las combinaciones i<j preservando multiplicidad (si hay duplicados en base se reflejan)
     const result = [];
     for (let i=0;i<base.length;i++) {
       for (let j=i+1;j<base.length;j++) {
-        const combo = base[i] + base[j]; // solo hacia adelante (i<j) evita espejo
-        if (!seen.has(combo)) {
-          seen.add(combo);
-          result.push(combo);
-        }
+        const combo = base[i] + base[j]; // i<j evita espejo, pero no deduplicamos combos iguales
+        result.push(combo);
       }
     }
     result.sort((a,b)=> parseInt(a,10)-parseInt(b,10));
     setTokens(result);
     setParleMode(true);
+  };
+
+  const insertarTodasParejas = () => {
+    if (parleMode) return Alert.alert('Modo parle','Limpia antes de insertar parejas AA');
+    if (parejasAdded) return; // no volver a insertar
+    const nuevos = [];
+    for (let d=0; d<=9; d++) nuevos.push(`${d}${d}`); // solo AA
+    mergeNumbersIntoInput(nuevos, { sortAfter: true });
+    setParejasAdded(true);
+  };
+
+  // Manejo de entrada manual de parle cuando estamos en parleMode
+  const handleParleEntryChange = (txt) => {
+    const digits = txt.replace(/[^0-9]/g,'');
+    if (digits.length <=4) {
+      setParleEntry(digits);
+      if (digits.length === 4) {
+        // agregar parle (permitiendo duplicados) y ordenar
+        setTokens(prev => {
+          const next = [...prev, digits];
+          next.sort((a,b)=> parseInt(a,10)-parseInt(b,10));
+          return next;
+        });
+        setParleEntry('');
+      }
+    } else {
+      // si pega muchos, segmentar en grupos de 4
+      const segs = [];
+      for (let i=0;i<digits.length;i+=4) {
+        const slice = digits.slice(i,i+4);
+        if (slice.length===4) segs.push(slice);
+        else setParleEntry(slice); // parcial
+      }
+      if (segs.length) {
+        setTokens(prev => {
+          const next = [...prev, ...segs];
+            next.sort((a,b)=> parseInt(a,10)-parseInt(b,10));
+            return next;
+        });
+      }
+    }
+  };
+
+  const removeParleToken = (tok) => {
+    setTokens(prev => prev.filter(t => t!==tok || (tok==='__already_removed_marker__'))); // elimina solo coincidencias exactas; si hay duplicados múltiples se elimina uno por tap
   };
 
   const handleInsertar = () => {
@@ -151,14 +239,14 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
     if (parleMode) return Alert.alert('Modo parle','No se puede generar decena sobre parle, limpia primero');
     const nuevos = [];
     selectedDigits.forEach(d => { for (let u=0; u<=9; u++){ nuevos.push(`${d}${u}`); } });
-    mergeNumbersIntoInput(nuevos);
+    mergeNumbersIntoInput(nuevos, { sortAfter: true });
   };
   const generarTerminal = () => {
     if (!selectedDigits.length) return Alert.alert('Selecciona','Elige dígitos');
     if (parleMode) return Alert.alert('Modo parle','No se puede generar terminal sobre parle, limpia primero');
     const nuevos = [];
     selectedDigits.forEach(d => { for (let t=0; t<=9; t++){ nuevos.push(`${t}${d}`); } });
-    mergeNumbersIntoInput(nuevos);
+    mergeNumbersIntoInput(nuevos, { sortAfter: true });
   };
 
   return (
@@ -191,28 +279,99 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
               <View style={styles.block}>
                 <View style={styles.blockHeaderRow}>
                   <Text style={[styles.blockTitle, isDarkMode && styles.blockTitleDark]}>Lista</Text>
-                  {(parleMode ? tokens.length : displayTokens.filter(t=>t.length===2).length) > 0 && (
+                  {(parleMode ? tokens.length : twoDigitTokens.length) > 0 && (
                     <Text style={[styles.inlineCountLabel, isDarkMode && styles.inlineCountLabelDark]}>
-                      Cantidad de números: {parleMode ? tokens.length : displayTokens.filter(t=>t.length===2).length}{hasDuplicates ? ' (duplicados)' : ''}
+                      Cantidad de números: {parleMode ? tokens.length : twoDigitTokens.length}{hasDuplicates ? ` (${parleMode ? logicalParleDuplicateGroups : pairDuplicateGroupCount} duplicados)` : ''}
                     </Text>
                   )}
                 </View>
-                <View style={[styles.tokensEditContainer, isDarkMode && styles.tokensEditContainerDark, inputFocused && styles.tokensEditFocused, hasDuplicates && styles.tokensEditDup]}>
+                <Pressable onPress={()=> hiddenInputRef.current?.focus()} style={[styles.tokensEditContainer, isDarkMode && styles.tokensEditContainerDark, inputFocused && styles.tokensEditFocused, hasDuplicates && styles.tokensEditDup]}>
                   <ScrollView style={styles.tokensScroll} contentContainerStyle={styles.tokensWrap} keyboardShouldPersistTaps="handled">
                     {(parleMode ? tokens : displayTokens).map((tok, idx)=>{
-                      const dup = duplicateCounts[tok]>1 && (tok.length===2 || tok.length===4);
+                      const dup = parleMode ? unorderedParleDupSet.has(tok) : (duplicateCounts[tok]>1 && (tok.length===2 || tok.length===4));
                       const isSingleIncomplete = !parleMode && tok.length===1 && idx === displayTokens.length-1;
+                      const isEditing = editingIndex === idx && ((parleMode && tok.length===4) || (!parleMode && tok.length===2));
                       return (
-                        <View key={idx} style={[styles.token, tok.length===4 && styles.tokenParle]}>
-                          <Text style={[styles.tokenText, dup && styles.tokenTextDup, isSingleIncomplete && markIncompleteRed && styles.tokenTextIncompleteRed]}>{tok}</Text>
-                        </View>
+                        <Pressable
+                          key={idx}
+                          style={[styles.token, tok.length===4 && styles.tokenParle, isEditing && styles.tokenEditing]}
+                          onLongPress={()=> {
+                            if (parleMode && tok.length===4) { setEditingIndex(idx); setEditingValue(tok); }
+                            if (!parleMode && tok.length===2) { setEditingIndex(idx); setEditingValue(tok); }
+                          }}
+                          delayLongPress={250}
+                        >
+                          {isEditing ? (
+                            <TextInput
+                              style={styles.parleEditInput}
+                              value={editingValue}
+                              onChangeText={(txt)=>{
+                                const val = txt.replace(/[^0-9]/g,'');
+                                const targetLen = parleMode ? 4 : 2;
+                                if (val.length<=targetLen) setEditingValue(val);
+                                if (val.length===0){
+                                  if (parleMode){
+                                    setTokens(prev=> prev.filter((_,i)=> i!==editingIndex));
+                                  } else {
+                                    // reconstruir pares sin el índice
+                                    const tokensFull = [...displayTokens];
+                                    const updated = tokensFull.filter((_,i)=> i!==editingIndex);
+                                    const two = updated.filter(t=> t.length===2).sort((a,b)=> parseInt(a,10)-parseInt(b,10));
+                                    const trailing = (updated.length && updated[updated.length-1].length===1) ? updated[updated.length-1] : (rawDigits.length %2 ===1 ? rawDigits.slice(-1): '');
+                                    setRawDigits(two.join('') + trailing);
+                                  }
+                                  setEditingIndex(null); setEditingValue('');
+                                }
+                                if (val.length===targetLen){
+                                  if (parleMode){
+                                    setTokens(prev=> {
+                                      const copy=[...prev];
+                                      copy[editingIndex]=val;
+                                      copy.sort((a,b)=> parseInt(a,10)-parseInt(b,10));
+                                      return copy;
+                                    });
+                                  } else {
+                                    const tokensFull = [...displayTokens];
+                                    tokensFull[editingIndex]=val;
+                                    const two = tokensFull.filter(t=> t.length===2).sort((a,b)=> parseInt(a,10)-parseInt(b,10));
+                                    const trailing = (tokensFull.some(t=> t.length===1) ? tokensFull.find(t=> t.length===1) : (rawDigits.length %2 ===1 ? rawDigits.slice(-1): ''));
+                                    setRawDigits(two.join('') + (trailing && trailing.length===1 ? trailing : ''));
+                                  }
+                                  setEditingIndex(null); setEditingValue('');
+                                }
+                              }}
+                              onBlur={()=>{ setEditingIndex(null); setEditingValue(''); }}
+                              autoFocus
+                              keyboardType="number-pad"
+                            />
+                          ) : (
+                            <Text style={[styles.tokenText, dup && styles.tokenTextDup, isSingleIncomplete && markIncompleteRed && styles.tokenTextIncompleteRed]}>{tok}</Text>
+                          )}
+                        </Pressable>
                       );
                     })}
+                    {parleMode && (
+                      <View style={[styles.token, styles.tokenParleInput]}>
+                        <TextInput
+                          style={styles.parleEntryInput}
+                          value={parleEntry}
+                          onChangeText={handleParleEntryChange}
+                          keyboardType="number-pad"
+                          placeholder="Añadir"
+                          placeholderTextColor="#9AA5A0"
+                          maxLength={8} // permite pegar múltiplos
+                        />
+                      </View>
+                    )}
+                    {!parleMode && inputFocused && rawDigits.length %2 ===0 && (
+                      <View style={styles.caretIndicator}><Text style={styles.caretIndicatorText}>|</Text></View>
+                    )}
                     {(!parleMode && displayTokens.length===0) && <Text style={styles.placeholder}>Numeros</Text>}
                   </ScrollView>
                   {!parleMode && (
                     <TextInput
-                      style={styles.transparentInput}
+                      ref={hiddenInputRef}
+                      style={styles.hiddenInput}
                       value={rawDigits}
                       onFocus={()=> setInputFocused(true)}
                       onBlur={()=> setInputFocused(false)}
@@ -231,7 +390,7 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
                     <Pressable style={[styles.sideActionBtnNarrow, isDarkMode && styles.sideActionBtnNarrowDark]} onPress={handlePaste}><Text style={styles.sideActionBtnNarrowText}>Pegar</Text></Pressable>
                     <Pressable style={[styles.sideActionBtnNarrow, styles.sideActionBtnNarrowClear, isDarkMode && styles.sideActionBtnNarrowDark]} onPress={()=>{handleClear(); setParleMode(false); setTokens([]);}}><Text style={styles.sideActionBtnNarrowText}>Limpiar</Text></Pressable>
                   </View>
-                </View>
+                </Pressable>
                 {/* Contador inferior eliminado; ahora se muestra en la cabecera */}
               </View>
 
@@ -256,7 +415,7 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
               {/* Toggle Centena/Terminal + Amarrar */}
               <View style={styles.parleRow}>
                 <View style={styles.segmentButtonsMedium}>
-                  {['centena','terminal'].map(m => (
+                  {['decena','terminal'].map(m => (
                     <Pressable key={m} style={[styles.segmentBtnMedium, parleType===m && styles.segmentBtnMediumActive]} onPress={()=> setParleType(m)}>
                       <Text style={[styles.segmentBtnMediumText, parleType===m && styles.segmentBtnMediumTextActive]}>{m.charAt(0).toUpperCase()+m.slice(1)}</Text>
                     </Pressable>
@@ -267,6 +426,9 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false }) => {
                 </Pressable>
                 <Pressable style={[styles.amarrarMiniBtn, styles.combinarBtn, isDarkMode && styles.amarrarMiniBtnDark]} onPress={handleCombinarParleInterno}>
                   <Text style={styles.amarrarMiniBtnText}>Combinar Parle</Text>
+                </Pressable>
+                <Pressable disabled={parejasAdded} style={[styles.genBtnInline, parejasAdded && styles.genBtnDisabled, isDarkMode && styles.genBtnDark]} onPress={insertarTodasParejas}>
+                  <Text style={styles.genBtnText}>{parejasAdded ? 'Parejas ✓' : '➕ Parejas'}</Text>
                 </Pressable>
               </View>
             </ScrollView>
@@ -372,6 +534,8 @@ const styles = StyleSheet.create({
   genButtonsColumn:{ marginLeft:12, justifyContent:'space-between' },
   genBtn:{ width:100, marginVertical:6, backgroundColor:'#F4F9F2', borderWidth:1, borderColor:'#D5E4D0', paddingVertical:10, borderRadius:10, alignItems:'center' },
   genBtnDark:{ backgroundColor:'#34495E', borderColor:'#5D6D7E' },
+  genBtnDisabled:{ opacity:0.55 },
+  genBtnInline:{ marginLeft:10, backgroundColor:'#F4F9F2', borderWidth:1, borderColor:'#D5E4D0', paddingVertical:10, paddingHorizontal:14, borderRadius:10, alignItems:'center' },
   genBtnText:{ fontSize:12, fontWeight:'700', color:'#2D5016' },
   multiInputContainer:{ borderWidth:1, borderColor:'#D5E4D0', borderRadius:10, backgroundColor:'#FFFFFF', padding:6, maxHeight:180 },
   multiInputContainerDark:{ backgroundColor:'#2E4053', borderColor:'#5D6D7E' },
@@ -455,6 +619,7 @@ const styles = StyleSheet.create({
   amarrarMiniBtnDark:{ backgroundColor:'#E67E22', borderColor:'#D35400' },
   amarrarMiniBtnText:{ fontSize:11, fontWeight:'700', color:'#FFFFFF' },
   combinarBtn:{ marginLeft:10, backgroundColor:'#2980B9', borderColor:'#2471A3' },
+  insertAllBtn:{ marginLeft:10, backgroundColor:'#16A085', borderColor:'#13856E' },
   tokensContainer:{ borderWidth:1, borderColor:'#D5E4D0', borderRadius:10, backgroundColor:'#FFFFFF', padding:8, minHeight:120, maxHeight:220, position:'relative' },
   tokensContainerDark:{ backgroundColor:'#2E4053', borderColor:'#5D6D7E' },
   tokensScroll:{ maxHeight:180 },
@@ -463,6 +628,12 @@ const styles = StyleSheet.create({
   tokenDup:{ backgroundColor:'#FFF9C4', borderColor:'#F7DC6F' },
   tokenParle:{ backgroundColor:'#D6EAF8', borderColor:'#85C1E9', width:44 },
   tokenText:{ fontSize:12, fontWeight:'600', color:'#2D5016' },
+  tokenEditing:{ backgroundColor:'#FFF4E0', borderColor:'#F5CBA7' },
+  parleEditInput:{ fontSize:12, fontWeight:'600', color:'#2D5016', padding:0, margin:0, textAlign:'center', width:'100%' },
+  tokenParleInput:{ justifyContent:'center' },
+  parleEntryInput:{ fontSize:12, fontWeight:'600', color:'#2D5016', textAlign:'center', padding:0, margin:0, width:'100%' },
+  caretIndicator:{ width:8, alignItems:'center', justifyContent:'center', margin:4 },
+  caretIndicatorText:{ fontSize:14, fontWeight:'700', color:'#2D5016' },
   placeholder:{ fontSize:12, color:'#9AA5A0', margin:4 },
   hiddenInput:{ position:'absolute', opacity:0, height:0, width:0 },
   parleRow:{ flexDirection:'row', alignItems:'center', justifyContent:'flex-start', marginBottom:10 },
