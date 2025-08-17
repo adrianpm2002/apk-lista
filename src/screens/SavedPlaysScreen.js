@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, TextInput, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, TextInput, ScrollView, RefreshControl, Alert, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../supabaseClient';
 
@@ -31,6 +31,10 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   const [scheduleOptions, setScheduleOptions] = useState([]); // {id,name}
   const [playTypeOptions, setPlayTypeOptions] = useState([]); // {value,label}
   const [selectedPlayTypeFilter, setSelectedPlayTypeFilter] = useState('all');
+  // Estados de edición / selección
+  const [editingPlay, setEditingPlay] = useState(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
   const loadSavedPlays = async () => {
     try {
@@ -127,8 +131,8 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   const onRefresh = async () => { setIsRefreshing(true); await loadSavedPlays(); setIsRefreshing(false); };
 
   const getTotals = () => {
-    const totalRecogido = filteredPlays.filter(p=>p.hasPrize).reduce((s,p)=> s + (typeof p.prize==='number'? p.prize:0),0);
-    const pendientePago = filteredPlays.filter(p=> !p.hasPrize && p.result==='no disponible').reduce((s,p)=> s + p.total,0);
+    const totalRecogido = filteredPlays.filter(p=> p.hasPrize).reduce((s,p)=> s + (typeof p.prize==='number'? p.prize : p.total),0);
+    const pendientePago = filteredPlays.filter(p=> p.result==='no disponible').reduce((s,p)=> s + p.total,0);
     return { totalRecogido, pendientePago };
   };
   const { totalRecogido, pendientePago } = getTotals();
@@ -141,10 +145,45 @@ const SavedPlaysScreen = ({ navigation, route }) => {
     </Pressable>
   );
 
+  const confirm = (title, message, onYes) => {
+    if(Platform.OS === 'web') {
+      if(window.confirm(`${title}\n\n${message}`)) onYes();
+    } else {
+      Alert.alert(title, message, [
+        { text:'Cancelar', style:'cancel' },
+        { text:'Sí', style:'destructive', onPress:onYes }
+      ]);
+    }
+  };
+
   const renderPlayItem = ({ item }) => (
-    <View style={[styles.playCard, isDarkMode && styles.playCardDark]}>
+    <Pressable
+      style={[styles.playCard, isDarkMode && styles.playCardDark, selectedIds.has(item.id) && styles.playCardSelected]}
+      onLongPress={() => {
+        setSelectionMode(true);
+        setSelectedIds(prev => { const next=new Set(prev); next.add(item.id); return next; });
+      }}
+      onPress={() => {
+        if(selectionMode){
+          setSelectedIds(prev=>{
+            const next=new Set(prev);
+            if(next.has(item.id)) next.delete(item.id); else next.add(item.id);
+            if(next.size===0) setSelectionMode(false);
+            return next;
+          });
+        }
+      }}
+    >
       <View style={styles.topRow}>
-        <View style={styles.topLeft}>
+        {selectionMode && (
+          <Pressable
+            style={[styles.selectCornerBtn, selectedIds.has(item.id) && styles.selectCornerBtnActive]}
+            onPress={()=> setSelectedIds(prev=>{ const next=new Set(prev); if(next.has(item.id)) next.delete(item.id); else next.add(item.id); if(next.size===0) setSelectionMode(false); return next; })}
+          >
+            <Text style={[styles.selectCornerTxt, selectedIds.has(item.id) && styles.selectCornerTxtActive]}>{selectedIds.has(item.id)? '✔':'○'}</Text>
+          </Pressable>
+        )}
+  <View style={styles.topLeft}>
           <View style={styles.lotteryLine}>
             <Text style={[styles.lotteryName, isDarkMode && styles.lotteryNameDark]} numberOfLines={1}>{item.lottery}</Text>
             <Text style={[styles.scheduleTag, isDarkMode && styles.scheduleTagDark]} numberOfLines={1}>{item.schedule}</Text>
@@ -171,6 +210,9 @@ const SavedPlaysScreen = ({ navigation, route }) => {
             Resultado: {item.result}
           </Text>
           {!item.hasPrize && <Text style={[styles.pendingText, styles.pendingUnderResult]}>⏳ Pendiente</Text>}
+          <Pressable style={styles.editUnderPendingBtn} onPress={()=> confirm('Editar','¿Abrir esta jugada en modo Visual para editarla?', ()=> setEditingPlay(item))}>
+            <Text style={styles.editUnderPendingTxt}>Editar</Text>
+          </Pressable>
         </View>
       </View>
       <View style={styles.numbersRow}>
@@ -190,11 +232,39 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         })()}
       </View>
       <View style={styles.statusRow}>
-        {item.hasPrize ? <Text style={[styles.prize, styles.prizeWinner]}>🏆 ${item.prize}</Text> : <View />}
         <Text style={[styles.timestamp, isDarkMode && styles.timestampDark]}>{formatTime(item.timestamp)}</Text>
       </View>
-    </View>
+    </Pressable>
   );
+
+  const handleDeleteSelected = () => {
+    if(selectedIds.size===0) return;
+    const proceed = async () => {
+      try {
+        const idsArray = Array.from(selectedIds);
+        const { error } = await supabase.from('jugada').delete().in('id', idsArray);
+        if(error) throw error;
+        setSavedPlays(prev=> prev.filter(p=> !selectedIds.has(p.id)));
+        setSelectedIds(new Set());
+        setSelectionMode(false);
+      } catch(e){ console.error('Error eliminando jugadas', e.message); }
+    };
+    if(Platform.OS === 'web'){
+      if(window.confirm(`Eliminar ${selectedIds.size} jugada(s)?`)) proceed();
+    } else {
+      Alert.alert('Eliminar', `¿Eliminar ${selectedIds.size} jugada(s) seleccionadas?`, [
+        { text:'Cancelar', style:'cancel' },
+        { text:'Eliminar', style:'destructive', onPress: proceed }
+      ]);
+    }
+  };
+
+  useEffect(()=>{
+    if(editingPlay){
+      // Navegar al contenedor principal solicitando modo Visual con payload
+      navigation.navigate('MainApp', { screen:'Visual', params:{ editPayload: editingPlay }});
+    }
+  },[editingPlay]);
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
@@ -241,12 +311,25 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         </View>
       )}
       <View style={[styles.inlineTotalsOutside, isDarkMode && styles.inlineTotalsOutsideDark]}>
-        <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Recogido: ${totalRecogido}</Text>
-        <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Pendiente: ${pendientePago}</Text>
+        {selectionMode && (
+          <Pressable style={styles.bulkDeleteBtn} onPress={handleDeleteSelected}>
+            <Text style={styles.bulkDeleteTxt}>Eliminar ({selectedIds.size})</Text>
+          </Pressable>
+        )}
+        <View style={styles.totalsFlexGroup}>
+          <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Recogido: ${totalRecogido}</Text>
+          <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Pendiente: ${pendientePago}</Text>
+        </View>
         <Pressable style={[styles.prizeFilterButton, showOnlyWinners && styles.prizeFilterButtonActive]} onPress={()=> setShowOnlyWinners(p=>!p)}>
           <Text style={styles.prizeFilterText}>{showOnlyWinners? '🏆 Ganadores':'🎯 Todos'}</Text>
         </Pressable>
       </View>
+      {editingPlay && (
+        <View style={styles.editBanner}>
+          <Text style={styles.editBannerText}>Editando jugada ID {editingPlay.id} (abrir modo Visual)</Text>
+          <Pressable onPress={()=> setEditingPlay(null)}><Text style={styles.editBannerClose}>✖</Text></Pressable>
+        </View>
+      )}
       {isLoading ? (
         <View style={styles.loadingContainer}><Text style={[styles.loadingText, isDarkMode && styles.loadingTextDark]}>Cargando...</Text></View>
       ) : (
@@ -301,9 +384,11 @@ const styles = StyleSheet.create({
   prizeFilterText:{ color:'#FFFFFF', fontSize:10, fontWeight:'600' },
   inlineTotalsOutside:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#F1F4F0', borderWidth:1, borderColor:'#E1E8E3', borderRadius:8, paddingHorizontal:10, paddingVertical:6, marginBottom:6 },
   inlineTotalsOutsideDark:{ backgroundColor:'#2C3E50', borderColor:'#5D6D7E' },
+  totalsFlexGroup:{ flex:1, flexDirection:'row', justifyContent:'center', gap:14 },
   list:{ flex:1 },
   playCard:{ backgroundColor:'#F8F9FA', borderRadius:8, padding:6, marginBottom:6, borderWidth:1, borderColor:'#E8F1E4' },
   playCardDark:{ backgroundColor:'#34495E', borderColor:'#5D6D7E' },
+  playCardSelected:{ borderColor:'#F1C40F', backgroundColor:'#FFF9E6' },
   rowBetween:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:2 },
   lotteryName:{ fontSize:14, fontWeight:'700', color:'#2D5016' },
   lotteryNameDark:{ color:'#ECF0F1' },
@@ -352,6 +437,20 @@ const styles = StyleSheet.create({
   prizeWinner:{ color:'#2E86C1' },
   timestamp:{ fontSize:9, color:'#7F8C8D', fontStyle:'italic' },
   timestampDark:{ color:'#BDC3C7' },
+  inlineActionBtn:{ backgroundColor:'#E8F5E8', borderRadius:6, paddingHorizontal:6, paddingVertical:4, marginRight:6, borderWidth:1, borderColor:'#B8D4A8' },
+  inlineSelectBtn:{ backgroundColor:'#FFF4D6', borderColor:'#F1C40F' },
+  inlineActionTxt:{ fontSize:12, fontWeight:'700', color:'#2D5016' },
+  selectCornerBtn:{ position:'absolute', left:2, top:2, width:16, height:16, borderRadius:8, borderWidth:1, borderColor:'rgba(231,76,60,0.6)', backgroundColor:'rgba(231,76,60,0.15)', alignItems:'center', justifyContent:'center', zIndex:10 },
+  selectCornerBtnActive:{ backgroundColor:'rgba(231,76,60,0.85)', borderColor:'#C0392B' },
+  selectCornerTxt:{ fontSize:9, fontWeight:'700', color:'#C0392B' },
+  selectCornerTxtActive:{ color:'#FFFFFF' },
+  editUnderPendingBtn:{ marginTop:4, backgroundColor:'#3498DB', paddingHorizontal:10, paddingVertical:4, borderRadius:6 },
+  editUnderPendingTxt:{ fontSize:11, fontWeight:'700', color:'#FFFFFF' },
+  bulkDeleteBtn:{ backgroundColor:'#E74C3C', paddingHorizontal:10, paddingVertical:4, borderRadius:6, marginRight:10 },
+  bulkDeleteTxt:{ color:'#FFFFFF', fontSize:11, fontWeight:'700' },
+  editBanner:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#F4D03F', paddingHorizontal:10, paddingVertical:6, borderRadius:8, marginBottom:6 },
+  editBannerText:{ fontSize:11, fontWeight:'600', color:'#5C4B00', flex:1, marginRight:10 },
+  editBannerClose:{ fontSize:12, fontWeight:'700', color:'#5C4B00' },
   loadingContainer:{ flex:1, justifyContent:'center', alignItems:'center', paddingVertical:20 },
   loadingText:{ fontSize:16, color:'#7F8C8D', fontStyle:'italic' },
   loadingTextDark:{ color:'#BDC3C7' },

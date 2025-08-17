@@ -6,7 +6,7 @@ import {
 import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
 
-const MainAppScreen = ({ navigation }) => {
+const MainAppScreen = ({ navigation, route }) => {
   const [currentMode, setCurrentMode] = useState('Visual');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [visibleModes, setVisibleModes] = useState({
@@ -24,6 +24,14 @@ const MainAppScreen = ({ navigation }) => {
       setCurrentMode('Visual');
     }
   }, [visibleModes, currentMode]);
+
+  // Forzar Visual si llega un editPayload desde otra pantalla
+  useEffect(()=>{
+    const editPayload = route?.params?.editPayload;
+    if(editPayload && currentMode !== 'Visual'){
+      setCurrentMode('Visual');
+    }
+  },[route?.params?.editPayload, currentMode]);
 
   const handleModeChange = (newMode) => {
     if (newMode === currentMode) return;
@@ -54,6 +62,7 @@ const MainAppScreen = ({ navigation }) => {
       {currentMode === 'Visual' && visibleModes.visual ? (
         <VisualModeScreen 
           navigation={navigation} 
+          route={route}
           currentMode={currentMode}
           onModeChange={handleModeChange}
           isDarkMode={isDarkMode}
@@ -64,6 +73,7 @@ const MainAppScreen = ({ navigation }) => {
       ) : visibleModes.text ? (
         <TextModeScreen 
           navigation={navigation}
+          route={route}
           currentMode={currentMode}
           onModeChange={handleModeChange}
           isDarkMode={isDarkMode}

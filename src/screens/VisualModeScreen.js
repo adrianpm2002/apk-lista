@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Pressable,
   Animated,
+  Alert,
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import DropdownPicker from '../components/DropdownPicker';
@@ -24,7 +25,7 @@ import { SideBar, SideBarToggle } from '../components/SideBar';
 import { t, translatePlayTypeLabel } from '../utils/i18n';
 import { applyPlayTypeSelection } from '../utils/playTypeCombinations';
 
-const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
+const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // values de loterías (máx 3)
@@ -82,6 +83,9 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
   const [userId, setUserId] = useState(null);
   const [isInserting, setIsInserting] = useState(false);
   const [playTypes, setPlayTypes] = useState([]); // jugadas activas dinámicas
+  // Edición
+  const [editingId, setEditingId] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   const PLAY_TYPE_LABELS = { fijo:translatePlayTypeLabel('fijo'), corrido:translatePlayTypeLabel('corrido'), posicion:translatePlayTypeLabel('posicion'), parle:translatePlayTypeLabel('parle'), centena:translatePlayTypeLabel('centena'), tripleta:translatePlayTypeLabel('tripleta') };
 
@@ -177,7 +181,64 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
 
   // (playTypes ahora proviene dinámicamente de la BD: estado playTypes)
 
+  // Efecto: escucha payload de edición enviado desde SavedPlaysScreen
+  useEffect(()=>{
+    const payload = route?.params?.editPayload;
+    if(payload && payload.id !== editingId){
+      // Poblar campos
+      setEditingId(payload.id);
+      setIsEditing(true);
+      setPlays(payload.numbers);
+      setNote(payload.note || '');
+      // Ajustar selección de tipos (single a partir del playType de la jugada)
+      setSelectedPlayTypes([payload.playType]);
+      // Lotería y horario: necesitamos mapear nombre a id existente ya cargado en lotteries/scheduleOptionsMap
+      // Intento: buscar por label
+      const lot = lotteries.find(l=> l.label === payload.lottery);
+      if(lot){
+        setSelectedLotteries([lot.value]);
+      }
+      // Horario se completará cuando scheduleOptionsMap esté listo
+      const scheduleSetter = () => {
+        if(lot){
+          const schedules = scheduleOptionsMap[lot.value] || [];
+          const sch = schedules.find(s=> s.label === payload.schedule);
+          if(sch){
+            setSelectedSchedules(prev=> ({ ...prev, [lot.value]: sch.value }));
+          }
+        }
+      };
+      scheduleSetter();
+      // Montos: asignar al tipo correspondiente, conservar otros vacíos
+      setAmounts(a=> ({ ...a, [payload.playType]: String(payload.amount || payload.monto_unitario || '') }));
+    }
+  },[route?.params?.editPayload, lotteries, scheduleOptionsMap]);
+
   const handleInsert = async () => {
+    if(isEditing && editingId){
+      // Actualizar jugada existente
+      if(!plays.trim()) return; // simple
+      try {
+        const primaryType = selectedPlayTypes[0];
+        const raw = amounts[primaryType];
+        const unit = parseInt((raw||'').toString().replace(/[^0-9]/g,''),10) || 0;
+        const numsCount = (plays.match(/\d+/g)||[]).length;
+        const totalCalc = primaryType==='parle' && isLocked ? unit : unit * numsCount;
+        const { error } = await supabase.from('jugada').update({
+          numeros: plays.replace(/\s+/g,'').replace(/,+/g,','),
+          nota: note?.trim() || 'Sin nombre',
+          monto_unitario: unit,
+          monto_total: totalCalc,
+        }).eq('id', editingId);
+        if(!error){
+          setIsEditing(false);
+          setEditingId(null);
+          // feedback
+          Alert.alert('Editado','Jugada actualizada');
+        }
+      } catch(e){ /* ignore */ }
+      return;
+    }
     if (isInserting) return; // prevenir doble toque
     // Resetear errores
     setLotteryError(false);
@@ -212,6 +273,37 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
     if (!plays.trim()) {
       setPlaysError(true);
       hasErrors = true;
+    }
+
+    // Validación de grupos incompletos basada en primer tipo seleccionado (o combo)
+    if (!hasErrors) {
+      const primary = selectedPlayTypes[0];
+      let expectedLen = null;
+      const comboCF = selectedPlayTypes.includes('centena') && selectedPlayTypes.includes('fijo');
+      if (comboCF) expectedLen = 3; else {
+        switch (primary) {
+          case 'fijo':
+          case 'corrido':
+          case 'posicion': expectedLen = 2; break;
+          case 'parle': expectedLen = 4; break;
+          case 'centena': expectedLen = 3; break;
+          case 'tripleta': expectedLen = 6; break;
+          default: expectedLen = null;
+        }
+      }
+      if (expectedLen) {
+        const digits = plays.replace(/[^0-9]/g,'');
+        const remainder = digits.length % expectedLen;
+        const tokens = plays.split(/[\s,;]+/).filter(Boolean);
+        const partialTokens = tokens.filter(t => {
+          const d = t.replace(/[^0-9]/g,'');
+          return d.length>0 && d.length< expectedLen;
+        });
+        if (remainder !== 0 || partialTokens.length) {
+          setPlaysError(true);
+          hasErrors = true;
+        }
+      }
     }
 
     // Validar montos por cada jugada seleccionada
@@ -390,6 +482,39 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
     setSelectedLotteries(next);
   };
 
+  // Re-formatear jugadas al cambiar selección de jugadas (adaptar longitud)
+  useEffect(() => {
+    const primary = selectedPlayTypes[0];
+    if (!plays) return;
+    let expectedLen = null;
+    const comboCF = selectedPlayTypes.includes('centena') && selectedPlayTypes.includes('fijo');
+    if (comboCF) expectedLen = 3; else {
+      switch (primary) {
+        case 'fijo':
+        case 'corrido':
+        case 'posicion': expectedLen = 2; break;
+        case 'parle': expectedLen = 4; break;
+        case 'centena': expectedLen = 3; break;
+        case 'tripleta': expectedLen = 6; break;
+        default: expectedLen = null;
+      }
+    }
+    if (expectedLen) {
+      const digits = plays.replace(/[^0-9]/g,'');
+      if (!digits) { setPlays(''); return; }
+      const groups = [];
+      const full = Math.floor(digits.length/expectedLen)*expectedLen;
+      for(let i=0;i<full;i+=expectedLen){ groups.push(digits.slice(i,i+expectedLen)); }
+      const partial = digits.slice(full); // se mantiene si incompleto (mostrado en input)
+      const out = partial ? (groups.length? groups.join(', ')+', '+partial: partial) : groups.join(', ');
+      if (out !== plays) setPlays(out);
+    } else {
+      // sin modo -> solo dígitos sin comas
+      const raw = plays.replace(/[^0-9]/g,'');
+      if (raw !== plays) setPlays(raw);
+    }
+  }, [selectedPlayTypes]);
+
   // Loterías que actualmente carecen de horario (para marcar error individual)
   const missingScheduleSet = new Set(scheduleError ? selectedLotteries.filter(lv => !selectedSchedules[lv]) : []);
 
@@ -421,6 +546,14 @@ const VisualModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, o
             {limitViolations.length>5 && (
               <Text style={{ color:'#c92a2a', fontSize:12, marginTop:2 }}>+{limitViolations.length-5} más...</Text>
             )}
+          </View>
+        )}
+        {isEditing && (
+          <View style={{ marginTop:8, backgroundColor:'#F4D03F', borderWidth:1, borderColor:'#D4AC0D', padding:8, borderRadius:6, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+            <Text style={{ fontSize:12, fontWeight:'700', color:'#5C4B00', flex:1 }}>Editando jugada #{editingId}</Text>
+            <Pressable onPress={()=> { setIsEditing(false); setEditingId(null); }}>
+              <Text style={{ fontWeight:'700', color:'#5C4B00' }}>✖</Text>
+            </Pressable>
           </View>
         )}
       </View>

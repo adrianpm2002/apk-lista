@@ -53,6 +53,48 @@ export const usePlaySubmission = () => {
 
       // Calcular cantidad de números y total
       const numbersArray = formData.numbers.split(/[,*\-\s]+/).filter(num => num.trim() !== '');
+      // Validar que no existan números incompletos según el tipo de jugada
+      const playTypeValue = typeof formData.playType === 'object' ? formData.playType?.value : formData.playType;
+      const selectedPlayTypes = formData.selectedPlayTypes || [];
+      const getRequiredLength = () => {
+        // Combo centena + fijo obliga a longitud 3 (centena) para token completo
+        if (selectedPlayTypes.includes('centena') && selectedPlayTypes.includes('fijo')) return 3;
+        switch (playTypeValue) {
+          case 'fijo':
+          case 'corrido':
+          case 'posicion':
+            return 2;
+          case 'parle':
+            return 4;
+          case 'centena':
+            return 3;
+          case 'tripleta':
+            return 6;
+          default:
+            return null; // desconocido -> sin validación estricta
+        }
+      };
+      const reqLen = getRequiredLength();
+
+      if (reqLen) {
+        // Extraer solo dígitos para detectar resto incompleto
+        const allDigits = formData.numbers.replace(/[^0-9]/g, '');
+        const remainder = allDigits.length % reqLen;
+        // También validar token a token por si algún separador deja un fragmento interno incompleto
+        const incompleteTokens = numbersArray.filter(n => {
+          const d = n.replace(/[^0-9]/g, '');
+          return d.length > 0 && d.length < reqLen;
+        });
+        if (remainder !== 0 || incompleteTokens.length > 0) {
+          // Identificar fragmento final (si remainder>0)
+          let fragment = '';
+          if (remainder > 0) {
+            fragment = allDigits.slice(allDigits.length - remainder);
+          }
+            const lista = [...new Set([...incompleteTokens, fragment].filter(Boolean))];
+          throw new Error(`Números incompletos: ${lista.join(', ')}`);
+        }
+      }
       const calculatedTotal = formData.amount * numbersArray.length;
 
       // Obtener IDs de lotería y horario para verificación de límites
