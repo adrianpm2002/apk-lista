@@ -127,29 +127,33 @@ export function useCapacityData(bankId, options = {}) {
       if(specificLimits){
         Object.entries(specificLimits).forEach(([jug, limVal]) => {
           if(!limVal || limVal<=0) return;
-          // Solo implementamos enumeración completa para 'fijo' (2 dígitos) según requerimiento.
-          if(jug==='fijo'){
+          const enumerate = (length) => {
             (horariosRows||[]).forEach(hor => {
-              if(!isOpen(hor.hora_inicio, hor.hora_fin)) return; // sólo abiertos
+              if(!isOpen(hor.hora_inicio, hor.hora_fin)) return;
               const lotId = hor.id_loteria; const lotName = (lots||[]).find(l=>l.id===lotId)?.nombre || lotId;
-              for(let n=0;n<100;n++){
-                const num = String(n).padStart(2,'0');
+              const max = length===2? 100 : length===3? 1000 : 0;
+              for(let n=0;n<max;n++){
+                const num = String(n).padStart(length,'0');
                 const keyUsage = `${hor.id}|${jug}|${num}`;
-                if(usageMap.has(keyUsage)) continue; // ya agregado con uso
-                // si existe limite_numero específico y es menor, usarlo; sino spec
+                if(usageMap.has(keyUsage)) continue;
                 const perNumber = limitNumberMap.get(`${hor.id}|${jug}|${num}`);
                 let effective = perNumber!==undefined ? perNumber : limVal;
                 pushRow(hor.id, jug, num, 0, effective, hor, lotName, lotId);
               }
             });
-          }
+          };
+          if(jug==='fijo' || jug==='corrido') enumerate(2);
+          else if(jug==='centena') enumerate(3);
+          // parle y tripleta NO se enumeran totalmente por tamaño explosivo; sólo aparecen si tienen uso o límite explícito.
         });
       }
 
       // 9. Ordenar por porcentaje desc
       rows.sort((a,b)=> b.porcentaje - a.porcentaje);
-      const finalRows = includeClosed ? rows : rows.filter(r=> r.abierto);
-      setCapacityData(finalRows);
+  // 10. Filtrar uso 0 por defecto
+  const baseRows = includeClosed ? rows : rows.filter(r=> r.abierto);
+  const filteredRows = baseRows.filter(r=> r.usado > 0);
+  setCapacityData(filteredRows);
     } catch(e){ setError(e.message||'Error cargando capacidad'); }
     setLoading(false);
   }, [bankId, includeClosed]);

@@ -24,6 +24,7 @@ import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { t, translatePlayTypeLabel } from '../utils/i18n';
 import { applyPlayTypeSelection } from '../utils/playTypeCombinations';
+import { usePlaySubmission } from '../hooks/usePlaySubmission';
 
 const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   
@@ -51,7 +52,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const [insertFeedback, setInsertFeedback] = useState(null); // { success, fail, duplicates:[] }
   useEffect(() => {
     if (insertFeedback && insertFeedback.fail === 0) {
-      const timer = setTimeout(() => setInsertFeedback(null), 3000);
+      const timer = setTimeout(() => setInsertFeedback(null), 5000);
       return () => clearTimeout(timer);
     }
   }, [insertFeedback]);
@@ -433,57 +434,94 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     if (!payloads.length) return;
 
     try {
+      // Verificación de capacidad BLOQUEANTE antes de insertar
+      // 1. Cargar límites específicos del usuario
+      const { data: { user } } = await supabase.auth.getUser();
+      let specificLimits = null;
+      if(user){
+        const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', user.id).maybeSingle();
+        specificLimits = profile?.limite_especifico || null;
+      }
+      // 2. Reunir horarios implicados
+      const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
+      // 3. Obtener límites por número existentes
+      let limitRows = [];
+      if(horarios.length){
+        const { data: lr } = await supabase.from('limite_numero').select('numero, limite, jugada, id_horario').in('id_horario', horarios);
+        limitRows = lr||[];
+      }
+      // 4. Uso actual desde jugada del día
+      const dayStart = new Date(); dayStart.setHours(0,0,0,0);
+      const isoDayStart = dayStart.toISOString();
+      let usedRows = [];
+      if(horarios.length){
+        const { data: ur } = await supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', isoDayStart).in('id_horario', horarios);
+        usedRows = ur||[];
+      }
+      // 5. Mapear uso acumulado por número
+      const usageMap = new Map(); // key h|jug|numero -> monto acumulado
+      usedRows.forEach(r=>{
+        const nums = (r.numeros||'').split(',').map(s=> s.trim()).filter(Boolean);
+        nums.forEach(n=>{
+          const key = `${r.id_horario}|${r.jugada}|${n}`;
+          usageMap.set(key, (usageMap.get(key)||0) + (r.monto_unitario||0));
+        });
+      });
+      const limitMap = new Map();
+      limitRows.forEach(r=>{ limitMap.set(`${r.id_horario}|${r.jugada}|${r.numero}`, r.limite); });
+      // 6. Evaluar cada payload
+      const violations = [];
+      for(const p of payloads){
+        const nums = p.numeros.split(',').filter(Boolean);
+        const jug = p.jugada;
+        const specLimit = specificLimits && specificLimits[jug];
+        nums.forEach(n=>{
+          const key = `${p.id_horario}|${jug}|${n}`;
+          const perNumber = limitMap.get(key);
+          let effective;
+          if(perNumber!==undefined && specLimit!==undefined) effective = Math.min(perNumber, specLimit); else if(perNumber!==undefined) effective = perNumber; else if(specLimit!==undefined) effective = specLimit; else effective = null;
+          if(!effective) return; // sin límite => no bloquea
+          const used = usageMap.get(key)||0;
+          if((used + p.monto_unitario) > effective){
+            violations.push({ numero:n, jugada:jug, permitido:effective, usado:used, intento:p.monto_unitario });
+          }
+        });
+      }
+      if(violations.length){
+        setLimitViolations(violations);
+        setInsertFeedback({ success:0, fail:payloads.length, duplicates:[] });
+        Alert.alert('Capacidad excedida','Se bloquearon jugadas que sobrepasarían su capacidad.');
+        return; // aborta inserción
+      }
+      // 7. Insertar (sin violaciones)
       setIsInserting(true);
-      const successes = [];
-      const failures = [];
-      // Inserción secuencial para confirmar cada una
-      for (const p of payloads) {
+      const successes=[]; const failures=[];
+      for(const p of payloads){
         const { data, error } = await supabase.from('jugada').insert(p).select('id').single();
-        if (error) {
-          // Clasificar duplicado (trigger) por texto / código
-          const msg = (error.message || '').toLowerCase();
-          const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || error.code === '23505';
+        if(error){
+          const msg = (error.message||'').toLowerCase();
+          const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || error.code==='23505';
           failures.push({ p, error, isDuplicate });
         } else successes.push(data.id);
       }
-      if (failures.length === 0) {
+      if(failures.length===0){
         setPlays('');
         setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
         setNote('');
         setTotal(0);
         setShowFieldErrors(false);
       }
-      console.log(`Jugadas insertadas: ${successes.length}/${payloads.length}`);
-      if (failures.length) console.warn('Fallos insertando jugadas', failures.map(f=>f.error.message));
-
-      // Preparar feedback estructurado
-      if (failures.length) {
-        const duplicateFails = failures.filter(f=> f.isDuplicate);
-        setInsertFeedback({
-          success: successes.length,
-            fail: failures.length,
-          duplicates: duplicateFails.map(f=> ({
-            jugada: f.p.jugada,
-            numeros: f.p.numeros,
-            nota: f.p.nota,
-            horario: f.p.id_horario,
-          })),
-        });
-        // Alerta rápida (solo resumen) la primera vez
-        Alert.alert(
-          'Algunas jugadas no se guardaron',
-          `${successes.length} guardada(s), ${failures.length} fallida(s)` + (duplicateFails.length ? `\nDuplicadas: ${duplicateFails.length}` : ''),
-          [{ text:'OK' }]
-        );
+      if(failures.length){
+        const duplicateFails = failures.filter(f=>f.isDuplicate);
+        setInsertFeedback({ success:successes.length, fail:failures.length, duplicates: duplicateFails.map(f=>({ jugada:f.p.jugada, numeros:f.p.numeros, nota:f.p.nota, horario:f.p.id_horario })) });
+        Alert.alert('Algunas jugadas no se guardaron', `${successes.length} guardada(s), ${failures.length} fallida(s)` + (duplicateFails.length? `\nDuplicadas: ${duplicateFails.length}`:''));
       } else {
-        setInsertFeedback({ success: successes.length, fail: 0, duplicates: [] });
+        setInsertFeedback({ success:successes.length, fail:0, duplicates:[] });
       }
-    } catch(err) {
+    } catch(err){
       console.error('Error general insertando jugadas', err);
-      Alert.alert('Error', 'Ocurrió un error inesperado al insertar.');
-    } finally {
-      setIsInserting(false);
-    }
+      Alert.alert('Error','Ocurrió un error inesperado al insertar.');
+    } finally { setIsInserting(false); }
   };
 
   const handleClear = () => {
@@ -657,11 +695,15 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         </View>
         {limitViolations.length > 0 && (
           <View style={{ marginTop:8, backgroundColor:'#fff5f5', borderWidth:1, borderColor:'#ffc9c9', padding:8, borderRadius:6 }}>
-            {limitViolations.slice(0,5).map((v,idx)=>(
-              <Text key={idx} style={{ color:'#c92a2a', fontSize:12 }}>
-                Número {v.numero} ({v.jugada}) excede límite: usado {v.usado} + intento {'>'} permitido {v.permitido}
-              </Text>
-            ))}
+            {limitViolations.slice(0,5).map((v,idx)=>{
+              const excedido = (v.usado + (v.intento||0)) - v.permitido;
+              const exceso = excedido > 0 ? excedido : 0;
+              return (
+                <Text key={idx} style={{ color:'#c92a2a', fontSize:12 }}>
+                  Número {v.numero} ({v.jugada}) excedido por {exceso}
+                </Text>
+              );
+            })}
             {limitViolations.length>5 && (
               <Text style={{ color:'#c92a2a', fontSize:12, marginTop:2 }}>+{limitViolations.length-5} más...</Text>
             )}

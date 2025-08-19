@@ -100,65 +100,44 @@ export const usePlaySubmission = () => {
       // Obtener IDs de lotería y horario para verificación de límites
       const ids = await getLotteryAndScheduleIds(formData.lottery, formData.schedule);
       
-      // Si tenemos IDs válidos, verificar límites
+      // Si tenemos IDs válidos, verificar límites – BLOQUEANTE (no se permite sobrepasar)
       if (ids) {
         const limitViolations = [];
 
-        // Verificar límites para cada número
         for (const number of numbersArray) {
           const cleanNumber = number.trim();
-          if (cleanNumber) {
-            const limitCheck = await checkBetLimits(
-              ids.lotteryId,
-              ids.scheduleId,
-              formData.playType,
-              cleanNumber,
-              formData.amount
-            );
-
-            if (!limitCheck.allowed) {
-              limitViolations.push({
-                number: cleanNumber,
-                reason: limitCheck.reason,
-                limitType: limitCheck.limitType
-              });
-            }
+          if (!cleanNumber) continue;
+          const limitCheck = await checkBetLimits(
+            ids.lotteryId,
+            ids.scheduleId,
+            formData.playType,
+            cleanNumber,
+            formData.amount
+          );
+          if (!limitCheck.allowed) {
+            limitViolations.push({
+              number: cleanNumber,
+              reason: limitCheck.reason,
+              limitType: limitCheck.limitType,
+              current: limitCheck.currentAmount,
+              limit: limitCheck.limitAmount
+            });
           }
         }
 
-        // Si hay violaciones de límites, mostrar advertencia
         if (limitViolations.length > 0) {
-          const violationMessages = limitViolations.map(v => `• ${v.reason}`).join('\n');
-          
-          return new Promise((resolve) => {
-            Alert.alert(
-              '⚠️ Límites Excedidos',
-              `Los siguientes números exceden sus límites:\n\n${violationMessages}\n\n¿Deseas continuar de todos modos?`,
-              [
-                { 
-                  text: 'Cancelar', 
-                  style: 'cancel',
-                  onPress: () => resolve({
-                    success: false,
-                    error: 'Operación cancelada por el usuario',
-                    limitViolations: limitViolations
-                  })
-                },
-                { 
-                  text: 'Continuar',
-                  style: 'destructive',
-                  onPress: async () => {
-                    const result = await savePlayAndRegisterBets(formData, numbersArray, calculatedTotal, ids);
-                    resolve(result);
-                  }
-                }
-              ]
-            );
-          });
+          // Construir mensaje consolidado (banner / alerta)
+          const detalle = limitViolations.slice(0,6).map(v => `Número ${v.number} sobrepasará su capacidad (${v.reason})`).join('\n');
+          return {
+            success: false,
+            error: 'Se bloquearon números que sobrepasarían su capacidad.',
+            message: detalle,
+            limitViolations
+          };
         }
       }
 
-      // Si no hay violaciones o no se pudieron verificar límites, continuar normalmente
+      // Sin violaciones -> proceder
       return await savePlayAndRegisterBets(formData, numbersArray, calculatedTotal, ids);
 
     } catch (error) {
@@ -231,7 +210,7 @@ export const usePlaySubmission = () => {
     } else {
       Alert.alert(
         '❌ Error',
-        result.error,
+        (result.message ? `${result.error}\n\n${result.message}` : result.error),
         [{ text: 'OK' }]
       );
     }
@@ -241,7 +220,7 @@ export const usePlaySubmission = () => {
 
   return {
     submitPlay,
-    submitPlayWithConfirmation
+  submitPlayWithConfirmation
   };
 };
 

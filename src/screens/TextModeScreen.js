@@ -266,7 +266,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
                 const used = usedMap.get(key) || 0;
                 const amt = instr.amountEach || 0;
                 if((used + amt) > effective){
-                  violations.push({ numero:numRaw, jugada, permitido:effective, usado:used });
+                  violations.push({ numero:numRaw, jugada, permitido:effective, usado:used, intento:amt });
                 }
               });
             });
@@ -288,54 +288,44 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     setNoteError(false);
         setLotteryErrorMessage('');
   setLimitViolations([]);
-      }, 3000);
+  }, 5000);
       return;
     }
 
-  // Usar instrucciones parseadas
-  if(!parsedInstructions.length){ setPlaysError(true); return; }
-    
-    try {
-      // Crear un objeto de jugada para cada lotería seleccionada
-      const playsToSave = [];
-      
-      for (const lottery of selectedLotteries) {
-        for(const instr of parsedInstructions){
-          const playData = {
-            lottery: lottery,
-            schedule: selectedSchedules[lottery],
-            playType: instr.playType,
-            numbers: instr.numbers, // array
-            note: note.trim(),
-            amount: instr.amountEach,
-            total: instr.totalPerLottery
-          };
-          playsToSave.push(playData);
+      // Usar instrucciones parseadas
+      if(!parsedInstructions.length){ setPlaysError(true); return; }
+
+      try {
+        const playsToSave = [];
+        for (const lottery of selectedLotteries) {
+          for(const instr of parsedInstructions){
+            playsToSave.push({
+              lottery,
+              schedule: selectedSchedules[lottery],
+              playType: instr.playType,
+              numbers: instr.numbers,
+              note: note.trim(),
+              amount: instr.amountEach,
+              total: instr.totalPerLottery
+            });
+          }
         }
+        let success=0; let fail=0; let blockedViolations=[];
+        for(const playData of playsToSave){
+          const result = await submitPlayWithConfirmation(playData);
+          if(result.success) success++; else { fail++; if(result.limitViolations) blockedViolations = blockedViolations.concat(result.limitViolations); }
+        }
+        if(blockedViolations.length){
+          setLimitViolations(blockedViolations.map(v=> ({ numero:v.number, jugada:playData?.playType||'', permitido:v.limit, usado:v.current })));
+        }
+        setInsertFeedback({ success, fail, duplicates:[], edit:false });
+        if(success){
+          setPlays(''); setNote(''); setCalculatedAmount(0); setTotal(0); setParsedInstructions([]);
+        }
+      } catch (error) {
+        console.error('Error al guardar las jugadas:', error);
+        alert('Error al guardar las jugadas. Inténtalo de nuevo.');
       }
-      
-      // Usar Promise.all para guardar todas las jugadas
-      const results = await Promise.all(
-        playsToSave.map(async playData => {
-          try { await submitPlayWithConfirmation(playData); return { ok:true }; }
-          catch(e){ return { ok:false, error:e }; }
-        })
-      );
-      const success = results.filter(r=>r.ok).length;
-      const fail = results.length - success;
-      setInsertFeedback({ success, fail, duplicates:[], edit:false });
-      
-      // Solo limpiar plays, note y montos - mantener lotería y horario
-      setPlays('');
-  setNote('');
-  setCalculatedAmount(0);
-  setTotal(0);
-  setParsedInstructions([]);
-      
-    } catch (error) {
-      console.error('Error al guardar las jugadas:', error);
-      alert('Error al guardar las jugadas. Inténtalo de nuevo.');
-    }
   };
 
   const handleTopBarOption = (option) => {
@@ -474,11 +464,15 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
         )}
         {limitViolations.length > 0 && (
           <View style={{ marginTop:8, backgroundColor:'#fff5f5', borderWidth:1, borderColor:'#ffc9c9', padding:8, borderRadius:6 }}>
-            {limitViolations.slice(0,5).map((v,idx)=>(
-              <Text key={idx} style={{ color:'#c92a2a', fontSize:12 }}>
-                Número {v.numero} ({v.jugada}) excede límite: usado {v.usado} + intento {'>'} permitido {v.permitido}
-              </Text>
-            ))}
+            {limitViolations.slice(0,5).map((v,idx)=>{
+              const excedido = v.intento !== undefined ? (v.usado + v.intento - v.permitido) : (v.usado - v.permitido);
+              const excedidoPos = excedido > 0 ? excedido : (v.usado + (v.intento||0) > v.permitido ? (v.usado + (v.intento||0) - v.permitido) : 0);
+              return (
+                <Text key={idx} style={{ color:'#c92a2a', fontSize:12 }}>
+                  Número {v.numero} ({v.jugada}) excedido por {excedidoPos}
+                </Text>
+              );
+            })}
             {limitViolations.length>5 && (
               <Text style={{ color:'#c92a2a', fontSize:12, marginTop:2 }}>+{limitViolations.length-5} más...</Text>
             )}
