@@ -8,7 +8,7 @@ import { supabase } from '../supabaseClient';
  * Retorna siempre sólo horarios abiertos (misma lógica que BatteryButton original) salvo que se pase options.includeClosed.
  */
 export function useCapacityData(bankId, options = {}) {
-  const { includeClosed = false, auto = false } = options;
+  const { includeClosed = false, auto = false, hideZero = true } = options;
   const [capacityData, setCapacityData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -148,15 +148,14 @@ export function useCapacityData(bankId, options = {}) {
         });
       }
 
-      // 9. Ordenar por porcentaje desc
-      rows.sort((a,b)=> b.porcentaje - a.porcentaje);
-  // 10. Filtrar uso 0 por defecto
-  const baseRows = includeClosed ? rows : rows.filter(r=> r.abierto);
-  const filteredRows = baseRows.filter(r=> r.usado > 0);
-  setCapacityData(filteredRows);
+  // 9. Ordenar por porcentaje desc y conservar todos (incluye usado=0 para ver capacidad disponible)
+  rows.sort((a,b)=> b.porcentaje - a.porcentaje);
+  let finalRows = includeClosed ? rows : rows.filter(r=> r.abierto);
+  if(hideZero) finalRows = finalRows.filter(r=> r.usado > 0);
+  setCapacityData(finalRows);
     } catch(e){ setError(e.message||'Error cargando capacidad'); }
     setLoading(false);
-  }, [bankId, includeClosed]);
+  }, [bankId, includeClosed, hideZero]);
 
   // Auto fetch si se pide y cambia banco
   useEffect(()=>{
