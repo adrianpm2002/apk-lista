@@ -1,148 +1,76 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, Modal, StyleSheet, Clipboard, Platform, Alert, ScrollView } from 'react-native';
-import AnimatedModalWrapper from './AnimatedModalWrapper';
+import { View, Text, TextInput, Pressable, Modal, StyleSheet, Platform, Alert, Clipboard as RNClipboard } from 'react-native';
 
-/**
- * CleanerButton (Botón Limpiar / Formatear)
- * Muestra un modal con:
- *  - Input multiline para pegar/escribir números crudos
- *  - Botón "Pegar y limpiar" que toma el portapapeles, extrae dígitos y los agrupa
- *  - 4 opciones: separar por comas, separar por asterisco, unir pares cercanos (parles), insertar (cierra e inserta)
- * Lógica:
- *  - Se extraen dígitos y se forman tokens de 2 dígitos (pares). Si sobra 1 dígito se mantiene como token parcial.
- *  - Unir pares: convierte tokens de 2 dígitos consecutivos en uno de 4 dígitos (parle) (parejas (0,1),(2,3),...). Sobra impar se ignora.
- */
-const CleanerButton = ({ onInsert, append = true, isDarkMode=false }) => {
-  const [visible, setVisible] = useState(false);
-  const [rawInput, setRawInput] = useState('');
-  const [tokens, setTokens] = useState([]); // tokens de 2 dígitos (y posible 1 dígito final)
-  const [parles, setParles] = useState([]); // resultado de unir pares
-  const [separator, setSeparator] = useState(','); // ',' o '*'
-  const [usedParles, setUsedParles] = useState(false);
+const CleanerButton = ({ onInsert, append=true, isDarkMode=false }) => {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState('');
 
-  const extractTokens = (text) => {
-    const digits = text.replace(/[^0-9]/g,'');
-    const t=[];
-    for (let i=0;i<digits.length;i+=2){ t.push(digits.slice(i,i+2)); }
-    return t; // último puede tener 1 dígito
-  };
+  const clean = (txt) => txt.replace(/[^0-9,.*\s]/g,'');
+  const onlyDigits = (txt) => txt.replace(/[^0-9]/g,'');
+  const pairs = (digits) => { const arr=[]; for(let i=0;i<digits.length;i+=2) arr.push(digits.slice(i,i+2)); return arr; };
 
-  const syncFromRaw = (text) => {
-    const cleaned = text.replace(/[^0-9,.*\s]/g,'');
-    if(cleaned === rawInput) return; // evitar renders innecesarios
-    setRawInput(cleaned);
-    setTokens(extractTokens(cleaned));
-    // No reiniciar parles aquí para evitar parpadeo
-  };
-
-  const handlePasteClean = async () => {
+  const handlePaste = async () => {
     try {
       let text='';
-      if (Platform.OS==='web' && navigator.clipboard?.readText) text = await navigator.clipboard.readText(); else text = await Clipboard.getString();
-      if(!text){ return; }
-      const cleaned = text.replace(/[^0-9,.*\s]/g,'');
-      syncFromRaw(cleaned);
+  if(Platform.OS==='web' && navigator.clipboard?.readText) text=await navigator.clipboard.readText(); else text=await RNClipboard.getString();
+      setValue(clean(text||''));
     } catch(e){ Alert.alert('Error','No se pudo pegar'); }
   };
-
-  const applyFormattedToInput = (items, sep) => {
-    const joined = items.join(sep);
-    setRawInput(joined);
-  };
-  const handleSeparateComas = () => {
-    setSeparator(',');
-    const base = usedParles && parles.length ? parles : tokens.filter(t=> t.length===2);
-    applyFormattedToInput(base, ',');
-  };
-  const handleSeparateAsterisk = () => {
-    setSeparator('*');
-    const base = usedParles && parles.length ? parles : tokens.filter(t=> t.length===2);
-    applyFormattedToInput(base, '*');
-  };
-
-  const handleUnirPares = () => {
-    // Unir TODOS los pares de dos dígitos de izquierda a derecha en un solo paso.
-    // Si quedan al final un par (2 dígitos) y un dígito suelto => formar token de 3 dígitos.
-    const fullPairs = tokens.filter(t=> t.length===2);
-    if (!fullPairs.length) { Alert.alert('Vacío','No hay pares disponibles'); return; }
-    const singleTail = tokens.find(t=> t.length===1) || null;
-    const resultado = [];
-    for (let i=0; i+1<fullPairs.length; i+=2) {
-      resultado.push(fullPairs[i] + fullPairs[i+1]);
+  const handleChange = (txt) => setValue(clean(txt));
+  const actionComas = () => { const p=pairs(onlyDigits(value)).filter(p=> p.length===2); setValue(p.join(',')); };
+  const actionAster = () => { const p=pairs(onlyDigits(value)).filter(p=> p.length===2); setValue(p.join('*')); };
+  const actionUnir = () => {
+    const pFull = pairs(onlyDigits(value));
+    const completos = pFull.filter(p=> p.length===2);
+    if(!completos.length) { Alert.alert('Vacío','No hay pares'); return; }
+    const sobranteDig = (onlyDigits(value).length %2 ===1) ? onlyDigits(value).slice(-1) : '';
+    const res=[];
+    for(let i=0;i+1<completos.length;i+=2) res.push(completos[i]+completos[i+1]);
+    if(completos.length %2 ===1){
+      const last = completos[completos.length-1];
+      if(sobranteDig) res.push(last+sobranteDig); else res.push(last);
     }
-    // Manejo de sobrante
-    if (fullPairs.length % 2 === 1) {
-      const leftoverPair = fullPairs[fullPairs.length-1];
-      if (singleTail) {
-        resultado.push(leftoverPair + singleTail); // 3 dígitos final (ej: 91 + 2 => 912)
-      } else {
-        // Sin dígito suelto, mantener el par tal cual (2 dígitos)
-        resultado.push(leftoverPair);
-      }
-    } else if (!fullPairs.length && singleTail) {
-      // Caso raro: sólo un dígito suelto
-      resultado.push(singleTail);
-    }
-  setParles(resultado);
-  setUsedParles(true);
-  // aplicar directamente al input usando separador actual
-  const sep = separator;
-  setRawInput(resultado.join(sep));
+    setValue(res.join(','));
   };
-
-  const buildFormatted = () => {
-    if (usedParles && parles.length) return parles.join(separator);
-    const fullPairs = tokens.filter(t=> t.length===2);
-    return fullPairs.join(separator);
+  const actionInsert = () => {
+    const out=value.trim();
+    if(!out){ Alert.alert('Vacío','No hay datos'); return; }
+    onInsert && onInsert(out,{ append });
+    setOpen(false); setValue('');
   };
-
-  const handleInsert = () => {
-    const formatted = buildFormatted();
-    if(!formatted){ Alert.alert('Vacío','No hay números para insertar'); return; }
-    onInsert && onInsert(formatted, { append });
-    // limpiar y cerrar
-    setVisible(false);
-    setRawInput('');
-  setTokens([]); setParles([]); setUsedParles(false); setSeparator(',');
-  };
+  const actionClear = () => setValue('');
 
   return (
     <>
-      <Pressable style={({pressed})=> [styles.button, pressed && styles.buttonPressed, isDarkMode && styles.buttonDark]} onPress={()=> setVisible(true)}>
-        <Text style={styles.buttonIcon}>🧹</Text>
-      </Pressable>
-      <Modal visible={visible} transparent animationType="none" onRequestClose={()=> setVisible(false)}>
-        <View style={styles.overlay}>
-          <AnimatedModalWrapper visible={visible} scaleFrom={0.9} duration={180}>
-            <View style={[styles.modal, isDarkMode && styles.modalDark]}>
-              <View style={styles.headerRow}>
-                <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>Limpiar</Text>
-                <Pressable style={styles.closeBtn} onPress={()=> setVisible(false)}><Text style={styles.closeBtnText}>✕</Text></Pressable>
-              </View>
-              <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <View style={styles.inputWrapper}>
-                  <TextInput
-                    value={rawInput}
-                    onChangeText={syncFromRaw}
-                    multiline
-                    placeholder="Pega o escribe números"
-                    placeholderTextColor={isDarkMode ? '#7A858C' : '#9AA5A0'}
-                    style={[styles.textArea, isDarkMode && styles.textAreaDark]}
-                  />
-                  <View style={styles.inlineButtonsBox}>
-                    <Pressable style={styles.inlineSmallBtn} onPress={handlePasteClean}><Text style={styles.inlineSmallBtnTxt}>Pegar</Text></Pressable>
-                    <Pressable style={styles.inlineSmallBtn} onPress={()=> { setRawInput(''); setTokens([]); setParles([]); setUsedParles(false); }}><Text style={[styles.inlineSmallBtnTxt,{color:'#1565C0'}]}>Limpiar</Text></Pressable>
-                  </View>
-                </View>
-                <View style={styles.optionsRow}>
-                  <Pressable style={[styles.optBtn, separator===',' && styles.optBtnActive]} onPress={handleSeparateComas}><Text style={styles.optBtnText}>Comas</Text></Pressable>
-                  <Pressable style={[styles.optBtn, separator==='*' && styles.optBtnActive]} onPress={handleSeparateAsterisk}><Text style={styles.optBtnText}>Asterisco</Text></Pressable>
-                  <Pressable style={[styles.optBtn, usedParles && styles.optBtnActive]} onPress={handleUnirPares}><Text style={styles.optBtnText}>Unir pares</Text></Pressable>
-                  <Pressable style={[styles.optBtn, styles.insertBtn]} onPress={handleInsert}><Text style={[styles.optBtnText, styles.insertBtnText]}>Insertar</Text></Pressable>
-                </View>
-              </ScrollView>
+      <Pressable style={({pressed})=> [styles.btnText, pressed && styles.btnTextPressed]} onPress={()=> setOpen(true)}><Text style={styles.btnTextLabel}>Limpiar</Text></Pressable>
+      <Modal transparent visible={open} animationType="fade" onRequestClose={()=> setOpen(false)}>
+        <View style={styles.mOverlay}> 
+          <View style={[styles.mPanel, isDarkMode && styles.mPanelDark]}> 
+            <View style={styles.mHeader}> 
+              <Text style={[styles.mTitle, isDarkMode && styles.mTitleDark]}>Limpiar</Text>
+              <Pressable onPress={()=> setOpen(false)}><Text style={styles.mClose}>✕</Text></Pressable>
             </View>
-          </AnimatedModalWrapper>
+            <View style={styles.mInputWrap}> 
+              <TextInput
+                value={value}
+                onChangeText={handleChange}
+                multiline
+                placeholder="Pega o escribe"
+                placeholderTextColor={isDarkMode ? '#7A858C' : '#9AA5A0'}
+                style={[styles.mInput, isDarkMode && styles.mInputDark]}
+              />
+              <View style={styles.mInlineBtns}> 
+                <Pressable style={styles.inlineBtn} onPress={handlePaste}><Text style={styles.inlineBtnTxt}>Pegar</Text></Pressable>
+                <Pressable style={styles.inlineBtn} onPress={actionClear}><Text style={[styles.inlineBtnTxt,{color:'#1565C0'}]}>Limpiar</Text></Pressable>
+              </View>
+            </View>
+            <View style={styles.mActionsRow}> 
+              <Pressable style={styles.act} onPress={actionComas}><Text style={styles.actTxt}>Comas</Text></Pressable>
+              <Pressable style={styles.act} onPress={actionAster}><Text style={styles.actTxt}>Asterisco</Text></Pressable>
+              <Pressable style={styles.act} onPress={actionUnir}><Text style={styles.actTxt}>Unir pares</Text></Pressable>
+              <Pressable style={[styles.act, styles.actPrimary]} onPress={actionInsert}><Text style={[styles.actTxt, styles.actPrimaryTxt]}>Insertar</Text></Pressable>
+            </View>
+          </View>
         </View>
       </Modal>
     </>
@@ -150,37 +78,27 @@ const CleanerButton = ({ onInsert, append = true, isDarkMode=false }) => {
 };
 
 const styles = StyleSheet.create({
-  button:{
-    width:40,height:40,borderRadius:20,backgroundColor:'#FFFFFF',borderWidth:1.5,borderColor:'#B8D4A8',alignItems:'center',justifyContent:'center',shadowColor:'#2D5016',shadowOffset:{width:0,height:2},shadowOpacity:0.1,shadowRadius:3,elevation:3
-  },
-  buttonPressed:{ opacity:0.7, transform:[{scale:0.95}] },
-  buttonDark:{ backgroundColor:'#34495E', borderColor:'#5D6D7E' },
-  buttonIcon:{ fontSize:18 },
-  overlay:{ flex:1, backgroundColor:'rgba(0,0,0,0.35)', padding:20, justifyContent:'center', alignItems:'flex-end' },
-  modal:{ backgroundColor:'#FFFFFF', borderRadius:18, padding:18, maxHeight:'88%' },
-  modalDark:{ backgroundColor:'#22313F' },
-  headerRow:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 },
-  headerTitle:{ fontSize:18, fontWeight:'700', color:'#2D5016' },
-  headerTitleDark:{ color:'#ECF0F1' },
-  closeBtn:{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, backgroundColor:'#F2F5F2', borderWidth:1, borderColor:'#D5DBDB' },
-  closeBtnDark:{ backgroundColor:'#2E3B47', borderColor:'#3F4B55' },
-  closeBtnText:{ fontSize:14, fontWeight:'600', color:'#2C3E50' },
-  scroll:{ marginTop:4 },
-  scrollContent:{ paddingBottom:30 },
-  textArea:{ minHeight:120, borderWidth:1.5, borderColor:'#D5DBDB', borderRadius:10, padding:10, paddingTop:34, fontSize:15, backgroundColor:'#FFFFFF', textAlignVertical:'top', color:'#2C3E50' },
-  textAreaDark:{ backgroundColor:'#2E3B47', borderColor:'#3F4B55', color:'#ECF0F1' },
-  inputWrapper:{ position:'relative', marginTop:4 },
-  inlineButtonsBox:{ position:'absolute', top:4, right:6, flexDirection:'row', gap:6 },
-  inlineSmallBtn:{ backgroundColor:'#F2F5F2', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:'#D5DBDB' },
-  inlineSmallBtnTxt:{ fontSize:12, fontWeight:'600', color:'#2C3E50' },
-  optionsRow:{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:14 },
-  optBtn:{ paddingHorizontal:12, paddingVertical:10, borderRadius:10, backgroundColor:'#F2F5F2', borderWidth:1, borderColor:'#D5DBDB' },
-  optBtnActive:{ backgroundColor:'#FFE4B5', borderColor:'#D4AF37' },
-  optBtnText:{ fontSize:13, fontWeight:'600', color:'#2C3E50' },
-  insertBtn:{ backgroundColor:'#2D5016', borderColor:'#2D5016' },
-  insertBtnText:{ color:'#FFFFFF' },
-  headerCleanBtn:{ paddingHorizontal:14, paddingVertical:6 },
-  headerCleanBtnText:{ fontSize:14, fontWeight:'600', color:'#1565C0' }
+  btnText:{ paddingHorizontal:14, paddingVertical:10, borderRadius:10, backgroundColor:'#F2F5F2', borderWidth:1, borderColor:'#D5DBDB' },
+  btnTextPressed:{ opacity:0.7 },
+  btnTextLabel:{ fontSize:14, fontWeight:'600', color:'#2C3E50' },
+  mOverlay:{ flex:1, backgroundColor:'rgba(0,0,0,0.35)', justifyContent:'center', alignItems:'flex-end', padding:16 },
+  mPanel:{ width:'86%', backgroundColor:'#FFFFFF', borderRadius:18, padding:16 },
+  mPanelDark:{ backgroundColor:'#22313F' },
+  mHeader:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10 },
+  mTitle:{ fontSize:18, fontWeight:'700', color:'#2D5016' },
+  mTitleDark:{ color:'#ECF0F1' },
+  mClose:{ fontSize:18, fontWeight:'600', color:'#C0392B' },
+  mInputWrap:{ position:'relative' },
+  mInput:{ minHeight:160, borderWidth:1.5, borderColor:'#D5DBDB', borderRadius:10, padding:12, paddingTop:46, fontSize:15, backgroundColor:'#FFFFFF', textAlignVertical:'top', color:'#2C3E50' },
+  mInputDark:{ backgroundColor:'#2E3B47', borderColor:'#3F4B55', color:'#ECF0F1' },
+  mInlineBtns:{ position:'absolute', top:6, right:8, flexDirection:'row', gap:8 },
+  inlineBtn:{ backgroundColor:'#F2F5F2', borderWidth:1, borderColor:'#D5DBDB', paddingHorizontal:10, paddingVertical:6, borderRadius:8 },
+  inlineBtnTxt:{ fontSize:12, fontWeight:'600', color:'#2C3E50' },
+  mActionsRow:{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:18 },
+  act:{ paddingHorizontal:12, paddingVertical:10, borderRadius:10, backgroundColor:'#F2F5F2', borderWidth:1, borderColor:'#D5DBDB' },
+  actTxt:{ fontSize:13, fontWeight:'600', color:'#2C3E50' },
+  actPrimary:{ backgroundColor:'#2D5016', borderColor:'#2D5016' },
+  actPrimaryTxt:{ color:'#FFFFFF' }
 });
 
 export default CleanerButton;

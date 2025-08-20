@@ -505,12 +505,6 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           <Pressable onPress={()=> setIsLocked(l=> !l)} style={[styles.lockButton, isLocked && styles.lockButtonActive]}>
             <Text style={styles.lockIcon}>{isLocked ? '🔒' : '🔓'}</Text>
           </Pressable>
-          <CleanerButton onInsert={(formatted)=>{
-            setPlays(prev => {
-              if(!prev.trim()) return formatted; // vacío => reemplaza
-              return prev + (prev.endsWith('\n') ? '' : '\n') + formatted; // agrega con salto
-            });
-          }} />
           <BatteryButton
             bankId={bankId}
             selectedLotteries={selectedLotteries}
@@ -529,6 +523,12 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           }} />
           <ListButton onOptionSelect={(option) => console.log('List option:', option)} />
           <TextModeInfoButton icon="ℹ︎" />
+          <CleanerButton onInsert={(formatted)=>{
+            setPlays(prev => {
+              if(!prev.trim()) return formatted; // vacío => reemplaza
+              return prev + (prev.endsWith('\n') ? '' : '\n') + formatted; // agrega con salto
+            });
+          }} />
         </View>
 
         {/* Row 5: Botones de acción */}
