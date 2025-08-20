@@ -14,6 +14,7 @@ import InputField from '../components/InputField';
 import MoneyInputField from '../components/MoneyInputField';
 import ActionButton from '../components/ActionButton';
 import HammerButton from '../components/HammerButton';
+import CleanerButton from '../components/CleanerButton';
 import ListButton from '../components/ListButton';
 import PricingInfoButton from '../components/PricingInfoButton';
 import NotificationsButton from '../components/NotificationsButton';
@@ -221,62 +222,49 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     // Validar campos requeridos
     let hasErrors = !validateForm();
 
-    // Validación de límites basada en instrucciones parseadas
+    // Validación de capacidad (unificada con modo visual) usando uso del día en tabla jugada
     if (!hasErrors) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         let specificLimits = null;
         if (user) {
           const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', user.id).maybeSingle();
-            specificLimits = profile?.limite_especifico || null;
+          specificLimits = profile?.limite_especifico || null;
         }
-        // Horarios seleccionados (uno por lotería)
         const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
         if (horarios.length && parsedInstructions.length) {
-          const { data: limitRows } = await supabase
-            .from('limite_numero')
-            .select('numero, limite, jugada, id_horario')
-            .in('id_horario', horarios);
-          const { data: usedRows } = await supabase
-            .from('numero_limitado')
-            .select('numero, limite, jugada, id_horario')
-            .in('id_horario', horarios);
+          // Límites definidos individualmente
+          const { data: limitRows } = await supabase.from('limite_numero').select('numero, limite, jugada, id_horario').in('id_horario', horarios);
           const limitMap = new Map();
-          (limitRows||[]).forEach(r=>{
-            limitMap.set(r.id_horario+"|"+r.jugada+"|"+r.numero, r.limite);
+          (limitRows||[]).forEach(r=>{ limitMap.set(r.id_horario+"|"+r.jugada+"|"+r.numero, r.limite); });
+          // Uso acumulado del día
+          const dayStart = new Date(); dayStart.setHours(0,0,0,0);
+          const { data: jugadasDia } = await supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', dayStart.toISOString()).in('id_horario', horarios);
+          const usageMap = new Map();
+          (jugadasDia||[]).forEach(j=>{
+            const nums=(j.numeros||'').split(',').map(s=>s.trim()).filter(Boolean);
+            nums.forEach(n=>{ const k=j.id_horario+"|"+j.jugada+"|"+n; usageMap.set(k,(usageMap.get(k)||0)+(j.monto_unitario||0)); });
           });
-          const usedMap = new Map();
-            (usedRows||[]).forEach(r=>{
-              const k = r.id_horario+"|"+r.jugada+"|"+r.numero;
-              usedMap.set(k, (usedMap.get(k)||0)+(r.limite||0));
-            });
-          const violations = [];
-          // Para cada instrucción y número usamos amountEach como cantidad base
+          const violations=[];
           parsedInstructions.forEach(instr=>{
             const jugada = instr.playType;
-            instr.numbers.forEach(numRaw => {
-              const numInt = parseInt(numRaw,10);
+            instr.numbers.forEach(numRaw=>{
               horarios.forEach(h=>{
-                const key = h+"|"+jugada+"|"+numInt;
-                const byNumber = limitMap.get(key);
-                const specific = specificLimits && specificLimits[jugada];
-                if(byNumber===undefined && specific===undefined) return; // sin límite aplicable
+                const key = h+"|"+jugada+"|"+numRaw; // numRaw ya formateado
+                const perNumber = limitMap.get(key);
+                const specLimit = specificLimits && specificLimits[jugada];
                 let effective;
-                if(byNumber!==undefined && specific!==undefined) effective = Math.min(byNumber, specific); else if(byNumber!==undefined) effective = byNumber; else effective = specific; 
-                const used = usedMap.get(key) || 0;
-                const amt = instr.amountEach || 0;
-                if((used + amt) > effective){
-                  violations.push({ numero:numRaw, jugada, permitido:effective, usado:used, intento:amt });
-                }
+                if(perNumber!==undefined && specLimit!==undefined) effective = Math.min(perNumber, specLimit); else if(perNumber!==undefined) effective = perNumber; else if(specLimit!==undefined) effective = specLimit; else effective=null;
+                if(!effective) return;
+                const used = usageMap.get(key)||0;
+                const amt = instr.amountEach||0;
+                if((used + amt) > effective){ violations.push({ numero:numRaw, jugada, permitido:effective, usado:used, intento:amt }); }
               });
             });
           });
-          if (violations.length) {
-            setLimitViolations(violations);
-            hasErrors = true;
-          }
+          if(violations.length){ setLimitViolations(violations); hasErrors=true; }
         }
-      } catch(e) { /* silencioso */ }
+      } catch(e){ /* silencio */ }
     }
 
   if (hasErrors) {
@@ -299,14 +287,22 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
         const playsToSave = [];
         for (const lottery of selectedLotteries) {
           for(const instr of parsedInstructions){
+            let unit = instr.amountEach;
+            let total = instr.totalPerLottery;
+            if(instr.playType==='parle' && isLocked){
+              // totalPerLottery es el total original; amountEach fue dividido anteriormente en parser (floor)
+              // Mantener total original para que usePlaySubmission pueda registrarlo y validar límites con unit correcto
+              total = instr.totalPerLottery; // ya el original
+              unit = instr.amountEach; // ya dividido
+            }
             playsToSave.push({
               lottery,
               schedule: selectedSchedules[lottery],
               playType: instr.playType,
-              numbers: instr.numbers,
+              numbers: instr.numbers.join(','),
               note: note.trim(),
-              amount: instr.amountEach,
-              total: instr.totalPerLottery
+              amount: unit,
+              total
             });
           }
         }
@@ -509,6 +505,12 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           <Pressable onPress={()=> setIsLocked(l=> !l)} style={[styles.lockButton, isLocked && styles.lockButtonActive]}>
             <Text style={styles.lockIcon}>{isLocked ? '🔒' : '🔓'}</Text>
           </Pressable>
+          <CleanerButton onInsert={(formatted)=>{
+            setPlays(prev => {
+              if(!prev.trim()) return formatted; // vacío => reemplaza
+              return prev + (prev.endsWith('\n') ? '' : '\n') + formatted; // agrega con salto
+            });
+          }} />
           <BatteryButton
             bankId={bankId}
             selectedLotteries={selectedLotteries}

@@ -43,7 +43,7 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
     const amount1 = toInt(parts[1]);
     const amount2 = parts.length > 2 ? toInt(parts[2]) : 0;
   const rawNums = numbersPart.split(numberSepRegex).map(n => n.replace(/[^0-9]/g, '')).filter(Boolean);
-  if(rawNums.some(n=> n.length===1 || n.length===5 || n.length>=7)) { errors.push({ line: idx+1, message:'Longitud inválida (1, 5 o >=7 dígitos)' }); return; }
+  if(rawNums.some(n=> n.length===1 || n.length===5 || n.length>=7)) { errors.push({ line: idx+1, message:'Números con formatos inválidos' }); return; }
     if (!rawNums.length) { errors.push({ line: idx + 1, message: 'Sin números' }); return; }
     const lenSet = new Set(rawNums.map(n => n.length));
     if (lenSet.size !== 1) { errors.push({ line: idx + 1, message: 'Longitudes mezcladas' }); return; }

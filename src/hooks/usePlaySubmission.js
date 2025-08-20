@@ -95,7 +95,12 @@ export const usePlaySubmission = () => {
           throw new Error(`Números incompletos: ${lista.join(', ')}`);
         }
       }
-      const calculatedTotal = formData.amount * numbersArray.length;
+      // Total calculado estándar (monto unitario * cantidad de números)
+      let calculatedTotal = formData.amount * numbersArray.length;
+      // Permitir override si viene total explícito (caso parle con candado: total original antes de dividir unitario)
+      if(typeof formData.total === 'number' && formData.total > 0) {
+        calculatedTotal = formData.total;
+      }
 
       // Obtener IDs de lotería y horario para verificación de límites
       const ids = await getLotteryAndScheduleIds(formData.lottery, formData.schedule);
@@ -189,8 +194,8 @@ export const usePlaySubmission = () => {
       
       return {
         success: true,
-        play: savedPlay,
-        message: 'Jugada guardada exitosamente'
+        play: playData,
+        message: 'Jugada preparada (inserción real pendiente si se implementa persistencia)'
       };
     } catch (error) {
       console.error('Error guardando jugada y registrando apuestas:', error);
