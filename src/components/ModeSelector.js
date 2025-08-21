@@ -7,7 +7,7 @@ import {
   Animated,
 } from 'react-native';
 
-const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { visual: true, text: true } }) => {
+const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { visual: true, text: true, text2: true } }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -40,7 +40,7 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
         { transform: [{ scale: scaleAnim }] }
       ]}
     >
-      {visibleModes.visual && (
+      {visibleModes.text && (
         <Pressable
           style={({ pressed }) => [
             styles.modeButton,
@@ -56,6 +56,25 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
             currentMode === 'Visual' && styles.activeText
           ]}>
             👁️ Visual
+          </Text>
+        </Pressable>
+      )}
+      {visibleModes.text2 && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.modeButton,
+            styles.rightButton,
+            currentMode === 'Texto2' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
+            pressed && styles.buttonPressed
+          ]}
+          onPress={() => handleModeSelect('Texto2')}
+        >
+          <Text style={[
+            styles.modeText,
+            isDarkMode && styles.modeTextDark,
+            currentMode === 'Texto2' && styles.activeText
+          ]}>
+            ✍️ Texto2
           </Text>
         </Pressable>
       )}
