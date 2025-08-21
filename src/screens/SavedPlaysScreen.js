@@ -3,6 +3,7 @@ import { Animated } from 'react-native';
 import { View, Text, StyleSheet, Pressable, FlatList, TextInput, ScrollView, RefreshControl, Alert, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../supabaseClient';
+import { useOffline } from '../context/OfflineContext';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -12,6 +13,7 @@ const getPlayTypeLabel = (playType) => ({
 
 const SavedPlaysScreen = ({ navigation, route }) => {
   const isDarkMode = route?.params?.isDarkMode || false;
+  const { getQueue, clearFromQueue, pendingCount } = useOffline();
   const [savedPlays, setSavedPlays] = useState([]);
   const [filteredPlays, setFilteredPlays] = useState([]);
   const [displayedPlays, setDisplayedPlays] = useState([]);
@@ -163,6 +165,35 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         { text:'Cancelar', style:'cancel' },
         { text:'Sí', style:'destructive', onPress:onYes }
       ]);
+    }
+  };
+
+  const handleSyncPending = async () => {
+    try {
+      const q = await getQueue();
+      if (!q.length) {
+        if (Platform.OS === 'web') window.alert('No hay jugadas pendientes');
+        else Alert.alert('Sin pendientes', 'No hay jugadas pendientes');
+        return;
+      }
+      const sentIds = [];
+      let ok = 0, fail = 0;
+      for (const item of q) {
+        try {
+          const { error } = await supabase.from('jugada').insert(item.payload).select('id').single();
+          if (!error) { ok += 1; sentIds.push(item.__id); }
+          else { fail += 1; }
+        } catch {
+          fail += 1;
+        }
+      }
+      if (sentIds.length) await clearFromQueue(sentIds);
+      const msg = `${ok} subidas, ${fail} fallidas`;
+      if (Platform.OS === 'web') window.alert(msg); else Alert.alert('Sincronización', msg);
+      // refrescar lista del día por si se subieron jugadas nuevas
+      if (ok > 0) await loadSavedPlays();
+    } catch (e) {
+      if (Platform.OS === 'web') window.alert('Error al sincronizar'); else Alert.alert('Error', 'Error al sincronizar');
     }
   };
 
@@ -322,6 +353,11 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         <Pressable style={styles.backBtn} onPress={()=> navigation.goBack()}><Text style={styles.backTxt}>←</Text></Pressable>
         <Text style={[styles.title, isDarkMode && styles.titleDark]} numberOfLines={1}>Jugadas Guardadas</Text>
         <View style={styles.headerActions}>
+          {pendingCount > 0 && (
+            <Pressable style={[styles.iconBtn, styles.syncNowBtn]} onPress={handleSyncPending}>
+              <Text style={[styles.iconTxt, styles.syncNowTxt]}>Subir pendientes ({pendingCount})</Text>
+            </Pressable>
+          )}
           <Pressable style={styles.iconBtn} onPress={()=> setSearchVisible(v=> !v)}>
             <Text style={[styles.iconTxt, searchVisible && styles.iconActive]}>🔍</Text>
           </Pressable>
@@ -357,6 +393,14 @@ const SavedPlaysScreen = ({ navigation, route }) => {
               {renderFilterButton('all', selectedPlayTypeFilter, setSelectedPlayTypeFilter,'Todas')}
               {playTypeOptions.map(pt=> renderFilterButton(pt.value, selectedPlayTypeFilter, setSelectedPlayTypeFilter, pt.label))}
             </View>
+        </View>
+      )}
+      {pendingCount > 0 && (
+        <View style={[styles.inlineTotalsOutside, isDarkMode && styles.inlineTotalsOutsideDark, { borderColor:'#F5CBA7', backgroundColor:'#FFF6ED' }]}>
+          <Text style={[styles.totalText, { color:'#D35400' }]}>Hay {pendingCount} jugada(s) pendientes</Text>
+          <Pressable style={[styles.inlineActionBtn, { backgroundColor:'#FDEBD0', borderColor:'#F5CBA7' }]} onPress={handleSyncPending}>
+            <Text style={[styles.inlineActionTxt, { color:'#D35400' }]}>Subir jugadas pendientes</Text>
+          </Pressable>
         </View>
       )}
       <View style={[styles.inlineTotalsOutside, isDarkMode && styles.inlineTotalsOutsideDark]}>

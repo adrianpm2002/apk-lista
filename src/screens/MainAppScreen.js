@@ -41,6 +41,12 @@ const MainAppScreen = ({ navigation, route }) => {
       editPayload: route?.params?.editPayload
     }
   };
+  const textRoute = {
+    ...route,
+    params: {
+      ...route?.params
+    }
+  };
 
   const handleModeChange = (newMode) => {
     if (newMode === currentMode) return;
@@ -82,7 +88,7 @@ const MainAppScreen = ({ navigation, route }) => {
       ) : visibleModes.text ? (
         <TextModeScreen 
           navigation={navigation}
-          route={route}
+          route={textRoute}
           currentMode={currentMode}
           onModeChange={handleModeChange}
           isDarkMode={isDarkMode}
