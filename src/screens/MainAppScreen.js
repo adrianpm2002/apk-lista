@@ -5,12 +5,14 @@ import {
 } from 'react-native';
 import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
-import TextMode2Screen from './TextMode2Screen';
 
 const MainAppScreen = ({ navigation, route }) => {
   const [currentMode, setCurrentMode] = useState('Visual');
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [visibleModes, setVisibleModes] = useState({ visual: true, text: true, text2: true });
+  const [visibleModes, setVisibleModes] = useState({
+    visual: true,
+    text: true
+  });
   
   // Usar configuraciones locales simples
 
@@ -71,7 +73,7 @@ const MainAppScreen = ({ navigation, route }) => {
   {/* Mode Selector movido a los headers de cada pantalla */}
       
       {/* Renderizar solo la pantalla del modo actual si está visible */}
-  {currentMode === 'Visual' && visibleModes.visual ? (
+      {currentMode === 'Visual' && visibleModes.visual ? (
         <VisualModeScreen 
           navigation={navigation} 
           route={visualRoute}
@@ -82,19 +84,8 @@ const MainAppScreen = ({ navigation, route }) => {
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
-  ) : currentMode === 'Texto' && visibleModes.text ? (
+      ) : visibleModes.text ? (
         <TextModeScreen 
-          navigation={navigation}
-          route={route}
-          currentMode={currentMode}
-          onModeChange={handleModeChange}
-          isDarkMode={isDarkMode}
-          onToggleDarkMode={handleToggleDarkMode}
-          onModeVisibilityChange={handleModeVisibilityChange}
-          visibleModes={visibleModes}
-        />
-      ) : currentMode === 'Texto2' && visibleModes.text2 ? (
-        <TextMode2Screen
           navigation={navigation}
           route={route}
           currentMode={currentMode}
