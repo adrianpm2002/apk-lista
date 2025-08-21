@@ -408,14 +408,15 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
             <NotificationsButton />
           </View>
         </View>
-        {offlineMode && (
-          <View style={{ marginTop:6, alignSelf:'flex-start', backgroundColor:'#E8F5E8', borderColor:'#27AE60', borderWidth:1, borderRadius:8, paddingHorizontal:10, paddingVertical:4 }}>
-            <Text style={{ color:'#1E8449', fontWeight:'800', fontSize:12 }}>Modo Offline</Text>
-          </View>
-        )}
+  {/* Modo Offline movido al contenido para no superponer el header */}
   {/* Eliminado InfoButton general flotante en favor de botón en barra inferior */}
       </View>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {offlineMode && (
+          <View style={styles.offlineBanner}>
+            <Text style={styles.offlineBannerText}>Modo Offline</Text>
+          </View>
+        )}
         {/* Row 1: Lotería */}
         <MultiSelectDropdown
           label={t('common.lottery')}
@@ -651,6 +652,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingTop: 120,
+  },
+  offlineBanner: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E8F5E8',
+    borderColor: '#27AE60',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 8,
+  },
+  offlineBannerText: {
+    color: '#1E8449',
+    fontWeight: '800',
+    fontSize: 12,
   },
   row: {
     flexDirection: 'row',
