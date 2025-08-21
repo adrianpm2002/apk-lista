@@ -1,8 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { View, Text, Pressable, Modal, StyleSheet, Clipboard, Platform, Alert, ScrollView, TextInput } from 'react-native';
-import AnimatedModalWrapper from './AnimatedModalWrapper';
 
-// Componente HammerButton actualizado según nuevos requisitos
+// HammerButton reescrito: se elimina AnimatedModalWrapper para evitar parpadeos.
+// Se mantiene TODA la lógica original (generación, parle, combinación, edición, duplicados, parejas AA, pegado, limpieza, inserción).
+// Cambios clave:
+// 1. Modal nativo con animationType="fade" (configurable si se requiere).
+// 2. Derivados (displayTokens, duplicados, conteos) memorizados con useMemo para menos renders.
+// 3. Estructura de render simplificada sin wrapper animado externo.
+// 4. Misma API externa (onOptionSelect, isDarkMode, numbersSeparator).
 const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', ' }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [rawDigits, setRawDigits] = useState(''); // cadena de dígitos crudos para tokens de 2
@@ -19,57 +24,62 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', 
   const [parejasAdded, setParejasAdded] = useState(false); // impedir múltiples inserciones de parejas AA
   const hiddenInputRef = useRef(null);
 
-  // Construir tokens de 2 dígitos a partir de rawDigits (solo cuando no estamos en modo parle)
-  const deriveTokensFromRaw = () => {
-    if (parleMode) return tokens; // mantener parle tokens (4)
-    const t = [];
-    for (let i=0;i<rawDigits.length;i+=2) {
-      const slice = rawDigits.slice(i,i+2);
-      if (slice.length===2) t.push(slice);
-      else if (slice.length===1) {
-        // mantener dígito suelto como token parcial (no se resalta ni se trata como error)
-        t.push(slice);
+  // Derivados memorizados para estabilidad y menos renders.
+  const memo = useMemo(()=>{
+    const deriveTokensFromRaw = () => {
+      if (parleMode) return tokens;
+      const t = [];
+      for (let i=0;i<rawDigits.length;i+=2) {
+        const slice = rawDigits.slice(i,i+2);
+        if (slice.length===2) t.push(slice); else if (slice.length===1) t.push(slice);
       }
+      return t;
+    };
+    const displayTokens = deriveTokensFromRaw();
+    const duplicateCounts = displayTokens.reduce((acc,t)=>{ if(t.length===2 || t.length===4){ acc[t]=(acc[t]||0)+1;} return acc; },{});
+    let unorderedParleDupSet = new Set();
+    let logicalParleDuplicateGroups = 0;
+    if (parleMode) {
+      const pairCounts = {};
+      displayTokens.forEach(tok => {
+        if (tok.length === 4) {
+          const p1 = tok.slice(0,2); const p2 = tok.slice(2);
+          const key = [p1,p2].sort().join('|');
+          pairCounts[key] = (pairCounts[key]||0)+1;
+        }
+      });
+      Object.entries(pairCounts).forEach(([key,count])=>{
+        if (count>1) {
+          logicalParleDuplicateGroups += 1;
+          const [a,b] = key.split('|');
+          displayTokens.forEach(tok => {
+            if (tok.length===4) {
+              const p1 = tok.slice(0,2); const p2 = tok.slice(2);
+              if ((p1===a && p2===b) || (p1===b && p2===a)) unorderedParleDupSet.add(tok);
+            }
+          });
+        }
+      });
     }
-    return t;
-  };
-  const displayTokens = deriveTokensFromRaw();
-  const lastTwoDigitToken = [...displayTokens].reverse().find(t=> t.length===2) || null;
-  const duplicateCounts = displayTokens.reduce((acc,t)=>{ if(t.length===2 || t.length===4){ acc[t]=(acc[t]||0)+1;} return acc; },{});
-  // Duplicados parle por pares no ordenados (ABCD == CDAB si AB y CD son pares) y conteo lógico
-  let unorderedParleDupSet = new Set();
-  let logicalParleDuplicateGroups = 0;
-  if (parleMode) {
-    const pairCounts = {};
-    displayTokens.forEach(tok => {
-      if (tok.length === 4) {
-        const p1 = tok.slice(0,2);
-        const p2 = tok.slice(2);
-        const key = [p1,p2].sort().join('|');
-        pairCounts[key] = (pairCounts[key]||0)+1;
-      }
-    });
-    Object.entries(pairCounts).forEach(([key,count])=>{
-      if (count>1) {
-        logicalParleDuplicateGroups += 1; // un grupo por key
-        const [a,b] = key.split('|');
-        displayTokens.forEach(tok => {
-          if (tok.length===4) {
-            const p1 = tok.slice(0,2); const p2 = tok.slice(2);
-            if ((p1===a && p2===b) || (p1===b && p2===a)) unorderedParleDupSet.add(tok);
-          }
-        });
-      }
-    });
-  }
-  // Grupos duplicados de pares simples (2 dígitos)
-  const twoDigitTokens = displayTokens.filter(t=> t.length===2);
-  const pairDuplicateGroupCount = (()=>{
-    const freq = {};
-    twoDigitTokens.forEach(t=>{ freq[t]=(freq[t]||0)+1; });
-    return Object.values(freq).filter(c=>c>1).length;
-  })();
-  const hasDuplicates = parleMode ? logicalParleDuplicateGroups>0 : pairDuplicateGroupCount>0;
+    const twoDigitTokens = displayTokens.filter(t=> t.length===2);
+    const pairDuplicateGroupCount = (()=>{
+      const freq = {}; twoDigitTokens.forEach(t=>{ freq[t]=(freq[t]||0)+1; });
+      return Object.values(freq).filter(c=>c>1).length;
+    })();
+    const hasDuplicates = parleMode ? logicalParleDuplicateGroups>0 : pairDuplicateGroupCount>0;
+    return {
+      displayTokens,
+      duplicateCounts,
+      unorderedParleDupSet,
+      logicalParleDuplicateGroups,
+      twoDigitTokens,
+      pairDuplicateGroupCount,
+      hasDuplicates
+    };
+  }, [rawDigits, tokens, parleMode]);
+
+  const { displayTokens, duplicateCounts, unorderedParleDupSet, logicalParleDuplicateGroups, twoDigitTokens, pairDuplicateGroupCount, hasDuplicates } = memo;
+  const lastTwoDigitToken = useMemo(()=>[...displayTokens].reverse().find(t=> t.length===2) || null,[displayTokens]);
 
   const toggleDigit = (d) => {
     setSelectedDigits(prev => prev.includes(d) ? prev.filter(x=>x!==d) : [...prev, d]);
@@ -263,9 +273,8 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', 
         <Text style={styles.buttonIcon}>🔨</Text>
       </Pressable>
 
-      <Modal visible={isVisible} transparent animationType="none" onRequestClose={handleCancel}>
+      <Modal visible={isVisible} transparent animationType="fade" onRequestClose={handleCancel}>
         <View style={styles.overlay}>
-          <AnimatedModalWrapper visible={isVisible} scaleFrom={0.9} duration={180}>
           <View style={[styles.modal, isDarkMode && styles.modalDark]}>
             {/* Header */}
             <View style={styles.headerRow}>
@@ -440,7 +449,6 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', 
               <Pressable style={[styles.footerBtnInsert, isDarkMode && styles.footerBtnInsertDark]} onPress={handleInsertar}><Text style={styles.footerBtnInsertText}>Insertar ({parleMode ? tokens.length : displayTokens.filter(t=>t.length===2).length})</Text></Pressable>
             </View>
           </View>
-          </AnimatedModalWrapper>
         </View>
       </Modal>
     </>

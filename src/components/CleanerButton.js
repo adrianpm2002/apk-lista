@@ -55,13 +55,12 @@ const CleanerButton = ({ onInsert, append=true, isDarkMode=false }) => {
                 value={value}
                 onChangeText={handleChange}
                 multiline
-                placeholder="Pega o escribe"
-                placeholderTextColor={isDarkMode ? '#7A858C' : '#9AA5A0'}
+                // placeholder eliminado según requerimiento
                 style={[styles.mInput, isDarkMode && styles.mInputDark]}
               />
               <View style={styles.mInlineBtns}> 
                 <Pressable style={styles.inlineBtn} onPress={handlePaste}><Text style={styles.inlineBtnTxt}>Pegar</Text></Pressable>
-                <Pressable style={styles.inlineBtn} onPress={actionClear}><Text style={[styles.inlineBtnTxt,{color:'#1565C0'}]}>Limpiar</Text></Pressable>
+                <Pressable style={[styles.inlineBtn, styles.inlineBtnSecondary]} onPress={actionClear}><Text style={[styles.inlineBtnTxt,{color:'#1565C0'}]}>Limpiar</Text></Pressable>
               </View>
             </View>
             <View style={styles.mActionsRow}> 
@@ -89,10 +88,11 @@ const styles = StyleSheet.create({
   mTitleDark:{ color:'#ECF0F1' },
   mClose:{ fontSize:18, fontWeight:'600', color:'#C0392B' },
   mInputWrap:{ position:'relative' },
-  mInput:{ minHeight:160, borderWidth:1.5, borderColor:'#D5DBDB', borderRadius:10, padding:12, paddingTop:46, fontSize:15, backgroundColor:'#FFFFFF', textAlignVertical:'top', color:'#2C3E50' },
+  mInput:{ minHeight:160, borderWidth:1.5, borderColor:'#D5DBDB', borderRadius:10, padding:12, paddingRight:100, fontSize:15, backgroundColor:'#FFFFFF', textAlignVertical:'top', color:'#2C3E50' },
   mInputDark:{ backgroundColor:'#2E3B47', borderColor:'#3F4B55', color:'#ECF0F1' },
-  mInlineBtns:{ position:'absolute', top:6, right:8, flexDirection:'row', gap:8 },
-  inlineBtn:{ backgroundColor:'#F2F5F2', borderWidth:1, borderColor:'#D5DBDB', paddingHorizontal:10, paddingVertical:6, borderRadius:8 },
+  mInlineBtns:{ position:'absolute', top:6, right:8, flexDirection:'column' },
+  inlineBtn:{ backgroundColor:'#F2F5F2', borderWidth:1, borderColor:'#D5DBDB', paddingHorizontal:10, paddingVertical:6, borderRadius:8, marginBottom:8 },
+  inlineBtnSecondary:{ marginBottom:0 },
   inlineBtnTxt:{ fontSize:12, fontWeight:'600', color:'#2C3E50' },
   mActionsRow:{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:18 },
   act:{ paddingHorizontal:12, paddingVertical:10, borderRadius:10, backgroundColor:'#F2F5F2', borderWidth:1, borderColor:'#D5DBDB' },
