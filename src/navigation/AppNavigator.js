@@ -2,6 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/LoginScreen';
 import MainAppScreen from '../screens/MainAppScreen';
+import AuthGate from '../screens/AuthGate';
 import CreateUserScreen from '../screens/CreateUserScreen';
 import InsertResultsScreen from '../screens/InsertResultsScreen';
 import ManageLotteriesScreen from '../screens/ManageLotteriesScreen';
@@ -15,7 +16,7 @@ const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => (
   <Stack.Navigator
-    initialRouteName="Login"
+    initialRouteName="AuthGate"
     screenOptions={{
       headerStyle: {
         backgroundColor: '#F8F9FA',
@@ -24,7 +25,13 @@ const AppNavigator = () => (
       headerTitleStyle: {
         fontWeight: '600',
       },
-    }}>
+    }}
+  >
+    <Stack.Screen 
+      name="AuthGate" 
+      component={AuthGate}
+      options={{ headerShown: false }}
+    />
     <Stack.Screen 
       name="Login" 
       component={LoginScreen}

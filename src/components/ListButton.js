@@ -1,9 +1,12 @@
 import React from 'react';
-import { Pressable, Text, StyleSheet } from 'react-native';
+import { Pressable, Text, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useOffline } from '../context/OfflineContext';
 
 const ListButton = ({ isDarkMode = false }) => {
   const navigation = useNavigation();
+  const { pendingCount } = useOffline();
+  const hasPending = (pendingCount || 0) > 0;
   return (
     <Pressable
       style={({ pressed }) => [
@@ -14,6 +17,7 @@ const ListButton = ({ isDarkMode = false }) => {
       onPress={() => navigation.navigate('SavedPlays', { isDarkMode })}
     >
       <Text style={styles.buttonIcon}>📄</Text>
+      {hasPending && <View style={styles.orangeDot} />}
     </Pressable>
   );
 };
@@ -44,6 +48,17 @@ const styles = StyleSheet.create({
   buttonPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.95 }],
+  },
+  orangeDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#E67E22',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
   },
 });
 

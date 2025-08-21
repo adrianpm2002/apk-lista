@@ -14,23 +14,21 @@ import InputField from '../components/InputField';
 import MoneyInputField from '../components/MoneyInputField';
 import ActionButton from '../components/ActionButton';
 import HammerButton from '../components/HammerButton';
-import CleanerButton from '../components/CleanerButton';
 import ListButton from '../components/ListButton';
 import PricingInfoButton from '../components/PricingInfoButton';
 import NotificationsButton from '../components/NotificationsButton';
 // InfoButton general sustituido por versión específica de modo texto
 import TextModeInfoButton from '../components/TextModeInfoButton';
-// Eliminamos CapacityModal directo; usaremos BatteryButton que lo incluye internamente
-import BatteryButton from '../components/BatteryButton';
-// import CapacityModal from '../components/CapacityModal';
+import InfoButton from '../components/InfoButton'; // (si aún se usa en otro lugar)
 import { parseTextMode } from '../utils/textModeParser';
 import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { supabase } from '../supabaseClient';
+import { useOffline } from '../context/OfflineContext';
 
-const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
+const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // valores id lotería (máx 3 como visual)
   const [selectedSchedules, setSelectedSchedules] = useState({}); // { lotteryId: scheduleId }
@@ -49,9 +47,6 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
   const [noteError, setNoteError] = useState(false);
   const [limitViolations, setLimitViolations] = useState([]); // [{numero, jugada, permitido, usado}]
   const [showFieldErrors, setShowFieldErrors] = useState(false);
-  // Capacidades ahora manejadas por BatteryButton (se eliminan estados locales duplicados)
-
-  // Lógica de capacidad eliminada (delegada a BatteryButton)
 
   // Datos dinámicos
   const [lotteries, setLotteries] = useState([]); // {label,value}
@@ -65,6 +60,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
 
   // Hook para enviar jugadas al almacenamiento
   const { submitPlayWithConfirmation } = usePlaySubmission();
+  const { offlineMode, addToQueue, getQueue, clearFromQueue } = useOffline();
 
   // Cargar contexto de usuario (bankId)
   useEffect(()=>{
@@ -222,49 +218,62 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     // Validar campos requeridos
     let hasErrors = !validateForm();
 
-    // Validación de capacidad (unificada con modo visual) usando uso del día en tabla jugada
+    // Validación de límites (simplificada para modo texto: cada jugada vale 1 unidad)
     if (!hasErrors) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         let specificLimits = null;
         if (user) {
           const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', user.id).maybeSingle();
-          specificLimits = profile?.limite_especifico || null;
+            specificLimits = profile?.limite_especifico || null;
         }
-        const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
-        if (horarios.length && parsedInstructions.length) {
-          // Límites definidos individualmente
-          const { data: limitRows } = await supabase.from('limite_numero').select('numero, limite, jugada, id_horario').in('id_horario', horarios);
+        const horarios = selectedSchedule ? [selectedSchedule] : [];
+        if (horarios.length) {
+          const { data: limitRows } = await supabase
+            .from('limite_numero')
+            .select('numero, limite, jugada, id_horario')
+            .in('id_horario', horarios);
+          const { data: usedRows } = await supabase
+            .from('numero_limitado')
+            .select('numero, limite, jugada, id_horario')
+            .in('id_horario', horarios);
           const limitMap = new Map();
-          (limitRows||[]).forEach(r=>{ limitMap.set(r.id_horario+"|"+r.jugada+"|"+r.numero, r.limite); });
-          // Uso acumulado del día
-          const dayStart = new Date(); dayStart.setHours(0,0,0,0);
-          const { data: jugadasDia } = await supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', dayStart.toISOString()).in('id_horario', horarios);
-          const usageMap = new Map();
-          (jugadasDia||[]).forEach(j=>{
-            const nums=(j.numeros||'').split(',').map(s=>s.trim()).filter(Boolean);
-            nums.forEach(n=>{ const k=j.id_horario+"|"+j.jugada+"|"+n; usageMap.set(k,(usageMap.get(k)||0)+(j.monto_unitario||0)); });
+          (limitRows||[]).forEach(r=>{
+            limitMap.set(r.id_horario+"|"+r.jugada+"|"+r.numero, r.limite);
           });
-          const violations=[];
-          parsedInstructions.forEach(instr=>{
-            const jugada = instr.playType;
-            instr.numbers.forEach(numRaw=>{
+          const usedMap = new Map();
+            (usedRows||[]).forEach(r=>{
+              const k = r.id_horario+"|"+r.jugada+"|"+r.numero;
+              usedMap.set(k, (usedMap.get(k)||0)+(r.limite||0));
+            });
+          const playList = plays.split(',').map(p=>p.trim()).filter(Boolean);
+          const numbers = playList.map(p=>p.replace(/[^0-9]/g,''));
+          const violations = [];
+          numbers.forEach(numRaw=>{
+            const numInt = parseInt(numRaw,10);
+            // Jugadas base asumidas: fijo,corrido,posicion,parle,centena,tripleta si hay limites específicos
+            const jugadas = specificLimits ? Object.keys(specificLimits) : [];
+            jugadas.forEach(j=>{
               horarios.forEach(h=>{
-                const key = h+"|"+jugada+"|"+numRaw; // numRaw ya formateado
-                const perNumber = limitMap.get(key);
-                const specLimit = specificLimits && specificLimits[jugada];
+                const key = h+"|"+j+"|"+numInt;
+                const byNumber = limitMap.get(key);
+                const specific = specificLimits && specificLimits[j];
                 let effective;
-                if(perNumber!==undefined && specLimit!==undefined) effective = Math.min(perNumber, specLimit); else if(perNumber!==undefined) effective = perNumber; else if(specLimit!==undefined) effective = specLimit; else effective=null;
-                if(!effective) return;
-                const used = usageMap.get(key)||0;
-                const amt = instr.amountEach||0;
-                if((used + amt) > effective){ violations.push({ numero:numRaw, jugada, permitido:effective, usado:used, intento:amt }); }
+                if (byNumber !== undefined && specific !== undefined) effective = Math.min(byNumber, specific); else if (byNumber !== undefined) effective = byNumber; else if (specific !== undefined) effective = specific; else return;
+                const used = usedMap.get(key) || 0;
+                const amt = 1; // cada jugada vale 1 en este modo
+                if ((used + amt) > effective) {
+                  violations.push({ numero:numRaw, jugada:j, permitido:effective, usado:used });
+                }
               });
             });
           });
-          if(violations.length){ setLimitViolations(violations); hasErrors=true; }
+          if (violations.length) {
+            setLimitViolations(violations);
+            hasErrors = true;
+          }
         }
-      } catch(e){ /* silencio */ }
+      } catch(e) { /* silencioso */ }
     }
 
   if (hasErrors) {
@@ -276,53 +285,94 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     setNoteError(false);
         setLotteryErrorMessage('');
   setLimitViolations([]);
-  }, 5000);
+      }, 3000);
       return;
     }
 
-      // Usar instrucciones parseadas
-      if(!parsedInstructions.length){ setPlaysError(true); return; }
-
-      try {
-        const playsToSave = [];
-        for (const lottery of selectedLotteries) {
-          for(const instr of parsedInstructions){
-            let unit = instr.amountEach;
-            let total = instr.totalPerLottery;
-            if(instr.playType==='parle' && isLocked){
-              // totalPerLottery es el total original; amountEach fue dividido anteriormente en parser (floor)
-              // Mantener total original para que usePlaySubmission pueda registrarlo y validar límites con unit correcto
-              total = instr.totalPerLottery; // ya el original
-              unit = instr.amountEach; // ya dividido
-            }
-            playsToSave.push({
-              lottery,
-              schedule: selectedSchedules[lottery],
-              playType: instr.playType,
-              numbers: instr.numbers.join(','),
-              note: note.trim(),
-              amount: unit,
-              total
-            });
-          }
+  // Usar instrucciones parseadas
+  if(!parsedInstructions.length){ setPlaysError(true); return; }
+    
+    try {
+  // Crear un objeto de jugada para cada lotería seleccionada
+  const playsToSave = [];
+      
+      for (const lottery of selectedLotteries) {
+        for(const instr of parsedInstructions){
+          const playData = {
+            lottery: lottery,
+            schedule: selectedSchedules[lottery],
+            playType: instr.playType,
+            numbers: instr.numbers, // array
+            note: note.trim(),
+            amount: instr.amountEach,
+            total: instr.totalPerLottery
+          };
+          playsToSave.push(playData);
         }
-        let success=0; let fail=0; let blockedViolations=[];
-        for(const playData of playsToSave){
-          const result = await submitPlayWithConfirmation(playData);
-          if(result.success) success++; else { fail++; if(result.limitViolations) blockedViolations = blockedViolations.concat(result.limitViolations); }
-        }
-        if(blockedViolations.length){
-          setLimitViolations(blockedViolations.map(v=> ({ numero:v.number, jugada:playData?.playType||'', permitido:v.limit, usado:v.current })));
-        }
-        setInsertFeedback({ success, fail, duplicates:[], edit:false });
-        if(success){
-          setPlays(''); setNote(''); setCalculatedAmount(0); setTotal(0); setParsedInstructions([]);
-        }
-      } catch (error) {
-        console.error('Error al guardar las jugadas:', error);
-        alert('Error al guardar las jugadas. Inténtalo de nuevo.');
       }
+      
+      if (offlineMode) {
+        let enq = 0;
+        for (const p of playsToSave) {
+          // Map to DB row payload to align with Visual
+          const payload = {
+            id_listero: null, // se establecerá en el servidor por RLS o podemos setear userId si disponible
+            id_horario: p.schedule,
+            jugada: p.playType,
+            numeros: Array.isArray(p.numbers) ? p.numbers.join(',') : String(p.numbers || ''),
+            nota: p.note || 'Sin nombre',
+            monto_unitario: p.amount || 0,
+            monto_total: p.total || 0,
+          };
+          const res = await addToQueue({ type: 'jugada', payload });
+          if (res.ok) enq += 1;
+        }
+        setInsertFeedback({ success: enq, fail: playsToSave.length - enq, duplicates: [], edit: false });
+        Alert.alert('Modo Offline', `Jugadas guardadas localmente (${enq}).`);
+      } else {
+        // Usar Promise.all para guardar todas las jugadas
+        const results = await Promise.all(
+          playsToSave.map(async playData => {
+            try { await submitPlayWithConfirmation(playData); return { ok:true }; }
+            catch(e){ return { ok:false, error:e }; }
+          })
+        );
+        const success = results.filter(r=>r.ok).length;
+        const fail = results.length - success;
+        setInsertFeedback({ success, fail, duplicates:[], edit:false });
+      }
+      
+      // Solo limpiar plays, note y montos - mantener lotería y horario
+      setPlays('');
+  setNote('');
+  setCalculatedAmount(0);
+  setTotal(0);
+  setParsedInstructions([]);
+      
+    } catch (error) {
+      console.error('Error al guardar las jugadas:', error);
+      alert('Error al guardar las jugadas. Inténtalo de nuevo.');
+    }
   };
+
+  // Triggered manual sync similar to Visual screen
+  useEffect(() => {
+    const trig = route?.params?.triggerSync;
+    if (!trig) return;
+    (async () => {
+      try {
+        const q = await getQueue();
+        const sentIds = [];
+        for (const item of q) {
+          try {
+            const { error } = await supabase.from('jugada').insert(item.payload).select('id').single();
+            if (!error) sentIds.push(item.__id);
+          } catch {}
+        }
+        if (sentIds.length) await clearFromQueue(sentIds);
+      } catch {}
+    })();
+  }, [route?.params?.triggerSync]);
 
   const handleTopBarOption = (option) => {
     console.log('Sidebar option selected:', option);
@@ -358,6 +408,11 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
             <NotificationsButton />
           </View>
         </View>
+        {offlineMode && (
+          <View style={{ marginTop:6, alignSelf:'flex-start', backgroundColor:'#E8F5E8', borderColor:'#27AE60', borderWidth:1, borderRadius:8, paddingHorizontal:10, paddingVertical:4 }}>
+            <Text style={{ color:'#1E8449', fontWeight:'800', fontSize:12 }}>Modo Offline</Text>
+          </View>
+        )}
   {/* Eliminado InfoButton general flotante en favor de botón en barra inferior */}
       </View>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -414,7 +469,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           hasError={showFieldErrors && (playsError || !plays.trim())}
         />
   {/* Se eliminan botones superiores duplicados */}
-  {(plays.length>0) && (
+  {parsedInstructions.length>0 && (
           <View style={{ marginTop:4, marginBottom:4 }}>
             {parsedInstructions.slice(0,5).map((i,idx)=>(
               <Text key={idx} style={{ fontSize:11 }}>
@@ -438,17 +493,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
                 Duplicados: {Array.from(new Set(parsedInstructions.flatMap(i=> i.duplicates || []))).length}
               </Text>
             )}
-            {/* Contador dinámico de combinaciones */}
-            {parsedInstructions.length>0 && (
-              (()=>{
-                const counts = parsedInstructions.reduce((acc,i)=>{ acc[i.playType]=(acc[i.playType]||0)+i.numbers.length; return acc; },{});
-                const totalComb = Object.values(counts).reduce((a,b)=>a+b,0);
-                const order = ['fijo','corrido','parle','centena','tripleta'];
-                const parts = order.filter(k=> counts[k]).map(k=> `${k.charAt(0).toUpperCase()+k.slice(1)}: ${counts[k]}`);
-                return <Text style={{ fontSize:11, color:'#2D5016', marginTop:2 }}>Total combinaciones: {totalComb}{parts.length? ' ('+parts.join(', ')+')':''}</Text>;
-              })()
-            )}
-            {parseErrors.length>0 && (
+            {playsError && (
               <View style={{ marginTop:4 }}>
                 {parseErrors.slice(0,4).map((e,i)=>(
                   <Text key={i} style={{ fontSize:11, color:'#C0392B' }}>Línea {e.line}: {e.message}</Text>
@@ -460,15 +505,11 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
         )}
         {limitViolations.length > 0 && (
           <View style={{ marginTop:8, backgroundColor:'#fff5f5', borderWidth:1, borderColor:'#ffc9c9', padding:8, borderRadius:6 }}>
-            {limitViolations.slice(0,5).map((v,idx)=>{
-              const excedido = v.intento !== undefined ? (v.usado + v.intento - v.permitido) : (v.usado - v.permitido);
-              const excedidoPos = excedido > 0 ? excedido : (v.usado + (v.intento||0) > v.permitido ? (v.usado + (v.intento||0) - v.permitido) : 0);
-              return (
-                <Text key={idx} style={{ color:'#c92a2a', fontSize:12 }}>
-                  Número {v.numero} ({v.jugada}) excedido por {excedidoPos}
-                </Text>
-              );
-            })}
+            {limitViolations.slice(0,5).map((v,idx)=>(
+              <Text key={idx} style={{ color:'#c92a2a', fontSize:12 }}>
+                Número {v.numero} ({v.jugada}) excede límite: usado {v.usado} + intento {'>'} permitido {v.permitido}
+              </Text>
+            ))}
             {limitViolations.length>5 && (
               <Text style={{ color:'#c92a2a', fontSize:12, marginTop:2 }}>+{limitViolations.length-5} más...</Text>
             )}
@@ -500,42 +541,44 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           </View>
         </View>
 
-        {/* Barra de herramientas inferior: candado, capacidad, martillo, lista, info, registro (insert) */}
-        <View style={[styles.toolsContainer,{ justifyContent:'center', flexWrap:'wrap', gap:12 }]}> 
-          <Pressable onPress={()=> setIsLocked(l=> !l)} style={[styles.lockButton, isLocked && styles.lockButtonActive]}>
-            <Text style={styles.lockIcon}>{isLocked ? '🔒' : '🔓'}</Text>
-          </Pressable>
-          <BatteryButton
-            bankId={bankId}
-            selectedLotteries={selectedLotteries}
-            selectedSchedules={selectedSchedules}
-            selectedPlayTypes={[]}
-            lotteryOptions={lotteries}
-            scheduleOptionsMap={scheduleOptionsMap}
-            getScheduleLabel={getScheduleLabel}
-            playTypeLabels={{ fijo:'fijo', corrido:'corrido', centena:'centena', parle:'parle', tripleta:'tripleta' }}
-            animationProps={{ scaleFrom:0.9, duration:180 }}
-          />
-          <HammerButton numbersSeparator={'. '} onOptionSelect={(opt) => {
-            if(opt?.action==='insert' && opt.numbers){
-              setPlays(prev => prev ? prev + (prev.endsWith('\n')?'':'\n') + opt.numbers : opt.numbers);
-            }
-          }} />
-          <ListButton onOptionSelect={(option) => console.log('List option:', option)} />
-          <TextModeInfoButton icon="ℹ︎" />
-          <CleanerButton onInsert={(formatted)=>{
-            setPlays(prev => {
-              if(!prev.trim()) return formatted; // vacío => reemplaza
-              return prev + (prev.endsWith('\n') ? '' : '\n') + formatted; // agrega con salto
-            });
-          }} />
+        {/* Barra de herramientas inferior: Candado (izq), Martillo, Lista, Info (der) */}
+        <View style={[styles.toolsContainer,{ justifyContent:'space-between', paddingHorizontal:4 }]}> 
+          <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
+            <Pressable onPress={()=> setIsLocked(l=> !l)} style={[styles.lockButton, isLocked && styles.lockButtonActive]}>
+              <Text style={styles.lockIcon}>{isLocked ? '🔒' : '🔓'}</Text>
+            </Pressable>
+            <HammerButton onOptionSelect={(option) => console.log('Hammer option:', option)} />
+            <ListButton onOptionSelect={(option) => console.log('List option:', option)} />
+          </View>
+          <TextModeInfoButton />
         </View>
 
         {/* Row 5: Botones de acción */}
-        <View style={[styles.actionRow,{ justifyContent:'center' }]}>
-          <View style={styles.actionButton}><ActionButton title={t('actions.clear')} onPress={handleClear} variant="danger" size="small" /></View>
-          <View style={styles.actionButton}><ActionButton title={t('actions.verify')} onPress={handleVerify} variant="warning" size="small" /></View>
-          <View style={styles.actionButton}><ActionButton title={t('actions.insert')} onPress={handleInsert} variant="success" size="small" /></View>
+        <View style={styles.actionRow}>
+          <View style={styles.actionButton}>
+            <ActionButton
+              title={t('actions.clear')}
+              onPress={handleClear}
+              variant="danger"
+              size="small"
+            />
+          </View>
+          <View style={styles.actionButton}>
+            <ActionButton
+              title={t('actions.verify')}
+              onPress={handleVerify}
+              variant="warning"
+              size="small"
+            />
+          </View>
+          <View style={styles.actionButton}>
+            <ActionButton
+              title={t('actions.insert')}
+              onPress={handleInsert}
+              variant="success"
+              size="small"
+            />
+          </View>
         </View>
       </ScrollView>
       
@@ -556,7 +599,6 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
         onModeVisibilityChange={onModeVisibilityChange}
         role="listero"
       />
-  {/* CapacityModal ahora gestionado por BatteryButton (🔋) */}
     </View>
   );
 };

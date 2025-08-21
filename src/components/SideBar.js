@@ -14,10 +14,12 @@ import {
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import ChangePasswordModal from './ChangePasswordModal';
+import { useOffline } from '../context/OfflineContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkMode, navigation, onModeVisibilityChange, role }) => {
+  const { offlineMode, setOffline, pendingCount, getQueue, clearFromQueue } = useOffline();
 
   const sidebarWidth = screenWidth * 0.75;
   const slideAnim = useRef(new Animated.Value(-sidebarWidth)).current;
@@ -129,6 +131,18 @@ const configOptions = roleOptionsMap[role] || [];
     onToggleDarkMode && onToggleDarkMode();
   };
 
+  const handleToggleOffline = async () => {
+    await setOffline(!offlineMode);
+  };
+
+  const handleManualSync = async () => {
+    try {
+      // Simple manual sync placeholder: just attempt a dry send via navigation event
+      // We'll navigate to MainApp to let screens attempt sync, or emit an event later.
+      navigation?.navigate?.('MainApp', { triggerSync: Date.now() });
+    } catch {}
+  };
+
   const handleLogout = () => {
     const proceed = async () => {
       try {
@@ -237,6 +251,18 @@ const configOptions = roleOptionsMap[role] || [];
                 <Text style={styles.settingArrow}>▶</Text>
               </Pressable>
             )}
+
+            {/* (antes) Modo Offline toggle dentro de settings — ahora se mueve al footer como botón */}
+
+            {/* Sincronizar manualmente */}
+            <Pressable 
+              style={styles.settingOption}
+              onPress={handleManualSync}
+            >
+              <Text style={styles.settingIcon}>🔄</Text>
+              <Text style={styles.settingText}>Sincronizar ahora</Text>
+              <Text style={styles.settingArrow}>▶</Text>
+            </Pressable>
           </View>
           
           <Pressable style={styles.modalCloseButton} onPress={closeModal}>
@@ -332,6 +358,21 @@ const configOptions = roleOptionsMap[role] || [];
 
             {/* Footer */}
             <View style={[styles.footer, isDarkMode && styles.footerDark]}>
+              {/* Botón Modo Offline (clic para alternar) */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.footerButton,
+                  { borderWidth:1, borderColor: offlineMode ? '#27AE60' : '#B8D4A8', backgroundColor: offlineMode ? '#E8F5E8' : '#F8F9FA', justifyContent:'space-between' },
+                  pressed && styles.buttonPressed
+                ]}
+                onPress={handleToggleOffline}
+              >
+                <Text style={styles.footerButtonIcon}>📴</Text>
+                <Text style={[styles.footerButtonText, isDarkMode && styles.footerButtonTextDark]}>Modo Offline: {offlineMode ? 'ON' : 'OFF'}</Text>
+                {pendingCount > 0 && (
+                  <Text style={[styles.footerButtonText, { color:'#E67E22', fontWeight:'800' }]}>({pendingCount})</Text>
+                )}
+              </Pressable>
               <Pressable
                 style={({ pressed }) => [
                   styles.footerButton,

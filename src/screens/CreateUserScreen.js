@@ -3,7 +3,7 @@ import { View, Text, Alert, Modal, StyleSheet, TextInput, Button, FlatList, Touc
 import { Picker } from '../components/PickerWrapper';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
-import { adminResetPasswordByUsername } from '../utils/adminUtils';
+import { adminResetPasswordByUsername, adminUpdateEmailById } from '../utils/adminUtils';
 
 // Orden canónico unificado de jugadas en toda la app
 const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
@@ -370,6 +370,17 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           }
         }
         if (updateOk) {
+          // 2.5 Mantener Auth en sync si cambió el username (actualiza email en Auth)
+          try {
+            if (editingUser.username !== username && editingUser.id) {
+              // Usamos el patrón de email sintético basado en username
+              await adminUpdateEmailById(editingUser.id, fakeEmail, username);
+              console.log('[Auth sync] Email/username actualizado en Auth');
+            }
+          } catch (syncErr) {
+            console.warn('No se pudo sincronizar Auth (admin-update-email):', syncErr);
+            Alert.alert('Aviso', 'Perfil actualizado, pero no se pudo actualizar el email en Auth. Verifica la función admin-update-email.');
+          }
           // Refresh inmediato para reflejar limite_especifico actualizado antes de cerrar modal
           try {
             await fetchUsers();
