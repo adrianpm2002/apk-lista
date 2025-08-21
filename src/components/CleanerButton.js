@@ -42,12 +42,12 @@ const CleanerButton = ({ onInsert, append=true, isDarkMode=false }) => {
 
   return (
     <>
-      <Pressable style={({pressed})=> [styles.btnText, pressed && styles.btnTextPressed]} onPress={()=> setOpen(true)}><Text style={styles.btnTextLabel}>Limpiar</Text></Pressable>
+  <Pressable style={({pressed})=> [styles.btnText, pressed && styles.btnTextPressed]} onPress={()=> setOpen(true)}><Text style={styles.btnTextLabel}>Formatear</Text></Pressable>
       <Modal transparent visible={open} animationType="fade" onRequestClose={()=> setOpen(false)}>
         <View style={styles.mOverlay}> 
           <View style={[styles.mPanel, isDarkMode && styles.mPanelDark]}> 
             <View style={styles.mHeader}> 
-              <Text style={[styles.mTitle, isDarkMode && styles.mTitleDark]}>Limpiar</Text>
+              <Text style={[styles.mTitle, isDarkMode && styles.mTitleDark]}>Formatear</Text>
               <Pressable onPress={()=> setOpen(false)}><Text style={styles.mClose}>✕</Text></Pressable>
             </View>
             <View style={styles.mInputWrap}> 
@@ -60,7 +60,7 @@ const CleanerButton = ({ onInsert, append=true, isDarkMode=false }) => {
               />
               <View style={styles.mInlineBtns}> 
                 <Pressable style={styles.inlineBtn} onPress={handlePaste}><Text style={styles.inlineBtnTxt}>Pegar</Text></Pressable>
-                <Pressable style={[styles.inlineBtn, styles.inlineBtnSecondary]} onPress={actionClear}><Text style={[styles.inlineBtnTxt,{color:'#1565C0'}]}>Limpiar</Text></Pressable>
+                <Pressable style={[styles.inlineBtn, styles.inlineBtnSecondary]} onPress={actionClear}><Text style={styles.inlineBtnTxt}>Limpiar</Text></Pressable>
               </View>
             </View>
             <View style={styles.mActionsRow}> 
@@ -77,9 +77,9 @@ const CleanerButton = ({ onInsert, append=true, isDarkMode=false }) => {
 };
 
 const styles = StyleSheet.create({
-  btnText:{ paddingHorizontal:14, paddingVertical:10, borderRadius:10, backgroundColor:'#F2F5F2', borderWidth:1, borderColor:'#D5DBDB' },
+  btnText:{ paddingHorizontal:14, paddingVertical:10, borderRadius:10, backgroundColor:'#E3F2FD', borderWidth:1, borderColor:'#90CAF9' },
   btnTextPressed:{ opacity:0.7 },
-  btnTextLabel:{ fontSize:14, fontWeight:'600', color:'#2C3E50' },
+  btnTextLabel:{ fontSize:14, fontWeight:'600', color:'#0D47A1' },
   mOverlay:{ flex:1, backgroundColor:'rgba(0,0,0,0.35)', justifyContent:'center', alignItems:'flex-end', padding:16 },
   mPanel:{ width:'86%', backgroundColor:'#FFFFFF', borderRadius:18, padding:16 },
   mPanelDark:{ backgroundColor:'#22313F' },
@@ -94,6 +94,8 @@ const styles = StyleSheet.create({
   inlineBtn:{ backgroundColor:'#F2F5F2', borderWidth:1, borderColor:'#D5DBDB', paddingHorizontal:10, paddingVertical:6, borderRadius:8, marginBottom:8 },
   inlineBtnSecondary:{ marginBottom:0 },
   inlineBtnTxt:{ fontSize:12, fontWeight:'600', color:'#2C3E50' },
+  formatBtn:{ backgroundColor:'#E3F2FD', borderColor:'#90CAF9' },
+  formatBtnTxt:{ color:'#0D47A1' },
   mActionsRow:{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:18 },
   act:{ paddingHorizontal:12, paddingVertical:10, borderRadius:10, backgroundColor:'#F2F5F2', borderWidth:1, borderColor:'#D5DBDB' },
   actTxt:{ fontSize:13, fontWeight:'600', color:'#2C3E50' },

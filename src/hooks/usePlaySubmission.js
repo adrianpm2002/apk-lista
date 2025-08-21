@@ -1,43 +1,50 @@
-import { Alert } from 'react-native';
-import { useNumberLimits } from './useNumberLimits';
+// Hook simplificado para insertar UNA jugada (sin lógica de límites legacy ni tablas inexistentes)
+// Se asume que la pantalla (visual o texto) ya validó límites usando limitUtils antes de llamar aquí.
 import { supabase } from '../supabaseClient';
 
-// Hook para manejar el guardado de jugadas desde los formularios
 export const usePlaySubmission = () => {
-  const { checkBetLimits, registerBet } = useNumberLimits();
 
   // Obtener IDs de lotería y horario desde la base de datos
-  const getLotteryAndScheduleIds = async (lotteryName, scheduleName) => {
+  const getLotteryAndScheduleIds = async (lotteryRef, scheduleRef) => {
     try {
-      // Buscar lotería
-      const { data: lotteryData, error: lotteryError } = await supabase
-        .from('loteria')
-        .select('id')
-        .ilike('nombre', lotteryName)
-        .single();
-
-      if (lotteryError || !lotteryData) {
-        console.warn(`Lotería no encontrada: ${lotteryName}`);
-        return null;
+      if(!lotteryRef || !scheduleRef) return null;
+      const isUUID = (val) => typeof val === 'string' && /^[0-9a-fA-F-]{36}$/.test(val);
+      let lotteryId = null;
+      // Obtener lotteryId
+      if (isUUID(lotteryRef)) {
+        lotteryId = lotteryRef;
+      } else {
+        const { data: lotteryData, error: lotteryError } = await supabase
+          .from('loteria')
+          .select('id')
+          .ilike('nombre', lotteryRef)
+          .maybeSingle();
+        if (lotteryError || !lotteryData) {
+          console.warn(`Lotería no encontrada por nombre: ${lotteryRef}`);
+          return null;
+        }
+        lotteryId = lotteryData.id;
       }
 
-      // Buscar horario
-      const { data: scheduleData, error: scheduleError } = await supabase
-        .from('horario')
-        .select('id')
-        .eq('id_loteria', lotteryData.id)
-        .ilike('nombre', scheduleName)
-        .single();
-
-      if (scheduleError || !scheduleData) {
-        console.warn(`Horario no encontrado: ${scheduleName} para lotería ${lotteryName}`);
-        return null;
+      // Obtener scheduleId
+      let scheduleId = null;
+      if (isUUID(scheduleRef)) {
+        scheduleId = scheduleRef;
+      } else {
+        const { data: scheduleData, error: scheduleError } = await supabase
+          .from('horario')
+          .select('id')
+          .eq('id_loteria', lotteryId)
+          .ilike('nombre', scheduleRef)
+          .maybeSingle();
+        if (scheduleError || !scheduleData) {
+          console.warn(`Horario no encontrado: ${scheduleRef} para lotería ${lotteryRef}`);
+          return null;
+        }
+        scheduleId = scheduleData.id;
       }
 
-      return {
-        lotteryId: lotteryData.id,
-        scheduleId: scheduleData.id
-      };
+      return { lotteryId, scheduleId };
     } catch (error) {
       console.error('Error obteniendo IDs:', error);
       return null;
@@ -102,48 +109,12 @@ export const usePlaySubmission = () => {
         calculatedTotal = formData.total;
       }
 
-      // Obtener IDs de lotería y horario para verificación de límites
+      // Obtener IDs (aunque actualmente solo necesitamos id_horario para insertar)
       const ids = await getLotteryAndScheduleIds(formData.lottery, formData.schedule);
-      
-      // Si tenemos IDs válidos, verificar límites – BLOQUEANTE (no se permite sobrepasar)
-      if (ids) {
-        const limitViolations = [];
-
-        for (const number of numbersArray) {
-          const cleanNumber = number.trim();
-          if (!cleanNumber) continue;
-          const limitCheck = await checkBetLimits(
-            ids.lotteryId,
-            ids.scheduleId,
-            formData.playType,
-            cleanNumber,
-            formData.amount
-          );
-          if (!limitCheck.allowed) {
-            limitViolations.push({
-              number: cleanNumber,
-              reason: limitCheck.reason,
-              limitType: limitCheck.limitType,
-              current: limitCheck.currentAmount,
-              limit: limitCheck.limitAmount
-            });
-          }
-        }
-
-        if (limitViolations.length > 0) {
-          // Construir mensaje consolidado (banner / alerta)
-          const detalle = limitViolations.slice(0,6).map(v => `Número ${v.number} sobrepasará su capacidad (${v.reason})`).join('\n');
-          return {
-            success: false,
-            error: 'Se bloquearon números que sobrepasarían su capacidad.',
-            message: detalle,
-            limitViolations
-          };
-        }
+      if(!ids) {
+        return { success:false, error:'Lotería u horario inválido', message:'Verifique lotería y horario.' };
       }
-
-      // Sin violaciones -> proceder
-      return await savePlayAndRegisterBets(formData, numbersArray, calculatedTotal, ids);
+      return await savePlay(formData, numbersArray, calculatedTotal, ids);
 
     } catch (error) {
       console.error('Error al guardar jugada:', error);
@@ -155,73 +126,32 @@ export const usePlaySubmission = () => {
     }
   };
 
-  // Función auxiliar para guardar jugada y registrar apuestas
-  const savePlayAndRegisterBets = async (formData, numbersArray, calculatedTotal, ids) => {
+  // Función auxiliar para guardar jugada (sin tracking adicional)
+  const savePlay = async (formData, numbersArray, calculatedTotal, ids) => {
     try {
-      // Preparar datos de la jugada
-      const playData = {
-        lottery: formData.lottery,
-        schedule: formData.schedule,
-        playType: formData.playType,
-        numbers: formData.numbers,
-        amount: formData.amount || 0,
-        total: calculatedTotal,
-        note: formData.note || 'Sin nombre',
-        result: 'no disponible',
-        prize: 'desconocido',
-        hasPrize: false
+      const { data: { user } } = await supabase.auth.getUser();
+      const insertPayload = {
+        id_horario: ids.scheduleId,
+        jugada: formData.playType,
+        numeros: formData.numbers,
+        monto_unitario: formData.amount || 0,
+        monto_total: calculatedTotal,
+        nota: (formData.note && formData.note.trim()) || 'Sin nombre',
+        id_listero: user?.id || null
       };
-
-      // Las jugadas se guardan directamente en la base de datos
-      // Ya no necesitamos almacenamiento local
-
-      // Si tenemos IDs válidos, registrar las apuestas en el tracking de límites
-      if (ids) {
-        for (const number of numbersArray) {
-          const cleanNumber = number.trim();
-          if (cleanNumber) {
-            await registerBet(
-              ids.lotteryId,
-              ids.scheduleId,
-              formData.playType,
-              cleanNumber,
-              formData.amount,
-              formData.note || 'Sin nombre'
-            );
-          }
-        }
+      const { error: insertError } = await supabase.from('jugada').insert(insertPayload);
+      if (insertError) {
+        console.error('Error insertando jugada:', insertError);
+        return { success:false, error:'Error insertando jugada', message: insertError.message };
       }
-      
-      return {
-        success: true,
-        play: playData,
-        message: 'Jugada preparada (inserción real pendiente si se implementa persistencia)'
-      };
+      return { success:true, play: insertPayload, message:'Jugada insertada' };
     } catch (error) {
       console.error('Error guardando jugada y registrando apuestas:', error);
       throw error;
     }
   };
 
-  const submitPlayWithConfirmation = async (formData) => {
-    const result = await submitPlay(formData);
-    
-    if (result.success) {
-      Alert.alert(
-        '✅ Jugada Guardada',
-        `La jugada ha sido guardada exitosamente.\n\nCliente: ${formData.note || 'Sin nombre'}\nNúmeros: ${formData.numbers}\nTotal: $${result.play.total}`,
-        [{ text: 'OK' }]
-      );
-    } else {
-      Alert.alert(
-        '❌ Error',
-        (result.message ? `${result.error}\n\n${result.message}` : result.error),
-        [{ text: 'OK' }]
-      );
-    }
-    
-    return result;
-  };
+  const submitPlayWithConfirmation = async (formData) => submitPlay(formData);
 
   return {
     submitPlay,

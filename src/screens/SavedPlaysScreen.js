@@ -12,6 +12,7 @@ const getPlayTypeLabel = (playType) => ({
 
 const SavedPlaysScreen = ({ navigation, route }) => {
   const isDarkMode = route?.params?.isDarkMode || false;
+  const originMode = route?.params?.originMode || 'Visual';
   const [savedPlays, setSavedPlays] = useState([]);
   const [filteredPlays, setFilteredPlays] = useState([]);
   const [displayedPlays, setDisplayedPlays] = useState([]);
@@ -239,7 +240,9 @@ const SavedPlaysScreen = ({ navigation, route }) => {
               else { Alert.alert('Cerrada','No se puede editar porque esta lotería está cerrada'); }
               return;
             }
-            confirm('Editar','¿Abrir esta jugada en modo Visual para editarla?', ()=> { setEditingPlay(item); navigation.navigate('MainApp', { editPayload: item }); });
+            const targetMode = originMode === 'Texto' ? 'Texto' : 'Visual';
+            const msg = originMode === 'Texto' ? '¿Abrir esta jugada en modo Texto para editarla?' : '¿Abrir esta jugada en modo Visual para editarla?';
+            confirm('Editar', msg, ()=> { setEditingPlay(item); navigation.navigate('MainApp', { editPayload: item, originMode: targetMode }); });
           }}>
             <Text style={styles.editUnderPendingTxt}>Editar</Text>
           </Pressable>

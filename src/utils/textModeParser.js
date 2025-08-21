@@ -33,7 +33,7 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
         amountEach = amountTotal;
         totalPerLottery = amountTotal * pairs.length;
       }
-      instructions.push({ playType: 'parle', numbers: pairs, amountEach, totalPerLottery, meta: { mode: 'pairs' } });
+  instructions.push({ playType: 'parle', numbers: pairs, amountEach, totalPerLottery, meta: { mode: 'pairs' }, line: idx+1 });
       return;
     }
 
@@ -51,22 +51,22 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
 
     if (tokenLen === 2) {
       if (amount1 > 0) {
-        instructions.push({ playType: 'fijo', numbers: rawNums.map(n => n.padStart(2, '0')), amountEach: amount1, totalPerLottery: amount1 * rawNums.length });
+  instructions.push({ playType: 'fijo', numbers: rawNums.map(n => n.padStart(2, '0')), amountEach: amount1, totalPerLottery: amount1 * rawNums.length, line: idx+1 });
       }
       if (amount2 > 0) {
-        instructions.push({ playType: 'corrido', numbers: rawNums.map(n => n.padStart(2, '0')), amountEach: amount2, totalPerLottery: amount2 * rawNums.length });
+  instructions.push({ playType: 'corrido', numbers: rawNums.map(n => n.padStart(2, '0')), amountEach: amount2, totalPerLottery: amount2 * rawNums.length, line: idx+1 });
       }
       if (amount1 === 0 && amount2 === 0) { errors.push({ line: idx + 1, message: 'Ambos montos 0 (fijo/corrido)' }); return; }
       if (parts.length === 2 && amount1 === 0) { errors.push({ line: idx + 1, message: 'Monto fijo 0' }); return; }
     } else if (tokenLen === 3) {
       if (amount1 <= 0) { errors.push({ line: idx + 1, message: 'Monto centena debe ser >0' }); return; }
-      instructions.push({ playType: 'centena', numbers: rawNums.map(n => n.padStart(3, '0')), amountEach: amount1, totalPerLottery: amount1 * rawNums.length });
+  instructions.push({ playType: 'centena', numbers: rawNums.map(n => n.padStart(3, '0')), amountEach: amount1, totalPerLottery: amount1 * rawNums.length, line: idx+1 });
     } else if (tokenLen === 4) {
       if (amount1 <= 0) { errors.push({ line: idx + 1, message: 'Monto parle debe ser >0' }); return; }
-      instructions.push({ playType: 'parle', numbers: rawNums.map(n => n.padStart(4, '0')), amountEach: amount1, totalPerLottery: amount1 * rawNums.length, meta: { mode: 'direct' } });
+  instructions.push({ playType: 'parle', numbers: rawNums.map(n => n.padStart(4, '0')), amountEach: amount1, totalPerLottery: amount1 * rawNums.length, meta: { mode: 'direct' }, line: idx+1 });
     } else if (tokenLen === 6) {
       if (amount1 <= 0) { errors.push({ line: idx + 1, message: 'Monto tripleta debe ser >0' }); return; }
-      instructions.push({ playType: 'tripleta', numbers: rawNums.map(n => n.padStart(6, '0')), amountEach: amount1, totalPerLottery: amount1 * rawNums.length });
+  instructions.push({ playType: 'tripleta', numbers: rawNums.map(n => n.padStart(6, '0')), amountEach: amount1, totalPerLottery: amount1 * rawNums.length, line: idx+1 });
     } else {
       errors.push({ line: idx + 1, message: 'Longitud no soportada' }); return;
     }

@@ -26,11 +26,13 @@ import BatteryButton from '../components/BatteryButton';
 import { parseTextMode } from '../utils/textModeParser';
 import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
+import FeedbackBanner from '../components/FeedbackBanner';
 import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { supabase } from '../supabaseClient';
+import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 
-const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
+const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // valores id lotería (máx 3 como visual)
   const [selectedSchedules, setSelectedSchedules] = useState({}); // { lotteryId: scheduleId }
@@ -42,6 +44,8 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [isLocked, setIsLocked] = useState(false); // Candado oculto en este modo
   const [parseErrors, setParseErrors] = useState([]); // [{line,message}]
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [lotteryError, setLotteryError] = useState(false);
   const [lotteryErrorMessage, setLotteryErrorMessage] = useState('');
   const [scheduleError, setScheduleError] = useState(false); // si falta algún horario
@@ -56,12 +60,35 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
   // Datos dinámicos
   const [lotteries, setLotteries] = useState([]); // {label,value}
   const [scheduleOptionsMap, setScheduleOptionsMap] = useState({}); // {lotteryId:[{label,value}]}
+  // Cargar payload de edición si llega (desde SavedPlays) y estamos en modo texto
+  useEffect(()=>{
+    const payload = route?.params?.editPayload;
+    if(payload && payload.id !== editingId){
+      setEditingId(payload.id);
+      setIsEditing(true);
+      const lot = lotteries.find(l=> l.label === payload.lottery);
+      if(lot){ setSelectedLotteries([lot.value]); }
+      const scheduleSetter = () => {
+        if(!lot) return;
+        const schs = scheduleOptionsMap[lot.value] || [];
+        const sch = schs.find(s=> s.label === payload.schedule);
+        if(sch){ setSelectedSchedules(prev=> ({ ...prev, [lot.value]: sch.value })); }
+      };
+      scheduleSetter();
+      setPlays(payload.numbers || '');
+      setNote(payload.note || '');
+      navigation?.setParams?.({ editPayload: undefined });
+    }
+  },[route?.params?.editPayload, lotteries, scheduleOptionsMap]);
   const [bankId, setBankId] = useState(null);
   const [userId, setUserId] = useState(null);
   const loadingRef = useRef(false);
   // Feedback de inserción
   const [insertFeedback, setInsertFeedback] = useState(null); // {success, fail, duplicates:[]}
+  const [verifyFeedback, setVerifyFeedback] = useState(null); // { type:'success'|'error', message:string }
+  const verifyTimerRef = useRef(null);
   const feedbackTimerRef = useRef(null);
+  const [editingMultiError, setEditingMultiError] = useState(false);
 
   // Hook para enviar jugadas al almacenamiento
   const { submitPlayWithConfirmation } = usePlaySubmission();
@@ -149,6 +176,29 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     return ()=> { feedbackTimerRef.current && clearTimeout(feedbackTimerRef.current); };
   },[insertFeedback]);
 
+  useEffect(()=>{
+    if(verifyFeedback){
+      verifyTimerRef.current && clearTimeout(verifyTimerRef.current);
+      verifyTimerRef.current = setTimeout(()=> setVerifyFeedback(null), 5000);
+    }
+    return ()=> { verifyTimerRef.current && clearTimeout(verifyTimerRef.current); };
+  },[verifyFeedback]);
+
+  // Monitorear multi-instrucción en edición
+  useEffect(()=>{
+    if(isEditing){
+      if(parsedInstructions.length>1){
+        setEditingMultiError(true);
+        setPlaysError(true);
+      } else {
+        setEditingMultiError(false);
+        if(parseErrors.length===0) setPlaysError(false);
+      }
+    } else {
+      setEditingMultiError(false);
+    }
+  },[isEditing, parsedInstructions, parseErrors]);
+
   const getLotteryLabel = (value) => lotteries.find(l=> l.value===value)?.label || value;
   const getScheduleLabel = (lotteryValue, scheduleValue) => (scheduleOptionsMap[lotteryValue]||[]).find(s=> s.value===scheduleValue)?.label || scheduleValue || '';
 
@@ -175,39 +225,104 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
   };
 
   // Validación unificada similar al modo visual (simplificada)
-  const validateForm = () => {
+  const validateForm = (includeNote=true) => {
     let hasErrors=false;
     setLotteryError(false); setScheduleError(false); setPlaysError(false); setNoteError(false); setLotteryErrorMessage('');
     if(!selectedLotteries.length){ setLotteryError(true); setLotteryErrorMessage(t('errors.selectLottery')); hasErrors=true; }
     // Falta algún horario
     const missingSchedules = selectedLotteries.filter(lv => !selectedSchedules[lv]);
     if(missingSchedules.length){ setScheduleError(true); hasErrors=true; }
-  if(!plays.trim()){ setPlaysError(true); hasErrors=true; }
-    if(!note.trim()){ setNoteError(true); hasErrors=true; }
-    if(!hasErrors){
-      // Verificar números incompletos (tomamos longitud por primera jugada inferida a partir de longitud del primer token)
-      const tokens = plays.split(/[,\s;]+/).map(t=>t.trim()).filter(Boolean);
-      if(tokens.length){
-        const firstDigits = tokens[0].replace(/[^0-9]/g,'');
-        let expectedLen = firstDigits.length; // heurística
-        if(expectedLen<2) expectedLen=2; if(expectedLen>6) expectedLen=6;
-        const partial = tokens.some(tok=>{ const d=tok.replace(/[^0-9]/g,''); return d.length>0 && d.length!==expectedLen; });
-        if(partial){ setPlaysError(true); hasErrors=true; }
-      }
-    }
+    if(!plays.trim()){ setPlaysError(true); hasErrors=true; }
+    if(includeNote && !note.trim()){ setNoteError(true); hasErrors=true; }
     if(hasErrors) setShowFieldErrors(true);
     return !hasErrors;
   };
 
-  const handleVerify = () => {
-    // Validar campos requeridos
-    if (!selectedLotteries.length || !selectedSchedule || !plays) {
-      alert('Por favor complete todos los campos requeridos');
+  const handleVerify = async () => {
+    setVerifyFeedback(null);
+  if(!note.trim()) setNoteError(true);
+    // Reusar validación base
+    const valid = validateForm(true);
+    if(!valid){
+  setVerifyFeedback({ type:'error', message:t('errors.requiredOrFix') });
       return;
     }
-    
-    const playList = plays.split(',').filter(play => play.trim() !== '');
-    alert(`Verificación:\nLotería: ${selectedLotteries.join(', ')}\nHorario: ${selectedSchedule}\nJugadas: ${playList.length}\nMonto: $${calculatedAmount.toFixed(2)}`);
+    if(isEditing && parsedInstructions.length>1){
+  setVerifyFeedback({ type:'error', message:t('errors.singleInstructionEdit') });
+      return;
+    }
+    if(parseErrors.length){
+  setVerifyFeedback({ type:'error', message:`${t('errors.parse')}: ${parseErrors.length}` });
+      return;
+    }
+    if(!parsedInstructions.length){
+  setVerifyFeedback({ type:'error', message:t('errors.noValidInstructions') });
+      return;
+    }
+    try {
+      // Validaciones de límites sin insertar (similar a handleInsert pero lectura solamente)
+      const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
+      let violations=[];
+      if(horarios.length){
+        const { data: { user } } = await supabase.auth.getUser();
+        let specificLimits=null;
+        if(user){
+          const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', user.id).maybeSingle();
+          specificLimits = profile?.limite_especifico || null;
+        }
+        const { data: limitRows } = await supabase.from('limite_numero').select('numero, limite, jugada, id_horario').in('id_horario', horarios);
+        const limitMap=new Map();
+        (limitRows||[]).forEach(r=> limitMap.set(r.id_horario+"|"+r.jugada+"|"+r.numero, r.limite));
+        const dayStart=new Date(); dayStart.setHours(0,0,0,0);
+        const { data: jugadasDia } = await supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', dayStart.toISOString()).in('id_horario', horarios);
+        const usageMap=new Map();
+        (jugadasDia||[]).forEach(j=>{
+          (j.numeros||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(n=>{
+            const k=j.id_horario+"|"+j.jugada+"|"+n;
+            usageMap.set(k,(usageMap.get(k)||0)+(j.monto_unitario||0));
+          });
+        });
+        parsedInstructions.forEach(instr=>{
+          instr.numbers.forEach(num=>{
+            horarios.forEach(h=>{
+              const key=h+"|"+instr.playType+"|"+num;
+              const limit = limitMap.get(key);
+              const spec = specificLimits && specificLimits[instr.playType];
+              let effective = limit != null && spec != null ? Math.min(limit,spec) : (limit != null ? limit : (spec != null ? spec : null));
+              if(!effective) return;
+              const used = usageMap.get(key)||0;
+              const amt = instr.amountEach||0;
+              if(used + amt > effective){
+                violations.push({ numero:num, jugada:instr.playType, permitido:effective, usado:used, intento:amt });
+              }
+            });
+          });
+        });
+      }
+      if(violations.length){
+        setLimitViolations(violations);
+        const first = violations.slice(0,3).map(v=> `${v.numero}(${v.jugada})`).join(', ');
+        setVerifyFeedback({ type:'error', message:`${t('verify.limitViolations')}: ${violations.length}${violations.length? ' - '+first+(violations.length>3?'...':''):''}` });
+        return;
+      }
+      // Resumen agregado sin listar números
+      const summaryCounts = parsedInstructions.reduce((acc,i)=>{ acc[i.playType]=(acc[i.playType]||0)+i.numbers.length; return acc; },{});
+      const parts = Object.keys(summaryCounts).map(pt=> `${pt}:${summaryCounts[pt]}`).join(' | ');
+      // Info duplicados con líneas
+      const dupDetails = (()=>{
+        const linesMap = {};
+        parsedInstructions.forEach(inst=>{
+          inst.duplicates.forEach(d=>{ if(!linesMap[d]) linesMap[d]=new Set(); linesMap[d].add(inst.line); });
+        });
+        const dupCount = Object.keys(linesMap).length;
+        if(!dupCount) return '';
+        const first = Object.entries(linesMap).slice(0,3).map(([n,set])=> `${n}(L${Array.from(set).join('/')})`).join(', ');
+        return ` | Duplicados: ${dupCount}${dupCount>3? ' ('+first+'...)':' ('+first+')'}`;
+      })();
+  setVerifyFeedback({ type:'success', message:`${t('verify.summaryPrefix')}: ${parts}. Total: ${total}${dupDetails}` });
+    } catch(err){
+  setVerifyFeedback({ type:'error', message:t('errors.verify') });
+    }
   };
 
   const handleInsert = async () => {
@@ -219,50 +334,69 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
     setLotteryErrorMessage('');
   setLimitViolations([]);
 
+    // Si estamos editando una jugada existente (solo soportamos edición de UNA jugada a la vez en modo texto)
+    if(isEditing && editingId){
+      const valid = validateForm(true);
+      if(!valid || !parsedInstructions.length){ setPlaysError(true); return; }
+  if(parsedInstructions.length>1){ setPlaysError(true); setVerifyFeedback({ type:'error', message:t('errors.editSingle') }); return; }
+      const instr = parsedInstructions[0];
+      try {
+        const lottery = selectedLotteries[0];
+        const newHorario = selectedSchedules[lottery];
+        // Validación de límites para edición
+        if(newHorario){
+          const { data: { user } } = await supabase.auth.getUser();
+          const ctx = await fetchLimitsContext([newHorario], user?.id);
+          // Restar uso previo de la jugada actual para no duplicar consumo del límite
+          try {
+            const { data: currentPlay } = await supabase
+              .from('jugada')
+              .select('id_horario,jugada,numeros,monto_unitario')
+              .eq('id', editingId)
+              .maybeSingle();
+            if(currentPlay && currentPlay.id_horario === newHorario){
+              const prevNums = (currentPlay.numeros||'').split(',').map(s=>s.trim()).filter(Boolean);
+              prevNums.forEach(n => {
+                const key = newHorario+"|"+currentPlay.jugada+"|"+n;
+                if(ctx.usageMap.has(key)){
+                  const after = (ctx.usageMap.get(key)||0) - (currentPlay.monto_unitario||0);
+                  if(after>0) ctx.usageMap.set(key, after); else ctx.usageMap.delete(key);
+                }
+              });
+            }
+          } catch(_) { /* silencioso */ }
+          const violations = checkInstructionsLimits([instr], [newHorario], ctx);
+          if(violations.length){ setLimitViolations(violations); setInsertFeedback({ success:0, fail:1, edit:true, blocked:true }); return; }
+        }
+        // Recalcular total (ya está en parser) y ejecutar update
+        const pad=(n)=> String(n).padStart(2,'0');
+        const now=new Date();
+        const tsLocal = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        const updatePayload={ numeros: instr.numbers.join(','), nota: note.trim() || 'Sin nombre', monto_unitario: instr.amountEach, monto_total: instr.totalPerLottery, jugada: instr.playType, created_at: tsLocal };
+        if(newHorario) updatePayload.id_horario = newHorario;
+        const { error } = await supabase.from('jugada').update(updatePayload).eq('id', editingId);
+        if(error) throw error;
+        setInsertFeedback({ success:1, fail:0, duplicates:[], edit:true });
+        setIsEditing(false); setEditingId(null);
+        setPlays(''); setNote(''); setParsedInstructions([]); setTotal(0);
+      } catch(e){
+        setInsertFeedback({ success:0, fail:1, edit:true });
+      }
+      return;
+    }
+
     // Validar campos requeridos
-    let hasErrors = !validateForm();
+  let hasErrors = !validateForm(true);
 
     // Validación de capacidad (unificada con modo visual) usando uso del día en tabla jugada
     if (!hasErrors) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        let specificLimits = null;
-        if (user) {
-          const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', user.id).maybeSingle();
-          specificLimits = profile?.limite_especifico || null;
-        }
         const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
-        if (horarios.length && parsedInstructions.length) {
-          // Límites definidos individualmente
-          const { data: limitRows } = await supabase.from('limite_numero').select('numero, limite, jugada, id_horario').in('id_horario', horarios);
-          const limitMap = new Map();
-          (limitRows||[]).forEach(r=>{ limitMap.set(r.id_horario+"|"+r.jugada+"|"+r.numero, r.limite); });
-          // Uso acumulado del día
-          const dayStart = new Date(); dayStart.setHours(0,0,0,0);
-          const { data: jugadasDia } = await supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', dayStart.toISOString()).in('id_horario', horarios);
-          const usageMap = new Map();
-          (jugadasDia||[]).forEach(j=>{
-            const nums=(j.numeros||'').split(',').map(s=>s.trim()).filter(Boolean);
-            nums.forEach(n=>{ const k=j.id_horario+"|"+j.jugada+"|"+n; usageMap.set(k,(usageMap.get(k)||0)+(j.monto_unitario||0)); });
-          });
-          const violations=[];
-          parsedInstructions.forEach(instr=>{
-            const jugada = instr.playType;
-            instr.numbers.forEach(numRaw=>{
-              horarios.forEach(h=>{
-                const key = h+"|"+jugada+"|"+numRaw; // numRaw ya formateado
-                const perNumber = limitMap.get(key);
-                const specLimit = specificLimits && specificLimits[jugada];
-                let effective;
-                if(perNumber!==undefined && specLimit!==undefined) effective = Math.min(perNumber, specLimit); else if(perNumber!==undefined) effective = perNumber; else if(specLimit!==undefined) effective = specLimit; else effective=null;
-                if(!effective) return;
-                const used = usageMap.get(key)||0;
-                const amt = instr.amountEach||0;
-                if((used + amt) > effective){ violations.push({ numero:numRaw, jugada, permitido:effective, usado:used, intento:amt }); }
-              });
-            });
-          });
-          if(violations.length){ setLimitViolations(violations); hasErrors=true; }
+        if(horarios.length && parsedInstructions.length){
+          const ctx = await fetchLimitsContext(horarios, user?.id);
+          const violations = checkInstructionsLimits(parsedInstructions, horarios, ctx);
+          if(violations.length){ setLimitViolations(violations); hasErrors=true; setInsertFeedback({ success:0, fail:1, blocked:true }); }
         }
       } catch(e){ /* silencio */ }
     }
@@ -312,9 +446,9 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           if(result.success) success++; else { fail++; if(result.limitViolations) blockedViolations = blockedViolations.concat(result.limitViolations); }
         }
         if(blockedViolations.length){
-          setLimitViolations(blockedViolations.map(v=> ({ numero:v.number, jugada:playData?.playType||'', permitido:v.limit, usado:v.current })));
+          setLimitViolations(blockedViolations.map(v=> ({ numero:v.number, jugada:v.limitType || v.jugada || '', permitido:v.limit, usado:v.current })));
         }
-        setInsertFeedback({ success, fail, duplicates:[], edit:false });
+  setInsertFeedback({ success, fail, duplicates:[], edit:false });
         if(success){
           setPlays(''); setNote(''); setCalculatedAmount(0); setTotal(0); setParsedInstructions([]);
         }
@@ -405,7 +539,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           label={t('common.numbers')}
           value={plays}
           onChangeText={(txt)=> { setPlays(txt); if(showFieldErrors){ /* no quitar bordes aún */ }}}
-          placeholder="" // sin placeholder
+          placeholder="Números / comandos"
           multiline={true}
           showPasteButton={true}
           pasteButtonOverlay={true}
@@ -414,40 +548,23 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
           hasError={showFieldErrors && (playsError || !plays.trim())}
         />
   {/* Se eliminan botones superiores duplicados */}
-  {(plays.length>0) && (
+        {(plays.length>0) && (
           <View style={{ marginTop:4, marginBottom:4 }}>
-            {parsedInstructions.slice(0,5).map((i,idx)=>(
-              <Text key={idx} style={{ fontSize:11 }}>
-                <Text style={{ color:'#2D5016', fontWeight:'600' }}>{i.playType.toUpperCase()}</Text>
-                {' '}
-                {i.numbers.map((n,ni)=>{
-                  const isDup = i.duplicates.includes(n);
-                  return (
-                    <Text key={ni} style={{ color: isDup ? '#D4A300' : '#2D5016', fontWeight: isDup ? '700':'400' }}>
-                      {n}{ni < i.numbers.length-1 ? ',' : ''}
-                    </Text>
-                  );
-                })}
-                {' '}x {i.amountEach} = {i.totalPerLottery}
-              </Text>
-            ))}
-            {parsedInstructions.length>5 && <Text style={{ fontSize:11, color:'#2D5016' }}>+{parsedInstructions.length-5} más...</Text>}
-            {/* Mensaje global de duplicados */}
-            {parsedInstructions.some(i=> i.duplicates && i.duplicates.length) && (
-              <Text style={{ fontSize:11, color:'#D4A300', marginTop:2 }}>
-                Duplicados: {Array.from(new Set(parsedInstructions.flatMap(i=> i.duplicates || []))).length}
-              </Text>
-            )}
-            {/* Contador dinámico de combinaciones */}
-            {parsedInstructions.length>0 && (
-              (()=>{
-                const counts = parsedInstructions.reduce((acc,i)=>{ acc[i.playType]=(acc[i.playType]||0)+i.numbers.length; return acc; },{});
-                const totalComb = Object.values(counts).reduce((a,b)=>a+b,0);
-                const order = ['fijo','corrido','parle','centena','tripleta'];
-                const parts = order.filter(k=> counts[k]).map(k=> `${k.charAt(0).toUpperCase()+k.slice(1)}: ${counts[k]}`);
-                return <Text style={{ fontSize:11, color:'#2D5016', marginTop:2 }}>Total combinaciones: {totalComb}{parts.length? ' ('+parts.join(', ')+')':''}</Text>;
-              })()
-            )}
+            {/* Resumen agregado por tipo sin mostrar números */}
+            {parsedInstructions.length>0 && (()=>{
+              const byType = parsedInstructions.reduce((acc,i)=>{ acc[i.playType]=(acc[i.playType]||{ count:0, total:0 }); acc[i.playType].count += i.numbers.length; acc[i.playType].total += i.totalPerLottery; return acc; },{});
+              const order=['fijo','corrido','parle','centena','tripleta'];
+              const hasDup = parsedInstructions.some(i=> i.duplicates && i.duplicates.length);
+              return order.filter(t=> byType[t]).map(t=> (
+                <Text key={t} style={{ fontSize:11, color: hasDup ? '#D4A300':'#2D5016' }}>{t.toUpperCase()}: {byType[t].count} nums | Total: {byType[t].total}</Text>
+              ));
+            })()}
+            {/* Duplicados solo cantidad */}
+            {parsedInstructions.some(i=> i.duplicates && i.duplicates.length) && (()=>{
+              const totalDup = parsedInstructions.reduce((acc,i)=> acc + (i.duplicates? i.duplicates.length:0),0);
+              return (<Text style={{ fontSize:11, color:'#D4A300', marginTop:2 }}>{t('banner.duplicates')}: {totalDup}</Text>);
+            })()}
+            {/* Errores de parseo */}
             {parseErrors.length>0 && (
               <View style={{ marginTop:4 }}>
                 {parseErrors.slice(0,4).map((e,i)=>(
@@ -458,22 +575,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
             )}
           </View>
         )}
-        {limitViolations.length > 0 && (
-          <View style={{ marginTop:8, backgroundColor:'#fff5f5', borderWidth:1, borderColor:'#ffc9c9', padding:8, borderRadius:6 }}>
-            {limitViolations.slice(0,5).map((v,idx)=>{
-              const excedido = v.intento !== undefined ? (v.usado + v.intento - v.permitido) : (v.usado - v.permitido);
-              const excedidoPos = excedido > 0 ? excedido : (v.usado + (v.intento||0) > v.permitido ? (v.usado + (v.intento||0) - v.permitido) : 0);
-              return (
-                <Text key={idx} style={{ color:'#c92a2a', fontSize:12 }}>
-                  Número {v.numero} ({v.jugada}) excedido por {excedidoPos}
-                </Text>
-              );
-            })}
-            {limitViolations.length>5 && (
-              <Text style={{ color:'#c92a2a', fontSize:12, marginTop:2 }}>+{limitViolations.length-5} más...</Text>
-            )}
-          </View>
-        )}
+  {/* Limit violations visual removido (ahora solo en FeedbackBanner) */}
 
         {/* Row 4: Nota y Total */}
         <View style={styles.row}>
@@ -481,8 +583,8 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
             <InputField
               label={t('common.note')}
               value={note}
-              onChangeText={setNote}
-              placeholder=""
+              onChangeText={(v)=>{ setNote(v); if(v.trim()) setNoteError(false); }}
+              placeholder="Nombre"
               style={styles.fieldContainer}
               inputStyle={styles.unifiedInput}
               hasError={noteError || (showFieldErrors && !note.trim())}
@@ -521,7 +623,7 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
               setPlays(prev => prev ? prev + (prev.endsWith('\n')?'':'\n') + opt.numbers : opt.numbers);
             }
           }} />
-          <ListButton onOptionSelect={(option) => console.log('List option:', option)} />
+          <ListButton currentMode={currentMode} onOptionSelect={(option) => console.log('List option:', option)} />
           <TextModeInfoButton icon="ℹ︎" />
           <CleanerButton onInsert={(formatted)=>{
             setPlays(prev => {
@@ -539,11 +641,32 @@ const TextModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onT
         </View>
       </ScrollView>
       
-      {insertFeedback && (
-        <View style={styles.feedbackBanner}>
-          <Text style={styles.feedbackText}>Insertadas: {insertFeedback.success}  Fallos: {insertFeedback.fail}</Text>
-          <Pressable onPress={()=> setInsertFeedback(null)} style={styles.feedbackClose}><Text style={styles.feedbackCloseTxt}>✕</Text></Pressable>
+      {verifyFeedback && (
+        <FeedbackBanner 
+          type={verifyFeedback.type==='success' ? 'success' : 'error'}
+          message={verifyFeedback.message}
+          onClose={()=> setVerifyFeedback(null)}
+          style={{ top:70 }}
+        />
+      )}
+      {isEditing && !verifyFeedback && (
+        <View style={[styles.editBanner, editingMultiError && styles.editBannerError]}>
+          <Text style={[styles.editBannerTxt, editingMultiError && styles.editBannerTxtError]}>
+            {editingMultiError ? t('edit.modeHintError') : t('edit.modeHint')}
+          </Text>
+          <Pressable onPress={()=> { setIsEditing(false); setEditingId(null); }} style={styles.editBannerClose}> 
+            <Text style={[styles.editBannerCloseTxt]}>Cancelar</Text>
+          </Pressable>
         </View>
+      )}
+      {insertFeedback && (
+        <FeedbackBanner
+          type={insertFeedback.blocked ? 'blocked' : (insertFeedback.fail ? (insertFeedback.success ? 'warning' : 'error') : 'success')}
+          message={insertFeedback.blocked ? `${t('edit.blocked')}: ${t('edit.blocked.detail')}` : `${t('banner.inserted')}: ${insertFeedback.success}  ${t('banner.fail')}: ${insertFeedback.fail}`}
+          details={limitViolations.length ? limitViolations.slice(0,10).map(v=> `${v.numero} (${v.jugada}) usado ${v.usado||0}${v.intento?` +${v.intento}`:''}/${v.permitido}`) : undefined}
+          onClose={()=> setInsertFeedback(null)}
+          style={{ top: verifyFeedback ? 120 : 70 }}
+        />
       )}
 
       <SideBar
@@ -734,6 +857,30 @@ const styles = StyleSheet.create({
   feedbackText:{ flex:1, fontSize:13, fontWeight:'600', color:'#2D5016' },
   feedbackClose:{ marginLeft:10, padding:4 },
   feedbackCloseTxt:{ fontSize:14, fontWeight:'700', color:'#C0392B' },
+  editBanner:{
+    position:'absolute',
+    top:70,
+    left:16,
+    right:16,
+    backgroundColor:'#FFF8E1',
+    borderWidth:1,
+    borderColor:'#F4C067',
+    paddingVertical:8,
+    paddingHorizontal:12,
+    borderRadius:10,
+    flexDirection:'row',
+    alignItems:'center',
+    zIndex:4100,
+    gap:12,
+  },
+  editBannerError:{
+    backgroundColor:'#FFE5E5',
+    borderColor:'#FF9B9B',
+  },
+  editBannerTxt:{ flex:1, fontSize:13, fontWeight:'600', color:'#7A4E00' },
+  editBannerTxtError:{ color:'#C0392B' },
+  editBannerClose:{ paddingHorizontal:8, paddingVertical:4, backgroundColor:'#FFFFFF', borderRadius:6, borderWidth:1, borderColor:'#E0C89C' },
+  editBannerCloseTxt:{ fontSize:12, fontWeight:'600', color:'#7A4E00' },
   lockButton: {
     width: 40,
     height: 40,

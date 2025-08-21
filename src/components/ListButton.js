@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, Text, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
-const ListButton = ({ isDarkMode = false }) => {
+const ListButton = ({ isDarkMode = false, currentMode = 'Visual' }) => {
   const navigation = useNavigation();
   return (
     <Pressable
@@ -11,7 +11,7 @@ const ListButton = ({ isDarkMode = false }) => {
         pressed && styles.buttonPressed,
         isDarkMode && styles.buttonDark
       ]}
-      onPress={() => navigation.navigate('SavedPlays', { isDarkMode })}
+  onPress={() => navigation.navigate('SavedPlays', { isDarkMode, originMode: currentMode })}
     >
       <Text style={styles.buttonIcon}>📄</Text>
     </Pressable>

@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Pressable,
   Animated,
-  Alert,
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import DropdownPicker from '../components/DropdownPicker';
@@ -19,12 +18,14 @@ import BatteryButton from '../components/BatteryButton';
 import HammerButton from '../components/HammerButton';
 import ListButton from '../components/ListButton';
 import PricingInfoButton from '../components/PricingInfoButton';
+import FeedbackBanner from '../components/FeedbackBanner';
 import NotificationsButton from '../components/NotificationsButton';
 import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { t, translatePlayTypeLabel } from '../utils/i18n';
 import { applyPlayTypeSelection } from '../utils/playTypeCombinations';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
+import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 
 const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   
@@ -245,6 +246,53 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         const unit = parseInt((raw||'').toString().replace(/[^0-9]/g,''),10) || 0;
         const numsCount = (plays.match(/\d+/g)||[]).length;
         const totalCalc = primaryType==='parle' && isLocked ? unit : unit * numsCount;
+        // Validación de límites para edición (similar a inserción)
+        if(numsCount>0){
+          const rawNumbers = (plays.match(/\d+/g)||[]).map(n=> n.padStart( primaryType==='centena'?3: primaryType==='tripleta'?6:2,'0'));
+          // Contar repeticiones para multiplicar impacto real
+          const counts = rawNumbers.reduce((acc,n)=> (acc[n]=(acc[n]||0)+1, acc), {});
+          const uniqueNumbers = Object.keys(counts);
+          const newLottery = selectedLotteries[0];
+          const newHorario = selectedSchedules[newLottery];
+          if(newHorario){
+            const { data: { user } } = await supabase.auth.getUser();
+            let specificLimits=null;
+            if(user){
+              const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', user.id).maybeSingle();
+              specificLimits = profile?.limite_especifico || null;
+            }
+            const { data: limitRows } = await supabase.from('limite_numero').select('numero,limite,jugada,id_horario').eq('id_horario', newHorario);
+            const limitMap=new Map(); (limitRows||[]).forEach(r=> limitMap.set(`${r.id_horario}|${r.jugada}|${r.numero}`, r.limite));
+            const dayStart=new Date(); dayStart.setHours(0,0,0,0);
+            const { data: usadas } = await supabase.from('jugada').select('id,id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', dayStart.toISOString()).eq('id_horario', newHorario);
+            const usageMap=new Map();
+            (usadas||[]).forEach(j=>{
+              if(j.id===editingId) return; // excluir la jugada actual para recalcular con nuevos montos
+              (j.numeros||'').split(',').filter(Boolean).forEach(n=>{
+                const key=`${j.id_horario}|${j.jugada}|${n}`;
+                usageMap.set(key,(usageMap.get(key)||0)+(j.monto_unitario||0));
+              });
+            });
+            const violations=[];
+            uniqueNumbers.forEach(n=>{
+              const key=`${newHorario}|${primaryType}|${n}`;
+              const perNumber=limitMap.get(key);
+              const spec = specificLimits && specificLimits[primaryType];
+              let effective = perNumber!=null && spec!=null ? Math.min(perNumber,spec) : (perNumber!=null ? perNumber : (spec!=null ? spec : null));
+              if(!effective) return;
+              const used = usageMap.get(key)||0;
+              const totalAttempt = unit * counts[n];
+              if(used + totalAttempt > effective){
+                violations.push({ numero:n, jugada:primaryType, permitido:effective, usado:used, intento:totalAttempt });
+              }
+            });
+            if(violations.length){
+              setLimitViolations(violations);
+              setInsertFeedback({ success:0, fail:1, duplicates:[], edit:true, blocked:true });
+              return;
+            }
+          }
+        }
         // Actualizar marca de tiempo (created_at) para reflejar edición
         const now = new Date();
         const pad = (n) => String(n).padStart(2,'0');
@@ -274,10 +322,10 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           setIsEditing(false);
           setEditingId(null);
           setEditingInitialNumbers('');
-          Alert.alert('Editado','Jugada actualizada');
+          // Feedback ya mostrado en banner insertFeedback
         }
       } catch(e){
-        Alert.alert('Error','No se pudo actualizar la jugada');
+  setInsertFeedback({ success:0, fail:1, duplicates:[], edit:true });
       }
       return;
     }
@@ -434,63 +482,16 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     if (!payloads.length) return;
 
     try {
-      // Verificación de capacidad BLOQUEANTE antes de insertar
-      // 1. Cargar límites específicos del usuario
-      const { data: { user } } = await supabase.auth.getUser();
-      let specificLimits = null;
-      if(user){
-        const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', user.id).maybeSingle();
-        specificLimits = profile?.limite_especifico || null;
-      }
-      // 2. Reunir horarios implicados
-      const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
-      // 3. Obtener límites por número existentes
-      let limitRows = [];
-      if(horarios.length){
-        const { data: lr } = await supabase.from('limite_numero').select('numero, limite, jugada, id_horario').in('id_horario', horarios);
-        limitRows = lr||[];
-      }
-      // 4. Uso actual desde jugada del día
-      const dayStart = new Date(); dayStart.setHours(0,0,0,0);
-      const isoDayStart = dayStart.toISOString();
-      let usedRows = [];
-      if(horarios.length){
-        const { data: ur } = await supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', isoDayStart).in('id_horario', horarios);
-        usedRows = ur||[];
-      }
-      // 5. Mapear uso acumulado por número
-      const usageMap = new Map(); // key h|jug|numero -> monto acumulado
-      usedRows.forEach(r=>{
-        const nums = (r.numeros||'').split(',').map(s=> s.trim()).filter(Boolean);
-        nums.forEach(n=>{
-          const key = `${r.id_horario}|${r.jugada}|${n}`;
-          usageMap.set(key, (usageMap.get(key)||0) + (r.monto_unitario||0));
-        });
-      });
-      const limitMap = new Map();
-      limitRows.forEach(r=>{ limitMap.set(`${r.id_horario}|${r.jugada}|${r.numero}`, r.limite); });
-      // 6. Evaluar cada payload
-      const violations = [];
-      for(const p of payloads){
-        const nums = p.numeros.split(',').filter(Boolean);
-        const jug = p.jugada;
-        const specLimit = specificLimits && specificLimits[jug];
-        nums.forEach(n=>{
-          const key = `${p.id_horario}|${jug}|${n}`;
-          const perNumber = limitMap.get(key);
-          let effective;
-          if(perNumber!==undefined && specLimit!==undefined) effective = Math.min(perNumber, specLimit); else if(perNumber!==undefined) effective = perNumber; else if(specLimit!==undefined) effective = specLimit; else effective = null;
-          if(!effective) return; // sin límite => no bloquea
-          const used = usageMap.get(key)||0;
-          if((used + p.monto_unitario) > effective){
-            violations.push({ numero:n, jugada:jug, permitido:effective, usado:used, intento:p.monto_unitario });
-          }
-        });
-      }
+  // Verificación de capacidad usando util compartido
+  const { data: { user } } = await supabase.auth.getUser();
+  const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
+  const ctx = await fetchLimitsContext(horarios, user?.id);
+  // Adaptar payloads a formato de instrucciones temporales para reusar checkInstructionsLimits
+  const tempInstructions = payloads.map(p=> ({ playType:p.jugada, numbers:p.numeros.split(',').filter(Boolean), amountEach:p.monto_unitario }));
+  const violations = checkInstructionsLimits(tempInstructions, horarios, ctx);
       if(violations.length){
-        setLimitViolations(violations);
-        setInsertFeedback({ success:0, fail:payloads.length, duplicates:[] });
-        Alert.alert('Capacidad excedida','Se bloquearon jugadas que sobrepasarían su capacidad.');
+  setLimitViolations(violations);
+  setInsertFeedback({ success:0, fail:payloads.length, duplicates:[], blocked:true });
         return; // aborta inserción
       }
       // 7. Insertar (sin violaciones)
@@ -514,13 +515,13 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       if(failures.length){
         const duplicateFails = failures.filter(f=>f.isDuplicate);
         setInsertFeedback({ success:successes.length, fail:failures.length, duplicates: duplicateFails.map(f=>({ jugada:f.p.jugada, numeros:f.p.numeros, nota:f.p.nota, horario:f.p.id_horario })) });
-        Alert.alert('Algunas jugadas no se guardaron', `${successes.length} guardada(s), ${failures.length} fallida(s)` + (duplicateFails.length? `\nDuplicadas: ${duplicateFails.length}`:''));
+        // Feedback detallado ya en banner insertFeedback
       } else {
         setInsertFeedback({ success:successes.length, fail:0, duplicates:[] });
       }
     } catch(err){
       console.error('Error general insertando jugadas', err);
-      Alert.alert('Error','Ocurrió un error inesperado al insertar.');
+      setInsertFeedback({ success:0, fail:payloads.length||1, duplicates:[] });
     } finally { setIsInserting(false); }
   };
 
@@ -694,59 +695,31 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           </View>
         </View>
         {limitViolations.length > 0 && (
-          <View style={{ marginTop:8, backgroundColor:'#fff5f5', borderWidth:1, borderColor:'#ffc9c9', padding:8, borderRadius:6 }}>
-            {limitViolations.slice(0,5).map((v,idx)=>{
-              const excedido = (v.usado + (v.intento||0)) - v.permitido;
-              const exceso = excedido > 0 ? excedido : 0;
-              return (
-                <Text key={idx} style={{ color:'#c92a2a', fontSize:12 }}>
-                  Número {v.numero} ({v.jugada}) excedido por {exceso}
-                </Text>
-              );
-            })}
-            {limitViolations.length>5 && (
-              <Text style={{ color:'#c92a2a', fontSize:12, marginTop:2 }}>+{limitViolations.length-5} más...</Text>
-            )}
-          </View>
+          <FeedbackBanner
+            type="blocked"
+            message={t('edit.blocked')}
+            details={limitViolations.slice(0,10).map(v=> `${v.numero} (${v.jugada}) ${(v.usado||0)}${v.intento?` +${v.intento}`:''}/${v.permitido}`)}
+            onClose={()=> setLimitViolations([])}
+            style={{ top:70 }}
+          />
         )}
         {isEditing && (
-          <Animated.View style={{ opacity: editBannerOpacity, marginTop:10, width:'100%', alignItems:'center' }}>
-            <View style={{ backgroundColor:'#F9E79F', borderWidth:1, borderColor:'#D4AC0D', paddingVertical:12, paddingHorizontal:18, borderRadius:14, flexDirection:'row', justifyContent:'space-between', alignItems:'center', width:'90%', maxWidth:620, shadowColor:'#000', shadowOpacity:0.12, shadowRadius:6, shadowOffset:{width:0,height:3}, elevation:5 }}>
-            <Text style={{ fontSize:16, fontWeight:'800', color:'#5C4B00', flex:1 }}>Editando jugada</Text>
-            <Pressable onPress={()=> {
-              Animated.timing(editBannerOpacity,{ toValue:0, duration:200, useNativeDriver:true }).start(({finished})=> {
-                if(finished){
-                  handleClear();
-                  setPlays(''); // refuerzo limpieza números
-                  setIsEditing(false); setEditingId(null); setEditingInitialNumbers('');
-                }
-              });
-            }} style={{ backgroundColor:'#D4AC0D', paddingVertical:6, paddingHorizontal:10, borderRadius:8 }}>
-              <Text style={{ fontSize:13, fontWeight:'700', color:'#FFFFFF' }}>Cancelar</Text>
-            </Pressable>
-            </View>
-          </Animated.View>
+          <FeedbackBanner
+            type="edit"
+            message={t('edit.modeHint')}
+            details={editingInitialNumbers || undefined}
+            onClose={()=> { handleClear(); setPlays(''); setIsEditing(false); setEditingId(null); setEditingInitialNumbers(''); }}
+            style={{ top: limitViolations.length? 120:70 }}
+          />
         )}
         {insertFeedback && (
-          <View style={[{ marginTop:8, padding:8, borderRadius:6, borderWidth:1 }, insertFeedback.fail? { backgroundColor:'#FFF4E5', borderColor:'#F5C07A' } : { backgroundColor:'#E8F8F2', borderColor:'#27AE60' }]}>
-            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
-              <Text style={{ fontSize:12, fontWeight:'700', color: insertFeedback.fail? '#8C4B00':'#1E8449' }}>
-                {insertFeedback.fail ? `${insertFeedback.success} guardada(s), ${insertFeedback.fail} fallida(s)` : `${insertFeedback.success} jugada(s) guardada(s)`}
-              </Text>
-              <Pressable onPress={()=> setInsertFeedback(null)}><Text style={{ fontSize:12, fontWeight:'700', color:'#666' }}>✖</Text></Pressable>
-            </View>
-            {!!insertFeedback.duplicates?.length && (
-              <View style={{ marginTop:4 }}>
-                {insertFeedback.duplicates.slice(0,4).map((d,i)=>(
-                  <Text key={i} style={{ fontSize:11, color:'#8C4B00' }}>Duplicada: {d.jugada} [{d.numeros}]</Text>
-                ))}
-                {insertFeedback.duplicates.length > 4 && (
-                  <Text style={{ fontSize:11, color:'#8C4B00' }}>+{insertFeedback.duplicates.length - 4} más...</Text>
-                )}
-                <Text style={{ fontSize:10, color:'#A65F00', marginTop:2 }}>Modifica números o nota para reintentar.</Text>
-              </View>
-            )}
-          </View>
+          <FeedbackBanner
+            type={insertFeedback.blocked ? 'blocked' : (insertFeedback.fail ? (insertFeedback.success ? 'warning':'error') : 'success')}
+            message={insertFeedback.blocked ? t('edit.blocked') : insertFeedback.fail ? `${insertFeedback.success} guardada(s), ${insertFeedback.fail} fallida(s)` : `${insertFeedback.success} jugada(s) guardada(s)`}
+            details={insertFeedback.blocked ? t('edit.blocked.detail') : insertFeedback.duplicates?.length ? insertFeedback.duplicates.slice(0,8).map(d=> `Dup: ${d.jugada} [${d.numeros}]`) : undefined}
+            onClose={()=> setInsertFeedback(null)}
+            style={{ top: (limitViolations.length? 120:70) + (isEditing? 50:0) }}
+          />
         )}
       </View>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -807,7 +780,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           label={t('common.numbers')}
           value={plays}
           onChangeText={setPlays}
-          placeholder=""
+          placeholder="Números"
           playType={selectedPlayTypes[0] || null}
           selectedPlayTypes={selectedPlayTypes}
           multiline={true}
@@ -824,7 +797,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
               label={t('common.note')}
               value={note}
               onChangeText={setNote}
-              placeholder=""
+              placeholder="Nombre"
               style={styles.fieldContainer}
               inputStyle={[styles.unifiedInput, (showFieldErrors && !note.trim()) && styles.errorBorder]}
             />

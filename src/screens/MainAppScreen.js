@@ -25,13 +25,18 @@ const MainAppScreen = ({ navigation, route }) => {
     }
   }, [visibleModes, currentMode]);
 
-  // Forzar Visual si llega un editPayload desde otra pantalla
+  // Forzar Visual solo si la edición proviene de modo Visual u origen desconocido
   useEffect(()=>{
     const editPayload = route?.params?.editPayload;
-    if(editPayload && currentMode !== 'Visual'){
-      setCurrentMode('Visual');
+    const originMode = route?.params?.originMode; // 'Visual' | 'Texto'
+    if(editPayload){
+      if(originMode === 'Texto'){
+        if(currentMode !== 'Texto') setCurrentMode('Texto');
+      } else if(currentMode !== 'Visual') {
+        setCurrentMode('Visual');
+      }
     }
-  },[route?.params?.editPayload, currentMode]);
+  },[route?.params?.editPayload, route?.params?.originMode, currentMode]);
 
   // Asegurar que VisualModeScreen vea cambios subsecuentes de editPayload aun si ya está en Visual
   const visualRoute = {
