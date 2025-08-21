@@ -6,6 +6,7 @@ import {
   Modal,
   StyleSheet,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 
 import { supabase } from '../supabaseClient';
@@ -102,16 +103,20 @@ const InfoButton = ({ onClose }) => {
     onClose && onClose();
   };
 
+  const { width } = useWindowDimensions();
+  const isSmall = width <= 360;
+
   return (
     <>
       <Pressable
         style={({ pressed }) => [
           styles.button,
+          isSmall && styles.buttonSmall,
           pressed && styles.buttonPressed
         ]}
   onPress={() => { setIsVisible(true); loadLimits(); }}
       >
-        <Text style={styles.buttonIcon}>i</Text>
+        <Text style={[styles.buttonIcon, isSmall && styles.buttonIconSmall]}>i</Text>
       </Pressable>
 
       <Modal
@@ -213,11 +218,13 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
+  buttonSmall: { width: 34, height: 34, borderRadius: 17 },
   buttonIcon: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#2D5016',
   },
+  buttonIconSmall: { fontSize: 14 },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

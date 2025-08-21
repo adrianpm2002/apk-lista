@@ -2,23 +2,35 @@ import React from 'react';
 import {
   View,
   StyleSheet,
+  ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import LimitedNumbersButton from './LimitedNumbersButton';
 import ListerLimitsButton from './ListerLimitsButton';
 import PricesButton from './PricesButton';
 
 const TopBar = ({ onOptionSelect }) => {
+  const { width } = useWindowDimensions();
+  const isSmall = width <= 360; // móviles pequeños
+
   const handleOptionSelect = (option) => {
     onOptionSelect && onOptionSelect(option);
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.buttonsContainer}>
+    <View style={[styles.container, isSmall && styles.containerSmall]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.buttonsContainer,
+          styles.buttonsScrollContent,
+        ]}
+      >
         <LimitedNumbersButton onOptionSelect={handleOptionSelect} />
         <ListerLimitsButton onOptionSelect={handleOptionSelect} />
         <PricesButton onOptionSelect={handleOptionSelect} />
-      </View>
+      </ScrollView>
     </View>
   );
 };
@@ -40,10 +52,18 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 3,
   },
+  containerSmall: {
+    paddingTop: 24,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+  },
   buttonsContainer: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
     alignItems: 'center',
+  },
+  buttonsScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
   },
 });
 

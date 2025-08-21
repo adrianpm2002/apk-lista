@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, Modal, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Modal, StyleSheet, useWindowDimensions } from 'react-native';
 import { t } from '../utils/i18n';
 
 // Botón de notificaciones (placeholder)
 // Muestra modal simple indicando que no hay notificaciones
 const NotificationsButton = () => {
   const [visible, setVisible] = useState(false);
+  const { width } = useWindowDimensions();
+  const isSmall = width <= 360;
   return (
     <>
       <Pressable
-        style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+        style={({ pressed }) => [styles.button, isSmall && styles.buttonSmall, pressed && styles.buttonPressed]}
         onPress={() => setVisible(true)}
       >
-        <Text style={styles.icon}>🔔</Text>
+        <Text style={[styles.icon, isSmall && styles.iconSmall]}>🔔</Text>
       </Pressable>
       <Modal visible={visible} transparent animationType="fade" onRequestClose={()=> setVisible(false)}>
         <View style={styles.overlay}>
@@ -31,8 +33,10 @@ const NotificationsButton = () => {
 
 const styles = StyleSheet.create({
   button: { width:40, height:40, borderRadius:20, backgroundColor:'#FFFFFF', borderWidth:1.5, borderColor:'#B8D4A8', alignItems:'center', justifyContent:'center', elevation:3 },
+  buttonSmall: { width:34, height:34, borderRadius:17 },
   buttonPressed: { opacity:0.7, transform:[{ scale:0.95 }] },
   icon: { fontSize:18 },
+  iconSmall: { fontSize:16 },
   overlay: { flex:1, backgroundColor:'rgba(0,0,0,0.45)', justifyContent:'center', alignItems:'center', padding:16 },
   modal: { backgroundColor:'#fff', borderRadius:16, width:'100%', maxWidth:380, padding:20 },
   title: { fontSize:18, fontWeight:'700', textAlign:'center', marginBottom:12, color:'#2C3E50' },

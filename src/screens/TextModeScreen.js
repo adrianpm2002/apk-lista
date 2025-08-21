@@ -620,9 +620,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
     zIndex: 3000,
-  paddingTop: 12,
-  paddingBottom: 10,
-  paddingHorizontal: 20,
+  paddingTop: 8,
+  paddingBottom: 8,
+  paddingHorizontal: 12,
   backgroundColor: 'rgba(255,255,255,0.96)',
   borderBottomWidth: 1,
   borderBottomColor: '#E2E6EA',
@@ -645,9 +645,7 @@ const styles = StyleSheet.create({
     gap: 6,
     marginLeft: 'auto',
   },
-  modeSelectorWrapper: {
-    marginLeft: 14,
-  },
+  modeSelectorWrapper: { marginLeft: 8 },
   content: {
     flex: 1,
     paddingHorizontal: 16,

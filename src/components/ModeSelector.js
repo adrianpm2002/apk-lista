@@ -5,10 +5,14 @@ import {
   Text,
   StyleSheet,
   Animated,
+  useWindowDimensions,
 } from 'react-native';
 
 const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { visual: true, text: true } }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const { width } = useWindowDimensions();
+  const isSmall = width <= 360;
+  const isTiny = width <= 320;
 
   useEffect(() => {
     // Animación sutil cuando cambia el modo
@@ -33,17 +37,19 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
   };
 
   return (
-    <Animated.View 
+  <Animated.View 
       style={[
-        styles.container, 
-        isDarkMode && styles.containerDark,
-        { transform: [{ scale: scaleAnim }] }
+    styles.container, 
+    isDarkMode && styles.containerDark,
+    isSmall && styles.containerSmall,
+    { transform: [{ scale: scaleAnim }] }
       ]}
     >
       {visibleModes.visual && (
         <Pressable
           style={({ pressed }) => [
-            styles.modeButton,
+      styles.modeButton,
+      isSmall && styles.modeButtonSmall,
             !visibleModes.text ? styles.singleButton : styles.leftButton,
             currentMode === 'Visual' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
             pressed && styles.buttonPressed
@@ -53,9 +59,10 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
           <Text style={[
             styles.modeText,
             isDarkMode && styles.modeTextDark,
+      isSmall && styles.modeTextSmall,
             currentMode === 'Visual' && styles.activeText
           ]}>
-            👁️ Visual
+      {isTiny ? '👁️' : '👁️ Visual'}
           </Text>
         </Pressable>
       )}
@@ -63,7 +70,8 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
       {visibleModes.text && (
         <Pressable
           style={({ pressed }) => [
-            styles.modeButton,
+      styles.modeButton,
+      isSmall && styles.modeButtonSmall,
             !visibleModes.visual ? styles.singleButton : styles.rightButton,
             currentMode === 'Texto' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
             pressed && styles.buttonPressed
@@ -73,9 +81,10 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
           <Text style={[
             styles.modeText,
             isDarkMode && styles.modeTextDark,
+      isSmall && styles.modeTextSmall,
             currentMode === 'Texto' && styles.activeText
           ]}>
-            📝 Texto
+      {isTiny ? '📝' : '📝 Texto'}
           </Text>
         </Pressable>
       )}
@@ -102,6 +111,10 @@ const styles = StyleSheet.create({
   containerDark: {
     backgroundColor: '#34495e',
   },
+  containerSmall: {
+    padding: 3,
+    borderRadius: 20,
+  },
   modeButton: {
     paddingHorizontal: 20,
     paddingVertical: 12,
@@ -109,6 +122,12 @@ const styles = StyleSheet.create({
     minWidth: 120,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  modeButtonSmall: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minWidth: 84,
+    borderRadius: 18,
   },
   leftButton: {
     marginRight: 2,
@@ -145,6 +164,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#7f8c8d',
+  },
+  modeTextSmall: {
+    fontSize: 12,
   },
   modeTextDark: {
     color: '#bdc3c7',

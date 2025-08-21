@@ -11,18 +11,39 @@ import {
   Alert,
   Platform,
   TextInput,
+  useWindowDimensions,
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import ChangePasswordModal from './ChangePasswordModal';
 import { useOffline } from '../context/OfflineContext';
 
+// Nota: dejamos este valor sólo para estilos por defecto; el ancho real del sidebar es dinámico.
 const { width: screenWidth } = Dimensions.get('window');
+
+// Calcula el ancho ideal del sidebar según el ancho de la ventana.
+const getSidebarWidth = (w) => {
+  if (!w || Number.isNaN(w)) return 320;
+  const margin = Math.max(16, Math.floor(w * 0.06)); // margen para poder cerrar
+  const maxAllowed = Math.max(160, w - margin);
+
+  let candidate;
+  if (w <= 320) candidate = Math.floor(w * 0.9);
+  else if (w <= 360) candidate = Math.floor(w * 0.88);
+  else if (w <= 480) candidate = Math.floor(w * 0.82);
+  else if (w <= 768) candidate = Math.floor(w * 0.75);
+  else candidate = Math.min(420, Math.floor(w * 0.45));
+
+  return Math.min(candidate, maxAllowed);
+};
 
 const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkMode, navigation, onModeVisibilityChange, role }) => {
   const { offlineMode, setOffline, pendingCount, getQueue, clearFromQueue } = useOffline();
 
-  const sidebarWidth = screenWidth * 0.75;
-  const slideAnim = useRef(new Animated.Value(-sidebarWidth)).current;
+  // Dimensiones reactivas para responsividad
+  const { width: windowWidth } = useWindowDimensions();
+  const sidebarWidth = getSidebarWidth(windowWidth);
+  // Aseguramos que el valor inicial de la animación considere el ancho inicial
+  const slideAnim = useRef(new Animated.Value(-getSidebarWidth(Dimensions.get('window').width))).current;
   const [modalVisible, setModalVisible] = useState(false);
   const [modalContent, setModalContent] = useState(null);
   const [modeVisibilityModal, setModeVisibilityModal] = useState(false);
@@ -65,19 +86,12 @@ const configOptions = roleOptionsMap[role] || [];
 
   // Animación del sidebar
   useEffect(() => {
-    if (isVisible) {
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: -sidebarWidth,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    }
+    // Cuando cambia visibilidad o dimensiones, re-animamos al destino correcto
+    Animated.timing(slideAnim, {
+      toValue: isVisible ? 0 : -sidebarWidth,
+      duration: 260,
+      useNativeDriver: true,
+    }).start();
   }, [isVisible, sidebarWidth]);
 
   const handleClose = () => {
@@ -295,8 +309,14 @@ const configOptions = roleOptionsMap[role] || [];
         onRequestClose={handleClose}
       >
         <View style={styles.overlay}>
-          {/* Área para cerrar */}
-          <Pressable style={styles.overlayTouchable} onPress={handleClose} />
+          {/* Área para cerrar: sólo el espacio fuera del sidebar */}
+          <Pressable
+            style={[
+              styles.overlayTouchable,
+              { left: sidebarWidth, right: 0 },
+            ]}
+            onPress={handleClose}
+          />
           
           {/* Sidebar */}
           <Animated.View
@@ -304,6 +324,7 @@ const configOptions = roleOptionsMap[role] || [];
               styles.sidebar,
               isDarkMode && styles.sidebarDark,
               {
+                width: sidebarWidth,
                 transform: [{ translateX: slideAnim }],
               },
             ]}
@@ -830,9 +851,9 @@ const styles = StyleSheet.create({
   },
   toggleButtonInline: {
     position: 'relative',
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  width: 36,
+  height: 36,
+  borderRadius: 18,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -847,7 +868,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   toggleIcon: {
-    fontSize: 18,
+  fontSize: 16,
     color: '#2c3e50',
     fontWeight: 'bold',
   },
