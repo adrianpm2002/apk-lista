@@ -5,13 +5,15 @@ import {
 } from 'react-native';
 import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
+import TextMode2Screen from './TextMode2Screen';
 
 const MainAppScreen = ({ navigation, route }) => {
   const [currentMode, setCurrentMode] = useState('Visual');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [visibleModes, setVisibleModes] = useState({
     visual: true,
-    text: true
+  text: true,
+  text2: true,
   });
   
   // Usar configuraciones locales simples
@@ -25,13 +27,15 @@ const MainAppScreen = ({ navigation, route }) => {
     }
   }, [visibleModes, currentMode]);
 
-  // Forzar Visual solo si la edición proviene de modo Visual u origen desconocido
+  // Forzar Visual/Texto/Texto2 según el origen de edición
   useEffect(()=>{
     const editPayload = route?.params?.editPayload;
-    const originMode = route?.params?.originMode; // 'Visual' | 'Texto'
+    const originMode = route?.params?.originMode; // 'Visual' | 'Texto' | 'Texto2'
     if(editPayload){
       if(originMode === 'Texto'){
         if(currentMode !== 'Texto') setCurrentMode('Texto');
+      } else if(originMode === 'Texto2'){
+        if(currentMode !== 'Texto2') setCurrentMode('Texto2');
       } else if(currentMode !== 'Visual') {
         setCurrentMode('Visual');
       }
@@ -84,8 +88,19 @@ const MainAppScreen = ({ navigation, route }) => {
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
-      ) : visibleModes.text ? (
+      ) : currentMode === 'Texto' && visibleModes.text ? (
         <TextModeScreen 
+          navigation={navigation}
+          route={route}
+          currentMode={currentMode}
+          onModeChange={handleModeChange}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={handleToggleDarkMode}
+          onModeVisibilityChange={handleModeVisibilityChange}
+          visibleModes={visibleModes}
+        />
+      ) : currentMode === 'Texto2' && visibleModes.text2 ? (
+        <TextMode2Screen 
           navigation={navigation}
           route={route}
           currentMode={currentMode}

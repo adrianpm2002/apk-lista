@@ -240,8 +240,8 @@ const SavedPlaysScreen = ({ navigation, route }) => {
               else { Alert.alert('Cerrada','No se puede editar porque esta lotería está cerrada'); }
               return;
             }
-            const targetMode = originMode === 'Texto' ? 'Texto' : 'Visual';
-            const msg = originMode === 'Texto' ? '¿Abrir esta jugada en modo Texto para editarla?' : '¿Abrir esta jugada en modo Visual para editarla?';
+            const targetMode = originMode === 'Texto' ? 'Texto' : (originMode === 'Texto2' ? 'Texto2' : 'Visual');
+            const msg = targetMode === 'Texto' ? '¿Abrir esta jugada en modo Texto para editarla?' : (targetMode==='Texto2' ? '¿Abrir esta jugada en modo Texto 2.0 para editarla?' : '¿Abrir esta jugada en modo Visual para editarla?');
             confirm('Editar', msg, ()=> { setEditingPlay(item); navigation.navigate('MainApp', { editPayload: item, originMode: targetMode }); });
           }}>
             <Text style={styles.editUnderPendingTxt}>Editar</Text>

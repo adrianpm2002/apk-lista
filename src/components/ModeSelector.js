@@ -7,7 +7,7 @@ import {
   Animated,
 } from 'react-native';
 
-const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { visual: true, text: true } }) => {
+const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { visual: true, text: true, text2: true } }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -79,6 +79,25 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
           </Text>
         </Pressable>
       )}
+  {visibleModes.text2 && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.modeButton,
+            styles.rightButton,
+            currentMode === 'Texto2' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
+            pressed && styles.buttonPressed
+          ]}
+          onPress={() => handleModeSelect('Texto2')}
+        >
+          <Text style={[
+            styles.modeText,
+            isDarkMode && styles.modeTextDark,
+            currentMode === 'Texto2' && styles.activeText
+          ]}>
+    📝 Texto 2.0
+          </Text>
+        </Pressable>
+      )}
     </Animated.View>
   );
 };
@@ -88,7 +107,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#f0f0f0',
     borderRadius: 25,
-    padding: 4,
+    padding: 2,
     alignSelf: 'center',
     shadowColor: '#000',
     shadowOffset: {
@@ -103,10 +122,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#34495e',
   },
   modeButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 20,
-    minWidth: 120,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    minWidth: 90,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -142,7 +161,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   modeText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#7f8c8d',
   },

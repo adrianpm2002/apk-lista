@@ -114,13 +114,20 @@ const PlaysInputField = ({
   // Re-formatear si cambia longitud requerida: reinterpretar todos los dígitos sin alterar
   useEffect(()=> { emitChange(rawDigits); }, [reqLen]);
 
-  // Métricas / duplicados
+  // Métricas / duplicados (con canónico para parle)
   const fullTokens = tokens;
-  const duplicateMap = {}; fullTokens.forEach(t=> duplicateMap[t]=(duplicateMap[t]||0)+1);
-  const duplicates = Object.keys(duplicateMap).filter(k=> duplicateMap[k]>1);
+  const isParle = playTypeValue === 'parle' && reqLen === 4;
+  const canonicalOf = (tok) => {
+    if(isParle && tok && tok.length===4){ const a=tok.slice(0,2), b=tok.slice(2); return [a,b].sort().join(''); }
+    return tok;
+  };
+  const canonicalCounts = {};
+  fullTokens.forEach(t => { const k = canonicalOf(t); canonicalCounts[k] = (canonicalCounts[k]||0)+1; });
+  const duplicateCanonicalSet = new Set(Object.keys(canonicalCounts).filter(k => canonicalCounts[k] > 1));
+  const tokenIsDuplicate = (tok) => duplicateCanonicalSet.has(canonicalOf(tok));
   const incomplete = !!(reqLen && trailing && trailing.length < reqLen);
   const totalMsg = reqLen ? `Total: ${fullTokens.length}` : '';
-  const dupCount = duplicates.length;
+  const dupCount = duplicateCanonicalSet.size;
 
   return (
     <View style={styles.container}>
@@ -143,7 +150,7 @@ const PlaysInputField = ({
           showsVerticalScrollIndicator={false}
         >
           {fullTokens.map((tok,idx)=>{
-            const dup = duplicates.includes(tok);
+            const dup = tokenIsDuplicate(tok);
             const isEditing = editingIndex===idx;
             return (
               <Pressable key={idx} style={[styles.token, dup && styles.tokenDup]} delayLongPress={250} onLongPress={()=> reqLen && tok.length===reqLen && startEdit(idx)}>

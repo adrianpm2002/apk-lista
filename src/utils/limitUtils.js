@@ -17,9 +17,9 @@ export const fetchLimitsContext = async (horarios, userId) => {
     (j.numeros||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(n=>{
       let canonical = n;
       if(j.jugada==='parle'){
-        // Normalizar parle como combinación sin orden (ABCD == CDBA). Asumimos 4 dígitos.
-        const digits = n.replace(/[^0-9]/g,'').split('');
-        if(digits.length===4){ canonical = digits.sort().join(''); }
+        // Normalizar parle como combinación sin orden por pares de 2 dígitos: AB|CD == CD|AB
+        const d = n.replace(/[^0-9]/g,'');
+        if(d.length===4){ const a=d.slice(0,2), b=d.slice(2); canonical = [a,b].sort().join(''); }
       }
       const k = j.id_horario+"|"+j.jugada+"|"+canonical;
       usageMap.set(k,(usageMap.get(k)||0)+(j.monto_unitario||0));
@@ -30,28 +30,42 @@ export const fetchLimitsContext = async (horarios, userId) => {
 
 export const checkInstructionsLimits = (instructions, horarios, limitCtx) => {
   const violations=[];
-  instructions.forEach(instr=>{
+  // Agregar intentos por clave canónica para cada horario y jugada
+  const attemptMap = new Map(); // key: h|jugada|canonical -> intento total
+
+  const toCanonicalParle = (n) => {
+    const d = (n||'').replace(/[^0-9]/g,'');
+    if(d.length===4){ const a=d.slice(0,2), b=d.slice(2); return [a,b].sort().join(''); }
+    return n;
+  };
+
+  instructions.forEach(instr => {
     const jugada = instr.playType;
+    // contar ocurrencias originales (incluso invertidas separadas)
     const counts = instr.numbers.reduce((acc,n)=> (acc[n]=(acc[n]||0)+1, acc), {});
-    Object.keys(counts).forEach(num=>{
-      horarios.forEach(h=>{
-        let canonical = num;
-        if(jugada==='parle'){
-          const digits = num.replace(/[^0-9]/g,'').split('');
-          if(digits.length===4){ canonical = digits.sort().join(''); }
-        }
-        const key=h+"|"+jugada+"|"+canonical;
-        const perNumber = limitCtx.limitMap.get(key);
-        const specLimit = limitCtx.specificLimits && limitCtx.specificLimits[jugada];
-        let effective = perNumber!=null && specLimit!=null ? Math.min(perNumber,specLimit) : (perNumber!=null ? perNumber : (specLimit!=null ? specLimit : null));
-        if(!effective) return;
-        const used = limitCtx.usageMap.get(key)||0;
-        const attempt = (instr.amountEach||0) * counts[num];
-        if(used + attempt > effective){
-          violations.push({ numero:num, jugada, permitido:effective, usado:used, intento:attempt });
-        }
+    Object.keys(counts).forEach(num => {
+      const canonical = (jugada==='parle') ? toCanonicalParle(num) : num;
+      horarios.forEach(h => {
+        const key = `${h}|${jugada}|${canonical}`;
+        const prev = attemptMap.get(key)||0;
+        const add = (instr.amountEach||0) * counts[num];
+        attemptMap.set(key, prev + add);
       });
     });
   });
+
+  // Comparar intentos agregados con límites efectivos
+  attemptMap.forEach((attempt, key) => {
+    const [h, jugada, canonical] = key.split('|');
+    const perNumber = limitCtx.limitMap.get(key);
+    const specLimit = limitCtx.specificLimits && limitCtx.specificLimits[jugada];
+    let effective = perNumber!=null && specLimit!=null ? Math.min(perNumber,specLimit) : (perNumber!=null ? perNumber : (specLimit!=null ? specLimit : null));
+    if(!effective) return;
+    const used = limitCtx.usageMap.get(key)||0;
+    if(used + attempt > effective){
+      violations.push({ numero: canonical, jugada, permitido: effective, usado: used, intento: attempt });
+    }
+  });
+
   return violations;
 };
