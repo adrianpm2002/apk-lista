@@ -15,6 +15,7 @@ import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
+import useCollectionOpen from '../hooks/useCollectionOpen';
 
 const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -69,6 +70,9 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
   const [editingConfigId, setEditingConfigId] = useState(null); // id de la configuración que se está editando (update), null = insert
 
   useEffect(() => { initializeScreen(); }, []);
+
+  // Bloqueo de cambios durante recogida abierta
+  const { isOpen: collectionOpen, openSchedules } = useCollectionOpen(currentBankId);
 
   const refreshOnFocus = useCallback(async () => {
     if (currentBankId) {
@@ -260,6 +264,10 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
 
   const togglePlayType = async (typeId) => {
     if (!currentBankId) return;
+    if (collectionOpen) {
+      Alert.alert('Recogida abierta', 'No puedes activar/desactivar jugadas mientras haya horarios abiertos.');
+      return;
+    }
     const prevVal = enabledPlayTypes[typeId];
     const newValue = !prevVal;
     setEnabledPlayTypes(prev => ({ ...prev, [typeId]: newValue }));
@@ -300,6 +308,10 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
 
   // CRUD local de precios (pendiente definir tabla para persistir). Cada guardado reemplaza/añade por jugada.
   const handleSavePricesBatch = async () => {
+    if (collectionOpen) {
+      Alert.alert('Recogida abierta', 'No puedes guardar precios mientras haya horarios abiertos.');
+      return;
+    }
     console.log('== handleSavePricesBatch INICIO ==');
     console.log('currentBankId:', currentBankId);
     console.log('priceConfigName (entrada):', priceConfigName);
@@ -442,6 +454,10 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
   };
 
   const handleEditPrices = () => {
+    if (collectionOpen) {
+      Alert.alert('Recogida abierta', 'No puedes editar precios mientras haya horarios abiertos.');
+      return;
+    }
     // Prellenar winningPrices desde priceEntries
     const newPrices = { ...winningPrices };
     priceEntries.forEach(pe => {
@@ -460,6 +476,10 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
   };
 
   const handleDeletePrice = (jugada) => {
+    if (collectionOpen) {
+      Alert.alert('Recogida abierta', 'No puedes eliminar ítems de precios mientras haya horarios abiertos.');
+      return;
+    }
     setPriceEntries(prev => prev.filter(p => p.jugada !== jugada));
   };
 
@@ -526,6 +546,10 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
   };
 
   const handleDeleteConfig = (configId) => {
+    if (collectionOpen) {
+      Alert.alert('Recogida abierta', 'No puedes eliminar configuraciones de precios mientras haya horarios abiertos.');
+      return;
+    }
     console.log('[DeleteConfig] Click botón eliminar configId:', configId);
     confirmDelete('¿Eliminar esta configuración definitivamente?')
       .then(ok => {
@@ -563,12 +587,12 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
           {/* Botones globales removidos para ahorrar espacio */}
 
           {/* Lista de tipos de jugada */}
-          {availablePlayTypes.map(playType => (
+      {availablePlayTypes.map(playType => (
             <View key={playType.id} style={styles.playTypeItem}>
               <Text style={styles.playTypeLabel}>{playType.label}</Text>
               <Switch
-                value={enabledPlayTypes[playType.id]}
-                disabled={updatingTypes.has(playType.id)}
+        value={enabledPlayTypes[playType.id]}
+        disabled={updatingTypes.has(playType.id) || collectionOpen}
                 onValueChange={() => togglePlayType(playType.id)}
                 trackColor={{ false: '#767577', true: '#81b0ff' }}
                 thumbColor={enabledPlayTypes[playType.id] ? '#f5dd4b' : '#f4f3f4'}
@@ -581,6 +605,10 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
         <ActionButton
           title="Nueva Configuración de Precios"
           onPress={() => {
+            if (collectionOpen) {
+              Alert.alert('Recogida abierta', 'No puedes crear configuraciones de precios mientras haya horarios abiertos.');
+              return;
+            }
             setEditingBatch(false);
             setEditingConfigId(null);
             // Limpiar campos para nueva config
@@ -596,6 +624,7 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
           variant="primary"
           size="medium"
           style={{ marginBottom: 16 }}
+          disabled={collectionOpen}
         />
 
         {/* Listado de configuraciones guardadas (acordeón) */}
@@ -672,6 +701,10 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
                     })()}
                     <View style={styles.configActionsRow}>
                       <TouchableOpacity onPress={() => {
+                        if (collectionOpen) {
+                          Alert.alert('Recogida abierta', 'No puedes editar precios mientras haya horarios abiertos.');
+                          return;
+                        }
                         // Cargar esta config en modal para editar como nueva versión
                         const json = cfg.precios || {};
                         const newWinning = { ...winningPrices };

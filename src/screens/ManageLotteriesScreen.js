@@ -5,6 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, Alert, FlatList, TouchableOpacity, Platform, Modal, StyleSheet, ScrollView } from 'react-native';
 
 import { supabase } from '../supabaseClient';
+import useCollectionOpen from '../hooks/useCollectionOpen';
 import InputField from '../components/InputField';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 
@@ -26,6 +27,8 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
     endTime: '13:00'
   });
   const [editingSchedule, setEditingSchedule] = useState(null);
+  // Estado recogida abierta
+  const { isOpen: collectionOpen, openSchedules } = useCollectionOpen(currentBankId);
 
   const fetchLotteries = async () => {
     console.log('fetchLotteries called with currentBankId:', currentBankId);
@@ -50,6 +53,10 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
   };
 
   const handleAddLottery = async () => {
+    if (collectionOpen) {
+      Alert.alert('Recogida abierta', 'No puedes agregar loterías mientras haya horarios abiertos.');
+      return;
+    }
     if (!newLottery.trim()) {
       Alert.alert('Error', 'El nombre de la lotería no puede estar vacío');
       return;
@@ -77,6 +84,10 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
   };
 
   const handleDeleteLottery = async (id) => {
+  if (collectionOpen) {
+    Alert.alert('Recogida abierta', 'No puedes eliminar loterías mientras haya horarios abiertos.');
+    return;
+  }
   const isWeb = Platform.OS === 'web';
 
   if (isWeb) {
@@ -124,6 +135,10 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
 
   // Funciones para gestión de horarios
   const openScheduleModal = (lottery) => {
+    if (collectionOpen) {
+      Alert.alert('Recogida abierta', 'No puedes gestionar horarios mientras haya horarios abiertos.');
+      return;
+    }
     setSelectedLottery(lottery);
     setScheduleModalVisible(true);
     fetchSchedules(lottery.id);
@@ -155,6 +170,10 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
   };
 
   const handleAddSchedule = async () => {
+    if (collectionOpen) {
+      Alert.alert('Recogida abierta', 'No puedes crear o editar horarios mientras haya horarios abiertos.');
+      return;
+    }
     if (!newSchedule.name.trim()) {
       Alert.alert('Error', 'El nombre del horario es requerido');
       return;
@@ -216,6 +235,10 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
   };
 
   const handleDeleteSchedule = async (scheduleId) => {
+    if (collectionOpen) {
+      Alert.alert('Recogida abierta', 'No puedes eliminar horarios mientras haya horarios abiertos.');
+      return;
+    }
     const isWeb = Platform.OS === 'web';
 
     if (isWeb) {
@@ -349,6 +372,13 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
       </View>
         
         <View style={styles.contentContainer}>
+      {collectionOpen && (
+        <View style={{ backgroundColor: '#fff3bf', borderColor: '#ffe066', borderWidth: 1, padding: 10, borderRadius: 8, marginBottom: 12 }}>
+          <Text style={{ color: '#5f3e00', fontWeight: '600' }}>
+            Recogida abierta: no se permiten cambios de loterías u horarios ahora.
+          </Text>
+        </View>
+      )}
 
       <InputField
         placeholder="Nombre de nueva lotería"
@@ -357,7 +387,7 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
         isDarkMode={isDarkMode}
       />
 
-      <TouchableOpacity
+    <TouchableOpacity
   onPress={handleAddLottery}
   style={{
     backgroundColor: '#2ecc71',
@@ -368,7 +398,7 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
     marginBottom: 20
   }}
 >
-  <Text style={{ color: '#fff', fontWeight: 'bold' }}>Agregar Lotería</Text>
+  <Text style={{ color: '#fff', fontWeight: 'bold' }}>{collectionOpen ? 'Bloqueado por recogida abierta' : 'Agregar Lotería'}</Text>
 </TouchableOpacity>
 
 
@@ -385,6 +415,7 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
               <TouchableOpacity
                 onPress={() => openScheduleModal(item)}
                 style={[styles.actionButton, styles.scheduleButton]}
+                disabled={collectionOpen}
               >
                 <Text style={styles.actionButtonText}>🕒 Gestionar Horarios</Text>
               </TouchableOpacity>
@@ -395,6 +426,7 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
                   handleDeleteLottery(item.id);
                 }}
                 style={[styles.actionButton, styles.deleteButton]}
+                disabled={collectionOpen}
               >
                 <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
               </TouchableOpacity>

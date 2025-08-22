@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, TextInput } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, TextInput, Alert } from 'react-native';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { useFocusEffect } from '@react-navigation/native';
+import useCollectionOpen from '../hooks/useCollectionOpen';
 
 const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -14,6 +15,7 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
 
   // Datos de contexto
   const [bankId, setBankId] = useState(null);
+  const { isOpen: collectionOpen } = useCollectionOpen(bankId);
   const [lotteries, setLotteries] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [jugadas, setJugadas] = useState([]);
@@ -246,6 +248,10 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   const creatingDisabled = !selectedLottery || !selectedSchedule || !selectedJugada || tempNumber.length === 0;
 
   const handleCreateLimitedNumber = async () => {
+    if (collectionOpen) {
+      Alert.alert('Recogida abierta', 'No puedes agregar números limitados ahora.');
+      return;
+    }
     if (creatingDisabled) return;
     const jugadaKey = selectedJugada.jugada;
     const expected = DIGIT_RULES[jugadaKey] || 2;
@@ -292,6 +298,7 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   };
 
   const handleDelete = async (item) => {
+  if (collectionOpen) { Alert.alert('Recogida abierta', 'No puedes eliminar ahora.'); return; }
     try {
       const { error } = await supabase.from('numero_limitado').delete().eq('id', item.id);
       if (!error) loadNumerosLimitados();
@@ -370,6 +377,7 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   const creatingDisabled2 = !selectedLottery2 || !selectedSchedule2 || !selectedJugada2 || tempNumber2.length===0 || !tempLimit2;
 
   const handleCreateLimiteNumero = async () => {
+  if (collectionOpen) { Alert.alert('Recogida abierta', 'No puedes guardar límites ahora.'); return; }
     if(creatingDisabled2) return;
     const jugadaKey = selectedJugada2.jugada;
     const expected = DIGIT_RULES[jugadaKey] || 2;
@@ -411,6 +419,7 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   };
 
   const handleDeleteLimite = async (item) => {
+  if (collectionOpen) { Alert.alert('Recogida abierta', 'No puedes eliminar ahora.'); return; }
     try {
       const { error } = await supabase.from('limite_numero').delete().eq('id', item.id);
       if(!error) loadLimitesNumeros();
@@ -446,6 +455,12 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
           <Text style={styles.filterToggleText}>🔍 Filtros</Text>
         </TouchableOpacity>
       </View>
+
+      {collectionOpen && (
+        <View style={{ backgroundColor: '#fff3bf', borderColor: '#ffe066', borderWidth: 1, padding: 10, borderRadius: 8, margin: 12 }}>
+          <Text style={{ color: '#5f3e00', fontWeight: '600' }}>Recogida abierta: edición de límites deshabilitada temporalmente.</Text>
+        </View>
+      )}
 
       {filtersVisible && (
         <View style={[styles.filtersPopover, isDarkMode && styles.filtersPopoverDark]}>
