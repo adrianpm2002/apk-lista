@@ -17,6 +17,7 @@ import HammerButton from '../components/HammerButton';
 import ListButton from '../components/ListButton';
 import PricingInfoButton from '../components/PricingInfoButton';
 import NotificationsButton from '../components/NotificationsButton';
+import useUserRole from '../hooks/useUserRole';
 // InfoButton general sustituido por versión específica de modo texto
 import TextModeInfoButton from '../components/TextModeInfoButton';
 import InfoButton from '../components/InfoButton'; // (si aún se usa en otro lugar)
@@ -390,6 +391,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
 
   const toggleLock = () => { /* Candado no visible aquí */ };
 
+  const { role: userRole } = useUserRole();
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
       <View style={styles.headerFloating} pointerEvents="box-none">
@@ -405,7 +407,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
           </View>
           <View style={styles.rightButtonsGroup} pointerEvents="box-none">
             <PricingInfoButton />
-            <NotificationsButton />
+            <NotificationsButton role={userRole || 'listero'} />
           </View>
         </View>
   {/* Modo Offline movido al contenido para no superponer el header */}

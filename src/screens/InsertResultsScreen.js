@@ -6,6 +6,8 @@ import ActionButton from '../components/ActionButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { useFocusEffect } from '@react-navigation/native';
+import { useNotifications, publishTemplate } from '../context/NotificationsContext';
+import { USER_ROLES } from '../constants/roles';
 
 const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   const [lotteryOptions, setLotteryOptions] = useState([]);
@@ -23,6 +25,7 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
   const [editingValue, setEditingValue] = useState('');
   const [loadingResults, setLoadingResults] = useState(false);
   const [deniedEditId, setDeniedEditId] = useState(null);
+  const { add } = useNotifications();
 
   // Sanitiza la entrada del campo de resultado respetando:
   // - Máximo 7 dígitos
@@ -306,6 +309,12 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
     }
 
   Alert.alert('Éxito', 'Resultado guardado correctamente');
+
+    // Notificaciones: Collector (5: resultados insertados), Listero (10: resultados publicados)
+    try {
+      publishTemplate(add, 'collector.5', { detalle: `Resultado ${cleanResult} para ${selectedLotteryLabel} (${selectedHorarioLabel})` });
+      publishTemplate(add, 'listero.10', { detalle: `Resultados disponibles en ${selectedLotteryLabel} (${selectedHorarioLabel})` });
+    } catch {}
     
     // Limpiar formulario y errores
     setResult('');

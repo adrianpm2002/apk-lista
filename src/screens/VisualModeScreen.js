@@ -21,12 +21,14 @@ import HammerButton from '../components/HammerButton';
 import ListButton from '../components/ListButton';
 import PricingInfoButton from '../components/PricingInfoButton';
 import NotificationsButton from '../components/NotificationsButton';
+import useUserRole from '../hooks/useUserRole';
 import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { t, translatePlayTypeLabel } from '../utils/i18n';
 import { applyPlayTypeSelection } from '../utils/playTypeCombinations';
 
 const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
+  const { role: userRole } = useUserRole();
   
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // values de loterías (máx 3)
@@ -672,7 +674,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           </View>
           <View style={styles.rightButtonsGroup} pointerEvents="box-none">
             <PricingInfoButton />
-            <NotificationsButton />
+            <NotificationsButton role={userRole || 'listero'} />
           </View>
         </View>
   {/* Modo Offline movido al contenido para no superponer el header */}
