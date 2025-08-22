@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
+  PanResponder,
 } from 'react-native';
 import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
@@ -13,6 +14,34 @@ const MainAppScreen = ({ navigation, route }) => {
     visual: true,
     text: true
   });
+  // Refs para evitar cierres obsoletos en el PanResponder
+  const modeRef = useRef(currentMode);
+  const visibleRef = useRef(visibleModes);
+  useEffect(() => { modeRef.current = currentMode; }, [currentMode]);
+  useEffect(() => { visibleRef.current = visibleModes; }, [visibleModes]);
+  const SWIPE_THRESHOLD = 60; // px
+  const SWIPE_MAX_OFF_AXIS = 40; // px de tolerancia vertical
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (e, g) => {
+        // Iniciar sólo si es claramente horizontal
+        return Math.abs(g.dx) > 20 && Math.abs(g.dy) < 15;
+      },
+      onPanResponderRelease: (e, g) => {
+        const { dx, dy } = g;
+        if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_MAX_OFF_AXIS) {
+          const current = modeRef.current;
+          const vis = visibleRef.current;
+          // Invertido: izquierda -> Texto, derecha -> Visual
+          if (dx < 0 && current === 'Visual' && vis.text) {
+            setCurrentMode('Texto');
+          } else if (dx > 0 && current === 'Texto' && vis.visual) {
+            setCurrentMode('Visual');
+          }
+        }
+      },
+    })
+  ).current;
   
   // Usar configuraciones locales simples
 
@@ -70,7 +99,7 @@ const MainAppScreen = ({ navigation, route }) => {
   };
 
   return (
-    <View style={[styles.container, isDarkMode && styles.containerDark]}>
+  <View style={[styles.container, isDarkMode && styles.containerDark]} {...panResponder.panHandlers}>
   {/* Mode Selector movido a los headers de cada pantalla */}
       
       {/* Renderizar solo la pantalla del modo actual si está visible */}
