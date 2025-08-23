@@ -13,6 +13,11 @@ const getPlayTypeLabel = (playType) => ({
 }[playType] || playType);
 
 const SavedPlaysScreen = ({ navigation, route }) => {
+  // Formatea dinero sin ceros a la derecha innecesarios (e.g., 8000.00 -> 8000, 123.50 -> 123.5)
+  const formatMoneyCompact = (n) => {
+    const s = Number(n || 0).toFixed(2);
+    return s.replace(/\.00$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+  };
   const isDarkMode = route?.params?.isDarkMode || false;
   const originMode = route?.params?.originMode || 'Visual';
   const [savedPlays, setSavedPlays] = useState([]);
@@ -139,13 +144,20 @@ const SavedPlaysScreen = ({ navigation, route }) => {
           return { ...m, result: 'no disponible', hasPrize: false, prize: 'no cogió premio', payAmount: 0, winningTokens: new Set() };
         }
         const evalRes = evaluatePlay({ playType: m.playType, numbers: m.numbers, amount: m.amount }, parsed, limitedSet, prices);
-        // Calcular tokens ganadores específicos de la jugada para resaltar en la UI
+        // Calcular tokens ganadores específicos de la jugada para resaltar en la UI (normalizando longitudes)
         const winnersSet = winnersByType(parsed, m.playType);
-        const tokens = (m.numbers||'').split(',').map(s=> s.trim()).filter(Boolean);
-        const winningTokens = new Set(tokens.filter(t => {
-          if (m.playType === 'parle') return winnersSet.has(canonicalParle(t));
-          return winnersSet.has(t);
-        }));
+        const expectedLenFor = (jug) => jug==='centena'?3 : jug==='parle'?4 : jug==='tripleta'?6 : 2;
+        const normalize = (jug, tok) => {
+          if (!tok) return tok;
+          if (jug === 'parle') return canonicalParle(tok);
+          const len = expectedLenFor(jug);
+          return String(tok).padStart(len, '0');
+        };
+        const tokens = (m.numbers||'')
+          .split(',')
+          .map(s=> s.trim())
+          .filter(Boolean);
+        const winningTokens = new Set(tokens.filter(t => winnersSet.has(normalize(m.playType, t))));
         return {
           ...m,
           result: numerosRes,
@@ -304,8 +316,13 @@ const SavedPlaysScreen = ({ navigation, route }) => {
             <Text style={[styles.pendingText, styles.pendingUnderResult]}>⏳ Pendiente</Text>
           )}
           {item.result !== 'no disponible' && (
-            <Text style={[styles.pendingText, styles.pendingUnderResult, item.hasPrize ? styles.winText : styles.loseText]}>
-              {item.hasPrize ? `🏆 bingo · $${formatMoney(item.payAmount)}` : 'no cogió premio'}
+            <Text style={[
+              styles.pendingText,
+              styles.pendingUnderResult,
+              item.hasPrize ? styles.winText : styles.loseText,
+              item.hasPrize && styles.winEmphasis
+            ]}>
+              {item.hasPrize ? `🏆 bingo · $${formatMoneyCompact(item.payAmount)}` : 'no cogió premio'}
             </Text>
           )}
         </View>
@@ -606,6 +623,7 @@ const styles = StyleSheet.create({
   resultBadgeDark:{ backgroundColor:'#2C3E50', borderColor:'#27AE60', color:'#27AE60' },
   pendingText:{ fontSize:10, fontWeight:'600', color:'#7F8C8D', marginTop:2 },
   winText:{ color:'#1E8449' },
+  winEmphasis:{ fontSize:12.5 },
   loseText:{ color:'#7F8C8D' },
   pendingTextHidden:{ opacity:0 },
   rightInfo:{ alignItems:'flex-end' },
