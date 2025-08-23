@@ -221,6 +221,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
             Resultado: {item.result}
           </Text>
           {!item.hasPrize && <Text style={[styles.pendingText, styles.pendingUnderResult]}>⏳ Pendiente</Text>}
+          {originMode !== 'Vault' && (
           <Pressable style={styles.editUnderPendingBtn} onPress={()=> {
             // Validar horario
             const isOpen = (()=> {
@@ -246,6 +247,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
           }}>
             <Text style={styles.editUnderPendingTxt}>Editar</Text>
           </Pressable>
+          )}
         </View>
       </View>
       <View style={styles.numbersRow}>

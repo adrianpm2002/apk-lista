@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   StyleSheet,
@@ -6,6 +7,7 @@ import {
 import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
 import TextMode2Screen from './TextMode2Screen';
+import VaultModeScreen from './VaultModeScreen';
 
 const MainAppScreen = ({ navigation, route }) => {
   const [currentMode, setCurrentMode] = useState('Visual');
@@ -14,11 +16,22 @@ const MainAppScreen = ({ navigation, route }) => {
     visual: true,
   text: true,
   text2: true,
+  vault: true,
   });
   
   // Usar configuraciones locales simples
 
   useEffect(() => {
+    // cargar persistencia de modos visibles
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('visibleModes');
+        if(raw){
+          const parsed = JSON.parse(raw);
+          if(parsed && typeof parsed==='object') setVisibleModes(prev=> ({...prev, ...parsed}));
+        }
+      } catch {}
+    })();
     // Si el modo actual no es visible, cambiar al primer modo disponible
     if (currentMode === 'Visual' && !visibleModes.visual && visibleModes.text) {
       setCurrentMode('Texto');
@@ -67,6 +80,7 @@ const MainAppScreen = ({ navigation, route }) => {
   const handleModeVisibilityChange = async (newVisibleModes) => {
     try {
       setVisibleModes(newVisibleModes);
+  await AsyncStorage.setItem('visibleModes', JSON.stringify(newVisibleModes));
     } catch (error) {
       console.error('Error updating mode visibility:', error);
     }
@@ -110,6 +124,17 @@ const MainAppScreen = ({ navigation, route }) => {
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
+      ) : currentMode === 'Vault' && visibleModes.vault ? (
+        <VaultModeScreen
+          navigation={navigation}
+          route={route}
+          currentMode={currentMode}
+          onModeChange={handleModeChange}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={handleToggleDarkMode}
+          onModeVisibilityChange={handleModeVisibilityChange}
+          visibleModes={visibleModes}
+        />
       ) : null}
     </View>
   );
@@ -130,8 +155,8 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     backgroundColor: 'transparent',
-    paddingHorizontal: 20,
-    paddingTop: 50,
+  paddingHorizontal: 12,
+  paddingTop: 44,
     zIndex: 10,
   },
   modeSelectorContainerDark: {

@@ -679,6 +679,7 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         onToggleDarkMode={onToggleDarkMode}
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
+  visibleModes={visibleModes}
         role="listero"
       />
   {/* CapacityModal ahora gestionado por BatteryButton (🔋) */}
@@ -732,8 +733,8 @@ const styles = StyleSheet.create({
   flexWrap: 'wrap',
   },
   modeSelectorWrapper: {
-    marginLeft: 10,
-    flexShrink: 1,
+  marginLeft: 6,
+  flexShrink: 1,
   },
   content: {
     flex: 1,

@@ -17,17 +17,28 @@ import ChangePasswordModal from './ChangePasswordModal';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkMode, navigation, onModeVisibilityChange, role }) => {
+const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkMode, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
 
   const sidebarWidth = screenWidth * 0.75;
   const slideAnim = useRef(new Animated.Value(-sidebarWidth)).current;
   const [modalVisible, setModalVisible] = useState(false);
   const [modalContent, setModalContent] = useState(null);
   const [modeVisibilityModal, setModeVisibilityModal] = useState(false);
+  // Toast de confirmación
+  const [toastMsg, setToastMsg] = useState('');
+  const toastOpacity = useRef(new Animated.Value(0)).current;
   const [visibleModes, setVisibleModes] = useState({
     visual: true,
-    text: true
+    text: true,
+    text2: true,
+    vault: true,
   });
+  // Sincronizar con estado externo si llega
+  useEffect(() => {
+    if (incomingVisibleModes && typeof incomingVisibleModes === 'object') {
+      setVisibleModes(prev => ({ ...prev, ...incomingVisibleModes }));
+    }
+  }, [incomingVisibleModes]);
   // Modal de cambio de contraseña independiente
   const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
 
@@ -177,6 +188,15 @@ const configOptions = roleOptionsMap[role] || [];
     
     setVisibleModes(newVisibleModes);
     onModeVisibilityChange && onModeVisibilityChange(newVisibleModes);
+    // Toast
+    setToastMsg('Preferencias guardadas');
+    toastOpacity.stopAnimation();
+    toastOpacity.setValue(0);
+    Animated.sequence([
+      Animated.timing(toastOpacity, { toValue: 1, duration: 160, useNativeDriver: true }),
+      Animated.delay(1200),
+      Animated.timing(toastOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]).start();
   };
 
   const closeModeVisibilityModal = () => {
@@ -385,6 +405,10 @@ const configOptions = roleOptionsMap[role] || [];
               {renderModalContent()}
             </ScrollView>
           </View>
+          {/* Toast dentro del modal */}
+          <Animated.View style={[styles.toastContainer, { opacity: toastOpacity }]}>
+            <Text style={styles.toastText}>{toastMsg}</Text>
+          </Animated.View>
         </Pressable>
       </Modal>
 
@@ -478,6 +502,76 @@ const configOptions = roleOptionsMap[role] || [];
                   visibleModes.text && styles.modeCheckboxSelected
                 ]}>
                   {visibleModes.text && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+              </Pressable>
+
+              {/* Modo Texto 2.0 */}
+              <Pressable
+                style={[
+                  styles.modeOption,
+                  isDarkMode && styles.modeOptionDark,
+                  visibleModes.text2 && styles.modeOptionSelected,
+                  visibleModes.text2 && isDarkMode && styles.modeOptionSelectedDark
+                ]}
+                onPress={() => handleModeToggle('text2')}
+              >
+                <Text style={styles.modeIcon}>📝</Text>
+                <View style={styles.modeTextContainer}>
+                  <Text style={[
+                    styles.modeTitle,
+                    isDarkMode && styles.modeTitleDark,
+                    visibleModes.text2 && styles.modeTitleSelected
+                  ]}>
+                    Modo Texto 2.0
+                  </Text>
+                  <Text style={[
+                    styles.modeDescription,
+                    isDarkMode && styles.modeDescriptionDark
+                  ]}>
+                    Sintaxis avanzada con comandos
+                  </Text>
+                </View>
+                <View style={[
+                  styles.modeCheckbox,
+                  isDarkMode && styles.modeCheckboxDark,
+                  visibleModes.text2 && styles.modeCheckboxSelected
+                ]}>
+                  {visibleModes.text2 && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+              </Pressable>
+
+              {/* Modo Vault */}
+              <Pressable
+                style={[
+                  styles.modeOption,
+                  isDarkMode && styles.modeOptionDark,
+                  visibleModes.vault && styles.modeOptionSelected,
+                  visibleModes.vault && isDarkMode && styles.modeOptionSelectedDark
+                ]}
+                onPress={() => handleModeToggle('vault')}
+              >
+                <Text style={styles.modeIcon}>🏦</Text>
+                <View style={styles.modeTextContainer}>
+                  <Text style={[
+                    styles.modeTitle,
+                    isDarkMode && styles.modeTitleDark,
+                    visibleModes.vault && styles.modeTitleSelected
+                  ]}>
+                    Modo Vault
+                  </Text>
+                  <Text style={[
+                    styles.modeDescription,
+                    isDarkMode && styles.modeDescriptionDark
+                  ]}>
+                    Tres columnas con entradas rápidas
+                  </Text>
+                </View>
+                <View style={[
+                  styles.modeCheckbox,
+                  isDarkMode && styles.modeCheckboxDark,
+                  visibleModes.vault && styles.modeCheckboxSelected
+                ]}>
+                  {visibleModes.vault && <Text style={styles.checkmark}>✓</Text>}
                 </View>
               </Pressable>
             </View>
@@ -900,6 +994,25 @@ const styles = StyleSheet.create({
   modeModalButtons: {
     width: '100%',
     alignItems: 'center',
+  },
+  toastContainer: {
+    position: 'absolute',
+    bottom: 30,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(39, 174, 96, 0.95)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   
   // Pressed states

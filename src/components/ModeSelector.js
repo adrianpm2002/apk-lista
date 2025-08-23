@@ -7,7 +7,7 @@ import {
   Animated,
 } from 'react-native';
 
-const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { visual: true, text: true, text2: true } }) => {
+const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { visual: true, text: true, text2: true, vault: true } }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -79,7 +79,7 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
           </Text>
         </Pressable>
       )}
-  {visibleModes.text2 && (
+      {visibleModes.text2 && (
         <Pressable
           style={({ pressed }) => [
             styles.modeButton,
@@ -94,7 +94,26 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
             isDarkMode && styles.modeTextDark,
             currentMode === 'Texto2' && styles.activeText
           ]}>
-    📝 Texto 2.0
+            📝 Texto 2.0
+          </Text>
+        </Pressable>
+      )}
+      {visibleModes.vault && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.modeButton,
+            styles.rightButton,
+            currentMode === 'Vault' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
+            pressed && styles.buttonPressed
+          ]}
+          onPress={() => handleModeSelect('Vault')}
+        >
+          <Text style={[
+            styles.modeText,
+            isDarkMode && styles.modeTextDark,
+            currentMode === 'Vault' && styles.activeText
+          ]}>
+            🏦 Vault
           </Text>
         </Pressable>
       )}
@@ -105,27 +124,26 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 25,
+    flexWrap: 'wrap',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 18,
     padding: 2,
     alignSelf: 'center',
+    maxWidth: '100%',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
   containerDark: {
     backgroundColor: '#34495e',
   },
   modeButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
-    minWidth: 90,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 14,
+    minWidth: 72,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -141,29 +159,23 @@ const styles = StyleSheet.create({
   activeButton: {
     backgroundColor: '#3498db',
     shadowColor: '#2980b9',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 3,
+    elevation: 4,
   },
   activeButtonDark: {
     backgroundColor: '#e74c3c',
     shadowColor: '#c0392b',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 3,
+    elevation: 4,
   },
   modeText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#7f8c8d',
+    color: '#556',
   },
   modeTextDark: {
     color: '#bdc3c7',

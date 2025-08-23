@@ -901,6 +901,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         onToggleDarkMode={onToggleDarkMode}
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
+  visibleModes={visibleModes}
         role="listero"
       />
     </View>
@@ -944,10 +945,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginLeft: 'auto',
+  marginLeft: 'auto',
+  flexWrap: 'wrap',
   },
   modeSelectorWrapper: {
-    marginLeft: 14,
+  marginLeft: 6,
+  flexShrink: 1,
   },
   
   content: {

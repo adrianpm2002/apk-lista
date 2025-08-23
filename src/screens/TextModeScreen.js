@@ -486,6 +486,17 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
               isDarkMode={isDarkMode}
               visibleModes={visibleModes || { visual: true, text: true }}
             />
+              <SideBar 
+                isVisible={sidebarVisible}
+                onClose={()=> setSidebarVisible(false)}
+                onOptionSelect={()=>{}}
+                isDarkMode={isDarkMode}
+                onToggleDarkMode={onToggleDarkMode}
+                navigation={navigation}
+                onModeVisibilityChange={onModeVisibilityChange}
+                visibleModes={visibleModes}
+                role="listero"
+              />
           </View>
           <View style={styles.rightButtonsGroup} pointerEvents="box-none">
             <PricingInfoButton />
@@ -724,10 +735,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginLeft: 'auto',
+  marginLeft: 'auto',
+  flexWrap: 'wrap',
   },
   modeSelectorWrapper: {
-    marginLeft: 14,
+  marginLeft: 6,
+  flexShrink: 1,
   },
   content: {
     flex: 1,
