@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Animated } from 'react-native';
-import { View, Text, StyleSheet, Pressable, FlatList, TextInput, ScrollView, RefreshControl, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, TextInput, ScrollView, RefreshControl, Alert, Platform, Clipboard } from 'react-native';
+import FeedbackBanner from '../components/FeedbackBanner';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../supabaseClient';
 
@@ -38,6 +39,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   const editBannerOpacity = useRef(new Animated.Value(0)).current;
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [copiedBanner, setCopiedBanner] = useState(false);
 
   const loadSavedPlays = async () => {
     try {
@@ -221,6 +223,32 @@ const SavedPlaysScreen = ({ navigation, route }) => {
             Resultado: {item.result}
           </Text>
           {!item.hasPrize && <Text style={[styles.pendingText, styles.pendingUnderResult]}>⏳ Pendiente</Text>}
+          {/* Botón Copiar */}
+      <Pressable
+            style={styles.copyUnderPendingBtn}
+            onPress={async ()=>{
+              try {
+        const name = (item.note || '').trim();
+        const line2 = `${item.lottery} + ${item.schedule}`;
+        const playType = getPlayTypeLabel(item.playType).toUpperCase();
+                const numbers = item.numbers;
+                const count = numbers.split(',').map(s=>s.trim()).filter(Boolean).length;
+                const amount = item.amount;
+                const total = item.total;
+        const text = `${name}\n${line2}\n${playType}\n${numbers}\n${amount} x ${count} = ${total}`;
+                if(Platform.OS==='web' && navigator.clipboard?.writeText){
+                  await navigator.clipboard.writeText(text);
+                } else {
+                  Clipboard.setString(text);
+                }
+        setCopiedBanner(true);
+              } catch(e){
+                // opcional: feedback mínimo
+              }
+            }}
+          >
+            <Text style={styles.copyUnderPendingTxt}>Copiar</Text>
+          </Pressable>
           {originMode !== 'Vault' && (
           <Pressable style={styles.editUnderPendingBtn} onPress={()=> {
             // Validar horario
@@ -322,6 +350,14 @@ const SavedPlaysScreen = ({ navigation, route }) => {
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
+      {copiedBanner && (
+        <FeedbackBanner
+          type="success"
+          message="Copiado"
+          onClose={()=> setCopiedBanner(false)}
+          autoHideMs={2000}
+        />
+      )}
       {/* Header compacto */}
       <View style={styles.header}> 
         <Pressable style={styles.backBtn} onPress={()=> navigation.goBack()}><Text style={styles.backTxt}>←</Text></Pressable>
@@ -504,6 +540,8 @@ const styles = StyleSheet.create({
   selectCornerTxtActive:{ color:'#FFFFFF' },
   editUnderPendingBtn:{ marginTop:4, backgroundColor:'#3498DB', paddingHorizontal:10, paddingVertical:4, borderRadius:6 },
   editUnderPendingTxt:{ fontSize:11, fontWeight:'700', color:'#FFFFFF' },
+  copyUnderPendingBtn:{ marginTop:6, backgroundColor:'#ECF0F1', paddingHorizontal:10, paddingVertical:4, borderRadius:6, borderWidth:1, borderColor:'#D5DBDB' },
+  copyUnderPendingTxt:{ fontSize:11, fontWeight:'700', color:'#2C3E50' },
   bulkDeleteBtn:{ backgroundColor:'#E74C3C', paddingHorizontal:10, paddingVertical:4, borderRadius:6, marginRight:10 },
   bulkDeleteTxt:{ color:'#FFFFFF', fontSize:11, fontWeight:'700' },
   editBanner:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#F4D03F', paddingHorizontal:10, paddingVertical:6, borderRadius:8, marginBottom:6 },

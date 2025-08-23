@@ -21,22 +21,40 @@ const MainAppScreen = ({ navigation, route }) => {
   
   // Usar configuraciones locales simples
 
+  // Cargar persistencia de modos visibles solo una vez
   useEffect(() => {
-    // cargar persistencia de modos visibles
     (async () => {
       try {
         const raw = await AsyncStorage.getItem('visibleModes');
-        if(raw){
+        if (raw) {
           const parsed = JSON.parse(raw);
-          if(parsed && typeof parsed==='object') setVisibleModes(prev=> ({...prev, ...parsed}));
+          if (parsed && typeof parsed === 'object') {
+            setVisibleModes(prev => ({ ...prev, ...parsed }));
+          }
         }
       } catch {}
     })();
-    // Si el modo actual no es visible, cambiar al primer modo disponible
-    if (currentMode === 'Visual' && !visibleModes.visual && visibleModes.text) {
-      setCurrentMode('Texto');
-    } else if (currentMode === 'Texto' && !visibleModes.text && visibleModes.visual) {
-      setCurrentMode('Visual');
+  }, []);
+
+  // Si el modo actual no es visible, saltar al primero disponible
+  useEffect(() => {
+    const visibleOrder = [
+      { key: 'visual', mode: 'Visual' },
+      { key: 'text', mode: 'Texto' },
+      { key: 'text2', mode: 'Texto2' },
+      { key: 'vault', mode: 'Vault' },
+    ];
+    const currentKey =
+      currentMode === 'Visual' ? 'visual' :
+      currentMode === 'Texto' ? 'text' :
+      currentMode === 'Texto2' ? 'text2' :
+      currentMode === 'Vault' ? 'vault' : null;
+
+    if (currentKey && visibleModes[currentKey]) return; // el actual es visible
+
+    const firstVisible = visibleOrder.find(v => visibleModes[v.key]);
+    if (firstVisible && firstVisible.mode !== currentMode) {
+      setCurrentMode(firstVisible.mode);
     }
   }, [visibleModes, currentMode]);
 

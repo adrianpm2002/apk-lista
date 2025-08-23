@@ -146,8 +146,22 @@ const CapacityModal = ({ isVisible, onClose, selectedLottery, capacityData = [],
               <Text style={[styles.sortButtonText, sortBy==='numeric' && styles.sortButtonTextActive]}>Numérico</Text>
             </Pressable>
           </View>
-          {loading ? <Text style={styles.loadingText}>Cargando...</Text> : error ? <Text style={styles.errorText}>{error}</Text> : (
-            <FlatList data={sortedData} keyExtractor={(item,idx)=>item.loteriaId+"-"+item.horarioId+"-"+item.jugada+"-"+item.numero+"-"+idx} renderItem={renderCapacityItem} style={styles.list} showsVerticalScrollIndicator={false} />
+          {loading ? (
+            <Text style={styles.loadingText}>Cargando...</Text>
+          ) : error ? (
+            <Text style={styles.errorText}>{error}</Text>
+          ) : sortedData.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Ningún número con capacidad usada</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={sortedData}
+              keyExtractor={(item,idx)=>item.loteriaId+"-"+item.horarioId+"-"+item.jugada+"-"+item.numero+"-"+idx}
+              renderItem={renderCapacityItem}
+              style={styles.list}
+              showsVerticalScrollIndicator={false}
+            />
           )}
         </View>
       </View>
@@ -194,6 +208,8 @@ const styles = StyleSheet.create({
   metaJug:{ fontWeight:'700', color:'#8E44AD' },
   loadingText:{ textAlign:'center', marginTop:20, color:'#2C3E50' },
   errorText:{ textAlign:'center', marginTop:20, color:'#E74C3C' },
+  emptyContainer:{ flex:1, justifyContent:'center', alignItems:'center' },
+  emptyText:{ textAlign:'center', marginTop:20, color:'#7F8C8D', fontWeight:'600' },
 });
 
 export default CapacityModal;

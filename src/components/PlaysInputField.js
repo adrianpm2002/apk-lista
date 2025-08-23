@@ -153,7 +153,17 @@ const PlaysInputField = ({
             const dup = tokenIsDuplicate(tok);
             const isEditing = editingIndex===idx;
             return (
-              <Pressable key={idx} style={[styles.token, dup && styles.tokenDup]} delayLongPress={250} onLongPress={()=> reqLen && tok.length===reqLen && startEdit(idx)}>
+              <Pressable
+                key={idx}
+                style={[
+                  styles.token,
+                  dup && styles.tokenDup,
+                  // Mantener tamaño estable durante la edición
+                  isEditing && { minWidth: 44, alignItems: 'center', justifyContent: 'center' }
+                ]}
+                delayLongPress={250}
+                onLongPress={()=> reqLen && tok.length===reqLen && startEdit(idx)}
+              >
                 {isEditing ? (
                   <TextInput
                     style={styles.tokenEditInput}
@@ -221,11 +231,11 @@ const styles = StyleSheet.create({
   tokensBox:{ minHeight:100, maxHeight:180, borderWidth:1.5, borderColor:'#D5DBDB', backgroundColor:'#FFFFFF', borderRadius:8, padding:10, position:'relative' },
   tokensBoxDark:{ backgroundColor:'#34495E', borderColor:'#5D6D7E' },
   tokensScroll:{ flexGrow:0 },
-  tokensWrap:{ flexDirection:'row', flexWrap:'wrap', alignItems:'flex-start' },
+  tokensWrap:{ flexDirection:'row', flexWrap:'wrap', alignItems:'flex-start', paddingRight: 68 },
   token:{ backgroundColor:'#EAF2F8', paddingHorizontal:8, paddingVertical:6, borderRadius:6, marginRight:6, marginBottom:6 },
   tokenDup:{ backgroundColor:'#FFE878' },
   tokenText:{ fontSize:14, fontWeight:'700', color:'#2C3E50' },
-  tokenEditInput:{ minWidth:40, paddingVertical:0, paddingHorizontal:0, fontSize:14, fontWeight:'700', color:'#2C3E50' },
+  tokenEditInput:{ minWidth:40, paddingVertical:0, paddingHorizontal:0, fontSize:14, fontWeight:'700', color:'#2C3E50', textAlign:'center', includeFontPadding:false, textAlignVertical:'center' },
   tokenTrailing:{ backgroundColor:'#FDEDEC' },
   trailingText:{ color:'#C0392B' },
   hiddenInput:{ position:'absolute', opacity:0, left:0, top:0, height:0, width:0 },

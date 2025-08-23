@@ -6,7 +6,7 @@ import AnimatedModalWrapper from './AnimatedModalWrapper';
 
 const BatteryButton = ({ onOptionSelect, selectedLotteries, selectedSchedules, selectedPlayTypes, lotteryOptions, scheduleOptionsMap, getScheduleLabel, playTypeLabels, bankId, onLotteryError, icon='🔋', animationProps }) => {
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const { capacityData, loading, error, refresh } = useCapacityData(bankId, { includeClosed:false });
+  const { capacityData, loading, error, refresh } = useCapacityData(bankId, { includeClosed:false, hideZero:true });
 
   const handlePress = async () => {
     await refresh();

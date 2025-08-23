@@ -260,6 +260,21 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', 
     mergeNumbersIntoInput(nuevos, { sortAfter: true });
   };
 
+  // Generar Centena: toma los pares de 2 dígitos actuales (input) y les antepone la centena seleccionada
+  const generarCentena = () => {
+    if (parleMode) return Alert.alert('Modo parle','No se puede generar centena sobre parle, limpia primero');
+    if (!selectedDigits.length) return Alert.alert('Selecciona','Elige 1 dígito para la centena');
+    if (selectedDigits.length > 1) return Alert.alert('Una sola centena','Selecciona solo 1 dígito para la centena');
+    const base = displayTokens.filter(t=> t.length===2);
+    if (!base.length) return Alert.alert('Vacío','No hay números base (2 dígitos)');
+    const c = String(selectedDigits[0]);
+    const generados = base.map(b => c + b);
+    // Inserta directamente al input externo y cierra el modal
+    onOptionSelect && onOptionSelect({ action:'insert', numbers: generados.join(numbersSeparator) });
+    setIsVisible(false);
+    handleClear();
+  };
+
   return (
     <>
       <Pressable
@@ -445,8 +460,15 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', 
             </ScrollView>
 
             <View style={styles.footerBar}>
-              <Pressable style={[styles.footerBtnCancel, isDarkMode && styles.footerBtnCancelDark]} onPress={handleCancel}><Text style={styles.footerBtnCancelText}>Cancelar</Text></Pressable>
-              <Pressable style={[styles.footerBtnInsert, isDarkMode && styles.footerBtnInsertDark]} onPress={handleInsertar}><Text style={styles.footerBtnInsertText}>Insertar ({parleMode ? tokens.length : displayTokens.filter(t=>t.length===2).length})</Text></Pressable>
+              <Pressable style={[styles.footerBtnCancel, isDarkMode && styles.footerBtnCancelDark]} onPress={handleCancel}>
+                <Text style={styles.footerBtnCancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable style={[styles.footerBtnMiddle, isDarkMode && styles.footerBtnMiddleDark]} onPress={generarCentena}>
+                <Text style={[styles.footerBtnMiddleText, isDarkMode && styles.footerBtnMiddleTextDark]}>Combinar Centena</Text>
+              </Pressable>
+              <Pressable style={[styles.footerBtnInsert, isDarkMode && styles.footerBtnInsertDark]} onPress={handleInsertar}>
+                <Text style={styles.footerBtnInsertText}>Insertar ({parleMode ? tokens.length : displayTokens.filter(t=>t.length===2).length})</Text>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -584,6 +606,10 @@ const styles = StyleSheet.create({
   footerBtnCancel:{ flex:1, marginRight:8, backgroundColor:'#FFEDEA', paddingVertical:12, borderRadius:10, alignItems:'center', borderWidth:1, borderColor:'#F5C4BD' },
   footerBtnCancelDark:{ backgroundColor:'#5D6D7E', borderColor:'#85929E' },
   footerBtnCancelText:{ fontSize:14, fontWeight:'600', color:'#C0392B' },
+  footerBtnMiddle:{ flex:1, marginHorizontal:8, backgroundColor:'#F4F9F2', paddingVertical:12, borderRadius:10, alignItems:'center', borderWidth:1, borderColor:'#D5E4D0' },
+  footerBtnMiddleDark:{ backgroundColor:'#34495E', borderColor:'#5D6D7E' },
+  footerBtnMiddleText:{ fontSize:14, fontWeight:'700', color:'#2D5016' },
+  footerBtnMiddleTextDark:{ color:'#ECF0F1' },
   footerBtnInsert:{ flex:1, marginLeft:8, backgroundColor:'#27AE60', paddingVertical:12, borderRadius:10, alignItems:'center', borderWidth:1, borderColor:'#229954' },
   footerBtnInsertDark:{ backgroundColor:'#229954', borderColor:'#1E8449' },
   footerBtnInsertText:{ fontSize:14, fontWeight:'700', color:'#FFFFFF' },

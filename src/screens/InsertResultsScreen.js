@@ -191,9 +191,10 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
       return;
     }
     const formatted = digits.substring(0,3) + ' ' + digits.substring(3,7);
+    const updatePayload = userRole === 'admin' ? { numeros: formatted, rol: 'admin' } : { numeros: formatted };
     const { error } = await supabase
       .from('resultado')
-      .update({ numeros: formatted })
+      .update(updatePayload)
       .eq('id', editingId);
     if (error) {
       Alert.alert('Error', error.message);
@@ -286,26 +287,57 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
     // Formatear el resultado como "XXX XXXX"
     const cleanResult = numbersOnly.substring(0, 3) + ' ' + numbersOnly.substring(3, 7);
 
-    console.log('Insertando resultado:', {
-      id_horario: selectedHorario,
-      numeros: cleanResult,
-    });
-
-    const { error } = await supabase.from('resultado').insert([
-      {
-        id_horario: selectedHorario,
-        numeros: cleanResult,
-        rol: userRole || 'collector',
-      }
-    ]);
-
-    if (error) {
-      console.error('Error Supabase:', error);
-      Alert.alert('Error al guardar', error.message);
+    // Comprobar si ya existe resultado hoy para este horario
+    const { start, end } = buildLocalDayRange();
+    const { data: existing, error: existErr } = await supabase
+      .from('resultado')
+      .select('id, created_at')
+      .eq('id_horario', selectedHorario)
+      .gte('created_at', start)
+      .lte('created_at', end)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (existErr) {
+      console.error('Error verificando duplicado de resultado:', existErr.message);
+      Alert.alert('Error', 'No se pudo verificar existencia previa. Intenta de nuevo.');
       return;
     }
 
-  Alert.alert('Éxito', 'Resultado guardado correctamente');
+    if (existing && existing.length) {
+      // Ya existe uno hoy para este horario
+      if ((userRole || 'collector') === 'admin') {
+        // Banco: actualiza el existente y promueve rol a admin
+        const { error: upErr } = await supabase
+          .from('resultado')
+          .update({ numeros: cleanResult, rol: 'admin' })
+          .eq('id', existing[0].id);
+        if (upErr) {
+          console.error('Error actualizando resultado existente:', upErr.message);
+          Alert.alert('Error', upErr.message);
+          return;
+        }
+        Alert.alert('Actualizado', 'Resultado actualizado para este horario.');
+      } else {
+        // Collector: bloquear
+        Alert.alert('Ya existe', 'Ya hay un resultado hoy para este horario. Pide al banco que lo actualice.');
+        return;
+      }
+    } else {
+      // No existe: insertar nuevo
+      const { error } = await supabase.from('resultado').insert([
+        {
+          id_horario: selectedHorario,
+          numeros: cleanResult,
+          rol: userRole || 'collector',
+        }
+      ]);
+      if (error) {
+        console.error('Error Supabase:', error);
+        Alert.alert('Error al guardar', error.message);
+        return;
+      }
+      Alert.alert('Éxito', 'Resultado guardado correctamente');
+    }
     
     // Limpiar formulario y errores
     setResult('');

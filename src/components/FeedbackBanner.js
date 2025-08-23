@@ -1,11 +1,23 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, useWindowDimensions, Platform } from 'react-native';
 import { t } from '../utils/i18n';
 
 /* Responsive feedback banner to avoid overflow on small mobile screens */
-export const FeedbackBanner = ({ type='info', message, details, onClose, autoCompactChars=140, allowExpand=true, style }) => {
+const defaultDurations = {
+  success: 5000,
+  warning: 15000,
+  error: 10000,
+  info: 10000,
+  blocked: 15000,
+  edit: 10000,
+};
+
+export const FeedbackBanner = ({ type='info', message, details, onClose, autoCompactChars=140, allowExpand=true, style, autoHideMs }) => {
   const { width, height } = useWindowDimensions();
   const [expanded, setExpanded] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const timerRef = useRef(null);
+  const effectiveAutoHide = typeof autoHideMs === 'number' ? autoHideMs : (defaultDurations[type] ?? 10000);
 
   const palette = typeStyles[type] || typeStyles.info;
   const detailsStr = useMemo(()=> !details ? '' : Array.isArray(details)? details.join('\n') : details,[details]);
@@ -13,12 +25,29 @@ export const FeedbackBanner = ({ type='info', message, details, onClose, autoCom
   const shownDetails = shouldCompact && !expanded ? detailsStr.slice(0, autoCompactChars) + '…' : detailsStr;
   const smallDevice = width < 380 || height < 640;
 
+  // Autocierre a los X ms (por defecto 10s) si el usuario no cierra manualmente
+  useEffect(() => {
+    // Reiniciar timer ante cambios significativos del contenido
+    if (timerRef.current) { clearTimeout(timerRef.current); }
+    timerRef.current = setTimeout(() => {
+      if (onClose) onClose(); else setVisible(false);
+    }, effectiveAutoHide);
+    return () => { if (timerRef.current) { clearTimeout(timerRef.current); } };
+  }, [type, message, details, effectiveAutoHide, onClose]);
+
+  const handleClose = () => {
+    if (timerRef.current) { clearTimeout(timerRef.current); }
+    if (onClose) onClose(); else setVisible(false);
+  };
+
+  if (!visible) return null;
+
   return (
     <View style={[styles.container, { backgroundColor: palette.bg, borderColor: palette.border, paddingVertical: smallDevice?6:10, paddingHorizontal: smallDevice?10:14, top: Platform.select({ ios: 60, android: 56, default: 70 }) }, style]}>
       <View style={styles.row}> 
         <Text style={[styles.message, { color: palette.text, fontSize: smallDevice?12:13 }]} numberOfLines={smallDevice?3:8} adjustsFontSizeToFit={smallDevice} minimumFontScale={0.85}>{message}</Text>
-        {onClose && (
-          <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={8}>
+        {(
+          <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
             <Text style={[styles.closeTxt,{ fontSize: smallDevice?12:14 }]}>✕</Text>
           </Pressable>
         )}

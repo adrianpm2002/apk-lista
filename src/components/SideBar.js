@@ -23,7 +23,8 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
   const slideAnim = useRef(new Animated.Value(-sidebarWidth)).current;
   const [modalVisible, setModalVisible] = useState(false);
   const [modalContent, setModalContent] = useState(null);
-  const [modeVisibilityModal, setModeVisibilityModal] = useState(false);
+  // Vista interna del modal de configuración: 'root' o 'modes' (Modos Visibles)
+  const [settingsView, setSettingsView] = useState('root');
   // Toast de confirmación
   const [toastMsg, setToastMsg] = useState('');
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -134,6 +135,7 @@ const configOptions = roleOptionsMap[role] || [];
   const closeModal = () => {
     setModalVisible(false);
     setModalContent(null);
+    setSettingsView('root');
   };
 
   const toggleDarkMode = () => {
@@ -169,8 +171,9 @@ const configOptions = roleOptionsMap[role] || [];
     }
   };
 
+  // Abre la vista de Modos Visibles dentro del mismo modal de Configuración
   const handleModeVisibilityPress = () => {
-    setModeVisibilityModal(true);
+    setSettingsView('modes');
   };
 
   const handleModeToggle = (mode) => {
@@ -186,21 +189,13 @@ const configOptions = roleOptionsMap[role] || [];
       return;
     }
     
-    setVisibleModes(newVisibleModes);
-    onModeVisibilityChange && onModeVisibilityChange(newVisibleModes);
-    // Toast
-    setToastMsg('Preferencias guardadas');
-    toastOpacity.stopAnimation();
-    toastOpacity.setValue(0);
-    Animated.sequence([
-      Animated.timing(toastOpacity, { toValue: 1, duration: 160, useNativeDriver: true }),
-      Animated.delay(1200),
-      Animated.timing(toastOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-    ]).start();
+  // Actualizar solo localmente; se persiste al pulsar "Aplicar" para evitar cierre del modal por cambios de pantalla
+  setVisibleModes(newVisibleModes);
   };
 
-  const closeModeVisibilityModal = () => {
-    setModeVisibilityModal(false);
+  // Volver a la vista raíz del modal de configuración
+  const backToSettingsRoot = () => {
+    setSettingsView('root');
   };
 
   const renderModalContent = () => {
@@ -209,59 +204,235 @@ const configOptions = roleOptionsMap[role] || [];
     if (modalContent.id === 'settings') {
       return (
         <View style={styles.modalContentInner}>
-          <Text style={styles.modalTitle}>{modalContent.title}</Text>
-          
-          <View style={styles.settingsContainer}>
-            {/* Mantener sesión iniciada */}
-            <Pressable style={styles.settingOption}>
-              <Text style={styles.settingIcon}>🔐</Text>
-              <Text style={styles.settingText}>Mantener sesión iniciada</Text>
-              <Text style={styles.settingArrow}>▶</Text>
-            </Pressable>
-            
-            {/* Tamaño de letra */}
-            <Pressable style={styles.settingOption}>
-              <Text style={styles.settingIcon}>🔤</Text>
-              <Text style={styles.settingText}>Tamaño de letra</Text>
-              <Text style={styles.settingArrow}>▶</Text>
-            </Pressable>
-            
-            {/* Patrón de seguridad */}
-            <Pressable style={styles.settingOption}>
-              <Text style={styles.settingIcon}>🔒</Text>
-              <Text style={styles.settingText}>Patrón de seguridad</Text>
-              <Text style={styles.settingArrow}>▶</Text>
-            </Pressable>
-            
-            {/* Modos Visibles (solo listero) */}
-            {role === 'listero' && (
-              <Pressable 
-                style={styles.settingOption}
-                onPress={() => handleModeVisibilityPress()}
-              >
-                <Text style={styles.settingIcon}>👁️</Text>
-                <Text style={styles.settingText}>Modos Visibles</Text>
-                <Text style={styles.settingArrow}>▶</Text>
+          <Text style={styles.modalTitle}>{settingsView === 'modes' ? 'Modos Visibles' : modalContent.title}</Text>
+
+          {settingsView === 'root' ? (
+            <>
+              <View style={styles.settingsContainer}>
+                {/* Mantener sesión iniciada */}
+                <Pressable style={styles.settingOption}>
+                  <Text style={styles.settingIcon}>🔐</Text>
+                  <Text style={styles.settingText}>Mantener sesión iniciada</Text>
+                  <Text style={styles.settingArrow}>▶</Text>
+                </Pressable>
+
+                {/* Tamaño de letra */}
+                <Pressable style={styles.settingOption}>
+                  <Text style={styles.settingIcon}>🔤</Text>
+                  <Text style={styles.settingText}>Tamaño de letra</Text>
+                  <Text style={styles.settingArrow}>▶</Text>
+                </Pressable>
+
+                {/* Patrón de seguridad */}
+                <Pressable style={styles.settingOption}>
+                  <Text style={styles.settingIcon}>🔒</Text>
+                  <Text style={styles.settingText}>Patrón de seguridad</Text>
+                  <Text style={styles.settingArrow}>▶</Text>
+                </Pressable>
+
+                {/* Modos Visibles (solo listero) */}
+                {role === 'listero' && (
+                  <Pressable 
+                    style={styles.settingOption}
+                    onPress={handleModeVisibilityPress}
+                  >
+                    <Text style={styles.settingIcon}>👁️</Text>
+                    <Text style={styles.settingText}>Modos Visibles</Text>
+                    <Text style={styles.settingArrow}>▶</Text>
+                  </Pressable>
+                )}
+
+                {/* Cambiar contraseña (admin, collector y listero) */}
+                {(role === 'collector' || role === 'listero' || role === 'admin') && (
+                  <Pressable 
+                    style={styles.settingOption}
+                    onPress={() => {
+                      setChangePasswordModalVisible(true);
+                    }}
+                  >
+                    <Text style={styles.settingIcon}>🔑</Text>
+                    <Text style={styles.settingText}>Cambiar contraseña</Text>
+                    <Text style={styles.settingArrow}>▶</Text>
+                  </Pressable>
+                )}
+              </View>
+
+              <Pressable style={styles.modalCloseButton} onPress={closeModal}>
+                <Text style={styles.modalCloseButtonText}>Cerrar</Text>
               </Pressable>
-            )}
-            {/* Cambiar contraseña (admin, collector y listero) */}
-            {(role === 'collector' || role === 'listero' || role === 'admin') && (
-              <Pressable 
-                style={styles.settingOption}
-                onPress={() => {
-                  setChangePasswordModalVisible(true);
-                }}
-              >
-                <Text style={styles.settingIcon}>🔑</Text>
-                <Text style={styles.settingText}>Cambiar contraseña</Text>
-                <Text style={styles.settingArrow}>▶</Text>
-              </Pressable>
-            )}
-          </View>
-          
-          <Pressable style={styles.modalCloseButton} onPress={closeModal}>
-            <Text style={styles.modalCloseButtonText}>Cerrar</Text>
-          </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.modalSubtitle, isDarkMode && styles.modalSubtitleDark]}>
+                Selecciona qué modos quieres mostrar en la interfaz
+              </Text>
+
+              <View style={styles.modeOptionsContainer}>
+                {/* Modo Visual */}
+                <Pressable
+                  style={[
+                    styles.modeOption,
+                    isDarkMode && styles.modeOptionDark,
+                    visibleModes.visual && styles.modeOptionSelected,
+                    visibleModes.visual && isDarkMode && styles.modeOptionSelectedDark
+                  ]}
+                  onPress={() => handleModeToggle('visual')}
+                >
+                  <Text style={styles.modeIcon}>👁️</Text>
+                  <View style={styles.modeTextContainer}>
+                    <Text style={[
+                      styles.modeTitle,
+                      isDarkMode && styles.modeTitleDark,
+                      visibleModes.visual && styles.modeTitleSelected
+                    ]}>
+                      Modo Visual
+                    </Text>
+                    <Text style={[
+                      styles.modeDescription,
+                      isDarkMode && styles.modeDescriptionDark
+                    ]}>
+                      Interfaz gráfica completa
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.modeCheckbox,
+                    isDarkMode && styles.modeCheckboxDark,
+                    visibleModes.visual && styles.modeCheckboxSelected
+                  ]}>
+                    {visibleModes.visual && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                </Pressable>
+
+                {/* Modo Texto */}
+                <Pressable
+                  style={[
+                    styles.modeOption,
+                    isDarkMode && styles.modeOptionDark,
+                    visibleModes.text && styles.modeOptionSelected,
+                    visibleModes.text && isDarkMode && styles.modeOptionSelectedDark
+                  ]}
+                  onPress={() => handleModeToggle('text')}
+                >
+                  <Text style={styles.modeIcon}>📝</Text>
+                  <View style={styles.modeTextContainer}>
+                    <Text style={[
+                      styles.modeTitle,
+                      isDarkMode && styles.modeTitleDark,
+                      visibleModes.text && styles.modeTitleSelected
+                    ]}>
+                      Modo Texto
+                    </Text>
+                    <Text style={[
+                      styles.modeDescription,
+                      isDarkMode && styles.modeDescriptionDark
+                    ]}>
+                      Interfaz simplificada de texto
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.modeCheckbox,
+                    isDarkMode && styles.modeCheckboxDark,
+                    visibleModes.text && styles.modeCheckboxSelected
+                  ]}>
+                    {visibleModes.text && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                </Pressable>
+
+                {/* Modo Texto 2.0 */}
+                <Pressable
+                  style={[
+                    styles.modeOption,
+                    isDarkMode && styles.modeOptionDark,
+                    visibleModes.text2 && styles.modeOptionSelected,
+                    visibleModes.text2 && isDarkMode && styles.modeOptionSelectedDark
+                  ]}
+                  onPress={() => handleModeToggle('text2')}
+                >
+                  <Text style={styles.modeIcon}>📝</Text>
+                  <View style={styles.modeTextContainer}>
+                    <Text style={[
+                      styles.modeTitle,
+                      isDarkMode && styles.modeTitleDark,
+                      visibleModes.text2 && styles.modeTitleSelected
+                    ]}>
+                      Modo Texto 2.0
+                    </Text>
+                    <Text style={[
+                      styles.modeDescription,
+                      isDarkMode && styles.modeDescriptionDark
+                    ]}>
+                      Sintaxis avanzada con comandos
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.modeCheckbox,
+                    isDarkMode && styles.modeCheckboxDark,
+                    visibleModes.text2 && styles.modeCheckboxSelected
+                  ]}>
+                    {visibleModes.text2 && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                </Pressable>
+
+                {/* Modo Vault */}
+                <Pressable
+                  style={[
+                    styles.modeOption,
+                    isDarkMode && styles.modeOptionDark,
+                    visibleModes.vault && styles.modeOptionSelected,
+                    visibleModes.vault && isDarkMode && styles.modeOptionSelectedDark
+                  ]}
+                  onPress={() => handleModeToggle('vault')}
+                >
+                  <Text style={styles.modeIcon}>🏦</Text>
+                  <View style={styles.modeTextContainer}>
+                    <Text style={[
+                      styles.modeTitle,
+                      isDarkMode && styles.modeTitleDark,
+                      visibleModes.vault && styles.modeTitleSelected
+                    ]}>
+                      Modo Vault
+                    </Text>
+                    <Text style={[
+                      styles.modeDescription,
+                      isDarkMode && styles.modeDescriptionDark
+                    ]}>
+                      Tres columnas con entradas rápidas
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.modeCheckbox,
+                    isDarkMode && styles.modeCheckboxDark,
+                    visibleModes.vault && styles.modeCheckboxSelected
+                  ]}>
+                    {visibleModes.vault && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                </Pressable>
+              </View>
+
+              <View style={styles.modeModalButtons}>
+                <Pressable
+                  style={[styles.modalCloseButton, isDarkMode && styles.modalCloseButtonDark]}
+                  onPress={() => {
+                    // Persistir cambios y mostrar toast
+                    onModeVisibilityChange && onModeVisibilityChange(visibleModes);
+                    setToastMsg('Preferencias guardadas');
+                    toastOpacity.stopAnimation();
+                    toastOpacity.setValue(0);
+                    Animated.sequence([
+                      Animated.timing(toastOpacity, { toValue: 1, duration: 160, useNativeDriver: true }),
+                      Animated.delay(1200),
+                      Animated.timing(toastOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+                    ]).start();
+                    backToSettingsRoot();
+                  }}
+                >
+                  <Text style={[styles.modalCloseButtonText, isDarkMode && styles.modalCloseButtonTextDark]}>
+                    Aplicar
+                  </Text>
+                </Pressable>
+              </View>
+            </>
+          )}
         </View>
       );
     }
@@ -390,7 +561,7 @@ const configOptions = roleOptionsMap[role] || [];
         animationType="fade"
         onRequestClose={closeModal}
       >
-        <Pressable style={styles.modalOverlay} onPress={closeModal}>
+        <Pressable style={styles.modalOverlay} onPress={() => { if (settingsView === 'root') closeModal(); }}>
           <View 
             style={styles.modalContainer}
             onStartShouldSetResponder={() => true}
@@ -412,183 +583,7 @@ const configOptions = roleOptionsMap[role] || [];
         </Pressable>
       </Modal>
 
-      {/* Modal de Visibilidad de Modos */}
-      <Modal
-        visible={modeVisibilityModal}
-        transparent
-        animationType="slide"
-        onRequestClose={closeModeVisibilityModal}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={closeModeVisibilityModal}
-        >
-          <View 
-            style={[styles.modalContent, isDarkMode && styles.modalContentDark]}
-            onStartShouldSetResponder={() => true}
-          >
-            <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
-              Modos Visibles
-            </Text>
-            <Text style={[styles.modalSubtitle, isDarkMode && styles.modalSubtitleDark]}>
-              Selecciona qué modos quieres mostrar en la interfaz
-            </Text>
-
-            <View style={styles.modeOptionsContainer}>
-              {/* Modo Visual */}
-              <Pressable
-                style={[
-                  styles.modeOption,
-                  isDarkMode && styles.modeOptionDark,
-                  visibleModes.visual && styles.modeOptionSelected,
-                  visibleModes.visual && isDarkMode && styles.modeOptionSelectedDark
-                ]}
-                onPress={() => handleModeToggle('visual')}
-              >
-                <Text style={styles.modeIcon}>👁️</Text>
-                <View style={styles.modeTextContainer}>
-                  <Text style={[
-                    styles.modeTitle,
-                    isDarkMode && styles.modeTitleDark,
-                    visibleModes.visual && styles.modeTitleSelected
-                  ]}>
-                    Modo Visual
-                  </Text>
-                  <Text style={[
-                    styles.modeDescription,
-                    isDarkMode && styles.modeDescriptionDark
-                  ]}>
-                    Interfaz gráfica completa
-                  </Text>
-                </View>
-                <View style={[
-                  styles.modeCheckbox,
-                  isDarkMode && styles.modeCheckboxDark,
-                  visibleModes.visual && styles.modeCheckboxSelected
-                ]}>
-                  {visibleModes.visual && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-              </Pressable>
-
-              {/* Modo Texto */}
-              <Pressable
-                style={[
-                  styles.modeOption,
-                  isDarkMode && styles.modeOptionDark,
-                  visibleModes.text && styles.modeOptionSelected,
-                  visibleModes.text && isDarkMode && styles.modeOptionSelectedDark
-                ]}
-                onPress={() => handleModeToggle('text')}
-              >
-                <Text style={styles.modeIcon}>📝</Text>
-                <View style={styles.modeTextContainer}>
-                  <Text style={[
-                    styles.modeTitle,
-                    isDarkMode && styles.modeTitleDark,
-                    visibleModes.text && styles.modeTitleSelected
-                  ]}>
-                    Modo Texto
-                  </Text>
-                  <Text style={[
-                    styles.modeDescription,
-                    isDarkMode && styles.modeDescriptionDark
-                  ]}>
-                    Interfaz simplificada de texto
-                  </Text>
-                </View>
-                <View style={[
-                  styles.modeCheckbox,
-                  isDarkMode && styles.modeCheckboxDark,
-                  visibleModes.text && styles.modeCheckboxSelected
-                ]}>
-                  {visibleModes.text && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-              </Pressable>
-
-              {/* Modo Texto 2.0 */}
-              <Pressable
-                style={[
-                  styles.modeOption,
-                  isDarkMode && styles.modeOptionDark,
-                  visibleModes.text2 && styles.modeOptionSelected,
-                  visibleModes.text2 && isDarkMode && styles.modeOptionSelectedDark
-                ]}
-                onPress={() => handleModeToggle('text2')}
-              >
-                <Text style={styles.modeIcon}>📝</Text>
-                <View style={styles.modeTextContainer}>
-                  <Text style={[
-                    styles.modeTitle,
-                    isDarkMode && styles.modeTitleDark,
-                    visibleModes.text2 && styles.modeTitleSelected
-                  ]}>
-                    Modo Texto 2.0
-                  </Text>
-                  <Text style={[
-                    styles.modeDescription,
-                    isDarkMode && styles.modeDescriptionDark
-                  ]}>
-                    Sintaxis avanzada con comandos
-                  </Text>
-                </View>
-                <View style={[
-                  styles.modeCheckbox,
-                  isDarkMode && styles.modeCheckboxDark,
-                  visibleModes.text2 && styles.modeCheckboxSelected
-                ]}>
-                  {visibleModes.text2 && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-              </Pressable>
-
-              {/* Modo Vault */}
-              <Pressable
-                style={[
-                  styles.modeOption,
-                  isDarkMode && styles.modeOptionDark,
-                  visibleModes.vault && styles.modeOptionSelected,
-                  visibleModes.vault && isDarkMode && styles.modeOptionSelectedDark
-                ]}
-                onPress={() => handleModeToggle('vault')}
-              >
-                <Text style={styles.modeIcon}>🏦</Text>
-                <View style={styles.modeTextContainer}>
-                  <Text style={[
-                    styles.modeTitle,
-                    isDarkMode && styles.modeTitleDark,
-                    visibleModes.vault && styles.modeTitleSelected
-                  ]}>
-                    Modo Vault
-                  </Text>
-                  <Text style={[
-                    styles.modeDescription,
-                    isDarkMode && styles.modeDescriptionDark
-                  ]}>
-                    Tres columnas con entradas rápidas
-                  </Text>
-                </View>
-                <View style={[
-                  styles.modeCheckbox,
-                  isDarkMode && styles.modeCheckboxDark,
-                  visibleModes.vault && styles.modeCheckboxSelected
-                ]}>
-                  {visibleModes.vault && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-              </Pressable>
-            </View>
-
-            <View style={styles.modeModalButtons}>
-              <Pressable
-                style={[styles.modalCloseButton, isDarkMode && styles.modalCloseButtonDark]}
-                onPress={closeModeVisibilityModal}
-              >
-                <Text style={[styles.modalCloseButtonText, isDarkMode && styles.modalCloseButtonTextDark]}>
-                  Aplicar
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
+  {/* Modal de visibilidad eliminado: ahora se gestiona dentro del modal de Configuración */}
 
       {/* Modal independiente para cambiar contraseña */}
       <ChangePasswordModal

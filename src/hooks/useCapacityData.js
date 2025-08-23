@@ -49,13 +49,19 @@ export function useCapacityData(bankId, options = {}) {
       const limitNumberMap = new Map(); // key h|jugada|numero -> limite_numero.limite
       (limits||[]).forEach(r=>{ limitNumberMap.set(`${r.id_horario}|${r.jugada}|${r.numero}`, r.limite); });
 
-      // 5. Jugadas del día (uso real) en tabla jugada
-      const dayStart = new Date(); dayStart.setHours(0,0,0,0);
-      const isoDayStart = dayStart.toISOString();
+      // 5. Jugadas del día (uso real) en tabla jugada - usar rango LOCAL del día para evitar desfases por UTC
+      const nowLocal = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const y = nowLocal.getFullYear();
+      const m = pad(nowLocal.getMonth() + 1);
+      const d = pad(nowLocal.getDate());
+      const startStr = `${y}-${m}-${d} 00:00:00`;
+      const endStr = `${y}-${m}-${d} 23:59:59.999`;
       const { data: jugadas, error: jugErr } = await supabase
         .from('jugada')
         .select('id_horario,jugada,numeros,monto_unitario,created_at')
-        .gte('created_at', isoDayStart)
+        .gte('created_at', startStr)
+        .lte('created_at', endStr)
         .in('id_horario', (horariosRows||[]).map(h=>h.id));
       if(jugErr) throw jugErr;
 
@@ -109,6 +115,7 @@ export function useCapacityData(bankId, options = {}) {
       };
 
       // a) Filas con uso real
+      const expectedLenFor = (jug) => jug==='centena'?3 : jug==='parle'?4 : jug==='tripleta'?6 : 2;
       usageMap.forEach((used, key) => {
         const [h,jug,numero] = key.split('|');
         const hor = horarioMeta[h]; if(!hor) return;
@@ -120,7 +127,8 @@ export function useCapacityData(bankId, options = {}) {
         else if(perNumber!==undefined) effective = perNumber;
         else if(specLimit!==undefined) effective = specLimit;
         if(!effective) return;
-        pushRow(h, jug, numero.padStart(numero.length,'0'), used, effective, hor, lotName, lotId);
+        const padLen = expectedLenFor(jug);
+        pushRow(h, jug, String(numero).padStart(padLen,'0'), used, effective, hor, lotName, lotId);
       });
 
       // b) Generar filas para jugadas con limite específico aunque no haya uso ni limite_numero.
@@ -147,6 +155,27 @@ export function useCapacityData(bankId, options = {}) {
           // parle y tripleta NO se enumeran totalmente por tamaño explosivo; sólo aparecen si tienen uso o límite explícito.
         });
       }
+
+      // c) Incluir filas para límites por número (limite_numero) aunque no haya uso ni limite específico (o aunque lo haya), evitando duplicados
+      const presentSet = new Set(rows.map(r => `${r.horarioId}|${r.jugada}|${r.numero}`));
+      (limits||[]).forEach(r => {
+        const h = r.id_horario; const jug = r.jugada; const numero = r.numero;
+        const hor = horarioMeta[h]; if(!hor) return;
+        if(!isOpen(hor.hora_inicio, hor.hora_fin)) return;
+        const key = `${h}|${jug}|${numero}`;
+        if(presentSet.has(key)) return; // ya agregado por uso o enumeración de específico
+        const lotId = hor.id_loteria; const lotName = (lots||[]).find(l=>l.id===lotId)?.nombre || lotId;
+        const perNumber = r.limite;
+        const specLimit = specificLimits && specificLimits[jug];
+        let effective;
+        if(perNumber!==undefined && specLimit!==undefined) effective = Math.min(perNumber, specLimit);
+        else if(perNumber!==undefined) effective = perNumber;
+        else if(specLimit!==undefined) effective = specLimit;
+        if(!effective) return;
+        const padLen = expectedLenFor(jug);
+        pushRow(h, jug, String(numero).padStart(padLen,'0'), 0, effective, hor, lotName, lotId);
+        presentSet.add(key);
+      });
 
   // 9. Ordenar por porcentaje desc y conservar todos (incluye usado=0 para ver capacidad disponible)
   rows.sort((a,b)=> b.porcentaje - a.porcentaje);
