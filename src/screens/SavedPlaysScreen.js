@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Pressable, FlatList, TextInput, ScrollView, Ref
 import FeedbackBanner from '../components/FeedbackBanner';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../supabaseClient';
+import { parseResultado, evaluatePlay, DEFAULT_PRICES, formatMoney } from '../utils/prizeCalculator';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -75,10 +76,79 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         note: r.nota || '',
         hasPrize: false,
         prize: 'desconocido',
+        payAmount: 0,
         result: 'no disponible',
         timestamp: new Date(r.created_at)
       }));
-      setSavedPlays(mapped);
+      // Resultados del día por horario
+      const { data: resultadosRows, error: resErr } = await supabase
+        .from('resultado')
+        .select('id, id_horario, numeros, created_at')
+        .gte('created_at', startStr)
+        .lte('created_at', endStr);
+      if (resErr) throw resErr;
+      const resultadosByHorario = new Map();
+      (resultadosRows||[]).forEach(r => {
+        const prev = resultadosByHorario.get(r.id_horario);
+        if (!prev) {
+          resultadosByHorario.set(r.id_horario, r.numeros);
+        } else {
+          // Mantener el más reciente: como no tenemos la anterior fecha a la mano, sobreescribir en orden; opcional: ordenar antes
+          resultadosByHorario.set(r.id_horario, r.numeros);
+        }
+      });
+
+      // Números limitados por horario
+      const uniqueHorarios = Array.from(new Set(mapped.map(m => m.scheduleId).filter(Boolean)));
+      let limitedByHorario = new Map();
+      if (uniqueHorarios.length) {
+        const { data: limitedRows, error: limErr } = await supabase
+          .from('numero_limitado')
+          .select('id_horario, numero')
+          .in('id_horario', uniqueHorarios);
+        if (limErr) throw limErr;
+        limitedByHorario = (limitedRows||[]).reduce((acc, r) => {
+          const key = r.id_horario;
+          if (!acc.has(key)) acc.set(key, new Set());
+          acc.get(key).add(String(r.numero));
+          return acc;
+        }, new Map());
+      }
+
+      // Precios según perfil
+      let prices = DEFAULT_PRICES;
+      try {
+        const { data: userRes } = await supabase.auth.getUser();
+        const uid = userRes?.user?.id;
+        if (uid) {
+          const { data: profile } = await supabase.from('profiles').select('id_precio').eq('id', uid).maybeSingle();
+          const idPrecio = profile?.id_precio;
+          if (idPrecio) {
+            const { data: priceRow } = await supabase.from('precio').select('precios').eq('id', idPrecio).maybeSingle();
+            if (priceRow?.precios) prices = priceRow.precios;
+          }
+        }
+      } catch {}
+
+      // Evaluar premios
+      const enhanced = mapped.map(m => {
+        const numerosRes = resultadosByHorario.get(m.scheduleId);
+        const parsed = numerosRes ? parseResultado(numerosRes) : null;
+        const limitedSet = limitedByHorario.get(m.scheduleId) || new Set();
+        if (!parsed) {
+          return { ...m, result: 'no disponible', hasPrize: false, prize: 'no cogió premio', payAmount: 0 };
+        }
+        const evalRes = evaluatePlay({ playType: m.playType, numbers: m.numbers, amount: m.amount }, parsed, limitedSet, prices);
+        return {
+          ...m,
+          result: numerosRes,
+          hasPrize: evalRes.hasPrize,
+          prize: evalRes.hasPrize ? 'bingo' : 'no cogió premio',
+          payAmount: evalRes.pay,
+        };
+      });
+
+      setSavedPlays(enhanced);
     } catch(e){ console.error('Error cargando jugadas del día:', e.message); }
     finally { setIsLoading(false); }
   };
@@ -222,7 +292,14 @@ const SavedPlaysScreen = ({ navigation, route }) => {
           >
             Resultado: {item.result}
           </Text>
-          {!item.hasPrize && <Text style={[styles.pendingText, styles.pendingUnderResult]}>⏳ Pendiente</Text>}
+          {item.result === 'no disponible' && (
+            <Text style={[styles.pendingText, styles.pendingUnderResult]}>⏳ Pendiente</Text>
+          )}
+          {item.result !== 'no disponible' && (
+            <Text style={[styles.pendingText, styles.pendingUnderResult, item.hasPrize ? styles.winText : styles.loseText]}>
+              {item.hasPrize ? `🏆 bingo · $${formatMoney(item.payAmount)}` : 'no cogió premio'}
+            </Text>
+          )}
           {/* Botón Copiar */}
       <Pressable
             style={styles.copyUnderPendingBtn}
@@ -516,6 +593,8 @@ const styles = StyleSheet.create({
   resultBadge:{ backgroundColor:'#E8F5E8', borderColor:'#27AE60', borderWidth:1, borderRadius:12, paddingHorizontal:8, paddingVertical:2, fontSize:11, fontWeight:'600', color:'#27AE60' },
   resultBadgeDark:{ backgroundColor:'#2C3E50', borderColor:'#27AE60', color:'#27AE60' },
   pendingText:{ fontSize:10, fontWeight:'600', color:'#7F8C8D', marginTop:2 },
+  winText:{ color:'#1E8449' },
+  loseText:{ color:'#7F8C8D' },
   pendingTextHidden:{ opacity:0 },
   rightInfo:{ alignItems:'flex-end' },
   note:{ fontSize:11, color:'#5D6D7E', flex:1, marginRight:6 },
