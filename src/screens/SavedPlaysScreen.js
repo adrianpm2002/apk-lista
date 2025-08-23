@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, Pressable, FlatList, TextInput, ScrollView, Ref
 import FeedbackBanner from '../components/FeedbackBanner';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../supabaseClient';
-import { parseResultado, evaluatePlay, DEFAULT_PRICES, formatMoney } from '../utils/prizeCalculator';
+import { parseResultado, evaluatePlay, DEFAULT_PRICES, formatMoney, winnersByType, canonicalParle } from '../utils/prizeCalculator';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -136,15 +136,23 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         const parsed = numerosRes ? parseResultado(numerosRes) : null;
         const limitedSet = limitedByHorario.get(m.scheduleId) || new Set();
         if (!parsed) {
-          return { ...m, result: 'no disponible', hasPrize: false, prize: 'no cogió premio', payAmount: 0 };
+          return { ...m, result: 'no disponible', hasPrize: false, prize: 'no cogió premio', payAmount: 0, winningTokens: new Set() };
         }
         const evalRes = evaluatePlay({ playType: m.playType, numbers: m.numbers, amount: m.amount }, parsed, limitedSet, prices);
+        // Calcular tokens ganadores específicos de la jugada para resaltar en la UI
+        const winnersSet = winnersByType(parsed, m.playType);
+        const tokens = (m.numbers||'').split(',').map(s=> s.trim()).filter(Boolean);
+        const winningTokens = new Set(tokens.filter(t => {
+          if (m.playType === 'parle') return winnersSet.has(canonicalParle(t));
+          return winnersSet.has(t);
+        }));
         return {
           ...m,
           result: numerosRes,
           hasPrize: evalRes.hasPrize,
           prize: evalRes.hasPrize ? 'bingo' : 'no cogió premio',
           payAmount: evalRes.pay,
+          winningTokens,
         };
       });
 
@@ -279,7 +287,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
             <Text style={[styles.priceCalc, isDarkMode && styles.priceCalcDark]}>${item.amount} × {item.numbers.split(',').filter(Boolean).length} = ${item.total}</Text>
           </View>
         </View>
-        <View style={styles.resultBox}>
+  <View style={styles.resultBox}>
           <Text
             style={[
               styles.resultLabel,
@@ -300,70 +308,21 @@ const SavedPlaysScreen = ({ navigation, route }) => {
               {item.hasPrize ? `🏆 bingo · $${formatMoney(item.payAmount)}` : 'no cogió premio'}
             </Text>
           )}
-          {/* Botón Copiar */}
-      <Pressable
-            style={styles.copyUnderPendingBtn}
-            onPress={async ()=>{
-              try {
-        const name = (item.note || '').trim();
-        const line2 = `${item.lottery} + ${item.schedule}`;
-        const playType = getPlayTypeLabel(item.playType).toUpperCase();
-                const numbers = item.numbers;
-                const count = numbers.split(',').map(s=>s.trim()).filter(Boolean).length;
-                const amount = item.amount;
-                const total = item.total;
-        const text = `${name}\n${line2}\n${playType}\n${numbers}\n${amount} x ${count} = ${total}`;
-                if(Platform.OS==='web' && navigator.clipboard?.writeText){
-                  await navigator.clipboard.writeText(text);
-                } else {
-                  Clipboard.setString(text);
-                }
-        setCopiedBanner(true);
-              } catch(e){
-                // opcional: feedback mínimo
-              }
-            }}
-          >
-            <Text style={styles.copyUnderPendingTxt}>Copiar</Text>
-          </Pressable>
-          {originMode !== 'Vault' && (
-          <Pressable style={styles.editUnderPendingBtn} onPress={()=> {
-            // Validar horario
-            const isOpen = (()=> {
-              const hi = item.scheduleStart; const hf = item.scheduleEnd; if(!hi || !hf) return true; // si faltan datos permitir
-              const now = new Date();
-              const [shi,smi] = hi.split(':');
-              const [shf,smf] = hf.split(':');
-              const start = parseInt(shi,10)*60 + parseInt(smi||'0',10);
-              const end = parseInt(shf,10)*60 + parseInt(smf||'0',10);
-              const current = now.getHours()*60 + now.getMinutes();
-              if(start === end) return true; // 24h
-              if(end > start) return current >= start && current < end; // mismo día
-              return current >= start || current < end; // cruza medianoche
-            })();
-            if(!isOpen){
-              if(Platform.OS === 'web') { window.alert('No se puede editar porque esta lotería está cerrada'); }
-              else { Alert.alert('Cerrada','No se puede editar porque esta lotería está cerrada'); }
-              return;
-            }
-            const targetMode = originMode === 'Texto' ? 'Texto' : (originMode === 'Texto2' ? 'Texto2' : 'Visual');
-            const msg = targetMode === 'Texto' ? '¿Abrir esta jugada en modo Texto para editarla?' : (targetMode==='Texto2' ? '¿Abrir esta jugada en modo Texto 2.0 para editarla?' : '¿Abrir esta jugada en modo Visual para editarla?');
-            confirm('Editar', msg, ()=> { setEditingPlay(item); navigation.navigate('MainApp', { editPayload: item, originMode: targetMode }); });
-          }}>
-            <Text style={styles.editUnderPendingTxt}>Editar</Text>
-          </Pressable>
-          )}
         </View>
       </View>
       <View style={styles.numbersRow}>
         {(() => {
           const parts = item.numbers.split(',').map(n=> n.trim()).filter(Boolean);
           const counts = parts.reduce((acc,n)=> (acc[n]=(acc[n]||0)+1, acc), {});
+          const winningSet = item.winningTokens || new Set();
           return (
             <Text style={[styles.numbers, isDarkMode && styles.numbersDark]}>
               {parts.map((n,i)=> (
                 <Text key={i}>
-                  {counts[n]>1 ? <Text style={styles.dupNumber}>{n}</Text> : n}
+                  {winningSet.has(n)
+                    ? <Text style={styles.winningNumber}>{n}</Text>
+                    : (counts[n]>1 ? <Text style={styles.dupNumber}>{n}</Text> : n)
+                  }
                   {i < parts.length-1 ? ', ' : ''}
                 </Text>
               ))}
@@ -373,6 +332,59 @@ const SavedPlaysScreen = ({ navigation, route }) => {
       </View>
       <View style={styles.statusRow}>
         <Text style={[styles.timestamp, isDarkMode && styles.timestampDark]}>{formatTime(item.timestamp)}</Text>
+        <View style={{ flexDirection:'row', alignItems:'center' }}>
+          {/* Copiar */}
+          <Pressable
+            style={styles.copyUnderPendingBtn}
+            onPress={async ()=>{
+              try {
+                const name = (item.note || '').trim();
+                const line2 = `${item.lottery} + ${item.schedule}`;
+                const playType = getPlayTypeLabel(item.playType).toUpperCase();
+                const numbers = item.numbers;
+                const count = numbers.split(',').map(s=>s.trim()).filter(Boolean).length;
+                const amount = item.amount;
+                const total = item.total;
+                const text = `${name}\n${line2}\n${playType}\n${numbers}\n${amount} x ${count} = ${total}`;
+                if(Platform.OS==='web' && navigator.clipboard?.writeText){
+                  await navigator.clipboard.writeText(text);
+                } else {
+                  Clipboard.setString(text);
+                }
+                setCopiedBanner(true);
+              } catch(e){}
+            }}
+          >
+            <Text style={styles.copyUnderPendingTxt}>Copiar</Text>
+          </Pressable>
+          {/* Editar */}
+          {originMode !== 'Vault' && (
+            <Pressable style={styles.editUnderPendingBtn} onPress={()=> {
+              const isOpen = (()=> {
+                const hi = item.scheduleStart; const hf = item.scheduleEnd; if(!hi || !hf) return true;
+                const now = new Date();
+                const [shi,smi] = hi.split(':');
+                const [shf,smf] = hf.split(':');
+                const start = parseInt(shi,10)*60 + parseInt(smi||'0',10);
+                const end = parseInt(shf,10)*60 + parseInt(smf||'0',10);
+                const current = now.getHours()*60 + now.getMinutes();
+                if(start === end) return true;
+                if(end > start) return current >= start && current < end;
+                return current >= start || current < end;
+              })();
+              if(!isOpen){
+                if(Platform.OS === 'web') { window.alert('No se puede editar porque esta lotería está cerrada'); }
+                else { Alert.alert('Cerrada','No se puede editar porque esta lotería está cerrada'); }
+                return;
+              }
+              const targetMode = originMode === 'Texto' ? 'Texto' : (originMode === 'Texto2' ? 'Texto2' : 'Visual');
+              const msg = targetMode === 'Texto' ? '¿Abrir esta jugada en modo Texto para editarla?' : (targetMode==='Texto2' ? '¿Abrir esta jugada en modo Texto 2.0 para editarla?' : '¿Abrir esta jugada en modo Visual para editarla?');
+              confirm('Editar', msg, ()=> { setEditingPlay(item); navigation.navigate('MainApp', { editPayload: item, originMode: targetMode }); });
+            }}>
+              <Text style={styles.editUnderPendingTxt}>Editar</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
     </Pressable>
   );
@@ -570,7 +582,7 @@ const styles = StyleSheet.create({
   playTypeInlineDark:{ backgroundColor:'#5D6D7E', color:'#D2B4DE' },
   noteStronger:{ marginLeft:0, fontSize:13, fontWeight:'700', color:'#0B6B32', maxWidth:150 },
   noteStrongerDark:{ color:'#F0F3F4' },
-  topRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 },
+  topRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', marginBottom:0 },
   topLeft:{ flex:1, paddingRight:6 },
   lotteryLine:{ flexDirection:'row', flexWrap:'wrap', alignItems:'center' },
   resultText:{ fontSize:10, fontWeight:'600', color:'#2C3E50', textAlign:'right', maxWidth:90, textTransform:'lowercase' },
@@ -582,10 +594,10 @@ const styles = StyleSheet.create({
   resultUnavailableDark:{ backgroundColor:'transparent', color:'#BDC3C7' },
   pendingUnderResult:{ marginTop:2 },
   namePriceRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:4 },
-  namePriceInline:{ flexDirection:'row', alignItems:'center', marginTop:2 },
+  namePriceInline:{ flexDirection:'row', alignItems:'center', marginTop:0 },
   priceCalc:{ fontSize:12, fontWeight:'600', color:'#1E8449', marginLeft:6, flexShrink:1 },
   priceCalcDark:{ color:'#58D68D' },
-  numbersRow:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 },
+  numbersRow:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:-2, marginBottom:2 },
   totalInline:{ fontSize:11, fontWeight:'600', color:'#27AE60', marginLeft:8 },
   totalInlineDark:{ color:'#58D68D' },
   statusRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-end' },
@@ -601,9 +613,10 @@ const styles = StyleSheet.create({
   noteDark:{ color:'#BDC3C7' },
   playType:{ fontSize:11, fontWeight:'600', color:'#8E44AD', backgroundColor:'#F4ECF7', paddingHorizontal:5, paddingVertical:1, borderRadius:4 },
   playTypeDark:{ color:'#BB8FCE', backgroundColor:'#5D6D7E' },
-  numbers:{ fontSize:14, fontWeight:'700', color:'#2D5016', flex:1 },
+  numbers:{ fontSize:14, fontWeight:'700', color:'#2D5016', flex:1, lineHeight:16 },
   numbersDark:{ color:'#ECF0F1' },
   dupNumber:{ backgroundColor:'#FFE878', borderRadius:4, paddingHorizontal:3, paddingVertical:1, fontWeight:'700', color:'#5C4B00' },
+  winningNumber:{ color:'#1E8449', fontWeight:'800' },
   amount:{ fontSize:11, fontWeight:'600', color:'#27AE60' },
   amountDark:{ color:'#58D68D' },
   prize:{ fontSize:11, fontWeight:'600', color:'#7F8C8D' },
