@@ -46,6 +46,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
   const [verifyFeedback, setVerifyFeedback] = useState(null);
   const [insertFeedback, setInsertFeedback] = useState(null);
   const [limitViolations, setLimitViolations] = useState([]);
+  const [duplicateConflicts, setDuplicateConflicts] = useState([]);
   const [total, setTotal] = useState(0);
 
   // Edición inline de montos F/C
@@ -330,6 +331,52 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
     return out;
   };
 
+  // Duplicados: normalización y búsqueda
+  const canonicalParle = (num4) => {
+    const s = String(num4||'').replace(/[^0-9]/g,'').padStart(4,'0');
+    const a = s.slice(0,2); const b = s.slice(2,4);
+    return a <= b ? a + b : b + a;
+  };
+  const normalizeNumbers = (playType, arr) => {
+    const clean = (arr||[]).map(n=> String(n));
+    if(playType==='parle') return clean.map(canonicalParle).sort();
+    return clean.sort();
+  };
+  const buildCandidateKeys = (instr, schedules) => {
+    const keys = new Set();
+    const dupWithin=[];
+    const noteKey = String((note||'').trim().toLowerCase());
+    for(const schedule of schedules){
+      for(const i of instr){
+        const nums = normalizeNumbers(i.playType, i.numbers).join(',');
+        const key = `${schedule}|${i.playType}|${nums}|${noteKey}`;
+        if(keys.has(key)) dupWithin.push({ schedule, jugada:i.playType, numeros: nums });
+        keys.add(key);
+      }
+    }
+    return { keys, dupWithin };
+  };
+  const findDuplicateConflicts = async (instr, schedules, userId) => {
+    if(!schedules.length || !userId) return [];
+    try {
+      const { data: rows } = await supabase
+        .from('jugada')
+        .select('id,id_horario,jugada,numeros,id_listero,nota')
+        .in('id_horario', schedules)
+        .eq('id_listero', userId);
+      const existing = new Set();
+      (rows||[]).forEach(r=>{
+        const nums = normalizeNumbers(r.jugada, String(r.numeros||'').split(',')).join(',');
+        const noteKey = String((r.nota||'').trim().toLowerCase());
+        existing.add(`${r.id_horario}|${r.jugada}|${nums}|${noteKey}`);
+      });
+      const { keys, dupWithin } = buildCandidateKeys(instr, schedules);
+      const conflicts = [];
+      keys.forEach(k=>{ if(existing.has(k)) { const [schedule,jugada,numeros] = k.split('|'); conflicts.push({ schedule, jugada, numeros }); } });
+      return dupWithin.concat(conflicts);
+    } catch(e){ return [{ error: e?.message||'dup-check' }]; }
+  };
+
   // total
   useEffect(()=>{
     const perLot = buildInstructions().reduce((s,i)=> s + (i.totalPerLottery||0), 0);
@@ -342,7 +389,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
   };
 
   const handleVerify = async () => {
-    setVerifyFeedback(null); setInsertFeedback(null); setLimitViolations([]);
+    setVerifyFeedback(null); setInsertFeedback(null); setLimitViolations([]); setDuplicateConflicts([]);
     if(!validateForm()) { setVerifyFeedback({ type:'error', message:t('errors.requiredOrFix') }); return; }
     try {
       const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
@@ -356,6 +403,13 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
         setVerifyFeedback({ type:'error', message:`${t('verify.limitViolations')}: ${violations.length}${violations.length? ' - '+first+(violations.length>3?'...':''):''}` });
         return;
       }
+      const dups = await findDuplicateConflicts(instr, horarios, user?.id);
+      if(dups && dups.length){
+        setDuplicateConflicts(dups);
+        const first = dups.slice(0,3).map(d=> `${d.numeros}(${d.jugada})`).join(', ');
+        setVerifyFeedback({ type:'error', message:`Duplicadas: ${dups.length}${dups.length? ' - '+first+(dups.length>3?'...':''):''}` });
+        return;
+      }
       const summaryCounts = instr.reduce((acc,i)=>{ acc[i.playType]=(acc[i.playType]||0)+i.numbers.length; return acc; },{});
       const parts = Object.keys(summaryCounts).map(pt=> `${pt}:${summaryCounts[pt]}`).join(' | ');
       setVerifyFeedback({ type:'success', message:`${t('verify.summaryPrefix')}: ${parts}. Total: ${total}` });
@@ -363,7 +417,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
   };
 
   const handleInsert = async () => {
-    setInsertFeedback(null); setVerifyFeedback(null); setLimitViolations([]);
+    setInsertFeedback(null); setVerifyFeedback(null); setLimitViolations([]); setDuplicateConflicts([]);
     if(!validateForm()) { setInsertFeedback({ success:0, fail:1, blocked:false, serverError:t('errors.requiredOrFix') }); return; }
     const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
     try {
@@ -372,12 +426,15 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
       const instr = buildInstructions();
       const violations = checkInstructionsLimits(instr, horarios, ctx);
       if(violations.length){ setLimitViolations(violations); setInsertFeedback({ success:0, fail:1, blocked:true }); return; }
+      const dups = await findDuplicateConflicts(instr, horarios, user?.id);
+      if(dups && dups.length){ setDuplicateConflicts(dups); setInsertFeedback({ success:0, fail:1, blocked:true, serverError:'Duplicadas' }); return; }
       // Build and submit
       const playsToSave = [];
       for(const lottery of selectedLotteries){
         const schedule = selectedSchedules[lottery];
         for(const i of instr){
-          playsToSave.push({ lottery, schedule, playType:i.playType, numbers:i.numbers.join(','), note: note.trim(), amount: i.amountEach, total: i.totalPerLottery });
+          const nums = normalizeNumbers(i.playType, i.numbers).join(',');
+          playsToSave.push({ lottery, schedule, playType:i.playType, numbers: nums, note: note.trim(), amount: i.amountEach, total: i.totalPerLottery });
         }
       }
       let success=0, fail=0; let errMsgs=[]; let blockedViolations=[];
@@ -388,7 +445,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
       if(blockedViolations.length){ setLimitViolations(blockedViolations); }
       setInsertFeedback({ success, fail, blocked:false, serverError: errMsgs.join(' | ') });
       if(success){
-        setFijoEntries([]); setCorridoEntries([]); setParleEntries([]); setCentenaEntries([]);
+        setFcEntries([]); setParleEntries([]); setCentenaEntries([]);
         setFcNumber(''); setFijoAmount(''); setCorridoAmount(''); setParleNumber(''); setParleAmount(''); setCentenaNumber(''); setCentenaAmount(''); setNote(''); setTotal(0);
       }
     } catch(e){ setInsertFeedback({ success:0, fail:1, blocked:false, serverError: e?.message || 'Error' }); }
@@ -469,9 +526,16 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
                   inputStyle={{ minHeight:44, paddingVertical:10 }}
                 />
               </View>
-              <InputField label="Número (2d)" value={fcNumber} onChangeText={setFcNumber} placeholder="00" />
+              <InputField
+                label="Número"
+                value={fcNumber}
+                onChangeText={(txt)=> setFcNumber(txt.replace(/[^0-9]/g,'').slice(0,2))}
+                placeholder="00"
+                keyboardType="number-pad"
+                maxLength={2}
+              />
               <View style={styles.inlineActions}>
-                <ActionButton title={t('actions.add')||'Agregar'} onPress={addFc} variant="primary" size="small" />
+                <ActionButton title={'Adicionar'} onPress={addFc} variant="primary" size="small" />
               </View>
               {fcEntries.length>0 && (
                 <View style={styles.listBox}>
@@ -504,9 +568,16 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
           {renderColumn('Parles', (
             <>
               <MoneyInputField label="Monto" value={String(parleAmount)} onChangeText={setParleAmount} placeholder="$0" />
-              <InputField label="Número (4d)" value={parleNumber} onChangeText={setParleNumber} placeholder="0000" />
+              <InputField
+                label="Número"
+                value={parleNumber}
+                onChangeText={(txt)=> setParleNumber(txt.replace(/[^0-9]/g,'').slice(0,4))}
+                placeholder="0000"
+                keyboardType="number-pad"
+                maxLength={4}
+              />
               <View style={styles.inlineActions}>
-                <ActionButton title={t('actions.add')||'Agregar'} onPress={addParle} variant="primary" size="small" />
+                <ActionButton title={'Adicionar'} onPress={addParle} variant="primary" size="small" />
               </View>
               {parleEntries.length>0 && (
                 <View style={styles.listBox}>
@@ -528,9 +599,16 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
           {renderColumn('Centenas', (
             <>
               <MoneyInputField label="Monto" value={String(centenaAmount)} onChangeText={setCentenaAmount} placeholder="$0" />
-              <InputField label="Número (3d)" value={centenaNumber} onChangeText={setCentenaNumber} placeholder="000" />
+              <InputField
+                label="Número"
+                value={centenaNumber}
+                onChangeText={(txt)=> setCentenaNumber(txt.replace(/[^0-9]/g,'').slice(0,3))}
+                placeholder="000"
+                keyboardType="number-pad"
+                maxLength={3}
+              />
               <View style={styles.inlineActions}>
-                <ActionButton title={t('actions.add')||'Agregar'} onPress={addCentena} variant="primary" size="small" />
+                <ActionButton title={'Adicionar'} onPress={addCentena} variant="primary" size="small" />
               </View>
               {centenaEntries.length>0 && (
                 <View style={styles.listBox}>
@@ -610,15 +688,14 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
       {editNumModalVisible && (
         <AnimatedModalWrapper visible={editNumModalVisible} style={styles.editOverlay}>
           <View style={[styles.editCard, isDarkMode && styles.editCardDark]}>
-            <Text style={[styles.editTitle, isDarkMode && styles.colTitleDark]}>
-              Editar Número (2d)
-            </Text>
+            <Text style={[styles.editTitle, isDarkMode && styles.colTitleDark]}>Editar Número</Text>
             <InputField
-              label="Número (2d)"
+              label="Número"
               value={String(editNumber)}
-              onChangeText={setEditNumber}
+              onChangeText={(txt)=> setEditNumber(txt.replace(/[^0-9]/g,'').slice(0,2))}
               placeholder="00"
               keyboardType="number-pad"
+              maxLength={2}
               inputStyle={{ minHeight:44, paddingVertical:10 }}
             />
             <View style={{ flexDirection:'row', gap:8 }}>
@@ -647,8 +724,8 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
       {editParleNumVisible && (
         <AnimatedModalWrapper visible={editParleNumVisible} style={styles.editOverlay}>
           <View style={[styles.editCard, isDarkMode && styles.editCardDark]}>
-            <Text style={[styles.editTitle, isDarkMode && styles.colTitleDark]}>Editar Parle - Número (4d)</Text>
-            <InputField label="Número (4d)" value={String(editParleNumber)} onChangeText={setEditParleNumber} placeholder="0000" keyboardType="number-pad" inputStyle={{ minHeight:44, paddingVertical:10 }} />
+            <Text style={[styles.editTitle, isDarkMode && styles.colTitleDark]}>Editar Parle - Número</Text>
+            <InputField label="Número" value={String(editParleNumber)} onChangeText={(txt)=> setEditParleNumber(txt.replace(/[^0-9]/g,'').slice(0,4))} placeholder="0000" keyboardType="number-pad" maxLength={4} inputStyle={{ minHeight:44, paddingVertical:10 }} />
             <View style={{ flexDirection:'row', gap:8 }}>
               <View style={{ flex:1 }}><ActionButton title="Cancelar" onPress={()=>{ setEditParleNumVisible(false); setEditParleIdx(null); setEditParleNumber(''); }} variant="danger" size="small" /></View>
               <View style={{ flex:1 }}><ActionButton title="Guardar" onPress={saveEditParleNum} variant="success" size="small" /></View>
@@ -675,8 +752,8 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
       {editCentenaNumVisible && (
         <AnimatedModalWrapper visible={editCentenaNumVisible} style={styles.editOverlay}>
           <View style={[styles.editCard, isDarkMode && styles.editCardDark]}>
-            <Text style={[styles.editTitle, isDarkMode && styles.colTitleDark]}>Editar Centena - Número (3d)</Text>
-            <InputField label="Número (3d)" value={String(editCentenaNumber)} onChangeText={setEditCentenaNumber} placeholder="000" keyboardType="number-pad" inputStyle={{ minHeight:44, paddingVertical:10 }} />
+            <Text style={[styles.editTitle, isDarkMode && styles.colTitleDark]}>Editar Centena - Número</Text>
+            <InputField label="Número" value={String(editCentenaNumber)} onChangeText={(txt)=> setEditCentenaNumber(txt.replace(/[^0-9]/g,'').slice(0,3))} placeholder="000" keyboardType="number-pad" maxLength={3} inputStyle={{ minHeight:44, paddingVertical:10 }} />
             <View style={{ flexDirection:'row', gap:8 }}>
               <View style={{ flex:1 }}><ActionButton title="Cancelar" onPress={()=>{ setEditCentenaNumVisible(false); setEditCentenaIdx(null); setEditCentenaNumber(''); }} variant="danger" size="small" /></View>
               <View style={{ flex:1 }}><ActionButton title="Guardar" onPress={saveEditCentenaNum} variant="success" size="small" /></View>
@@ -698,6 +775,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
           type={insertFeedback.blocked ? 'blocked' : (insertFeedback.fail ? (insertFeedback.success ? 'warning' : 'error') : 'success')}
           message={insertFeedback.blocked ? `${t('edit.blocked')}: ${t('edit.blocked.detail')}` : `${t('banner.inserted')}: ${insertFeedback.success}  ${t('banner.fail')}: ${insertFeedback.fail}`}
           details={(limitViolations.length ? limitViolations.slice(0,10).map(v=> `${v.numero} (${v.jugada}) usado ${v.usado||0}${v.intento?` +${v.intento}`:''}/${v.permitido}`) : [])
+            .concat(duplicateConflicts.length ? duplicateConflicts.slice(0,10).map(d=> `Dup: ${d.numeros} (${d.jugada})`) : [])
             .concat(insertFeedback.serverError ? [`Servidor: ${insertFeedback.serverError}`] : [])}
           onClose={()=> setInsertFeedback(null)}
           style={{ top: verifyFeedback ? 120 : 70 }}
@@ -737,10 +815,10 @@ const styles = StyleSheet.create({
   inputRow:{ flexDirection:'row', gap:8 },
   inlineActions:{ marginTop:6, alignItems:'flex-start' },
   listBox:{ marginTop:8, gap:4 },
-  listItem:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#F8F9FA', borderWidth:1, borderColor:'#E8F1E4', borderRadius:6, paddingHorizontal:8, paddingVertical:6, gap:8 },
+  listItem:{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', backgroundColor:'#F8F9FA', borderWidth:1, borderColor:'#E8F1E4', borderRadius:6, paddingHorizontal:8, paddingVertical:6, gap:8 },
   listNum:{ fontSize:13, fontWeight:'800', color:'#2D5016', minWidth:38 },
-  fcTagRow:{ flexDirection:'row', gap:6, alignItems:'center', flexShrink:1 },
-  fcTag:{ fontSize:12, fontWeight:'700', color:'#2D5016', paddingHorizontal:6, paddingVertical:2, borderRadius:4, borderWidth:1, borderColor:'#E1E8E3', backgroundColor:'#F8F9FA' },
+  fcTagRow:{ flex:1, flexDirection:'row', gap:6, alignItems:'center', flexWrap:'wrap' },
+  fcTag:{ fontSize:11, fontWeight:'700', color:'#2D5016', paddingHorizontal:6, paddingVertical:2, borderRadius:4, borderWidth:1, borderColor:'#E1E8E3', backgroundColor:'#F8F9FA', flexShrink:1 },
   fcTagActive:{ backgroundColor:'#EEF7EA', borderColor:'#CDE3C8' },
   fTag:{},
   cTag:{},
