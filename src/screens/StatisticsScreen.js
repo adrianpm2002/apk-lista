@@ -349,12 +349,27 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
         <h2>Detalles de Jugadas</h2>
         ${sections}
       </body></html>`;
-      if (typeof window !== 'undefined'){
-        const w = window.open('', '_blank');
-        if (w){ w.document.open(); w.document.write(html); w.document.close(); w.focus(); w.print(); }
-        return true;
-      }
-      return false;
+      
+      // Función simple de export para evitar problemas de bundling
+      const exportPdf = async (html) => {
+        try {
+          const w = window.open('', '_blank');
+          if (w) {
+            w.document.open();
+            w.document.write(html);
+            w.document.close();
+            w.focus();
+            w.print();
+            return true;
+          }
+          return false;
+        } catch (e) {
+          return false;
+        }
+      };
+      
+      const ok = await exportPdf(html);
+      return !!ok;
     }catch(e){ return false; }
   };
 

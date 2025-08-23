@@ -4,11 +4,11 @@
     "slug": "apk-lista",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+  "icon": "./src/assets/icon.png",
     "userInterfaceStyle": "light",
     "platforms": ["ios", "android", "web"],
     "splash": {
-      "image": "./assets/splash.png",
+  "image": "./src/assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#F8F9FA"
     },
@@ -16,19 +16,25 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "jsEngine": "jsc"
     },
     "android": {
       "compileSdkVersion": 35,
       "targetSdkVersion": 35,
       "minSdkVersion": 21,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+  "foregroundImage": "./src/assets/adaptive-icon.png",
         "backgroundColor": "#F8F9FA"
-      }
+      },
+      "jsEngine": "jsc"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./src/assets/favicon.png"
+    },
+    "jsEngine": "jsc",
+    "experiments": {
+      "tsconfigPaths": true
     }
   }
 }
