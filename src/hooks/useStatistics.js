@@ -650,11 +650,12 @@ const useStatistics = () => {
     try {
       const { data: lotteries, error } = await supabase
         .from('loteria')
-        .select('id, name')
-        .order('name');
+        .select('id, nombre')
+        .order('nombre', { ascending: true });
 
       if (error) throw error;
-      return lotteries || [];
+      // Normalizar a { id, name } para compatibilidad con el UI
+      return (lotteries || []).map(l => ({ id: l.id, name: l.nombre }));
     } catch (error) {
       console.error('Error obteniendo lista de loterías:', error);
       return [
@@ -669,11 +670,12 @@ const useStatistics = () => {
     try {
       const { data: schedules, error } = await supabase
         .from('horario')
-        .select('id, name')
-        .order('name');
+        .select('id, nombre')
+        .order('nombre', { ascending: true });
 
       if (error) throw error;
-      return schedules || [];
+      // Normalizar a { id, name } para compatibilidad con el UI
+      return (schedules || []).map(s => ({ id: s.id, name: s.nombre }));
     } catch (error) {
       console.error('Error obteniendo lista de horarios:', error);
       return [

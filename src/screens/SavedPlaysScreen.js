@@ -239,6 +239,8 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   // Pendiente = suma de las jugadas (filtradas) cuyo resultado no está disponible
   const totalRecogido = savedPlays.reduce((s,p)=> s + (p.total || 0), 0);
   const pendientePago = filteredPlays.filter(p=> p.result==='no disponible').reduce((s,p)=> s + (p.total || 0),0);
+  // Pagado = suma de premios pagados del día (todas las jugadas de hoy con resultado; las perdidas aportan 0)
+  const totalPagadoDia = savedPlays.reduce((s,p)=> s + (p.payAmount || 0), 0);
 
   const formatTime = ts => ts.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
 
@@ -514,6 +516,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         )}
         <View style={styles.totalsFlexGroup}>
           <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Recogido: ${totalRecogido}</Text>
+          <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Pagado: ${totalPagadoDia}</Text>
           <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Pendiente: ${pendientePago}</Text>
         </View>
         <Pressable style={[styles.prizeFilterButton, showOnlyWinners && styles.prizeFilterButtonActive]} onPress={()=> setShowOnlyWinners(p=>!p)}>
@@ -584,7 +587,7 @@ const styles = StyleSheet.create({
   prizeFilterText:{ color:'#FFFFFF', fontSize:10, fontWeight:'600' },
   inlineTotalsOutside:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#F1F4F0', borderWidth:1, borderColor:'#E1E8E3', borderRadius:8, paddingHorizontal:10, paddingVertical:6, marginBottom:6 },
   inlineTotalsOutsideDark:{ backgroundColor:'#2C3E50', borderColor:'#5D6D7E' },
-  totalsFlexGroup:{ flex:1, flexDirection:'row', justifyContent:'center', gap:14 },
+  totalsFlexGroup:{ flex:1, flexDirection:'row', flexWrap:'wrap', justifyContent:'center', gap:14 },
   list:{ flex:1 },
   playCard:{ backgroundColor:'#F8F9FA', borderRadius:8, padding:6, marginBottom:6, borderWidth:1, borderColor:'#E8F1E4' },
   playCardDark:{ backgroundColor:'#34495E', borderColor:'#5D6D7E' },
