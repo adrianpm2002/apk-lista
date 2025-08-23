@@ -66,7 +66,6 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
     error,
     loadAllStats,
     applyFilters,
-    exportToCSV,
     clearData,
   } = useStatistics();
 
@@ -269,14 +268,7 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
   const handleExport = async (format) => {
     try {
       setShowExportModal(false);
-      let success = false;
-      if (format === 'pdf') {
-        success = await exportDetailsToPDF();
-      } else if (format === 'excel' || format === 'xlsx') {
-        success = await exportDetailsToCSV('xlsx');
-      } else {
-        success = await exportDetailsToCSV('csv');
-      }
+      const success = await exportDetailsToPDF();
       if (success) {
         Alert.alert('Éxito', 'Datos exportados correctamente');
       }
@@ -323,47 +315,6 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
     const groups = Array.from(map.values()).sort((a,b)=> (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
     groups.forEach(g=> g.plays.sort((a,b)=> b.ts - a.ts));
     return groups;
-  };
-
-  const buildCSV = () => {
-    const groups = groupDetailsForExport();
-    const sep = ',';
-    const esc = (v)=> '"' + String(v ?? '').replace(/"/g,'""') + '"';
-    const rows = [];
-    rows.push(['Fecha','Lotería','Horario','Resultado','Hora','Nota','Jugada','Números','Total','Pagado'].map(esc).join(sep));
-    groups.forEach(g=>{
-      g.plays.forEach(p=>{
-        rows.push([
-          g.dayLabel,
-          g.lottery,
-          g.schedule,
-          g.resultado || 'no disponible',
-          p.time,
-          p.nota || '',
-          p.jugada || '',
-          p.numeros || '',
-          Math.round(p.total),
-          p.pagado > 0 ? Math.round(p.pagado) : 'Sin premio',
-        ].map(esc).join(sep));
-      });
-    });
-    return rows.join('\n');
-  };
-
-  const exportDetailsToCSV = async (kind='csv') => {
-    try{
-      const content = buildCSV();
-      const ext = kind==='xlsx' ? 'xlsx' : 'csv';
-      const name = `detalles_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.${ext}`;
-      if (typeof document !== 'undefined'){
-        const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url; link.download = name; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
-        return true;
-      }
-      return false;
-    }catch(e){ return false; }
   };
 
   const exportDetailsToPDF = async () => {
@@ -846,24 +797,6 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
           <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
             📤 Exportar Datos
           </Text>
-
-          <TouchableOpacity
-            style={styles.exportOption}
-            onPress={() => handleExport('csv')}
-          >
-            <Text style={[styles.exportOptionText, isDarkMode && styles.exportOptionTextDark]}>
-              📄 Exportar a CSV
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.exportOption}
-            onPress={() => handleExport('excel')}
-          >
-            <Text style={[styles.exportOptionText, isDarkMode && styles.exportOptionTextDark]}>
-              📊 Exportar a Excel
-            </Text>
-          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.exportOption}
