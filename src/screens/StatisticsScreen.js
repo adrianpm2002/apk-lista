@@ -269,13 +269,142 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
   const handleExport = async (format) => {
     try {
       setShowExportModal(false);
-  const success = await exportToCSV(format);
+      let success = false;
+      if (format === 'pdf') {
+        success = await exportDetailsToPDF();
+      } else if (format === 'excel' || format === 'xlsx') {
+        success = await exportDetailsToCSV('xlsx');
+      } else {
+        success = await exportDetailsToCSV('csv');
+      }
       if (success) {
         Alert.alert('Éxito', 'Datos exportados correctamente');
       }
     } catch (error) {
       Alert.alert('Error', 'No se pudieron exportar los datos');
     }
+  };
+
+  // ===== Export helpers (Web) =====
+  const groupDetailsForExport = () => {
+    // Reutilizar misma agrupación base que en pantalla
+    const dayKeyOf = (ts)=>{ const d=new Date(ts); d.setHours(0,0,0,0); return d.getTime(); };
+    const dayLabelOf = (ts)=>{ const d=new Date(ts); return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }); };
+    const timeStr = (ts)=> new Date(ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    const inferCollected = (row)=>{
+      const mt = row.monto_total;
+      if(mt!=null && mt!==undefined) return Number(mt)||0;
+      const count = String(row.numeros||'').split(',').map(s=>s.trim()).filter(Boolean).length;
+      return (Number(row.monto_unitario)||0)*count;
+    };
+    const map = new Map();
+    for(const r of detailRows){
+      const dayKey = dayKeyOf(r.created_at);
+      const dayLabel = dayLabelOf(r.created_at);
+      const lot = r.lottery_name || 'Lotería';
+      const sch = r.schedule_name || 'Horario';
+      const key = `${dayKey}|${lot}|${sch}`;
+      if(!map.has(key)) map.set(key, { key, dayKey, dayLabel, lottery: lot, schedule: sch, plays: [], totalRecogido:0, totalPagado:0, resultado: r.resultado || null });
+      const g = map.get(key);
+      const collected = inferCollected(r);
+      g.totalRecogido += collected;
+      g.totalPagado += Number(r.pago_calculado||0);
+      if (!g.resultado && r.resultado) g.resultado = r.resultado;
+      g.plays.push({
+        ts: new Date(r.created_at).getTime(),
+        time: timeStr(r.created_at),
+        nota: r.nota,
+        jugada: r.jugada,
+        numeros: r.numeros,
+        total: collected,
+        pagado: Number(r.pago_calculado||0),
+      });
+    }
+    const groups = Array.from(map.values()).sort((a,b)=> (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
+    groups.forEach(g=> g.plays.sort((a,b)=> b.ts - a.ts));
+    return groups;
+  };
+
+  const buildCSV = () => {
+    const groups = groupDetailsForExport();
+    const sep = ',';
+    const esc = (v)=> '"' + String(v ?? '').replace(/"/g,'""') + '"';
+    const rows = [];
+    rows.push(['Fecha','Lotería','Horario','Resultado','Hora','Nota','Jugada','Números','Total','Pagado'].map(esc).join(sep));
+    groups.forEach(g=>{
+      g.plays.forEach(p=>{
+        rows.push([
+          g.dayLabel,
+          g.lottery,
+          g.schedule,
+          g.resultado || 'no disponible',
+          p.time,
+          p.nota || '',
+          p.jugada || '',
+          p.numeros || '',
+          Math.round(p.total),
+          p.pagado > 0 ? Math.round(p.pagado) : 'Sin premio',
+        ].map(esc).join(sep));
+      });
+    });
+    return rows.join('\n');
+  };
+
+  const exportDetailsToCSV = async (kind='csv') => {
+    try{
+      const content = buildCSV();
+      const ext = kind==='xlsx' ? 'xlsx' : 'csv';
+      const name = `detalles_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.${ext}`;
+      if (typeof document !== 'undefined'){
+        const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url; link.download = name; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
+        return true;
+      }
+      return false;
+    }catch(e){ return false; }
+  };
+
+  const exportDetailsToPDF = async () => {
+    try{
+      const groups = groupDetailsForExport();
+      const style = `
+        <style>
+          body{ font-family: Arial, sans-serif; }
+          h2{ margin: 6px 0; font-size:14px; }
+          table{ width:100%; border-collapse: collapse; margin-bottom: 12px; }
+          th, td{ border:1px solid #ccc; padding:6px; font-size: 11px; text-align:left; }
+          thead{ background:#f3f3f3; }
+          .meta{ color:#333; margin-bottom:4px; }
+        </style>`;
+      const sections = groups.map(g=>{
+        const header = `<div class="meta"><strong>${g.dayLabel}</strong> · ${g.lottery} · ${g.schedule} · Resultado: ${g.resultado || 'no disponible'}</div>`;
+        const rows = g.plays.map(p=> `<tr>
+            <td>${p.time}</td>
+            <td>${(p.nota||'')}</td>
+            <td>${(p.jugada||'')}</td>
+            <td>${(p.numeros||'').replace(/</g,'&lt;')}</td>
+            <td>${Math.round(p.total).toLocaleString('es-DO')}</td>
+            <td>${p.pagado>0? Math.round(p.pagado).toLocaleString('es-DO') : 'Sin premio'}</td>
+          </tr>`).join('');
+        return `${header}
+          <table>
+            <thead><tr><th>Hora</th><th>Nota</th><th>Jugada</th><th>Números</th><th>Total</th><th>Pagado</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+      }).join('');
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>${style}</head><body>
+        <h2>Detalles de Jugadas</h2>
+        ${sections}
+      </body></html>`;
+      if (typeof window !== 'undefined'){
+        const w = window.open('', '_blank');
+        if (w){ w.document.open(); w.document.write(html); w.document.close(); w.focus(); w.print(); }
+        return true;
+      }
+      return false;
+    }catch(e){ return false; }
   };
 
   // Manejar selección de fecha
