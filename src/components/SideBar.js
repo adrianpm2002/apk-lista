@@ -57,6 +57,7 @@ const roleOptionsMap = {
   collector: [
   // Ajustado: solo las pantallas permitidas para collector
   { id: 'statistics', icon: '📈', title: 'Estadísticas' },
+  { id: 'collectorStatistics', icon: '📊', title: 'Estadísticas Collector' },
   { id: 'insertResults', icon: '🎯', title: 'Insertar Resultados' },
   // Icono corregido: el anterior tenía un carácter inválido que mostraba signo de interrogación
   { id: 'createUser', icon: '🧑‍💼', title: 'Gestionar Usuarios' },
@@ -118,6 +119,9 @@ const configOptions = roleOptionsMap[role] || [];
       break;
     case 'statistics':
       navigation.navigate('Statistics');
+      break;
+    case 'collectorStatistics':
+      navigation.navigate('CollectorStatistics');
       break;
     case 'play':
       navigation.navigate('MainApp');

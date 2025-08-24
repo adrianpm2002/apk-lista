@@ -9,6 +9,7 @@ import ManagePricesScreen from '../screens/ManagePricesScreen';
 import LimitNumero from '../screens/limitNumero';
 import StaticsBanck from '../screens/StatisticsScreen';
 import SavedPlaysScreen from '../screens/SavedPlaysScreen';
+import CollectorStatisticsScreen from '../screens/CollectorStatisticsScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -89,6 +90,14 @@ const AppNavigator = () => (
     <Stack.Screen 
       name="SavedPlays" 
       component={SavedPlaysScreen} 
+      options={{
+        headerShown: false,
+      }}
+    />
+
+    <Stack.Screen 
+      name="CollectorStatistics" 
+      component={CollectorStatisticsScreen} 
       options={{
         headerShown: false,
       }}
