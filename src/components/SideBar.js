@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import ChangePasswordModal from './ChangePasswordModal';
+import AIAssistant from './AIAssistant';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -42,6 +43,8 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
   }, [incomingVisibleModes]);
   // Modal de cambio de contraseña independiente
   const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
+  // Modal del Asistente IA
+  const [aiAssistantVisible, setAiAssistantVisible] = useState(false);
 
   // Opciones del sidebar por rol
 const roleOptionsMap = {
@@ -52,6 +55,7 @@ const roleOptionsMap = {
     { id: 'lotteries', icon: '🎰', title: 'Gestionar Loterías' },
     { id: 'prices', icon: '💰', title: 'Configurar Precios' },
     { id: 'limitedNumbers', icon: '📊', title: 'Limitar Números' },
+    { id: 'aiAssistant', icon: '🤖', title: 'Asistente IA Claude' },
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   collector: [
@@ -61,11 +65,13 @@ const roleOptionsMap = {
   { id: 'insertResults', icon: '🎯', title: 'Insertar Resultados' },
   // Icono corregido: el anterior tenía un carácter inválido que mostraba signo de interrogación
   { id: 'createUser', icon: '🧑‍💼', title: 'Gestionar Usuarios' },
+  { id: 'aiAssistant', icon: '🤖', title: 'Asistente IA Claude' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   listero: [
   { id: 'play', icon: '🎮', title: 'Inicio' },
   { id: 'statistics', icon: '📈', title: 'Estadísticas' },
+  { id: 'aiAssistant', icon: '🤖', title: 'Asistente IA Claude' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ]
 };
@@ -125,6 +131,9 @@ const configOptions = roleOptionsMap[role] || [];
       break;
     case 'play':
       navigation.navigate('MainApp');
+      break;
+    case 'aiAssistant':
+      setAiAssistantVisible(true);
       break;
     case 'settings':
       setModalContent(option);
@@ -593,6 +602,13 @@ const configOptions = roleOptionsMap[role] || [];
       <ChangePasswordModal
         visible={changePasswordModalVisible}
         onClose={() => setChangePasswordModalVisible(false)}
+        isDarkMode={isDarkMode}
+      />
+
+      {/* Modal del Asistente IA Claude */}
+      <AIAssistant
+        visible={aiAssistantVisible}
+        onClose={() => setAiAssistantVisible(false)}
         isDarkMode={isDarkMode}
       />
     </>
