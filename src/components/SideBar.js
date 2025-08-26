@@ -33,6 +33,7 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
     text: true,
     text2: true,
     vault: true,
+    claudeSonet: true,
   });
   // Sincronizar con estado externo si llega
   useEffect(() => {
@@ -409,6 +410,41 @@ const configOptions = roleOptionsMap[role] || [];
                     visibleModes.vault && styles.modeCheckboxSelected
                   ]}>
                     {visibleModes.vault && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                </Pressable>
+
+                {/* Modo Claude Sonet 4 */}
+                <Pressable
+                  style={[
+                    styles.modeOption,
+                    isDarkMode && styles.modeOptionDark,
+                    visibleModes.claudeSonet && styles.modeOptionSelected,
+                    visibleModes.claudeSonet && isDarkMode && styles.modeOptionSelectedDark
+                  ]}
+                  onPress={() => handleModeToggle('claudeSonet')}
+                >
+                  <Text style={styles.modeIcon}>🤖</Text>
+                  <View style={styles.modeTextContainer}>
+                    <Text style={[
+                      styles.modeTitle,
+                      isDarkMode && styles.modeTitleDark,
+                      visibleModes.claudeSonet && styles.modeTitleSelected
+                    ]}>
+                      Claude Sonet 4
+                    </Text>
+                    <Text style={[
+                      styles.modeDescription,
+                      isDarkMode && styles.modeDescriptionDark
+                    ]}>
+                      IA avanzada para análisis de jugadas
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.modeCheckbox,
+                    isDarkMode && styles.modeCheckboxDark,
+                    visibleModes.claudeSonet && styles.modeCheckboxSelected
+                  ]}>
+                    {visibleModes.claudeSonet && <Text style={styles.checkmark}>✓</Text>}
                   </View>
                 </Pressable>
               </View>

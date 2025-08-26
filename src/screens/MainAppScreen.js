@@ -8,6 +8,7 @@ import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
 import TextMode2Screen from './TextMode2Screen';
 import VaultModeScreen from './VaultModeScreen';
+import ClaudeSonetModeScreen from './ClaudeSonetModeScreen';
 
 const MainAppScreen = ({ navigation, route }) => {
   const [currentMode, setCurrentMode] = useState('Visual');
@@ -17,6 +18,7 @@ const MainAppScreen = ({ navigation, route }) => {
   text: true,
   text2: true,
   vault: true,
+  claudeSonet: true,
   });
   
   // Usar configuraciones locales simples
@@ -43,12 +45,14 @@ const MainAppScreen = ({ navigation, route }) => {
       { key: 'text', mode: 'Texto' },
       { key: 'text2', mode: 'Texto2' },
       { key: 'vault', mode: 'Vault' },
+      { key: 'claudeSonet', mode: 'Claude Sonet 4' },
     ];
     const currentKey =
       currentMode === 'Visual' ? 'visual' :
       currentMode === 'Texto' ? 'text' :
       currentMode === 'Texto2' ? 'text2' :
-      currentMode === 'Vault' ? 'vault' : null;
+      currentMode === 'Vault' ? 'vault' :
+      currentMode === 'Claude Sonet 4' ? 'claudeSonet' : null;
 
     if (currentKey && visibleModes[currentKey]) return; // el actual es visible
 
@@ -58,15 +62,17 @@ const MainAppScreen = ({ navigation, route }) => {
     }
   }, [visibleModes, currentMode]);
 
-  // Forzar Visual/Texto/Texto2 según el origen de edición
+  // Forzar Visual/Texto/Texto2/Claude Sonet 4 según el origen de edición
   useEffect(()=>{
     const editPayload = route?.params?.editPayload;
-    const originMode = route?.params?.originMode; // 'Visual' | 'Texto' | 'Texto2'
+    const originMode = route?.params?.originMode; // 'Visual' | 'Texto' | 'Texto2' | 'Claude Sonet 4'
     if(editPayload){
       if(originMode === 'Texto'){
         if(currentMode !== 'Texto') setCurrentMode('Texto');
       } else if(originMode === 'Texto2'){
         if(currentMode !== 'Texto2') setCurrentMode('Texto2');
+      } else if(originMode === 'Claude Sonet 4'){
+        if(currentMode !== 'Claude Sonet 4') setCurrentMode('Claude Sonet 4');
       } else if(currentMode !== 'Visual') {
         setCurrentMode('Visual');
       }
@@ -144,6 +150,17 @@ const MainAppScreen = ({ navigation, route }) => {
         />
       ) : currentMode === 'Vault' && visibleModes.vault ? (
         <VaultModeScreen
+          navigation={navigation}
+          route={route}
+          currentMode={currentMode}
+          onModeChange={handleModeChange}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={handleToggleDarkMode}
+          onModeVisibilityChange={handleModeVisibilityChange}
+          visibleModes={visibleModes}
+        />
+      ) : currentMode === 'Claude Sonet 4' && visibleModes.claudeSonet ? (
+        <ClaudeSonetModeScreen
           navigation={navigation}
           route={route}
           currentMode={currentMode}

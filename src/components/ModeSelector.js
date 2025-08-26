@@ -7,7 +7,7 @@ import {
   Animated,
 } from 'react-native';
 
-const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { visual: true, text: true, text2: true, vault: true } }) => {
+const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { visual: true, text: true, text2: true, vault: true, claudeSonet: true } }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -114,6 +114,25 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
             currentMode === 'Vault' && styles.activeText
           ]}>
             🏦 Vault
+          </Text>
+        </Pressable>
+      )}
+      {visibleModes.claudeSonet && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.modeButton,
+            styles.rightButton,
+            currentMode === 'Claude Sonet 4' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
+            pressed && styles.buttonPressed
+          ]}
+          onPress={() => handleModeSelect('Claude Sonet 4')}
+        >
+          <Text style={[
+            styles.modeText,
+            isDarkMode && styles.modeTextDark,
+            currentMode === 'Claude Sonet 4' && styles.activeText
+          ]}>
+            🤖 Claude Sonet 4
           </Text>
         </Pressable>
       )}
