@@ -1,5 +1,5 @@
-import { calculatePrize } from '../utils/prizeCalculator';
-import { mockCollectorStats, mockCollectorDetails, mockLimitedNumbersData } from '../data/mockCollectorData';
+import { calculatePrize } from '../src/utils/prizeCalculator';
+import { mockCollectorStats, mockCollectorDetails, mockLimitedNumbersData } from '../src/data/mockCollectorData';
 
 describe('Collector Stats Calculation', () => {
   test('calcula premios con números limitados correctamente', () => {

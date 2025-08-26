@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "~4.0.1",
+    "@react-native-async-storage/async-storage": "1.23.1",
     "@react-native-community/datetimepicker": "8.2.0",
     "@react-native-picker/picker": "2.9.0",
     "@react-navigation/native": "^6.1.7",
@@ -35,13 +36,13 @@
     "react-native-safe-area-context": "4.12.0",
     "react-native-screens": "~4.4.0",
     "react-native-svg": "15.8.0",
-    "react-native-web": "~0.19.13",
-    "@react-native-async-storage/async-storage": "1.23.1"
+    "react-native-web": "~0.19.13"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@babel/preset-env": "^7.20.0",
     "@babel/runtime": "^7.20.0",
+    "@react-native/eslint-config": "^0.81.0",
     "babel-jest": "^29.2.1",
     "cross-env": "^10.0.0",
     "eslint": "^8.19.0",

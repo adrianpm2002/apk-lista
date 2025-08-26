@@ -111,3 +111,42 @@ export const DEFAULT_PRICES = {
 
 // Formateo con 2 decimales (string)
 export const formatMoney = (n) => (Number(n || 0).toFixed(2));
+
+// Calculate prize for a specific play (jugada) and winning number
+// jugada: { numeros: "123,456", monto_unitario: 50, loteria: { tipo: "pick3" } }
+// numeroGanador: "123" (the winning number)
+// numeroLimitado: [{ numero: "123", tarifa_aplicada: 0.7 }] (limited numbers with their applied rates)
+export const calculatePrize = (jugada, numeroGanador, numeroLimitado = []) => {
+  if (!jugada || !numeroGanador) {
+    return 0;
+  }
+
+  // Parse the numbers from the play
+  const numerosJugados = (jugada.numeros || '')
+    .split(',')
+    .map(n => n.trim())
+    .filter(Boolean);
+
+  // Check if the winning number is in the played numbers
+  const isWinner = numerosJugados.includes(numeroGanador);
+  if (!isWinner) {
+    return 0;
+  }
+
+  // Find if the winning number has a limited rate
+  const limitedNumber = numeroLimitado.find(ln => ln.numero === numeroGanador);
+  const tarifaAplicada = limitedNumber ? limitedNumber.tarifa_aplicada : 1.0;
+
+  // Get the base prize multiplier based on lottery type
+  let basePrize = 50; // Default for pick3/fijo
+  if (jugada.loteria?.tipo === 'pick4') {
+    basePrize = 500;
+  } else if (jugada.loteria?.tipo === 'pick3') {
+    basePrize = 50;
+  }
+
+  // Calculate final prize: amount * base_prize * applied_rate
+  const premio = jugada.monto_unitario * basePrize * tarifaAplicada;
+  
+  return Math.round(premio * 100) / 100; // Round to 2 decimal places
+};
