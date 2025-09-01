@@ -21,28 +21,32 @@ const AnimatedModalWrapper = ({ visible, children, scaleFrom = 0.85, duration = 
       scale.setValue(scaleFrom);
       opacity.setValue(0);
       Animated.parallel([
-        Animated.timing(scale, { toValue: 1, duration, easing, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration, easing, useNativeDriver: true })
+        Animated.timing(scale, { toValue: 1, duration, easing, useNativeDriver: false }),
+        Animated.timing(opacity, { toValue: 1, duration, easing, useNativeDriver: false })
       ]).start();
     } else {
       Animated.parallel([
-        Animated.timing(scale, { toValue: scaleFrom, duration: Math.min(duration, 140), easing, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0, duration: Math.min(duration, 140), easing, useNativeDriver: true })
+        Animated.timing(scale, { toValue: scaleFrom, duration: Math.min(duration, 140), easing, useNativeDriver: false }),
+        Animated.timing(opacity, { toValue: 0, duration: Math.min(duration, 140), easing, useNativeDriver: false })
       ]).start();
     }
   }, [visible, scaleFrom, duration, easing, scale, opacity]);
 
-  return (
+  return visible ? (
     <Animated.View 
       style={[
-        { transform: [{ scale }], opacity }, 
+        { 
+          transform: [{ scale }], 
+          opacity,
+          pointerEvents: 'auto'
+        }, 
         style
       ]}
-      pointerEvents={visible ? 'auto' : 'none'}
+      accessibilityViewIsModal={visible}
     >
-      {visible && children}
+      {children}
     </Animated.View>
-  );
+  ) : null;
 };
 
 export default AnimatedModalWrapper;

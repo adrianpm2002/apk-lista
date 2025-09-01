@@ -17,12 +17,12 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
       Animated.timing(scaleAnim, {
         toValue: 1.05,
         duration: 100,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.timing(scaleAnim, {
         toValue: 1,
         duration: 100,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
     ]).start();
   }, [currentMode]);

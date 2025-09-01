@@ -11,6 +11,8 @@ import {
   Alert,
   Platform,
   TextInput,
+  BackHandler,
+  StatusBar,
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import ChangePasswordModal from './ChangePasswordModal';
@@ -88,7 +90,7 @@ const configOptions = roleOptionsMap[role] || [];
       if (isVisible) {
         Animated.timing(slideAnim, {
           toValue: 0,
-          duration: 300,
+          duration: Platform.OS === 'android' ? 250 : 300,
           useNativeDriver: Platform.OS !== 'web', // Solo usar native driver en móvil
         }).start((finished) => {
           if (!finished) {
@@ -98,7 +100,7 @@ const configOptions = roleOptionsMap[role] || [];
       } else {
         Animated.timing(slideAnim, {
           toValue: -sidebarWidth,
-          duration: 300,
+          duration: Platform.OS === 'android' ? 200 : 300,
           useNativeDriver: Platform.OS !== 'web', // Solo usar native driver en móvil
         }).start((finished) => {
           if (!finished) {
@@ -121,6 +123,24 @@ const configOptions = roleOptionsMap[role] || [];
       }
     };
   }, []);
+
+  // Manejo del botón back de Android para el modal
+  useEffect(() => {
+    if (Platform.OS === 'android' && modalVisible) {
+      const backAction = () => {
+        if (settingsView === 'modes') {
+          backToSettingsRoot();
+          return true; // Prevenir default back action
+        } else {
+          closeModal();
+          return true; // Prevenir default back action
+        }
+      };
+
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+      return () => backHandler.remove();
+    }
+  }, [modalVisible, settingsView]);
 
   const handleClose = () => {
     onClose && onClose();
@@ -467,14 +487,22 @@ const configOptions = roleOptionsMap[role] || [];
                     toastOpacity.setValue(0);
                     try {
                       Animated.sequence([
-                        Animated.timing(toastOpacity, { toValue: 1, duration: 160, useNativeDriver: Platform.OS !== 'web' }),
-                        Animated.delay(1200),
-                        Animated.timing(toastOpacity, { toValue: 0, duration: 180, useNativeDriver: Platform.OS !== 'web' }),
+                        Animated.timing(toastOpacity, { 
+                          toValue: 1, 
+                          duration: Platform.OS === 'android' ? 120 : 160, 
+                          useNativeDriver: Platform.OS !== 'web' 
+                        }),
+                        Animated.delay(Platform.OS === 'android' ? 1000 : 1200),
+                        Animated.timing(toastOpacity, { 
+                          toValue: 0, 
+                          duration: Platform.OS === 'android' ? 150 : 180, 
+                          useNativeDriver: Platform.OS !== 'web' 
+                        }),
                       ]).start();
                     } catch (error) {
                       console.error('Toast animation error:', error);
                       toastOpacity.setValue(1);
-                      setTimeout(() => toastOpacity.setValue(0), 1200);
+                      setTimeout(() => toastOpacity.setValue(0), Platform.OS === 'android' ? 1000 : 1200);
                     }
                     backToSettingsRoot();
                   }}
@@ -624,33 +652,49 @@ const configOptions = roleOptionsMap[role] || [];
       <Modal
         visible={modalVisible}
         transparent
-        animationType="fade"
+        animationType={Platform.OS === 'android' ? 'slide' : 'fade'}
         onRequestClose={closeModal}
         accessible={true}
-        accessibilityViewIsModal={false}
-        presentationStyle="overFullScreen"
+        accessibilityViewIsModal={true}
+        presentationStyle={Platform.OS === 'android' ? 'overFullScreen' : 'overFullScreen'}
+        statusBarTranslucent={Platform.OS === 'android'}
+        onShow={() => {
+          if (Platform.OS === 'android') {
+            StatusBar.setBackgroundColor('rgba(0, 0, 0, 0.7)', true);
+          }
+        }}
+        onDismiss={() => {
+          if (Platform.OS === 'android') {
+            StatusBar.setBackgroundColor('transparent', true);
+          }
+        }}
       >
         <Pressable 
           style={[styles.modalOverlay, { pointerEvents: 'box-none' }]} 
           onPress={() => { if (settingsView === 'root') closeModal(); }}
-          accessible={true}
+          accessible={false}
           accessibilityRole="button"
           accessibilityLabel="Cerrar modal de configuración"
-          importantForAccessibility="yes"
+          importantForAccessibility={Platform.OS === 'android' ? 'no-hide-descendants' : 'yes'}
         >
           <View 
-            style={styles.modalContainer}
+            style={[
+              styles.modalContainer,
+              Platform.OS === 'android' && styles.modalContainerAndroid
+            ]}
             onStartShouldSetResponder={() => true}
             onTouchEnd={(e) => e.stopPropagation()}
             {...getAccessibilityProps('dialog', 'Configuración', {
-              importantForAccessibility: 'yes'
+              importantForAccessibility: Platform.OS === 'android' ? 'yes' : 'yes'
             })}
           >
             <ScrollView 
               style={styles.modalContent}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={Platform.OS !== 'android'}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ flexGrow: 1 }}
+              nestedScrollEnabled={Platform.OS === 'android'}
+              removeClippedSubviews={Platform.OS === 'android'}
             >
               {renderModalContent()}
             </ScrollView>
@@ -862,9 +906,14 @@ const styles = StyleSheet.create({
   // Modal para opciones
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: Platform.OS === 'android' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
+    ...Platform.select({
+      android: {
+        elevation: 5,
+      }
+    }),
   },
   modalContainer: {
     backgroundColor: '#ffffff',
@@ -875,6 +924,27 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     width: '90%',
     maxHeight: '80%',
+    ...Platform.select({
+      android: {
+        elevation: 8,
+        shadowColor: 'transparent', // Evitar conflictos con elevation
+      },
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      web: {
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
+      }
+    }),
+  },
+  modalContainerAndroid: {
+    // Estilos específicos para Android
+    borderRadius: 8, // Radio menor para mejor rendimiento
+    margin: 16, // Márgenes más pequeños
+    maxHeight: '85%', // Más espacio vertical
   },
   modalContent: {
     flex: 1,
@@ -914,13 +984,19 @@ const styles = StyleSheet.create({
   settingOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: Platform.OS === 'android' ? 14 : 12,
     paddingHorizontal: 16,
     backgroundColor: '#f8f9fa',
     marginVertical: 4,
-    borderRadius: 8,
+    borderRadius: Platform.OS === 'android' ? 6 : 8,
     borderWidth: 1,
     borderColor: '#e9ecef',
+    ...Platform.select({
+      android: {
+        elevation: 1,
+        minHeight: 48, // Altura mínima recomendada para touch en Android
+      }
+    }),
   },
   settingIcon: {
     fontSize: 18,
@@ -1077,18 +1153,29 @@ const styles = StyleSheet.create({
   },
   toastContainer: {
     position: 'absolute',
-    bottom: 30,
+    bottom: Platform.OS === 'android' ? 40 : 30,
     alignSelf: 'center',
     backgroundColor: 'rgba(39, 174, 96, 0.95)',
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    ...createShadowStyle({
-      color: '#000',
-      offsetY: 2,
-      opacity: 0.2,
-      radius: 3,
-      elevation: 3,
+    paddingVertical: Platform.OS === 'android' ? 10 : 8,
+    borderRadius: Platform.OS === 'android' ? 6 : 20,
+    ...Platform.select({
+      android: {
+        elevation: 6,
+        minWidth: 120,
+      },
+      ios: {
+        ...createShadowStyle({
+          color: '#000',
+          offsetY: 2,
+          opacity: 0.2,
+          radius: 3,
+          elevation: 3,
+        }),
+      },
+      web: {
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+      }
     }),
   },
   toastText: {

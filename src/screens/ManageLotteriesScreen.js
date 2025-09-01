@@ -95,6 +95,20 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
     });
   };
 
+  // Función para formatear hora desde string de BD (HH:MM) a formato AM/PM
+  const formatTimeFromString = (timeString) => {
+    if (!timeString) return '';
+    const [hours, minutes] = timeString.split(':');
+    const date = new Date();
+    date.setHours(parseInt(hours), parseInt(minutes));
+    return formatTime12Hour(date);
+  };
+
+  // Función para obtener horarios de una lotería específica
+  const getLotterySchedules = (lotteryId) => {
+    return schedules.filter(schedule => schedule.loteria_id === lotteryId);
+  };
+
   const formatTimeForDB = (date) => {
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
@@ -548,27 +562,56 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
                 tintColor={isDarkMode ? '#3498db' : '#2ecc71'}
               />
             }
-            renderItem={({ item }) => (
-              <View style={[styles.lotteryCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
-                <Text style={[styles.lotteryName, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}>
-                  {item.nombre}
-                </Text>
-                <View style={styles.buttonRow}>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.scheduleButton]}
-                    onPress={() => openScheduleModal(item)}
-                  >
-                    <Text style={styles.actionButtonText}>🕒 Horarios</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.deleteButton]}
-                    onPress={() => handleDeleteLottery(item.id)}
-                  >
-                    <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
-                  </TouchableOpacity>
+            renderItem={({ item }) => {
+              const lotterySchedules = getLotterySchedules(item.id);
+              return (
+                <View style={[styles.lotteryCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
+                  <Text style={[styles.lotteryName, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}>
+                    {item.nombre}
+                  </Text>
+                  
+                  {/* Vista previa de horarios */}
+                  <View style={styles.schedulePreviewContainer}>
+                    <Text style={[styles.schedulePreviewTitle, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+                      Horarios ({lotterySchedules.length}):
+                    </Text>
+                    {lotterySchedules.length > 0 ? (
+                      <View style={styles.schedulePreviewList}>
+                        {lotterySchedules.slice(0, 3).map((schedule, index) => (
+                          <Text key={schedule.id} style={[styles.schedulePreviewItem, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}>
+                            {schedule.nombre}: {formatTimeFromString(schedule.hora_inicio)} - {formatTimeFromString(schedule.hora_fin)}
+                          </Text>
+                        ))}
+                        {lotterySchedules.length > 3 && (
+                          <Text style={[styles.schedulePreviewMore, { color: isDarkMode ? '#95a5a6' : '#7f8c8d' }]}>
+                            y {lotterySchedules.length - 3} más...
+                          </Text>
+                        )}
+                      </View>
+                    ) : (
+                      <Text style={[styles.noSchedulesText, { color: isDarkMode ? '#95a5a6' : '#7f8c8d' }]}>
+                        Sin horarios configurados
+                      </Text>
+                    )}
+                  </View>
+                  
+                  <View style={styles.buttonRow}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.scheduleButton]}
+                      onPress={() => openScheduleModal(item)}
+                    >
+                      <Text style={styles.actionButtonText}>🕒 Gestionar Horarios</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.deleteButton]}
+                      onPress={() => handleDeleteLottery(item.id)}
+                    >
+                      <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            )}
+              );
+            }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
@@ -763,7 +806,7 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
                           {schedule.nombre}
                         </Text>
                         <Text style={[styles.scheduleTime, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
-                          {formatTime(schedule.hora_inicio)} - {formatTime(schedule.hora_fin)}
+                          {formatTimeFromString(schedule.hora_inicio)} - {formatTimeFromString(schedule.hora_fin)}
                         </Text>
                       </View>
                       <View style={styles.scheduleActions}>
@@ -1049,6 +1092,36 @@ const styles = StyleSheet.create({
   },
   scheduleActionText: {
     fontSize: 12,
+  },
+  // Estilos para vista previa de horarios
+  schedulePreviewContainer: {
+    marginBottom: 12,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  schedulePreviewTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  schedulePreviewList: {
+    paddingLeft: 4,
+  },
+  schedulePreviewItem: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 2,
+  },
+  schedulePreviewMore: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  noSchedulesText: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    paddingLeft: 4,
   },
 });
 

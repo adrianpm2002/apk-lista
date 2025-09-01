@@ -156,7 +156,11 @@ const LoginContent = ({ navigation }) => {
     <View style={styles.container}>
       {isPreloading ? (
         // Pantalla de carga completa - sin formulario para evitar aria-hidden conflicts
-        <View style={styles.form}>
+        <View 
+          style={styles.form}
+          accessibilityViewIsModal={true}
+          accessibilityLiveRegion="polite"
+        >
           <View 
             style={styles.loadingContent}
             accessible={true}

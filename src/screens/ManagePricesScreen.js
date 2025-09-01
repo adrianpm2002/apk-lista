@@ -559,7 +559,10 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
           }}
           variant="primary"
           size="medium"
-          style={{ marginBottom: 16 }}
+          style={{ 
+            marginBottom: 16, 
+            marginTop: Platform.OS === 'android' ? 8 : 0 
+          }}
         />
 
         {/* Listado de configuraciones guardadas (acordeón) */}
@@ -797,12 +800,12 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
   },
   customHeader: {
-    height: 90,
+    height: Platform.OS === 'android' ? 100 : 90,
     backgroundColor: '#F8F9FA',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 40,
+    paddingTop: Platform.OS === 'android' ? 50 : 40,
     paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
@@ -836,7 +839,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    marginTop: 30,
+    marginTop: Platform.OS === 'android' ? 100 : 90,
   },
   section: {
     backgroundColor: '#FFFFFF',

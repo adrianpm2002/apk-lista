@@ -406,7 +406,7 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
         ) : (
           users.map((user) => (
             <View key={user.id} style={[styles.userCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
-              {/* Nombre en la parte superior con ancho completo si es largo */}
+              {/* Nombre de usuario en línea completa */}
               <View style={styles.userNameContainer}>
                 <Text 
                   style={[styles.username, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}
@@ -417,8 +417,8 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
                 </Text>
               </View>
               
-              {/* Información y acciones en fila debajo del nombre */}
-              <View style={styles.userInfoRow}>
+              {/* Información de rol y estado */}
+              <View style={styles.userInfoContainer}>
                 <View style={styles.userDetails}>
                   <Text style={[styles.userRole, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
                     {user.role === 'admin' ? 'Administrador' : 'Colector'}
@@ -430,14 +430,21 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
                     {user.activo ? 'Habilitado' : 'Deshabilitado'}
                   </Text>
                 </View>
-                
-                {cacheUserRole === 'admin' && (
-                  <View style={styles.userActions}>
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.editButton]}
-                      onPress={() => handleEditUser(user)}
-                    >
-                      <Text style={styles.actionButtonText}>✏️ Editar</Text>
+              </View>
+              
+              {/* Botones de acción en layout responsive */}
+              {cacheUserRole === 'admin' && (
+                <View style={[
+                  styles.userActions,
+                  Platform.OS === 'android' && styles.userActionsMobile
+                ]}>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.editButton]}
+                    onPress={() => handleEditUser(user)}
+                  >
+                    <Text style={styles.actionButtonText}>
+                      {Platform.OS === 'android' ? '✏️ Editar' : '✏️ Editar'}
+                    </Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity
@@ -448,7 +455,10 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
                     onPress={() => handleToggleUserStatus(user)}
                   >
                     <Text style={styles.actionButtonText}>
-                      {user.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
+                      {user.activo ? 
+                        (Platform.OS === 'android' ? '🔒 Deshabilitar' : '🔒 Deshabilitar') : 
+                        (Platform.OS === 'android' ? '🔓 Habilitar' : '🔓 Habilitar')
+                      }
                     </Text>
                   </TouchableOpacity>
                   
@@ -456,11 +466,12 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
                     style={[styles.actionButton, styles.deleteButton]}
                     onPress={() => handleDeleteUser(user.id, user.usuario)}
                   >
-                    <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
+                    <Text style={styles.actionButtonText}>
+                      {Platform.OS === 'android' ? '🗑️ Eliminar' : '🗑️ Eliminar'}
+                    </Text>
                   </TouchableOpacity>
-                  </View>
-                )}
-              </View>
+                </View>
+              )}
             </View>
           ))
         )}
@@ -747,47 +758,62 @@ const styles = StyleSheet.create({
   },
   userCard: {
     backgroundColor: '#fff',
-    padding: 15,
+    padding: Platform.OS === 'android' ? 16 : 15,
     marginBottom: 10,
+    marginHorizontal: Platform.OS === 'android' ? 2 : 0,
     borderRadius: 12,
-    flexDirection: 'column', // Cambiar a columna para el nuevo layout
+    flexDirection: 'column',
     ...createShadowStyle(2),
   },
   userNameContainer: {
     width: '100%',
-    marginBottom: 8,
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: Platform.OS === 'android' ? 1.5 : 1,
+    borderBottomColor: Platform.OS === 'android' ? '#e8e8e8' : '#f0f0f0',
   },
   username: {
-    fontSize: 18,
+    fontSize: Platform.OS === 'android' ? 16 : 18,
     fontWeight: 'bold',
-    lineHeight: Platform.OS === 'android' ? 22 : 24, // Mejor espaciado de línea en Android
+    lineHeight: Platform.OS === 'android' ? 22 : 26,
+    flexWrap: 'wrap',
   },
-  userInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  userInfoContainer: {
+    width: '100%',
+    marginBottom: 12,
   },
   userDetails: {
-    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
   },
   userRole: {
     fontSize: 14,
-    marginBottom: 2,
+    fontWeight: '500',
   },
   userStatus: {
     fontSize: 14,
     fontWeight: '600',
   },
   userActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  userActionsMobile: {
     flexDirection: 'column',
-    gap: 5,
+    alignItems: 'stretch',
+    gap: 6,
   },
   actionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: Platform.OS === 'android' ? 10 : 12,
+    paddingVertical: Platform.OS === 'android' ? 8 : 6,
     borderRadius: 6,
     alignItems: 'center',
-    minWidth: 80,
+    minWidth: Platform.OS === 'android' ? 0 : 80,
+    flex: Platform.OS === 'android' ? 1 : 0,
   },
   editButton: {
     backgroundColor: '#f39c12',
@@ -803,8 +829,9 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: Platform.OS === 'android' ? 12 : 12,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   
   // Modal styles
