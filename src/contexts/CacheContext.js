@@ -19,6 +19,10 @@ export const useCache = () => {
         lotteries: null,
         prices: null,
         numberLimits: null,
+        schedules: null,
+        limitedNumbers: null,
+        priceConfigurations: null,
+        activePlayTypes: null,
         isLoading: false,
         lastUpdated: {},
       },
@@ -29,6 +33,7 @@ export const useCache = () => {
       preloadAllData: () => Promise.resolve(),
       updateCacheData: () => Promise.resolve(),
       clearCache: () => {},
+      fetchActivePlayTypes: () => Promise.resolve([]),
     };
   }
   return context;
@@ -45,6 +50,7 @@ export const CacheProvider = ({ children }) => {
     schedules: null,
     limitedNumbers: null,
     priceConfigurations: null,
+    activePlayTypes: null,
     isLoading: false,
     lastUpdated: {},
   });
@@ -389,6 +395,50 @@ export const CacheProvider = ({ children }) => {
     }
   }, [currentBankId]);
 
+  // Función para obtener tipos de jugadas activas
+  const fetchActivePlayTypes = useCallback(async () => {
+    try {
+      // Siempre usar la referencia actual primero
+      const bankId = currentBankIdRef.current || currentBankId;
+      if (!bankId) return [];
+
+      const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
+      
+      const { data, error } = await supabase
+        .from('jugadas_activas')
+        .select('jugadas')
+        .eq('id_banco', bankId)
+        .maybeSingle();
+        
+      if (error && error.code !== 'PGRST116') { // ignorar no rows
+        console.error('Error fetching active play types:', error);
+        return [];
+      }
+      
+      const jugadas = data?.jugadas || { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
+      const actives = Object.keys(jugadas).filter(k => jugadas[k]);
+      
+      // Ordenar según orden canónico
+      actives.sort((a,b) => {
+        const ia = JUGADA_ORDER.indexOf(a);
+        const ib = JUGADA_ORDER.indexOf(b);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+      });
+      
+      // Actualizar cache
+      setCache(prev => ({
+        ...prev,
+        activePlayTypes: actives,
+        lastUpdated: { ...prev.lastUpdated, activePlayTypes: Date.now() }
+      }));
+      
+      return actives;
+    } catch (error) {
+      console.error('Error fetching active play types:', error);
+      return [];
+    }
+  }, [currentBankId]);
+
   // Función principal para precargar todos los datos
   const preloadAllData = useCallback(async () => {
     // Usar los valores actuales del estado en lugar de userRole y currentBankId
@@ -527,6 +577,10 @@ export const CacheProvider = ({ children }) => {
           lotteries: fetchLotteries,
           prices: fetchPrices,
           numberLimits: fetchNumberLimits,
+          schedules: fetchSchedules,
+          limitedNumbers: fetchLimitedNumbers,
+          priceConfigurations: fetchPriceConfigurations,
+          activePlayTypes: fetchActivePlayTypes,
         };
 
         const fetchFunction = fetchFunctions[dataType];
@@ -552,7 +606,7 @@ export const CacheProvider = ({ children }) => {
     } catch (error) {
       console.error(`Error updating ${dataType}:`, error);
     }
-  }, [currentBankId, fetchStatistics, fetchTodayResults, fetchUsers, fetchLotteries, fetchPrices, fetchNumberLimits]);
+  }, [currentBankId, fetchStatistics, fetchTodayResults, fetchUsers, fetchLotteries, fetchPrices, fetchNumberLimits, fetchSchedules, fetchLimitedNumbers, fetchPriceConfigurations, fetchActivePlayTypes]);
 
   // Función para limpiar caché
   const clearCache = useCallback(() => {
@@ -566,6 +620,7 @@ export const CacheProvider = ({ children }) => {
       schedules: null,
       limitedNumbers: null,
       priceConfigurations: null,
+      activePlayTypes: null,
       isLoading: false,
       lastUpdated: {},
     });
@@ -589,6 +644,7 @@ export const CacheProvider = ({ children }) => {
     fetchSchedules,
     fetchLimitedNumbers,
     fetchPriceConfigurations,
+    fetchActivePlayTypes,
   };
 
   return (
