@@ -10,7 +10,8 @@ import {
   TouchableOpacity, 
   RefreshControl,
   Alert,
-  Platform 
+  Platform,
+  BackHandler
 } from 'react-native';
 
 import { supabase } from '../supabaseClient';
@@ -93,6 +94,26 @@ const HomeContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilit
       setCurrentBankId(cacheBankId);
     }
   }, [cacheBankId]);
+
+  // Prevenir navegación hacia atrás en Android después de autenticarse
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        // Prevenir ir atrás desde pantallas autenticadas
+        Alert.alert(
+          'Salir de la aplicación',
+          '¿Deseas salir de la aplicación?',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Salir', onPress: () => BackHandler.exitApp() }
+          ]
+        );
+        return true; // Prevenir comportamiento por defecto
+      });
+      
+      return () => backHandler.remove();
+    }
+  }, []);
 
   // ========== OPTIMIZED DATA FETCHING ==========
   const fetchHomeDataFromCache = async () => {

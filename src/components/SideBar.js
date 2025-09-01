@@ -53,6 +53,8 @@ const roleOptionsMap = {
     { id: 'insertResults', icon: '🎯', title: 'Resultados' },
     { id: 'createUser', icon: '🧑‍💼', title: 'Usuarios' },
     { id: 'lotteries', icon: '🎰', title: 'Loterías' },
+    { id: 'jugadas', icon: '🎲', title: 'Jugadas' },
+    { id: 'lotteryLimits', icon: '🚫', title: 'Límites de Loterías' },
     { id: 'prices', icon: '💰', title: 'Precios' },
     { id: 'limitedNumbers', icon: '📊', title: 'Límites' },
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
@@ -139,8 +141,14 @@ const configOptions = roleOptionsMap[role] || [];
     case 'lotteries':
       navigation.navigate('ManageLotteries');
       break;
+    case 'jugadas':
+      navigation.navigate('Jugadas');
+      break;
+    case 'lotteryLimits':
+      navigation.navigate('LotteryLimits');
+      break;
     case 'prices':
-      navigation.navigate('ManagePrices');
+      navigation.navigate('Prices');
       break;
     case 'listerLimits':
       navigation.navigate('UserLimits');
@@ -185,7 +193,13 @@ const configOptions = roleOptionsMap[role] || [];
         // ignorar error de signOut para no bloquear la navegación
       }
       handleClose();
-      if (navigation && navigation.navigate) {
+      if (navigation && navigation.reset) {
+        // Usar reset en lugar de navigate para prevenir navegación hacia atrás
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Login' }],
+        });
+      } else if (navigation && navigation.navigate) {
         navigation.navigate('Login');
       }
     };

@@ -95,7 +95,6 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   const fetchUsers = useCallback(async () => {
     if (!currentBankId) return;
     if (userRole === 'collector' && !currentUserId) {
-      console.log('[fetchUsers] Collector sin currentUserId aún, esperando...');
       return;
     }
     const { data, error } = await supabase
@@ -109,16 +108,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       return;
     }
     if (userRole === 'collector') {
-      console.log('[fetchUsers] Datos crudos banco:', data);
       const onlyListeros = (data || []).filter(u => (u.role === 'listero') && u.id_collector === currentUserId);
-      console.log('[fetchUsers] currentUserId:', currentUserId, 'listeros filtrados:', onlyListeros.length);
-      // Log de casos donde no se encontró nada
-      if (onlyListeros.length === 0) {
-        const withCollector = (data || []).filter(u => u.role === 'listero' && !!u.id_collector);
-        console.log('[fetchUsers][diagnóstico] Total listeros con id_collector:', withCollector.length);
-        const listingCollectorIds = [...new Set(withCollector.map(u => u.id_collector))];
-        console.log('[fetchUsers][diagnóstico] id_collector distintos presentes:', listingCollectorIds);
-      }
       setUsers(onlyListeros);
       setHierarchicalUsers(onlyListeros.map(u => ({ ...u, type: 'listero', level: 0 })));
       return;
@@ -553,8 +543,6 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       }
     }
 
-    console.log(`handleToggleActive -> userId: ${userId} (${targetUser.role}) -> ${currentStatus} => ${newStatus}`);
-
     // IDs afectados (cascade si colector)
     let affectedIds = [userId];
     if (isCollector) {
@@ -586,7 +574,6 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           .in('id', affectedIds);
 
         if (cascadeError) throw cascadeError;
-        console.log(`Colector y ${affectedIds.length - 1} listeros ${action}ados`);
       } else {
         // Actualización simple para listero / admin
         const { error: singleError } = await supabase
@@ -594,7 +581,6 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           .update({ activo: newStatus })
           .eq('id', userId);
         if (singleError) throw singleError;
-        console.log(`Usuario ${action}ado`);
       }
     } catch (err) {
       console.error('Error toggle activo:', err);
@@ -824,7 +810,6 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
                 value={item.activo}
                 disabled={isUpdating}
                 onValueChange={() => {
-                  console.log(`Cambiando estado de ${item.username} de ${item.activo} a ${!item.activo}`);
                   handleToggleActive(item.id, item.activo);
                 }}
                 trackColor={{ false: '#ff6b6b', true: '#51cf66' }}

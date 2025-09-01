@@ -180,7 +180,11 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
 
       console.log('Added lottery:', data);
       setNewLottery('');
-      await fetchLotteriesFromCache(); // Usar función optimizada
+      
+      // Actualizar cache y UI automáticamente
+      await cacheFetchLotteries();
+      await updateCacheData('lotteries');
+      
       Alert.alert('Éxito', 'Lotería agregada correctamente');
     } catch (error) {
       console.error('Error general adding lottery:', error);
@@ -229,7 +233,9 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
                 return;
               }
 
-              await fetchLotteriesFromCache(); // Usar función optimizada
+              // Actualizar cache y UI automáticamente
+              await cacheFetchLotteries();
+              
               Alert.alert('Éxito', 'Lotería eliminada correctamente');
             } catch (error) {
               console.error('Error general deleting lottery:', error);
@@ -330,8 +336,9 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
       setEndTime(new Date());
       setEditingSchedule(null);
       
-      // Recargar horarios
+      // Actualizar horarios y cache automáticamente
       await fetchSchedules(selectedLottery.id);
+      await cacheFetchSchedules(); // Actualizar cache de horarios
     } catch (error) {
       console.error('Error general with schedule:', error);
       Alert.alert('Error', 'Error general al procesar el horario');
@@ -376,7 +383,10 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
                 return;
               }
 
+              // Actualizar horarios y cache automáticamente
               await fetchSchedules(selectedLottery.id);
+              await cacheFetchSchedules(); // Actualizar cache de horarios
+              
               Alert.alert('Éxito', 'Horario eliminado correctamente');
             } catch (error) {
               console.error('Error general deleting schedule:', error);
@@ -435,7 +445,6 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
   useEffect(() => {
     const fetchUserRole = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('ManageLotteries - User from auth:', user);
       if (user) {
         const { data, error } = await supabase
           .from('profiles')
@@ -443,14 +452,10 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
           .eq('id', user.id)
           .single();
 
-        console.log('ManageLotteries - Profile data:', data);
-        console.log('ManageLotteries - Profile error:', error);
-
         if (data) {
           setUserRole(data.role);
           // Si es admin (banco), su propio ID es el banco ID, si es colector usa id_banco
           const bankId = data.role === 'admin' ? user.id : data.id_banco;
-          console.log('ManageLotteries - Calculated bankId:', bankId, 'for role:', data.role);
           setCurrentBankId(bankId);
         } else {
           console.error('Error cargando rol:', error);
@@ -574,45 +579,89 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
                     <Text style={[styles.timeLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
                       Hora de Inicio:
                     </Text>
-                    <TouchableOpacity 
-                      style={[
-                        styles.timeSelector, 
-                        { 
+                    {Platform.OS === 'web' ? (
+                      <input
+                        type="time"
+                        value={startTime.toTimeString().slice(0, 5)}
+                        onChange={(e) => {
+                          const [hours, minutes] = e.target.value.split(':');
+                          const newTime = new Date(startTime);
+                          newTime.setHours(parseInt(hours), parseInt(minutes));
+                          setStartTime(newTime);
+                        }}
+                        style={{
+                          padding: 12,
+                          borderRadius: 8,
+                          border: `1px solid ${isDarkMode ? '#555' : '#ddd'}`,
                           backgroundColor: isDarkMode ? '#34495e' : '#fff',
-                          borderColor: isDarkMode ? '#555' : '#ddd'
-                        }
-                      ]}
-                      onPress={() => setShowStartPicker(true)}
-                    >
-                      <Text style={[styles.timeSelectorText, { color: isDarkMode ? '#fff' : '#000' }]}>
-                        {formatTime12Hour(startTime)}
-                      </Text>
-                    </TouchableOpacity>
+                          color: isDarkMode ? '#fff' : '#000',
+                          fontSize: 16,
+                          width: '100%',
+                        }}
+                      />
+                    ) : (
+                      <TouchableOpacity 
+                        style={[
+                          styles.timeSelector, 
+                          { 
+                            backgroundColor: isDarkMode ? '#34495e' : '#fff',
+                            borderColor: isDarkMode ? '#555' : '#ddd'
+                          }
+                        ]}
+                        onPress={() => setShowStartPicker(true)}
+                      >
+                        <Text style={[styles.timeSelectorText, { color: isDarkMode ? '#fff' : '#000' }]}>
+                          {formatTime12Hour(startTime)}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
 
                   <View style={styles.timeField}>
                     <Text style={[styles.timeLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
                       Hora de Fin:
                     </Text>
-                    <TouchableOpacity 
-                      style={[
-                        styles.timeSelector, 
-                        { 
+                    {Platform.OS === 'web' ? (
+                      <input
+                        type="time"
+                        value={endTime.toTimeString().slice(0, 5)}
+                        onChange={(e) => {
+                          const [hours, minutes] = e.target.value.split(':');
+                          const newTime = new Date(endTime);
+                          newTime.setHours(parseInt(hours), parseInt(minutes));
+                          setEndTime(newTime);
+                        }}
+                        style={{
+                          padding: 12,
+                          borderRadius: 8,
+                          border: `1px solid ${isDarkMode ? '#555' : '#ddd'}`,
                           backgroundColor: isDarkMode ? '#34495e' : '#fff',
-                          borderColor: isDarkMode ? '#555' : '#ddd'
-                        }
-                      ]}
-                      onPress={() => setShowEndPicker(true)}
-                    >
-                      <Text style={[styles.timeSelectorText, { color: isDarkMode ? '#fff' : '#000' }]}>
-                        {formatTime12Hour(endTime)}
-                      </Text>
-                    </TouchableOpacity>
+                          color: isDarkMode ? '#fff' : '#000',
+                          fontSize: 16,
+                          width: '100%',
+                        }}
+                      />
+                    ) : (
+                      <TouchableOpacity 
+                        style={[
+                          styles.timeSelector, 
+                          { 
+                            backgroundColor: isDarkMode ? '#34495e' : '#fff',
+                            borderColor: isDarkMode ? '#555' : '#ddd'
+                          }
+                        ]}
+                        onPress={() => setShowEndPicker(true)}
+                      >
+                        <Text style={[styles.timeSelectorText, { color: isDarkMode ? '#fff' : '#000' }]}>
+                          {formatTime12Hour(endTime)}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
 
-                {/* Time Pickers */}
-                {showStartPicker && (
+                {/* Time Pickers - Solo para móvil */}
+                {Platform.OS !== 'web' && showStartPicker && (
                   <DateTimePicker
                     value={startTime}
                     mode="time"
@@ -627,7 +676,7 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
                   />
                 )}
 
-                {showEndPicker && (
+                {Platform.OS !== 'web' && showEndPicker && (
                   <DateTimePicker
                     value={endTime}
                     mode="time"

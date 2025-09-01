@@ -1,22 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Alert, ActivityIndicator, Switch, RefreshControl } from 'react-native';
 import { supabase } from '../supabaseClient';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { useCache } from '../contexts/CacheContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
-import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 
 const JugadasScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+  // Mover el estado sidebarVisible aquí para evitar re-mounts
+  const [sidebarVisible, setSidebarVisible] = useState(false);
+  
+  // Usar useCallback para estabilizar las funciones
+  const handleToggleDarkMode = useCallback(() => {
+    if (onToggleDarkMode) onToggleDarkMode();
+  }, [onToggleDarkMode]);
+  
+  const handleModeVisibilityChange = useCallback((modes) => {
+    if (onModeVisibilityChange) onModeVisibilityChange(modes);
+  }, [onModeVisibilityChange]);
+  
   return (
-    <ScreenWrapper>
-      <JugadasContent
-        navigation={navigation}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
-        onModeVisibilityChange={onModeVisibilityChange}
-      />
-    </ScreenWrapper>
+    <JugadasContent
+      navigation={navigation}
+      isDarkMode={isDarkMode}
+      onToggleDarkMode={handleToggleDarkMode}
+      onModeVisibilityChange={handleModeVisibilityChange}
+      sidebarVisible={sidebarVisible}
+      setSidebarVisible={setSidebarVisible}
+    />
   );
 };
 
@@ -29,13 +40,20 @@ const DEFAULT_JUGADAS_JSON = {
   tripleta: true,
 };
 
-const JugadasContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+const JugadasContent = React.memo(({ 
+  navigation, 
+  isDarkMode, 
+  onToggleDarkMode, 
+  onModeVisibilityChange,
+  sidebarVisible,
+  setSidebarVisible 
+}) => {
   const { cache, userRole: cacheUserRole, currentBankId: cacheBankId } = useCache();
+  
   const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('activePlayTypes');
-  const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [userRole, setUserRole] = useState(null);
-  const [currentBankId, setCurrentBankId] = useState(null);
-  const [loading, setLoading] = useState(false);
+  
+  // Inicializar con cache si está disponible, sino mostrar loading
+  const [loading, setLoading] = useState(!cache.activePlayTypes);
   
   const [updatingTypes, setUpdatingTypes] = useState(new Set());
   
@@ -60,95 +78,108 @@ const JugadasContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibi
   });
   const [jugadasRecordId, setJugadasRecordId] = useState(null); // id de la fila en jugadas_activas
 
-  // Efecto para cargar jugadas activas cuando cambia el banco
+  // Efecto para cargar jugadas activas desde cache primero
   useEffect(() => {
-    if (currentBankId) {
-      fetchJugadasActivas(currentBankId);
+    if (cacheBankId) {
+      // Si tenemos datos en cache, usarlos inmediatamente
+      if (cache.activePlayTypes) {
+        setEnabledPlayTypes(cache.activePlayTypes);
+        setLoading(false);
+      } else {
+        // Solo mostrar loading si no hay cache disponible
+        setLoading(true);
+        fetchJugadasActivas(cacheBankId).finally(() => {
+          setLoading(false);
+        });
+      }
+    } else {
+      setLoading(false);
     }
-  }, [currentBankId]);
+  }, [cacheBankId, cache.activePlayTypes]);
 
   // Carga inicial basada en caché o propiedades
   useEffect(() => {
-    setUserRole(cacheUserRole);
-    setCurrentBankId(cacheBankId);
+    // No necesitamos setters locales, usamos directamente cacheUserRole y cacheBankId
   }, [cacheUserRole, cacheBankId]);
-
-  useEffect(() => { initializeScreen(); }, []);
 
   const initializeScreen = async () => {
     try {
-      setLoading(true);
-      await fetchUserRole();
+      // El userRole y currentBankId vienen del cache, no necesitamos fetch adicional
+      // El loading se maneja en el useEffect de cacheBankId
     } catch (error) {
       console.error('Error inicializando pantalla:', error);
       Alert.alert('Error', 'No se pudo cargar la información del usuario');
-    } finally {
-      setLoading(false);
     }
   };
 
-  const fetchUserRole = async () => {
+  const fetchJugadasActivas = useCallback(async (bankId) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data, error } = await supabase
-          .from('usuarios')
-          .select('rol')
-          .eq('id', user.id)
-          .single();
-        if (error) {
-          console.error('Error obteniendo rol de usuario:', error);
-        } else {
-          setUserRole(data.rol);
-        }
-      }
-    } catch (error) {
-      console.error('Error en fetchUserRole:', error);
-    }
-  };
-
-  const fetchJugadasActivas = async (bankId) => {
-    try {
-      console.log('[jugadas_activas] Cargando configuración (jsonb) para banco:', bankId);
       // Traer TODAS las filas (si hubiera duplicadas) para este banco
       const { data: rows, error } = await supabase
         .from('jugadas_activas')
         .select('id, jugadas, created_at')
         .eq('id_banco', bankId)
         .order('created_at', { ascending: true });
+        
       if (error) {
-        console.error('[jugadas_activas] Error cargando filas:', error);
-        return;
-      }
-      if (!rows || rows.length === 0) {
-        // No existe fila: crear una (nota: esto aún podría duplicar si se abre la pantalla en paralelo en 2 clientes sin constraint en DB)
-        console.log('[jugadas_activas] No existe fila; creando por defecto');
-        const now = new Date().toISOString();
-        const { data: inserted, error: insErr } = await supabase
-          .from('jugadas_activas')
-          .insert({ id_banco: bankId, created_at: now, jugadas: DEFAULT_JUGADAS_JSON })
-          .select('id, jugadas')
-          .maybeSingle();
-        if (insErr) {
-          console.error('[jugadas_activas] Error creando fila:', insErr);
+        // Si la tabla no existe, usar valores por defecto
+        if (error.code === '42P01') {
+          setEnabledPlayTypes(DEFAULT_JUGADAS_JSON);
+          setJugadasRecordId(null);
           return;
         }
+        
+        // Si no hay datos (PGRST116), continúa para crear registro
+        if (error.code !== 'PGRST116') {
+          return;
+        }
+      }
+      
+      if (!rows || rows.length === 0) {
+        // No existe fila: crear una
+        const now = new Date().toISOString();
+        
+        const { data: inserted, error: insErr } = await supabase
+          .from('jugadas_activas')
+          .insert({ 
+            id_banco: bankId, 
+            created_at: now, 
+            jugadas: DEFAULT_JUGADAS_JSON 
+          })
+          .select('id, jugadas')
+          .single();
+          
+        if (insErr) {
+          // Si la tabla no existe, usar valores por defecto
+          if (insErr.code === '42P01') {
+            setEnabledPlayTypes(DEFAULT_JUGADAS_JSON);
+            setJugadasRecordId(null);
+            return;
+          }
+          
+          // En caso de otros errores, usar valores por defecto localmente
+          setEnabledPlayTypes(DEFAULT_JUGADAS_JSON);
+          setJugadasRecordId(null);
+          return;
+        }
+        
         setJugadasRecordId(inserted.id);
         setEnabledPlayTypes(inserted.jugadas || DEFAULT_JUGADAS_JSON);
         return;
       }
       // Si hay más de una fila, consolidar y eliminar duplicadas
       let baseRow = rows[0]; // más antigua (por orden ascendente)
+      
       if (rows.length > 1) {
-        console.warn(`[jugadas_activas] Detectadas ${rows.length} filas duplicadas para banco ${bankId}. Consolidando...`);
         // Estrategia de consolidación: OR lógico (si alguna fila tiene true lo conservamos en true)
         const consolidated = { ...DEFAULT_JUGADAS_JSON };
         rows.forEach(r => {
           const jug = r.jugadas || {};
-            Object.keys(consolidated).forEach(k => {
-              if (jug[k] === true) consolidated[k] = true;
-            });
+          Object.keys(consolidated).forEach(k => {
+            if (jug[k] === true) consolidated[k] = true;
+          });
         });
+        
         // Actualizar la fila base con la consolidación (solo si difiere)
         const needsUpdate = Object.keys(consolidated).some(k => (baseRow.jugadas||{})[k] !== consolidated[k]);
         if (needsUpdate) {
@@ -156,57 +187,80 @@ const JugadasContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibi
             .from('jugadas_activas')
             .update({ jugadas: consolidated })
             .eq('id', baseRow.id);
-          if (updErr) console.error('[jugadas_activas] Error actualizando fila base tras consolidación:', updErr);
-          else baseRow = { ...baseRow, jugadas: consolidated };
+          if (!updErr) {
+            baseRow = { ...baseRow, jugadas: consolidated };
+          }
         }
+        
         // Eliminar filas sobrantes (todas excepto baseRow)
         const duplicateIds = rows.slice(1).map(r => r.id);
         if (duplicateIds.length > 0) {
-          const { error: delErr } = await supabase
+          await supabase
             .from('jugadas_activas')
             .delete()
             .in('id', duplicateIds);
-          if (delErr) console.error('[jugadas_activas] Error eliminando duplicadas:', delErr);
-          else console.log('[jugadas_activas] Duplicadas eliminadas:', duplicateIds.length);
         }
       }
+      
       // Usar la fila base resultante
       setJugadasRecordId(baseRow.id);
       const merged = { ...DEFAULT_JUGADAS_JSON, ...(baseRow.jugadas || {}) };
       setEnabledPlayTypes(merged);
+      
     } catch (error) {
-      console.error('Error en fetchJugadasActivas:', error);
+      setEnabledPlayTypes(DEFAULT_JUGADAS_JSON);
+      setJugadasRecordId(null);
     }
-  };
+  }, []); // useCallback sin dependencias porque usa setters directamente
 
-  const togglePlayType = async (typeId) => {
-    if (!currentBankId) return;
+  const togglePlayType = useCallback(async (typeId) => {
+    if (!cacheBankId) {
+      return;
+    }
+    
     const prevVal = enabledPlayTypes[typeId];
     const newValue = !prevVal;
-    setEnabledPlayTypes(prev => ({ ...prev, [typeId]: newValue }));
+    
+    // Actualizar estado local inmediatamente (esto no debería causar re-mount)
+    setEnabledPlayTypes(prev => {
+      return { ...prev, [typeId]: newValue };
+    });
     setUpdatingTypes(prev => new Set(prev).add(typeId));
+    
     try {
-      // Asegurar fila existente
-      let recordId = jugadasRecordId;
+      // Usar el recordId actual sin refrescar datos
+      const recordId = jugadasRecordId;
+      
       if (!recordId) {
-        // Reutilizamos lógica de carga para sanear duplicados si surgieron por carrera
-        await fetchJugadasActivas(currentBankId);
-        recordId = jugadasRecordId; // estado se actualizará dentro de fetchJugadasActivas
-        if (!recordId) throw new Error('No se pudo obtener/crear fila jugadas_activas');
+        return; // Mantener el cambio solo en el estado local
       }
+      
+      // Crear la nueva configuración basada en el estado actual más el cambio
       const updatedJugadas = { ...enabledPlayTypes, [typeId]: newValue };
+      
       const { error: updErr } = await supabase
         .from('jugadas_activas')
         .update({ jugadas: updatedJugadas })
         .eq('id', recordId);
-      if (updErr) throw updErr;
+        
+      if (updErr) {
+        if (updErr.code === '42P01') {
+          return; // Mantener el cambio solo en el estado local
+        }
+        throw updErr;
+      }
+      
     } catch (e) {
-      console.error('Error togglePlayType:', e);
+      // Revertir el cambio en caso de error
       setEnabledPlayTypes(prev => ({ ...prev, [typeId]: prevVal }));
     } finally {
-      setUpdatingTypes(prev => { const n = new Set(prev); n.delete(typeId); return n; });
+      setUpdatingTypes(prev => { 
+        const n = new Set(prev); 
+        n.delete(typeId); 
+        return n; 
+      });
     }
-  };
+  }, [enabledPlayTypes, cacheBankId, jugadasRecordId]); // useCallback con las dependencias necesarias
 
   if (loading) {
     return (
@@ -221,7 +275,13 @@ const JugadasContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibi
     <View style={styles.container}>
       {/* Header personalizado */}
       <View style={styles.customHeader}>
-        <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
+        <SideBarToggle 
+          inline 
+          onToggle={() => {
+            setSidebarVisible(!sidebarVisible);
+          }} 
+          style={styles.sidebarButton} 
+        />
         <Text style={styles.headerTitle}>Jugadas</Text>
       </View>
 
@@ -260,10 +320,27 @@ const JugadasContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibi
       </ScrollView>
 
       {/* Sidebar */}
-      <SideBar visible={sidebarVisible} onClose={() => setSidebarVisible(false)} />
+      <SideBar 
+        isVisible={sidebarVisible} 
+        onClose={() => setSidebarVisible(false)}
+        navigation={navigation}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={onToggleDarkMode}
+        onModeVisibilityChange={onModeVisibilityChange}
+        role={cacheUserRole}
+      />
     </View>
   );
-};
+}, (prevProps, nextProps) => {
+  // Comparador personalizado para React.memo - solo re-render si hay cambios importantes
+  const isEqual = (
+    prevProps.isDarkMode === nextProps.isDarkMode &&
+    prevProps.sidebarVisible === nextProps.sidebarVisible &&
+    prevProps.navigation.isFocused === nextProps.navigation.isFocused
+    // Ignoramos las funciones porque pueden cambiar referencia pero funcionalmente son iguales
+  );
+  return isEqual;
+});
 
 const styles = {
   container: {

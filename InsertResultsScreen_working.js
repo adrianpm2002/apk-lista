@@ -113,6 +113,7 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
     ) || [];
 
     if (availableSchedules.length === 0) {
+      console.log('No schedules found for lottery:', lotteryId, 'in bank:', cacheBankId);
       setHorarioOptions([]);
       setSelectedHorario(null);
       setSelectedHorarioLabel('');
@@ -406,6 +407,7 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
       .order('created_at', { ascending: false })
       .limit(1);
     if (existErr) {
+      console.error('Error verificando duplicado de resultado:', existErr.message);
       Alert.alert('Error', 'No se pudo verificar existencia previa. Intenta de nuevo.');
       return;
     }
@@ -419,17 +421,14 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
           .update({ numeros: cleanResult, rol: 'admin' })
           .eq('id', existing[0].id);
         if (upErr) {
+          console.error('Error actualizando resultado existente:', upErr.message);
           Alert.alert('Error', upErr.message);
           return;
         }
         Alert.alert('Actualizado', 'Resultado actualizado para este horario.');
       } else {
         // Collector: bloquear
-        Alert.alert(
-          'Resultado ya registrado', 
-          'Ya se ha registrado un resultado para este horario hoy. No se pueden registrar resultados duplicados para el mismo horario en el mismo día.',
-          [{ text: 'Entendido', style: 'default' }]
-        );
+        Alert.alert('Ya existe', 'Ya hay un resultado hoy para este horario. Pide al banco que lo actualice.');
         return;
       }
     } else {
@@ -463,7 +462,8 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
 
   // Recargar lista de hoy usando cache
   await fetchTodayResults();
-  await updateCacheData('todayResults');
+
+  // El cache ya se actualiza automáticamente con fetchTodayResults()
   };
 
   // Función de refresh optimizada
@@ -559,6 +559,15 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
         {/* Listado resultados hoy */}
         <View style={styles.todayContainer}>
           <Text style={styles.todayTitle}>Resultados de Hoy</Text>
+          
+          {/* Indicador de datos del cache */}
+          {!loadingResults && todayResults.length > 0 && cache.todayResults !== null && (
+            <View style={styles.cacheIndicator}>
+              <Text style={styles.cacheIndicatorText}>
+                📦 Datos desde cache • Desliza hacia abajo para actualizar
+              </Text>
+            </View>
+          )}
           
           {loadingResults && (
             <Text style={styles.loadingText}>Cargando...</Text>
@@ -678,16 +687,16 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginTop: 50, // Reducido para mejor aprovechamiento del espacio
+    paddingVertical: 16,
+    marginTop: 100, // Espacio para el header fijo
   },
   submitButton: {
     marginTop: 10,
     width: '100%',
   },
   todayContainer: {
-    marginTop: 15,
-    paddingVertical: 5,
+    marginTop: 30,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0'
   },
@@ -798,5 +807,18 @@ const styles = StyleSheet.create({
     color: '#1E293B',
     marginTop: 4,
     width: 120
+  },
+  cacheIndicator: {
+    backgroundColor: '#E8F4FD',
+    borderRadius: 6,
+    padding: 8,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#3498DB'
+  },
+  cacheIndicatorText: {
+    fontSize: 12,
+    color: '#2980B9',
+    textAlign: 'center'
   }
 });

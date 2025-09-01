@@ -406,28 +406,38 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
         ) : (
           users.map((user) => (
             <View key={user.id} style={[styles.userCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
-              <View style={styles.userInfo}>
-                <Text style={[styles.username, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}>
+              {/* Nombre en la parte superior con ancho completo si es largo */}
+              <View style={styles.userNameContainer}>
+                <Text 
+                  style={[styles.username, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}
+                  numberOfLines={Platform.OS === 'android' ? 2 : 1}
+                  ellipsizeMode="tail"
+                >
                   {user.usuario}
-                </Text>
-                <Text style={[styles.userRole, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
-                  {user.role === 'admin' ? 'Administrador' : 'Colector'}
-                </Text>
-                <Text style={[
-                  styles.userStatus, 
-                  { color: user.activo ? '#27ae60' : '#e74c3c' }
-                ]}>
-                  {user.activo ? 'Activo' : 'Inactivo'}
                 </Text>
               </View>
               
-              {cacheUserRole === 'admin' && (
-                <View style={styles.userActions}>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.editButton]}
-                    onPress={() => handleEditUser(user)}
-                  >
-                    <Text style={styles.actionButtonText}>✏️ Editar</Text>
+              {/* Información y acciones en fila debajo del nombre */}
+              <View style={styles.userInfoRow}>
+                <View style={styles.userDetails}>
+                  <Text style={[styles.userRole, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+                    {user.role === 'admin' ? 'Administrador' : 'Colector'}
+                  </Text>
+                  <Text style={[
+                    styles.userStatus, 
+                    { color: user.activo ? '#27ae60' : '#e74c3c' }
+                  ]}>
+                    {user.activo ? 'Habilitado' : 'Deshabilitado'}
+                  </Text>
+                </View>
+                
+                {cacheUserRole === 'admin' && (
+                  <View style={styles.userActions}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.editButton]}
+                      onPress={() => handleEditUser(user)}
+                    >
+                      <Text style={styles.actionButtonText}>✏️ Editar</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity
@@ -438,7 +448,7 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
                     onPress={() => handleToggleUserStatus(user)}
                   >
                     <Text style={styles.actionButtonText}>
-                      {user.activo ? '🔒 Desactivar' : '🔓 Activar'}
+                      {user.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
                     </Text>
                   </TouchableOpacity>
                   
@@ -448,8 +458,9 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
                   >
                     <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
                   </TouchableOpacity>
-                </View>
-              )}
+                  </View>
+                )}
+              </View>
             </View>
           ))
         )}
@@ -739,18 +750,25 @@ const styles = StyleSheet.create({
     padding: 15,
     marginBottom: 10,
     borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'column', // Cambiar a columna para el nuevo layout
     ...createShadowStyle(2),
   },
-  userInfo: {
-    flex: 1,
+  userNameContainer: {
+    width: '100%',
+    marginBottom: 8,
   },
   username: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 4,
+    lineHeight: Platform.OS === 'android' ? 22 : 24, // Mejor espaciado de línea en Android
+  },
+  userInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  userDetails: {
+    flex: 1,
   },
   userRole: {
     fontSize: 14,

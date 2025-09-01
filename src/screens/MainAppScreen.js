@@ -3,6 +3,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   StyleSheet,
+  Platform,
+  BackHandler,
+  Alert,
 } from 'react-native';
 import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
@@ -57,6 +60,26 @@ const MainAppScreen = ({ navigation, route }) => {
       setCurrentMode(firstVisible.mode);
     }
   }, [visibleModes, currentMode]);
+
+  // Prevenir navegación hacia atrás en Android después de autenticarse
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        // Prevenir ir atrás desde pantallas autenticadas
+        Alert.alert(
+          'Salir de la aplicación',
+          '¿Deseas salir de la aplicación?',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Salir', onPress: () => BackHandler.exitApp() }
+          ]
+        );
+        return true; // Prevenir comportamiento por defecto
+      });
+      
+      return () => backHandler.remove();
+    }
+  }, []);
 
   // Forzar Visual/Texto/Texto2 según el origen de edición
   useEffect(()=>{

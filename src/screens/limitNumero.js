@@ -219,9 +219,16 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     return raw.toString().padStart(len, '0');
   };
 
-  // Cargar lista de números limitados
+  // Cargar lista de números limitados - usar cache primero
   const loadNumerosLimitados = async () => {
     if (!bankId) return;
+    
+    // Si tenemos cache reciente, usarlo primero
+    if (cache.numberLimits && cache.numberLimits.limitedNumbers) {
+      setNumerosLimitados(cache.numberLimits.limitedNumbers);
+      return; // No hacer fetch adicional si el cache está disponible
+    }
+    
     setLoadingNumeros(true);
     try {
       let query = supabase
@@ -385,6 +392,13 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
 
   const loadLimitesNumeros = async () => {
     if(!bankId) return;
+    
+    // Si tenemos cache reciente, usarlo primero
+    if (cache.numberLimits && cache.numberLimits.specificLimits) {
+      setLimitesNumeros(cache.numberLimits.specificLimits);
+      return; // No hacer fetch adicional si el cache está disponible
+    }
+    
     setLoadingLimites(true);
     try {
       const { data, error } = await supabase

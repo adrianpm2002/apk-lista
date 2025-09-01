@@ -40,10 +40,11 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
+  
+  // Solo mostrar loading si realmente no hay datos en cache
   const [loading, setLoading] = useState(false);
-  // Inicializar basándose en el cache disponible
-  const [initialLoading, setInitialLoading] = useState(!(cache.prices && cache.prices.length > 0));
-  const [saving, setSaving] = useState(false); // ya no se usa para botón global, pero se mantiene por si se agrega persistencia JSONB
+  const [initialLoading, setInitialLoading] = useState(!cache.prices || cache.prices.length === 0);
+  const [saving, setSaving] = useState(false);
   // fieldErrors removido (validaciones inline en modal)
   const [updatingTypes, setUpdatingTypes] = useState(new Set());
   const [priceModalVisible, setPriceModalVisible] = useState(false);
@@ -275,6 +276,13 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
 
   // Nueva función que usa el cache context
   const loadPriceConfigsFromCache = async () => {
+    // Si ya tenemos datos en cache, no mostrar loading
+    if (cache.prices && cache.prices.length > 0) {
+      setPriceConfigs(cache.prices);
+      setInitialLoading(false);
+      return;
+    }
+    
     try {
       setLoadingPrices(true);
       // Usar la función del cache context que ya maneja la lógica optimizada

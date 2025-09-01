@@ -93,8 +93,6 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
   const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('lotteryLimits');
   
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [userRole, setUserRole] = useState(null);
-  const [currentBankId, setCurrentBankId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   
@@ -115,30 +113,28 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
 
   // Efecto para cargar datos cuando cambia el banco
   useEffect(() => {
-    if (currentBankId) {
-      loadLotteries();
+    if (cacheBankId) {
+      setLoading(true);
+      loadLotteries().finally(() => setLoading(false));
     }
-  }, [currentBankId]);
+  }, [cacheBankId]);
 
   // Efecto para cargar límites cuando cambia la lotería seleccionada
   useEffect(() => {
-    if (selectedLottery && currentBankId) {
+    if (selectedLottery && cacheBankId) {
       loadLotteryLimits(selectedLottery.id);
     }
-  }, [selectedLottery, currentBankId]);
+  }, [selectedLottery, cacheBankId]);
 
   // Carga inicial
   useEffect(() => {
-    setUserRole(cacheUserRole);
-    setCurrentBankId(cacheBankId);
+    // No necesitamos setters locales, usamos directamente cacheUserRole y cacheBankId
   }, [cacheUserRole, cacheBankId]);
-
-  useEffect(() => { initializeScreen(); }, []);
 
   const initializeScreen = async () => {
     try {
       setLoading(true);
-      await fetchUserRole();
+      // El userRole y currentBankId vienen del cache, no necesitamos fetch adicional
     } catch (error) {
       console.error('Error inicializando pantalla:', error);
       Alert.alert('Error', 'No se pudo cargar la información del usuario');
@@ -147,37 +143,29 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
     }
   };
 
-  const fetchUserRole = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data, error } = await supabase
-          .from('usuarios')
-          .select('rol')
-          .eq('id', user.id)
-          .single();
-        if (error) {
-          console.error('Error obteniendo rol de usuario:', error);
-        } else {
-          setUserRole(data.rol);
-        }
-      }
-    } catch (error) {
-      console.error('Error en fetchUserRole:', error);
-    }
-  };
-
   const loadLotteries = async () => {
     try {
       const { data, error } = await supabase
         .from('loterias')
         .select('id, nombre, activa')
-        .eq('id_banco', currentBankId)
         .eq('activa', true)
         .order('nombre');
       
       if (error) {
         console.error('Error cargando loterías:', error);
+        // Si la tabla no existe, usar datos por defecto
+        if (error.code === '42P01') {
+          console.warn('Tabla loterias no existe, usando datos por defecto');
+          const mockLotteries = [
+            { id: 1, nombre: 'Lotería Nacional', activa: true },
+            { id: 2, nombre: 'Chance', activa: true },
+            { id: 3, nombre: 'Balota', activa: true }
+          ];
+          setLotteries(mockLotteries);
+          if (!selectedLottery) {
+            setSelectedLottery(mockLotteries[0]);
+          }
+        }
         return;
       }
       
@@ -195,14 +183,20 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
       console.log('[lottery_limits] Cargando límites para lotería:', lotteryId);
       
       const { data: rows, error } = await supabase
-        .from('lottery_limits')
-        .select('id, limits_config, created_at')
-        .eq('id_banco', currentBankId)
+        .from('limite_loteria')
+        .select('id, limites, created_at')
         .eq('id_loteria', lotteryId)
         .order('created_at', { ascending: true });
       
       if (error) {
         console.error('[lottery_limits] Error cargando límites:', error);
+        // Si la tabla no existe, usar valores por defecto
+        if (error.code === '42P01') {
+          console.warn('Tabla limite_loteria no existe, usando valores por defecto');
+          setLimitsRecordId(null);
+          setLimitsConfig(DEFAULT_LOTTERY_LIMITS);
+          return;
+        }
         return;
       }
       
@@ -211,23 +205,29 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
         console.log('[lottery_limits] No existe configuración; creando por defecto');
         const now = new Date().toISOString();
         const { data: inserted, error: insErr } = await supabase
-          .from('lottery_limits')
+          .from('limite_loteria')
           .insert({ 
-            id_banco: currentBankId, 
             id_loteria: lotteryId,
             created_at: now, 
-            limits_config: DEFAULT_LOTTERY_LIMITS 
+            limites: DEFAULT_LOTTERY_LIMITS 
           })
-          .select('id, limits_config')
+          .select('id, limites')
           .maybeSingle();
         
         if (insErr) {
           console.error('[lottery_limits] Error creando configuración:', insErr);
+          // Si la tabla no existe, usar valores por defecto
+          if (insErr.code === '42P01') {
+            console.warn('Tabla limite_loteria no existe, usando valores por defecto');
+            setLimitsRecordId(null);
+            setLimitsConfig(DEFAULT_LOTTERY_LIMITS);
+            return;
+          }
           return;
         }
         
         setLimitsRecordId(inserted.id);
-        setLimitsConfig(inserted.limits_config || DEFAULT_LOTTERY_LIMITS);
+        setLimitsConfig(inserted.limites || DEFAULT_LOTTERY_LIMITS);
         return;
       }
       
@@ -240,7 +240,7 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
         const duplicateIds = rows.slice(0, -1).map(r => r.id);
         if (duplicateIds.length > 0) {
           const { error: delErr } = await supabase
-            .from('lottery_limits')
+            .from('limite_loteria')
             .delete()
             .in('id', duplicateIds);
           if (delErr) console.error('[lottery_limits] Error eliminando duplicados:', delErr);
@@ -250,7 +250,7 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
       
       // Usar la configuración resultante
       setLimitsRecordId(baseRow.id);
-      const merged = { ...DEFAULT_LOTTERY_LIMITS, ...(baseRow.limits_config || {}) };
+      const merged = { ...DEFAULT_LOTTERY_LIMITS, ...(baseRow.limites || {}) };
       setLimitsConfig(merged);
     } catch (error) {
       console.error('Error en loadLotteryLimits:', error);
@@ -258,13 +258,13 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
   };
 
   const updateLimitsConfig = async (newConfig) => {
-    if (!currentBankId || !selectedLottery || !limitsRecordId) return;
+    if (!cacheBankId || !selectedLottery || !limitsRecordId) return;
     
     try {
       setSaving(true);
       const { error } = await supabase
-        .from('lottery_limits')
-        .update({ limits_config: newConfig })
+        .from('limite_loteria')
+        .update({ limites: newConfig })
         .eq('id', limitsRecordId);
       
       if (error) {
@@ -402,7 +402,7 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
     );
   }
 
-  if (userRole !== 'admin') {
+  if (cacheUserRole !== 'admin') {
     return (
       <View style={[styles.container, styles.centerContainer]}>
         <Text style={styles.accessDeniedText}>

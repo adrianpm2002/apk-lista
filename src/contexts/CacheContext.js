@@ -69,12 +69,11 @@ export const CacheProvider = ({ children }) => {
       // Función para obtener estadísticas
   const fetchStatistics = useCallback(async () => {
     try {
-      console.log('=== EXECUTING fetchStatistics ===');
       // Siempre usar la referencia actual primero
       const bankId = currentBankIdRef.current || currentBankId;
       if (!bankId) return null;
       
-      console.log('Fetching statistics for bank:', bankId);      // Por ahora retornar datos básicos para evitar errores de tablas
+      // Por ahora retornar datos básicos para evitar errores de tablas
       const statisticsData = {
         dailyTotal: 0,
         totalRecogido: 0,
@@ -83,7 +82,6 @@ export const CacheProvider = ({ children }) => {
         lastUpdated: Date.now()
       };
       
-      console.log('Statistics fetched successfully');
       return statisticsData;
     } catch (error) {
       console.error('Error fetching statistics:', error);
@@ -94,12 +92,9 @@ export const CacheProvider = ({ children }) => {
   // Función para obtener resultados del día
   const fetchTodayResults = useCallback(async () => {
     try {
-      console.log('=== EXECUTING fetchTodayResults ===');
       // Siempre usar la referencia actual primero
       const bankId = currentBankIdRef.current || currentBankId;
       if (!bankId) return [];
-      
-      console.log('Fetching today results for bank:', bankId);
       
       const today = new Date().toISOString().split('T')[0];
       
@@ -115,12 +110,10 @@ export const CacheProvider = ({ children }) => {
       }
       
       if (!validSchedules || validSchedules.length === 0) {
-        console.log('No valid schedules for bank:', bankId);
         return [];
       }
       
       const validScheduleIds = validSchedules.map(s => s.id);
-      console.log('Found valid schedule IDs:', validScheduleIds.length);
       
       // Luego buscar resultados solo de esos horarios
       const { data, error } = await supabase
@@ -155,7 +148,6 @@ export const CacheProvider = ({ children }) => {
       }
       
       // Ya no necesitamos filtrar porque consultamos directamente con .in('id_horario', validScheduleIds)
-      console.log('Today results fetched successfully:', data?.length || 0, 'records for current bank');
       return data || [];
     } catch (error) {
       console.error('Error fetching today results:', error);
@@ -166,10 +158,8 @@ export const CacheProvider = ({ children }) => {
   // Función para obtener usuarios
   const fetchUsers = useCallback(async () => {
     try {
-      console.log('=== EXECUTING fetchUsers ===');
       // Siempre usar la referencia actual primero
       const bankId = currentBankIdRef.current || currentBankId;
-      console.log('Fetching users for bank:', bankId);
       
       let query = supabase.from('profiles').select('*');
       
@@ -185,8 +175,6 @@ export const CacheProvider = ({ children }) => {
         console.error('Error fetching users:', error);
         return [];
       }
-      
-      console.log('Users fetched successfully:', data?.length || 0, 'records');
       return data || [];
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -198,12 +186,10 @@ export const CacheProvider = ({ children }) => {
   const fetchLotteries = useCallback(async () => {
     try {
       if (!currentBankId && !currentBankIdRef.current) {
-        console.log('fetchLotteries: No bank ID available');
         return [];
       }
       
       const bankId = currentBankId || currentBankIdRef.current;
-      console.log('Fetching lotteries from cache context for bank:', bankId);
       
       const { data, error } = await supabase
         .from('loteria')
@@ -219,7 +205,6 @@ export const CacheProvider = ({ children }) => {
         return [];
       }
       
-      console.log('Lotteries fetched in cache:', data?.length || 0);
       return data || [];
     } catch (error) {
       console.error('Error fetching lotteries:', error);
@@ -230,12 +215,9 @@ export const CacheProvider = ({ children }) => {
   // Función para obtener precios
   const fetchPrices = useCallback(async () => {
     try {
-      console.log('=== EXECUTING fetchPrices ===');
       // Siempre usar la referencia actual primero
       const bankId = currentBankIdRef.current || currentBankId;
       if (!bankId) return [];
-      
-      console.log('Fetching active plays (prices) for bank:', bankId);
       
       const { data, error } = await supabase
         .from('jugadas_activas')
@@ -248,7 +230,6 @@ export const CacheProvider = ({ children }) => {
         return [];
       }
       
-      console.log('Active plays fetched successfully:', data?.length || 0, 'records');
       return data || [];
     } catch (error) {
       console.error('Error fetching active plays:', error);
@@ -262,8 +243,6 @@ export const CacheProvider = ({ children }) => {
       // Siempre usar la referencia actual primero
       const bankId = currentBankIdRef.current || currentBankId;
       if (!bankId) return { limitedNumbers: [], specificLimits: [] };
-      
-      console.log('Fetching number limits for bank:', bankId);
       
       const { data, error } = await supabase
         .from('limite_numero')
@@ -299,7 +278,6 @@ export const CacheProvider = ({ children }) => {
         id: item.id
       }));
       
-      console.log('Number limits fetched successfully:', processedData.length, 'records');
       return {
         limitedNumbers,
         specificLimits: processedData
@@ -316,8 +294,6 @@ export const CacheProvider = ({ children }) => {
       // Siempre usar la referencia actual primero
       const bankId = currentBankIdRef.current || currentBankId;
       if (!bankId) return [];
-      
-      console.log('Fetching schedules for bank:', bankId);
       
       // Consulta directa con JOIN para obtener horarios del banco
       const { data, error } = await supabase
@@ -344,7 +320,6 @@ export const CacheProvider = ({ children }) => {
         return [];
       }
       
-      console.log('Schedules fetched successfully:', data?.length || 0, 'records for current bank');
       return data || [];
     } catch (error) {
       console.error('Error fetching schedules:', error);
@@ -358,8 +333,6 @@ export const CacheProvider = ({ children }) => {
       // Siempre usar la referencia actual primero
       const bankId = currentBankIdRef.current || currentBankId;
       if (!bankId) return [];
-      
-      console.log('Fetching limited numbers for bank:', bankId);
       
       const { data, error } = await supabase
         .from('numero_limitado')
@@ -384,7 +357,6 @@ export const CacheProvider = ({ children }) => {
         return [];
       }
       
-      console.log('Limited numbers fetched successfully:', data?.length || 0, 'records');
       return data || [];
     } catch (error) {
       console.error('Error fetching limited numbers:', error);
@@ -399,8 +371,6 @@ export const CacheProvider = ({ children }) => {
       const bankId = currentBankIdRef.current || currentBankId;
       if (!bankId) return [];
       
-      console.log('Fetching price configurations for bank:', bankId);
-      
       const { data, error } = await supabase
         .from('precio')
         .select('*')
@@ -412,7 +382,6 @@ export const CacheProvider = ({ children }) => {
         return [];
       }
       
-      console.log('Price configurations fetched successfully:', data?.length || 0, 'records');
       return data || [];
     } catch (error) {
       console.error('Error fetching price configurations:', error);
@@ -426,26 +395,19 @@ export const CacheProvider = ({ children }) => {
     const currentRole = userRoleRef.current;
     const currentBank = currentBankIdRef.current;
     
-    console.log('Starting preload for role:', currentRole, 'bank:', currentBank);
-    
     if (currentRole !== 'admin' && currentRole !== 'collector') {
-      console.log('Preload cancelled: user is not admin or collector');
       setCache(prev => ({ ...prev, isLoading: false }));
       return;
     }
 
     if (!currentBank) {
-      console.log('Preload cancelled: no bank ID available');
       setCache(prev => ({ ...prev, isLoading: false }));
       return;
     }
 
-    console.log('Preloading data for role:', currentRole, 'with bank ID:', currentBank);
     setCache(prev => ({ ...prev, isLoading: true }));
 
     try {
-      console.log('Fetching all data types...');
-      
       const [
         statistics,
         todayResults,
@@ -474,64 +436,46 @@ export const CacheProvider = ({ children }) => {
       const statisticsData = statistics.status === 'fulfilled' ? statistics.value : null;
       if (statistics.status === 'rejected') {
         console.error('Error fetching statistics:', statistics.reason);
-      } else {
-        console.log('Statistics loaded:', statisticsData ? 'success' : 'no data');
       }
 
       const todayResultsData = todayResults.status === 'fulfilled' ? todayResults.value : [];
       if (todayResults.status === 'rejected') {
         console.error('Error fetching today results:', todayResults.reason);
-      } else {
-        console.log('Today results loaded:', todayResultsData?.length || 0, 'items');
       }
 
       const usersData = users.status === 'fulfilled' ? users.value : [];
       if (users.status === 'rejected') {
         console.error('Error fetching users:', users.reason);
-      } else {
-        console.log('Users loaded:', usersData?.length || 0, 'items');
       }
 
       const lotteriesData = lotteries.status === 'fulfilled' ? lotteries.value : [];
       if (lotteries.status === 'rejected') {
         console.error('Error fetching lotteries:', lotteries.reason);
-      } else {
-        console.log('Lotteries loaded:', lotteriesData?.length || 0, 'items');
       }
 
       const pricesData = prices.status === 'fulfilled' ? prices.value : [];
       if (prices.status === 'rejected') {
         console.error('Error fetching prices:', prices.reason);
-      } else {
-        console.log('Prices loaded:', pricesData?.length || 0, 'items');
       }
 
       const numberLimitsData = numberLimits.status === 'fulfilled' ? numberLimits.value : { limitedNumbers: [], specificLimits: [] };
       if (numberLimits.status === 'rejected') {
         console.error('Error fetching number limits:', numberLimits.reason);
-      } else {
-        console.log('Number limits loaded:', numberLimitsData?.limitedNumbers?.length || 0, 'limited numbers,', numberLimitsData?.specificLimits?.length || 0, 'specific limits');
       }
 
       const schedulesData = schedules.status === 'fulfilled' ? schedules.value : [];
       if (schedules.status === 'rejected') {
         console.error('Error fetching schedules:', schedules.reason);
-      } else {
-        console.log('Schedules loaded:', schedulesData?.length || 0, 'items');
       }
 
       const limitedNumbersData = limitedNumbers.status === 'fulfilled' ? limitedNumbers.value : [];
       if (limitedNumbers.status === 'rejected') {
         console.error('Error fetching limited numbers:', limitedNumbers.reason);
-      } else {
-        console.log('Limited numbers loaded:', limitedNumbersData?.length || 0, 'items');
       }
 
       const priceConfigurationsData = priceConfigurations.status === 'fulfilled' ? priceConfigurations.value : [];
       if (priceConfigurations.status === 'rejected') {
         console.error('Error fetching price configurations:', priceConfigurations.reason);
-      } else {
-        console.log('Price configurations loaded:', priceConfigurationsData?.length || 0, 'items');
       }
 
       setCache(prev => ({
@@ -559,7 +503,6 @@ export const CacheProvider = ({ children }) => {
         }
       }));
 
-      console.log('Datos precargados exitosamente');
     } catch (error) {
       console.error('Error precargando datos:', error);
       setCache(prev => ({ ...prev, isLoading: false }));
@@ -569,11 +512,8 @@ export const CacheProvider = ({ children }) => {
   // Función para actualizar datos específicos
   const updateCacheData = useCallback(async (dataType, data = null) => {
     if (!currentBankIdRef.current) {
-      console.log('UpdateCacheData cancelled: no bank ID');
       return;
     }
-
-    console.log('Updating cache data for:', dataType);
 
     try {
       let newData = data;
@@ -609,7 +549,6 @@ export const CacheProvider = ({ children }) => {
         }
       }));
       
-      console.log('Cache updated successfully for:', dataType);
     } catch (error) {
       console.error(`Error updating ${dataType}:`, error);
     }
@@ -641,6 +580,12 @@ export const CacheProvider = ({ children }) => {
     preloadAllData,
     updateCacheData,
     clearCache,
+    fetchStatistics,
+    fetchTodayResults,
+    fetchUsers,
+    fetchLotteries,
+    fetchPrices,
+    fetchNumberLimits,
     fetchSchedules,
     fetchLimitedNumbers,
     fetchPriceConfigurations,
