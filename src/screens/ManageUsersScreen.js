@@ -427,9 +427,7 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
                     styles.userStatus,
                     { color: user.activo ? '#27ae60' : '#e74c3c' }
                   ]}>
-                    {user.role === 'colector'
-                      ? (user.activo ? 'Habilitado' : 'Deshabilitado')
-                      : (user.activo ? 'Activo' : 'Inactivo')}
+                    {user.activo ? 'Habilitado' : 'Deshabilitado'}
                   </Text>
                 </View>
                 
@@ -450,9 +448,7 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
                     onPress={() => handleToggleUserStatus(user)}
                   >
                     <Text style={styles.actionButtonText}>
-                      {user.role === 'colector'
-                        ? (user.activo ? '🔒 Deshabilitar' : '🔓 Habilitar')
-                        : (user.activo ? '🔒 Desactivar' : '🔓 Activar')}
+                      {user.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
                     </Text>
                   </TouchableOpacity>
                   

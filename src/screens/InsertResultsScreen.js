@@ -25,8 +25,18 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
 };
 
 const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
-  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData, fetchTodayResults, fetchLotteries, fetchSchedules } = useCache();
+  const { 
+    cache, 
+    userRole: cacheUserRole, 
+    currentBankId: cacheBankId, 
+    updateCacheData, 
+    fetchTodayResults, 
+    fetchLotteries, 
+    fetchSchedules,
+    preloadAllData
+  } = useCache();
   const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('todayResults');
+  
   // Inicializar con datos del cache
   const [lotteryOptions, setLotteryOptions] = useState(
     cache.lotteries ? cache.lotteries.map(l => ({ label: l.nombre, value: l.id })) : []
@@ -38,13 +48,14 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
   const [selectedHorarioLabel, setSelectedHorarioLabel] = useState('');
   const [result, setResult] = useState('');
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [userRole, setUserRole] = useState(null);
-  const [currentBankId, setCurrentBankId] = useState(null);
+  const [userRole, setUserRole] = useState(cacheUserRole); // Usar cache como inicial
+  const [currentBankId, setCurrentBankId] = useState(cacheBankId); // Usar cache como inicial
   const [todayResults, setTodayResults] = useState(cache.todayResults || []); // Inicializar con cache
   const [editingId, setEditingId] = useState(null);
   const [editingValue, setEditingValue] = useState('');
-  const [loadingResults, setLoadingResults] = useState(!(cache.todayResults && cache.todayResults.length >= 0)); // No loading si hay cache
+  const [loadingResults, setLoadingResults] = useState(false); // Optimizado para cache
   const [deniedEditId, setDeniedEditId] = useState(null);
+  const [initialLoading, setInitialLoading] = useState(!(cache.lotteries && cache.schedules)); // Loading solo si no hay datos
 
   // Sanitiza la entrada del campo de resultado respetando:
   // - Máximo 7 dígitos
@@ -60,6 +71,38 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
   return digits.slice(0, 3) + ' ' + digits.slice(3);
   };
 
+  // ========== CACHE SYNCHRONIZATION ==========
+  // Sincronizar userRole y bankId con cache
+  useEffect(() => {
+    if (cacheUserRole) {
+      setUserRole(cacheUserRole);
+    }
+  }, [cacheUserRole]);
+
+  useEffect(() => {
+    if (cacheBankId) {
+      setCurrentBankId(cacheBankId);
+    }
+  }, [cacheBankId]);
+
+  // Sincronizar con cache para todayResults
+  useEffect(() => {
+    if (cache.todayResults) {
+      setTodayResults(cache.todayResults);
+    }
+  }, [cache.todayResults]);
+
+  // Sincronizar con cache para loterias
+  useEffect(() => {
+    if (cache.lotteries) {
+      const options = cache.lotteries.map(lottery => ({
+        label: lottery.nombre,
+        value: lottery.id
+      }));
+      setLotteryOptions(options);
+    }
+  }, [cache.lotteries]);
+
   // Estados para errores de validación
   const [errors, setErrors] = useState({
     lottery: false,
@@ -67,8 +110,40 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
     result: false
   });
 
+  // ========== DATA FETCHING ==========
+  const fetchAllDataFromCache = async () => {
+    if (!cacheBankId) {
+      console.log('No bank ID available for fetching data');
+      setInitialLoading(false);
+      return;
+    }
+    
+    try {
+      setInitialLoading(true);
+      // Precargar todos los datos necesarios
+      await preloadAllData();
+      setInitialLoading(false);
+    } catch (error) {
+      console.error('Error fetching data from cache:', error);
+      setInitialLoading(false);
+    }
+  };
+
+  // ========== FOCUS REFRESH ==========
+  const focusRefresh = useCallback(() => {
+    if (cacheBankId) {
+      // Actualizar datos en background sin bloquear UI
+      setTimeout(() => {
+        fetchTodayResults();
+        fetchLotteries();
+        fetchSchedules();
+      }, 100);
+    }
+  }, [cacheBankId, fetchTodayResults, fetchLotteries, fetchSchedules]);
+
+  // Función optimizada para cargar loterías desde cache
   const fetchLoteriasFromCache = async () => {
-    if (!currentBankId && !cacheBankId) return;
+    if (!cacheBankId) return;
     
     // Usar cache primero si está disponible
     if (cache.lotteries && cache.lotteries.length > 0) {
@@ -79,23 +154,6 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
     
     // Solo hacer fetch si no hay datos en cache
     await fetchLotteries();
-  };
-
-  // Función legacy mantenida para compatibilidad
-  const fetchLoterias = async () => {
-    if (!currentBankId) return; // No cargar loterias si no tenemos el banco ID
-    
-    const { data, error } = await supabase
-      .from('loteria')
-      .select('id, nombre')
-      .eq('id_banco', currentBankId); // Solo loterias del mismo banco
-      
-    if (error) {
-      Alert.alert('Error cargando loterías');
-      return;
-    }
-    const options = data.map((l) => ({ label: l.nombre, value: l.id }));
-    setLotteryOptions(options);
   };
 
   const fetchHorarios = async (lotteryId) => {
@@ -129,52 +187,18 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
   };
 
   useEffect(() => {
-    if (currentBankId) {
+    if (cacheBankId) {
       fetchLoteriasFromCache();
       loadTodayResultsFromCache();
     }
-  }, [currentBankId]);
+  }, [cacheBankId]);
 
-  // Sincronizar con cache para admins
+  // ========== INITIAL DATA LOADING ==========
   useEffect(() => {
-    if (cacheUserRole === 'admin' && cache.todayResults) {
-      setTodayResults(cache.todayResults);
+    if (cacheBankId && initialLoading) {
+      fetchAllDataFromCache();
     }
-  }, [cacheUserRole, cache.todayResults]);
-
-  // Sincronizar con cache para loterias de admins
-  useEffect(() => {
-    if (cacheUserRole === 'admin' && cache.lotteries) {
-      const options = cache.lotteries.map(lottery => ({
-        label: lottery.nombre,
-        value: lottery.id
-      }));
-      setLotteryOptions(options);
-    }
-  }, [cacheUserRole, cache.lotteries]);
-
-  useEffect(() => {
-    const fetchUserRole = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role, id_banco')
-          .eq('id', user.id)
-          .single();
-
-        if (data) {
-          setUserRole(data.role);
-          // Si es admin (banco), su propio ID es el banco ID, si es colector usa id_banco
-          setCurrentBankId(data.role === 'admin' ? user.id : data.id_banco);
-        } else {
-          console.error('Error cargando rol:', error);
-        }
-      }
-    };
-
-    fetchUserRole();
-  }, []);
+  }, [cacheBankId, initialLoading]);
 
   // Utilidad para rango del día local (created_at es timestamp sin zona)
   const buildLocalDayRange = (base = new Date()) => {
@@ -190,7 +214,7 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
 
   // Cargar resultados del día actual usando cache primero
   const loadTodayResultsFromCache = async () => {
-    if (!currentBankId && !cacheBankId) return;
+    if (!cacheBankId) return;
     
     // Usar cache primero si está disponible
     if (cache.todayResults !== null && cache.todayResults !== undefined) {
@@ -212,7 +236,7 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
 
   // Función legacy - cargar resultados del día actual (rango local) directamente desde la consulta
   const loadTodayResults = async () => {
-    if (!currentBankId) return;
+    if (!cacheBankId) return;
     setLoadingResults(true);
     const { start, end } = buildLocalDayRange();
     try {
@@ -221,7 +245,7 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
         .select('id, numeros, created_at, rol, horario:id_horario ( id, nombre, loteria:id_loteria ( id, nombre, id_banco ) )')
         .gte('created_at', start)
         .lte('created_at', end)
-        .eq('horario.loteria.id_banco', currentBankId)
+        .eq('horario.loteria.id_banco', cacheBankId)
         .order('created_at', { ascending: false });
       if (error) throw error;
       // Ya viene filtrado; no se necesita filtrado en cliente salvo fallback
@@ -236,22 +260,16 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
   // Refresco automático al volver a la pantalla - solo actualizar cache en background
   useFocusEffect(
     useCallback(() => {
-      if (currentBankId) {
-        // Actualizar en background sin bloquear UI
-        setTimeout(() => {
-          fetchTodayResults();
-          fetchLotteries();
-        }, 100);
-      }
-    }, [currentBankId])
+      focusRefresh();
+    }, [focusRefresh])
   );
 
   const startEditing = (item) => {
     // Permisos: collector no puede editar resultados de admin
     if (userRole === 'collector' && item.rol === 'admin') {
-  setDeniedEditId(item.id);
-  // Limpiar después de 5 segundos
-  setTimeout(() => setDeniedEditId(prev => (prev === item.id ? null : prev)), 5000);
+      setDeniedEditId(item.id);
+      // Limpiar después de 5 segundos
+      setTimeout(() => setDeniedEditId(prev => (prev === item.id ? null : prev)), 5000);
       return;
     }
     setEditingId(item.id);
@@ -273,24 +291,23 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
     }
     const formatted = digits.substring(0,3) + ' ' + digits.substring(3,7);
     const updatePayload = userRole === 'admin' ? { numeros: formatted, rol: 'admin' } : { numeros: formatted };
+    
     const { error } = await supabase
       .from('resultado')
       .update(updatePayload)
       .eq('id', editingId);
+      
     if (error) {
       Alert.alert('Error', error.message);
       return;
     }
-  // Actualizar localmente para respuesta más rápida
-  setTodayResults(prev => prev.map(r => r.id === editingId ? { ...r, numeros: formatted } : r));
+    
+    // Actualizar localmente para respuesta más rápida
+    setTodayResults(prev => prev.map(r => r.id === editingId ? { ...r, numeros: formatted } : r));
     cancelEditing();
-  // Se puede refrescar silenciosamente en background
-  loadTodayResults();
-  
-  // Actualizar cache si es admin
-  if (cacheUserRole === 'admin') {
-    updateCacheData('todayResults');
-  }
+    
+    // Actualizar cache
+    await updateCacheData('todayResults');
   };
 
   const deleteResult = async (item) => {
@@ -307,12 +324,9 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
         return;
       }
       setTodayResults(prev => prev.filter(r => r.id !== item.id));
-      loadTodayResults();
       
-      // Actualizar cache si es admin
-      if (cacheUserRole === 'admin') {
-        updateCacheData('todayResults');
-      }
+      // Actualizar cache
+      await updateCacheData('todayResults');
       return;
     }
     Alert.alert('Confirmar', '¿Eliminar este resultado?', [
@@ -324,12 +338,9 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
           return;
         }
         setTodayResults(prev => prev.filter(r => r.id !== item.id));
-        loadTodayResults();
         
-        // Actualizar cache si es admin
-        if (cacheUserRole === 'admin') {
-          updateCacheData('todayResults');
-        }
+        // Actualizar cache
+        await updateCacheData('todayResults');
       }}
     ]);
   };
@@ -461,16 +472,15 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
       result: false
     });
 
-  // Recargar lista de hoy usando cache
-  await fetchTodayResults();
-  await updateCacheData('todayResults');
+    // Recargar lista de hoy usando cache
+    await updateCacheData('todayResults');
   };
 
-  // Función de refresh optimizada
+  // Función de refresh optimizada para ambos roles
   const handleRefresh = async () => {
     try {
       setLoadingResults(true);
-      // Actualizar ambos tipos de datos usando las funciones del cache context
+      // Actualizar datos usando las funciones del cache context
       await Promise.all([
         fetchTodayResults(),
         fetchLotteries(),
@@ -484,11 +494,17 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#F8FDF5' }]}>
       {/* Header personalizado - arriba del todo */}
-      <View style={styles.customHeader}>
-        <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
-        <Text style={styles.headerTitle}>Resultados</Text>
+      <View style={[styles.customHeader, { backgroundColor: isDarkMode ? '#2c3e50' : '#F8F9FA' }]}>
+        <SideBarToggle 
+          inline 
+          onToggle={() => setSidebarVisible(!sidebarVisible)} 
+          style={styles.sidebarButton} 
+        />
+        <Text style={[styles.headerTitle, { color: isDarkMode ? '#fff' : '#2C3E50' }]}>
+          Resultados
+        </Text>
       </View>
 
       <ScrollView 
@@ -496,10 +512,10 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={cacheUserRole === 'admin' ? loadingResults : false}
-            onRefresh={cacheUserRole === 'admin' ? handleRefresh : undefined}
-            colors={['#27AE60']}
-            tintColor="#27AE60"
+            refreshing={cacheRefreshing || loadingResults}
+            onRefresh={cacheOnRefresh}
+            colors={isDarkMode ? ['#3498db'] : ['#27AE60']}
+            tintColor={isDarkMode ? '#3498db' : '#27AE60'}
           />
         }
       >
@@ -558,24 +574,45 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
 
         {/* Listado resultados hoy */}
         <View style={styles.todayContainer}>
-          <Text style={styles.todayTitle}>Resultados de Hoy</Text>
+          <Text style={[styles.todayTitle, { color: isDarkMode ? '#ecf0f1' : '#2C3E50' }]}>
+            Resultados de Hoy
+          </Text>
           
-          {loadingResults && (
-            <Text style={styles.loadingText}>Cargando...</Text>
+          {(loadingResults || initialLoading) && (
+            <Text style={[styles.loadingText, { color: isDarkMode ? '#bdc3c7' : '#64748B' }]}>
+              Cargando...
+            </Text>
           )}
-          {!loadingResults && todayResults.length === 0 && (
-            <Text style={styles.emptyText}>No hay resultados registrados hoy.</Text>
+          {!loadingResults && !initialLoading && todayResults.length === 0 && (
+            <Text style={[styles.emptyText, { color: isDarkMode ? '#bdc3c7' : '#94A3B8' }]}>
+              No hay resultados registrados hoy.
+            </Text>
           )}
-          {!loadingResults && todayResults.map(item => {
+          {!loadingResults && !initialLoading && todayResults.map(item => {
             const isEditing = editingId === item.id;
             return (
-              <View key={item.id} style={[styles.resultRow, item.id === deniedEditId && styles.resultRowDenied]}>
+              <View key={item.id} style={[
+                styles.resultRow, 
+                { backgroundColor: isDarkMode ? '#2c3e50' : '#FFFFFF' },
+                item.id === deniedEditId && styles.resultRowDenied
+              ]}>
                 <View style={styles.resultInfo}>
-                  <Text style={styles.resultLottery}>{item.horario?.loteria?.nombre || 'Lotería'}</Text>
-                  <Text style={styles.resultHorario}>{item.horario?.nombre || 'Horario'}</Text>
+                  <Text style={[styles.resultLottery, { color: isDarkMode ? '#ecf0f1' : '#334155' }]}>
+                    {item.horario?.loteria?.nombre || 'Lotería'}
+                  </Text>
+                  <Text style={[styles.resultHorario, { color: isDarkMode ? '#bdc3c7' : '#64748B' }]}>
+                    {item.horario?.nombre || 'Horario'}
+                  </Text>
                   {isEditing ? (
                     <TextInput
-                      style={styles.editInput}
+                      style={[
+                        styles.editInput,
+                        {
+                          backgroundColor: isDarkMode ? '#34495e' : '#FFFFFF',
+                          borderColor: isDarkMode ? '#566175' : '#CBD5E1',
+                          color: isDarkMode ? '#ecf0f1' : '#1E293B'
+                        }
+                      ]}
                       value={editingValue.length > 3 ? editingValue.slice(0,3) + ' ' + editingValue.slice(3) : editingValue}
                       onChangeText={(text)=> {
                         const digits = text.replace(/\D/g,'').slice(0,7);
@@ -583,14 +620,18 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
                       }}
                       keyboardType="numeric"
                       placeholder="7 dígitos"
-                      // maxLength 8 (7 dígitos + espacio); el filtrado asegura 7 dígitos
+                      placeholderTextColor={isDarkMode ? '#7f8c8d' : '#94A3B8'}
                       maxLength={8}
                     />
                   ) : (
-                    <Text style={styles.resultNumber}>{item.numeros}</Text>
+                    <Text style={[styles.resultNumber, { color: isDarkMode ? '#ecf0f1' : '#1E293B' }]}>
+                      {item.numeros}
+                    </Text>
                   )}
                   {item.id === deniedEditId && (
-                    <Text style={styles.deniedText}>Este resultado fue subido por el banco, no es posible editar.</Text>
+                    <Text style={[styles.deniedText, { color: isDarkMode ? '#e74c3c' : '#B91C1C' }]}>
+                      Este resultado fue subido por el banco, no es posible editar.
+                    </Text>
                   )}
                 </View>
                 <View style={styles.resultActions}>
@@ -641,12 +682,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FDF5',
   },
   customHeader: {
-    height: 100, // 56 + 44 para status bar
+    height: 100,
     backgroundColor: '#F8F9FA',
     flexDirection: 'row',
-    alignItems: 'flex-end', // Alinear al final para que el botón esté abajo
+    alignItems: 'flex-end',
     paddingHorizontal: 16,
-    paddingBottom: 12, // Espacio desde el borde inferior
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
     ...createShadowStyle({
@@ -673,13 +714,13 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     flex: 1,
     textAlign: 'center',
-    marginRight: 44, // Para centrar el texto compensando el botón
+    marginRight: 44,
   },
   content: {
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    marginTop: 50, // Reducido para mejor aprovechamiento del espacio
+    marginTop: 50,
   },
   submitButton: {
     marginTop: 10,
