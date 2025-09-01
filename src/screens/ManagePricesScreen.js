@@ -6,7 +6,6 @@ import {
   ScrollView, 
   Alert, 
   StyleSheet, 
-  Switch, 
   TouchableOpacity,
   ActivityIndicator,
   Platform,
@@ -16,8 +15,6 @@ import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
-import { useCache } from '../contexts/CacheContext';
-import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 
@@ -35,18 +32,15 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
 };
 
 const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
-  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData, fetchPrices, fetchPriceConfigurations } = useCache();
-  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('prices');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
   
-  // Solo mostrar loading si realmente no hay datos en cache
+  // Solo mostrar loading si realmente no hay datos
   const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(!cache.prices || cache.prices.length === 0);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   // fieldErrors removido (validaciones inline en modal)
-  const [updatingTypes, setUpdatingTypes] = useState(new Set());
   const [priceModalVisible, setPriceModalVisible] = useState(false);
   const [editingBatch, setEditingBatch] = useState(false); // si estamos modificando precios existentes
   
@@ -60,17 +54,6 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
     { id: 'tripleta', label: 'Tripleta', enabled: true },
   ]);
   
-  // Estado de jugadas activas basado en la nueva estructura jsonb (una fila por banco)
-  const [enabledPlayTypes, setEnabledPlayTypes] = useState({
-    fijo: true,
-    corrido: true,
-    posicion: true,
-    parle: true,
-    centena: true,
-    tripleta: true,
-  });
-  const [jugadasRecordId, setJugadasRecordId] = useState(null); // id de la fila en jugadas_activas
-
   // Estado de precios (se gestionará vía modal). Cada entrada representa un tipo de jugada y sus valores.
   const [winningPrices, setWinningPrices] = useState({
     fijo: { regular: '', limited: '', collectorPct: '', listeroPct: '' },
@@ -81,65 +64,91 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
     tripleta: { regular: '', limited: '', collectorPct: '', listeroPct: '' },
   });
 
-  // Lista CRUD de precios guardados - inicializar con cache
+  // Lista CRUD de precios guardados - inicializar vacía
   const [priceEntries, setPriceEntries] = useState([]); // mantiene última config para edición rápida
   const [priceConfigName, setPriceConfigName] = useState('');
   const [loadingPrices, setLoadingPrices] = useState(false);
-  const [priceConfigs, setPriceConfigs] = useState(cache.prices || []); // Inicializar con cache
+  const [priceConfigs, setPriceConfigs] = useState([]); // Lista de configuraciones
   const [expandedConfigs, setExpandedConfigs] = useState(new Set()); // ids expandids
   const [modalError, setModalError] = useState('');
   const [modalFieldErrors, setModalFieldErrors] = useState({}); // { playType: { regular:true, limited:true, collectorPct:true, listeroPct:true } }
   const [editingConfigId, setEditingConfigId] = useState(null); // id de la configuración que se está editando (update), null = insert
+  
+  // Estado para jugadas activas del banco
+  const [enabledPlayTypes, setEnabledPlayTypes] = useState({
+    fijo: true,
+    corrido: true,
+    posicion: true,
+    parle: true,
+    centena: true,
+    tripleta: true,
+  });
 
-  // Usar datos del cache si están disponibles
+  // Cargar datos directamente de la tabla precio
+  useEffect(() => { 
+    initializeScreen(); 
+  }, []);
+
   useEffect(() => {
-    if (cache.prices && cache.prices.length > 0) {
-      console.log('Using cached prices:', cache.prices.length);
-      setPriceConfigs(cache.prices);
-      setInitialLoading(false);
-      
-      // Prefill modal con la última config disponible en cache
-      const latest = cache.prices[0];
-      if (latest) {
-        setPriceConfigName(latest.nombre || '');
-        if (latest.precios) {
-          const json = latest.precios;
-          const newWinning = { ...winningPrices };
-          const newEntries = [];
-          Object.keys(json).forEach(key => {
-            const obj = json[key] || {};
-            if (newWinning[key]) {
-              newWinning[key] = {
-                regular: obj.regular?.toString() || '',
-                limited: obj.limited?.toString() || '',
-                collectorPct: obj.collectorPct?.toString() || '',
-                listeroPct: obj.listeroPct?.toString() || ''
-              };
-            }
-            const anyVal = ['regular','limited','collectorPct','listeroPct'].some(k => obj[k] !== undefined && obj[k] !== null && obj[k] !== '');
-            if (anyVal) {
-              newEntries.push({
-                id: key + '-' + Date.now(),
-                jugada: key,
-                regular: obj.regular ?? null,
-                limited: obj.limited ?? null,
-                collectorPct: obj.collectorPct ?? null,
-                listeroPct: obj.listeroPct ?? null,
-              });
-            }
-          });
-          setWinningPrices(newWinning);
-          setPriceEntries(newEntries);
-        }
-      }
-    } else if (cacheBankId && initialLoading) {
-      // Solo cargar si no hay datos en cache y es la carga inicial
-      console.log('No cached prices, fetching from database...');
-      loadPriceConfigsFromCache();
+    if (currentBankId) {
+      loadPriceConfigurations();
+      loadActivePlayTypes();
     }
-  }, [cache.prices, cacheBankId, initialLoading]);
+  }, [currentBankId]);
 
-  useEffect(() => { initializeScreen(); }, []);
+  const loadActivePlayTypes = async () => {
+    if (!currentBankId) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('jugadas_activas')
+        .select('jugadas')
+        .eq('id_banco', currentBankId)
+        .single();
+
+      if (error) {
+        console.error('Error loading active play types:', error);
+        return;
+      }
+
+      if (data && data.jugadas) {
+        setEnabledPlayTypes(data.jugadas);
+      }
+    } catch (error) {
+      console.error('Error loading active play types:', error);
+    }
+  };
+
+  const loadPriceConfigurations = async () => {
+    if (!currentBankId) return;
+    
+    try {
+      setLoadingPrices(true);
+      const { data, error } = await supabase
+        .from('precio')
+        .select('*')
+        .eq('id_banco', currentBankId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading price configurations:', error);
+        return;
+      }
+
+      // Parsear el JSON de precios para cada configuración
+      const parsedConfigs = data.map(config => ({
+        ...config,
+        precios: typeof config.precios === 'string' ? JSON.parse(config.precios) : config.precios
+      }));
+
+      setPriceConfigs(parsedConfigs);
+      setInitialLoading(false);
+    } catch (error) {
+      console.error('Error loading price configurations:', error);
+    } finally {
+      setLoadingPrices(false);
+    }
+  };
 
   // Comentado para evitar cargas innecesarias - ahora usamos cache
   // const refreshOnFocus = useCallback(async () => {
@@ -188,89 +197,10 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
           navigation.goBack();
           return;
         }
-        
-  // Cargar activación de jugadas después de obtener el bankId
-  await loadSavedConfiguration(bankId);
-  // loadPriceConfigs ahora se maneja por useEffect con cache
-  // await loadPriceConfigs(bankId);
       } else {
         console.error('Error cargando rol:', error);
         Alert.alert('Error', 'No se pudo cargar el perfil del usuario');
       }
-    }
-  };
-
-  const DEFAULT_JUGADAS_JSON = { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
-
-  const loadSavedConfiguration = async (bankId) => {
-    try {
-      console.log('[jugadas_activas] Cargando configuración (jsonb) para banco:', bankId);
-      // Traer TODAS las filas (si hubiera duplicadas) para este banco
-      const { data: rows, error } = await supabase
-        .from('jugadas_activas')
-        .select('id, jugadas, created_at')
-        .eq('id_banco', bankId)
-        .order('created_at', { ascending: true });
-      if (error) {
-        console.error('[jugadas_activas] Error cargando filas:', error);
-        return;
-      }
-      if (!rows || rows.length === 0) {
-        // No existe fila: crear una (nota: esto aún podría duplicar si se abre la pantalla en paralelo en 2 clientes sin constraint en DB)
-        console.log('[jugadas_activas] No existe fila; creando por defecto');
-        const now = new Date().toISOString();
-        const { data: inserted, error: insErr } = await supabase
-          .from('jugadas_activas')
-          .insert({ id_banco: bankId, created_at: now, jugadas: DEFAULT_JUGADAS_JSON })
-          .select('id, jugadas')
-          .maybeSingle();
-        if (insErr) {
-          console.error('[jugadas_activas] Error creando fila:', insErr);
-          return;
-        }
-        setJugadasRecordId(inserted.id);
-        setEnabledPlayTypes(inserted.jugadas || DEFAULT_JUGADAS_JSON);
-        return;
-      }
-      // Si hay más de una fila, consolidar y eliminar duplicadas
-      let baseRow = rows[0]; // más antigua (por orden ascendente)
-      if (rows.length > 1) {
-        console.warn(`[jugadas_activas] Detectadas ${rows.length} filas duplicadas para banco ${bankId}. Consolidando...`);
-        // Estrategia de consolidación: OR lógico (si alguna fila tiene true lo conservamos en true)
-        const consolidated = { ...DEFAULT_JUGADAS_JSON };
-        rows.forEach(r => {
-          const jug = r.jugadas || {};
-            Object.keys(consolidated).forEach(k => {
-              if (jug[k] === true) consolidated[k] = true;
-            });
-        });
-        // Actualizar la fila base con la consolidación (solo si difiere)
-        const needsUpdate = Object.keys(consolidated).some(k => (baseRow.jugadas||{})[k] !== consolidated[k]);
-        if (needsUpdate) {
-          const { error: updErr } = await supabase
-            .from('jugadas_activas')
-            .update({ jugadas: consolidated })
-            .eq('id', baseRow.id);
-          if (updErr) console.error('[jugadas_activas] Error actualizando fila base tras consolidación:', updErr);
-          else baseRow = { ...baseRow, jugadas: consolidated };
-        }
-        // Eliminar filas sobrantes (todas excepto baseRow)
-        const duplicateIds = rows.slice(1).map(r => r.id);
-        if (duplicateIds.length > 0) {
-          const { error: delErr } = await supabase
-            .from('jugadas_activas')
-            .delete()
-            .in('id', duplicateIds);
-          if (delErr) console.error('[jugadas_activas] Error eliminando duplicadas:', delErr);
-          else console.log('[jugadas_activas] Duplicadas eliminadas:', duplicateIds.length);
-        }
-      }
-      // Usar la fila base resultante
-      setJugadasRecordId(baseRow.id);
-      const merged = { ...DEFAULT_JUGADAS_JSON, ...(baseRow.jugadas || {}) };
-      setEnabledPlayTypes(merged);
-    } catch (error) {
-      console.error('Error en loadSavedConfiguration:', error);
     }
   };
 
@@ -300,7 +230,6 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
     try {
       // Si no se fuerza el refresh y ya hay datos en cache, usarlos
       if (!forceRefresh && cache.prices && cache.prices.length > 0) {
-        console.log('Using cached prices in loadPriceConfigs');
         setPriceConfigs(cache.prices);
         return;
       }
@@ -361,50 +290,7 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
   };
 
   const handleRefresh = async () => {
-    try {
-      setLoadingPrices(true);
-      // Usar las funciones del cache context para refrescar datos
-      await Promise.all([
-        fetchPriceConfigurations(),
-        fetchPrices()
-      ]);
-    } catch (error) {
-      console.error('Error refreshing data:', error);
-    } finally {
-      setLoadingPrices(false);
-    }
-  };
-
-  // Eliminado toggleAllPlayTypes: ya no se usan botones de seleccionar/deseleccionar todas
-
-  const togglePlayType = async (typeId) => {
-    if (!currentBankId) return;
-    const prevVal = enabledPlayTypes[typeId];
-    const newValue = !prevVal;
-    setEnabledPlayTypes(prev => ({ ...prev, [typeId]: newValue }));
-    setUpdatingTypes(prev => new Set(prev).add(typeId));
-    try {
-      // Asegurar fila existente
-      let recordId = jugadasRecordId;
-      if (!recordId) {
-  // Reutilizamos lógica de carga para sanear duplicados si surgieron por carrera
-  await loadSavedConfiguration(currentBankId);
-  recordId = jugadasRecordId; // estado se actualizará dentro de loadSavedConfiguration
-  if (!recordId) throw new Error('No se pudo obtener/crear fila jugadas_activas');
-      }
-      const updatedJugadas = { ...enabledPlayTypes, [typeId]: newValue };
-      const { error: updErr } = await supabase
-        .from('jugadas_activas')
-        .update({ jugadas: updatedJugadas })
-        .eq('id', recordId);
-      if (updErr) throw updErr;
-    } catch (e) {
-      console.error('Error togglePlayType:', e);
-      setEnabledPlayTypes(prev => ({ ...prev, [typeId]: prevVal }));
-      Alert.alert('Error', e.message || 'No se pudo actualizar la jugada');
-    } finally {
-      setUpdatingTypes(prev => { const n = new Set(prev); n.delete(typeId); return n; });
-    }
+    await loadPriceConfigurations();
   };
 
   const updateWinningPrice = (playType, priceType, value) => {
@@ -419,21 +305,15 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
 
   // CRUD local de precios (pendiente definir tabla para persistir). Cada guardado reemplaza/añade por jugada.
   const handleSavePricesBatch = async () => {
-    console.log('== handleSavePricesBatch INICIO ==');
-    console.log('currentBankId:', currentBankId);
-    console.log('priceConfigName (entrada):', priceConfigName);
-    console.log('winningPrices (estado completo):', JSON.stringify(winningPrices));
-    console.log('enabledPlayTypes:', enabledPlayTypes);
-  console.log('editingConfigId:', editingConfigId);
     // Validar que al menos un campo tenga valor
     const entries = [];
-    setModalError('');
     setModalFieldErrors({});
     const fieldErrors = {};
     let hasAnyError = false;
     let percentError = false;
     availablePlayTypes.forEach(pt => {
-      if (!enabledPlayTypes[pt.id]) return; // validar solo jugadas activas
+      // Validar solo jugadas activas
+      if (!enabledPlayTypes[pt.id]) return;
       const w = winningPrices[pt.id];
       const req = ['regular','limited','collectorPct','listeroPct'];
       req.forEach(f => {
@@ -461,13 +341,10 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
     if (hasAnyError) {
       setModalFieldErrors(fieldErrors);
       setModalError(percentError ? 'Corrige porcentajes (0-100) y completa todos los campos requeridos.' : 'Completa todos los campos para cada jugada activa.');
-      console.log('Errores de validación', fieldErrors);
       return;
     }
-    console.log('entries construidas:', entries);
     if (entries.length === 0) {
       Alert.alert('Sin datos', 'Ingresa algún valor antes de guardar');
-      console.log('Abortando: ninguna entrada con valores');
       return;
     }
     setPriceEntries(prev => {
@@ -478,7 +355,6 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
     // Validar nombre
     if (!priceConfigName.trim()) {
       Alert.alert('Nombre requerido', 'Ingresa un nombre para la configuración');
-      console.log('Abortando: nombre vacío');
       return;
     }
 
@@ -503,17 +379,14 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
         };
       }
     });
-    console.log('preciosJSON final que se enviará:', JSON.stringify(preciosJSON));
     // Persistir en tabla precio (insert o update según editingConfigId)
     if (currentBankId) {
       try {
         if (editingConfigId) {
-          console.log('Ejecutando UPDATE en tabla precio para id:', editingConfigId);
           const updatePayload = { 
             precios: preciosJSON, 
             nombre: priceConfigName.trim()
           };
-          console.log('Payload update precio:', updatePayload);
             const { data: updateData, error: updateError } = await supabase
               .from('precio')
               .update(updatePayload)
@@ -524,17 +397,14 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
               console.error('Error actualizando precios (updateError):', updateError);
               Alert.alert('Error', 'No se pudo actualizar la configuración de precios');
             } else {
-              console.log('Update exitoso. Respuesta:', updateData);
-              await fetchPriceConfigurations(); // Usar cache context
+              await loadPriceConfigurations(); // Recargar configuraciones
             }
         } else {
-          console.log('Ejecutando INSERT (nueva configuración) en tabla precio...');
           const payload = { 
             id_banco: currentBankId, 
             precios: preciosJSON, 
             nombre: priceConfigName.trim()
           }; // created_at removido: ahora la tabla tiene DEFAULT
-          console.log('Payload insert precio:', payload);
           const { data: insertData, error: insertError } = await supabase
             .from('precio')
             .insert(payload)
@@ -543,21 +413,17 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
             console.error('Error guardando precios (insertError):', insertError);
             Alert.alert('Error', 'No se pudo guardar la configuración de precios');
           } else {
-            console.log('Insert exitoso. Respuesta:', insertData);
-            await fetchPriceConfigurations(); // Usar cache context
+            await loadPriceConfigurations(); // Recargar configuraciones
           }
         }
       } catch (err) {
         console.error('Excepción durante persistencia precio:', err);
         Alert.alert('Error', 'Excepción al guardar la configuración');
       }
-    } else {
-      console.log('Abortando: currentBankId no definido');
     }
     setPriceModalVisible(false);
     setEditingBatch(false);
     setEditingConfigId(null);
-    console.log('== handleSavePricesBatch FIN ==');
   };
 
   const handleEditPrices = () => {
@@ -583,40 +449,33 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
   };
 
   const performConfigDeletion = async (configId) => {
-    console.log('[DeleteConfig] Ejecutando performConfigDeletion para', configId);
     try {
       if (!currentBankId) {
-        console.log('[DeleteConfig] Abort: bankId no definido');
         return;
       }
       const { data: authUserData } = await supabase.auth.getUser();
-      console.log('[DeleteConfig] auth user id:', authUserData?.user?.id);
       const { data: preCheck, error: preCheckError } = await supabase
         .from('precio')
         .select('id, id_banco')
         .eq('id', configId)
         .maybeSingle();
-      console.log('[DeleteConfig] PreCheck:', preCheck, 'error:', preCheckError);
       const { error: delError1, count: count1 } = await supabase
         .from('precio')
         .delete({ count: 'exact' })
         .eq('id', configId)
         .eq('id_banco', currentBankId);
-      console.log('[DeleteConfig] Delete intento1 count:', count1, 'error:', delError1);
       if (!delError1 && count1 === 0) {
         const { error: delError2, count: count2 } = await supabase
           .from('precio')
           .delete({ count: 'exact' })
           .eq('id', configId);
-        console.log('[DeleteConfig] Delete intento2 count:', count2, 'error:', delError2);
       }
       const { data: postCheck, error: postCheckError } = await supabase
         .from('precio')
         .select('id')
         .eq('id', configId)
         .maybeSingle();
-      console.log('[DeleteConfig] PostCheck tras eliminar:', postCheck, 'error:', postCheckError);
-      await fetchPriceConfigurations(); // Usar cache context
+      await loadPriceConfigurations(); // Recargar configuraciones
       setExpandedConfigs(prev => { const n = new Set(prev); n.delete(configId); return n; });
     } catch (e) {
       console.error('[DeleteConfig] Excepción performConfigDeletion:', e);
@@ -630,7 +489,6 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
           return window.confirm(message);
         }
       } catch (e) {
-        console.warn('[DeleteConfig] window.confirm error, fallback true', e);
         return true; // fallback: permitir
       }
       return true;
@@ -645,13 +503,10 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
   };
 
   const handleDeleteConfig = (configId) => {
-    console.log('[DeleteConfig] Click botón eliminar configId:', configId);
     confirmDelete('¿Eliminar esta configuración definitivamente?')
       .then(ok => {
         if (ok) {
           performConfigDeletion(configId);
-        } else {
-          console.log('[DeleteConfig] Cancelado por usuario');
         }
       });
   };
@@ -678,35 +533,14 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={cacheUserRole === 'admin' ? (loading || loadingPrices) : false}
-            onRefresh={cacheUserRole === 'admin' ? handleRefresh : undefined}
+            refreshing={userRole === 'admin' ? (loading || loadingPrices) : false}
+            onRefresh={userRole === 'admin' ? handleRefresh : undefined}
             colors={['#27AE60']}
             tintColor="#27AE60"
           />
         }
       >
         
-        {/* Sección: Tipos de Jugada */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tipos de Jugada Disponibles</Text>
-          
-          {/* Botones globales removidos para ahorrar espacio */}
-
-          {/* Lista de tipos de jugada */}
-          {availablePlayTypes.map(playType => (
-            <View key={playType.id} style={styles.playTypeItem}>
-              <Text style={styles.playTypeLabel}>{playType.label}</Text>
-              <Switch
-                value={enabledPlayTypes[playType.id]}
-                disabled={updatingTypes.has(playType.id)}
-                onValueChange={() => togglePlayType(playType.id)}
-                trackColor={{ false: '#767577', true: '#81b0ff' }}
-                thumbColor={enabledPlayTypes[playType.id] ? '#f5dd4b' : '#f4f3f4'}
-              />
-            </View>
-          ))}
-        </View>
-
         {/* Botón para abrir modal de precios */}
         <ActionButton
           title="Nueva Configuración de Precios"
@@ -732,15 +566,6 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Configuraciones Guardadas</Text>
           
-          {/* Indicador de datos del cache */}
-          {!loadingPrices && priceConfigs.length > 0 && !initialLoading && (
-            <View style={styles.cacheIndicator}>
-              <Text style={styles.cacheIndicatorText}>
-                📦 Datos desde cache • Desliza hacia abajo para actualizar
-              </Text>
-            </View>
-          )}
-          
           {loadingPrices && <Text style={{ color: '#7f8c8d' }}>Cargando configuraciones...</Text>}
           {!loadingPrices && priceConfigs.length === 0 && (
             <Text style={{ color: '#7f8c8d' }}>No hay configuraciones guardadas aún.</Text>
@@ -759,52 +584,47 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
               const o = precios[k];
               return o && ['regular','limited','collectorPct','listeroPct'].some(field => o[field] !== null && o[field] !== undefined && o[field] !== '');
             });
-            // Calcular discrepancias para colorear el nombre
+            // Calcular jugadas configuradas
             const configuredPlays = jugadasKeys;
-            const activePlays = Object.keys(enabledPlayTypes).filter(k => enabledPlayTypes[k]);
-            const missingActive = activePlays.filter(k => !configuredPlays.includes(k));
-            const anyConfiguredInactive = configuredPlays.some(k => enabledPlayTypes[k] === false);
-            const hasMismatch = missingActive.length > 0 || anyConfiguredInactive;
+            
+            // Verificar problemas de configuración
+            const activePlayTypes = enabledPlayTypes ? Object.keys(enabledPlayTypes).filter(k => enabledPlayTypes[k]) : [];
+            const hasInactiveConfigured = configuredPlays.some(play => !activePlayTypes.includes(play));
+            const hasMissingActive = activePlayTypes.some(play => !configuredPlays.includes(play));
+            const hasConfigError = hasInactiveConfigured || hasMissingActive;
+            
             return (
-              <View key={cfg.id} style={styles.configItem}>
+              <View key={cfg.id} style={[styles.configItem, hasConfigError && styles.configItemError]}>
                 <TouchableOpacity onPress={toggle} style={styles.configHeaderRow}>
-                  <Text style={[styles.configName, hasMismatch && styles.configNameWarning]}>{cfg.nombre || 'Sin nombre'}</Text>
+                  <Text style={[styles.configName, hasConfigError && styles.configNameError]}>{cfg.nombre || 'Sin nombre'}</Text>
                   <Text style={styles.configArrow}>{expanded ? '▲' : '▼'}</Text>
                 </TouchableOpacity>
                 {expanded && (
                   <View style={styles.configDetails}>
+                    {hasConfigError && (
+                      <View style={styles.configWarning}>
+                        <Text style={styles.configWarningText}>
+                          ⚠️ Problemas de configuración:
+                          {hasInactiveConfigured && " • Tiene jugadas configuradas que están inactivas"}
+                          {hasMissingActive && " • Faltan configuraciones para jugadas activas"}
+                        </Text>
+                      </View>
+                    )}
                     {jugadasKeys.length === 0 && (
                       <Text style={styles.configEmpty}>Sin jugadas configuradas.</Text>
                     )}
                     {(() => {
                       const allRows = [];
-                      const activePlays = Object.keys(enabledPlayTypes).filter(k => enabledPlayTypes[k]);
                       const configuredPlays = jugadasKeys;
-                      const missingActive = activePlays.filter(k => !configuredPlays.includes(k));
-                      // Mostrar configuradas primero
+                      // Mostrar configuradas
                       configuredPlays.forEach(jk => {
                         const obj = precios[jk] || {};
-                        const active = enabledPlayTypes[jk];
                         const hasAny = ['regular','limited','collectorPct','listeroPct'].some(f => obj[f] !== null && obj[f] !== undefined && obj[f] !== '');
-                        const mismatchInactive = hasAny && !active;
-                        const warning = mismatchInactive ? 'Configurada pero jugada actualmente desactivada' : null;
                         allRows.push(
                           <View key={jk} style={styles.detailRow}>
-                            <Text style={[styles.detailText, mismatchInactive && styles.priceListTextWarning]}>
+                            <Text style={styles.detailText}>
                               {jk} - Reg: {obj.regular ?? '—'}  Lim: {obj.limited ?? '—'}  Col%: {obj.collectorPct ?? '—'}  Lis%: {obj.listeroPct ?? '—'}
                             </Text>
-                            {warning && <Text style={styles.priceMismatchNote}>{warning}</Text>}
-                          </View>
-                        );
-                      });
-                      // Luego las activas sin configuración
-                      missingActive.forEach(mk => {
-                        allRows.push(
-                          <View key={mk} style={styles.detailRow}>
-                            <Text style={[styles.detailText, styles.priceListTextWarning]}>
-                              {mk} - Sin configuración
-                            </Text>
-                            <Text style={styles.priceMismatchNote}>Jugada activa sin valores configurados</Text>
                           </View>
                         );
                       });
@@ -865,7 +685,7 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
 
       {/* Modal de precios */}
       {priceModalVisible && (
-        <View style={styles.pricesModalOverlay}>
+        <View style={[styles.pricesModalOverlay]}>
           <View style={styles.pricesModal}>
             <Text style={styles.pricesModalTitle}>{editingBatch ? 'Editar Precios' : 'Agregar Precios'}</Text>
             <ScrollView style={{ maxHeight: 470 }}>
@@ -932,7 +752,7 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
               <ActionButton
                 title="Cerrar"
                 onPress={() => { setPriceModalVisible(false); setEditingBatch(false); }}
-                variant="secondary"
+                variant="danger"
                 size="small"
               />
               <ActionButton
@@ -1016,7 +836,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    marginTop: 90,
+    marginTop: 30,
   },
   section: {
     backgroundColor: '#FFFFFF',
@@ -1038,19 +858,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   // Estilos de botones globales eliminados
-  playTypeItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  playTypeLabel: {
-    fontSize: 16,
-    color: '#2C3E50',
-    fontWeight: '500',
-  },
   priceGroup: {
     marginBottom: 20,
     padding: 12,
@@ -1162,8 +969,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2C3E50'
   },
-  configNameWarning: {
-    color: '#c92a2a'
+  configNameError: {
+    color: '#e74c3c'
+  },
+  configItemError: {
+    borderLeftWidth: 3,
+    borderLeftColor: '#e74c3c',
+    backgroundColor: '#fdf2f2'
+  },
+  configWarning: {
+    backgroundColor: '#ffeaa7',
+    borderRadius: 6,
+    padding: 8,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#fdcb6e'
+  },
+  configWarningText: {
+    fontSize: 12,
+    color: '#6c5ce7',
+    fontWeight: '500'
   },
   configArrow: {
     fontSize: 14,

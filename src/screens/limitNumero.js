@@ -70,14 +70,6 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   const [loadingLimites, setLoadingLimites] = useState(false);
   const [statusMsg2, setStatusMsg2] = useState(null);
 
-  // Sincronizar con cache para admins
-  useEffect(() => {
-    if (cacheUserRole === 'admin' && cache.numberLimits) {
-      setNumerosLimitados(cache.numberLimits.limitedNumbers || []);
-      setLimitesNumeros(cache.numberLimits.specificLimits || []);
-    }
-  }, [cacheUserRole, cache.numberLimits]);
-
   // Form states para modales
   const [tempNumber, setTempNumber] = useState('');
   const [tempLimit, setTempLimit] = useState('');
@@ -219,15 +211,9 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     return raw.toString().padStart(len, '0');
   };
 
-  // Cargar lista de números limitados - usar cache primero
-  const loadNumerosLimitados = async () => {
+  // Cargar lista de números limitados - siempre hacer fetch para datos actualizados
+  const loadNumerosLimitados = async (forceRefresh = false) => {
     if (!bankId) return;
-    
-    // Si tenemos cache reciente, usarlo primero
-    if (cache.numberLimits && cache.numberLimits.limitedNumbers) {
-      setNumerosLimitados(cache.numberLimits.limitedNumbers);
-      return; // No hacer fetch adicional si el cache está disponible
-    }
     
     setLoadingNumeros(true);
     try {
@@ -239,8 +225,9 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       const { data, error } = await query;
       if (error) {
         console.error('[numero_limitado] Error consulta principal:', error);
+        return;
       }
-  const rows = (data || []).map(r => ({ ...r, jugadaKey: r.jugada }));
+      const rows = (data || []).map(r => ({ ...r, jugadaKey: r.jugada }));
       const sorted = rows.slice().sort((a,b)=> {
         const numDiff = (a.numero||0)-(b.numero||0);
         if (numDiff !== 0) return numDiff;
@@ -257,8 +244,8 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     setLoadingNumeros(false);
   };
 
-  useEffect(() => { loadNumerosLimitados(); }, [bankId]);
-  useEffect(() => { loadLimitesNumeros(); }, [bankId]);
+  useEffect(() => { loadNumerosLimitados(true); }, [bankId]);
+  useEffect(() => { loadLimitesNumeros(true); }, [bankId]);
 
   // Cargar jugadas activas globales
   const loadActives = useCallback(async () => {
@@ -287,8 +274,8 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     useCallback(() => {
       if (bankId) {
         loadActives();
-        loadNumerosLimitados();
-        loadLimitesNumeros();
+        loadNumerosLimitados(true);
+        loadLimitesNumeros(true);
       }
     }, [bankId, loadActives])
   );
@@ -332,7 +319,7 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       if (!error) {
         resetForm();
         setLimitedNumberModalVisible(false);
-        await loadNumerosLimitados();
+        await loadNumerosLimitados(true);
         setStatusMsg({ type: 'ok', text: 'Número limitado guardado.' });
         setTimeout(()=> setStatusMsg(null), 2500);
       }
@@ -344,7 +331,9 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   const handleDelete = async (item) => {
     try {
       const { error } = await supabase.from('numero_limitado').delete().eq('id', item.id);
-      if (!error) loadNumerosLimitados();
+      if (!error) {
+        await loadNumerosLimitados(true);
+      }
     } catch {}
   };
 
@@ -390,26 +379,21 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     }
   };
 
-  const loadLimitesNumeros = async () => {
+  const loadLimitesNumeros = async (forceRefresh = false) => {
     if(!bankId) return;
-    
-    // Si tenemos cache reciente, usarlo primero
-    if (cache.numberLimits && cache.numberLimits.specificLimits) {
-      setLimitesNumeros(cache.numberLimits.specificLimits);
-      return; // No hacer fetch adicional si el cache está disponible
-    }
     
     setLoadingLimites(true);
     try {
       const { data, error } = await supabase
         .from('limite_numero')
-  .select('id, numero, limite, id_horario, jugada, horario: id_horario (nombre, loteria: id_loteria (nombre))')
+        .select('id, numero, limite, id_horario, jugada, horario: id_horario (nombre, loteria: id_loteria (nombre))')
         .eq('id_banco', bankId)
         .order('numero', { ascending:true });
       if (error) {
         console.error('[limite_numero] Error consulta principal:', error);
+        return;
       }
-  const rows = (data || []).map(r => ({ ...r, jugadaKey: r.jugada }));
+      const rows = (data || []).map(r => ({ ...r, jugadaKey: r.jugada }));
       const sorted = rows.slice().sort((a,b)=> {
         const numDiff = (a.numero||0)-(b.numero||0);
         if(numDiff!==0) return numDiff;
@@ -461,7 +445,7 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       if(!error){
         setTempNumber2(''); setTempLimit2(''); setSelectedJugada2(null);
         setLimitModalVisible(false);
-        await loadLimitesNumeros();
+        await loadLimitesNumeros(true);
         setStatusMsg2({type:'ok', text:'Límite guardado.'});
         setTimeout(()=> setStatusMsg2(null), 2500);
       }
@@ -471,7 +455,9 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   const handleDeleteLimite = async (item) => {
     try {
       const { error } = await supabase.from('limite_numero').delete().eq('id', item.id);
-      if(!error) loadLimitesNumeros();
+      if(!error) {
+        await loadLimitesNumeros(true);
+      }
     } catch {}
   };
 

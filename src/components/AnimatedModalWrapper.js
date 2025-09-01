@@ -33,10 +33,13 @@ const AnimatedModalWrapper = ({ visible, children, scaleFrom = 0.85, duration = 
   }, [visible, scaleFrom, duration, easing, scale, opacity]);
 
   return (
-    <Animated.View style={[
-      { transform: [{ scale }], opacity, pointerEvents: visible ? 'auto' : 'none' }, 
-      style
-    ]}>
+    <Animated.View 
+      style={[
+        { transform: [{ scale }], opacity }, 
+        style
+      ]}
+      pointerEvents={visible ? 'auto' : 'none'}
+    >
       {visible && children}
     </Animated.View>
   );

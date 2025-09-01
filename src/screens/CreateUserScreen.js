@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, Alert, Modal, StyleSheet, TextInput, Button, FlatList, TouchableOpacity, Switch, Platform } from 'react-native';
+import { View, Text, Alert, Modal, StyleSheet, TextInput, FlatList, TouchableOpacity, Switch, Platform } from 'react-native';
 import { Picker } from '../components/PickerWrapper';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
@@ -8,6 +8,35 @@ import { createShadowStyle } from '../utils/shadowUtils';
 
 // Orden canónico unificado de jugadas en toda la app
 const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
+
+// Componente Button personalizado para evitar warnings de pointerEvents
+const CustomButton = ({ title, onPress, disabled = false, color = '#007AFF', style }) => (
+  <TouchableOpacity
+    onPress={onPress}
+    disabled={disabled}
+    style={[
+      {
+        backgroundColor: disabled ? '#ccc' : color,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 6,
+        marginVertical: 4,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 44,
+      },
+      style
+    ]}
+  >
+    <Text style={{
+      color: disabled ? '#999' : '#fff',
+      fontSize: 16,
+      fontWeight: '600'
+    }}>
+      {title}
+    </Text>
+  </TouchableOpacity>
+);
 
 const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   const [users, setUsers] = useState([]);
@@ -618,7 +647,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     setResetModalVisible(true);
   };
 
-  // Confirmar cambio de contraseña llamando a la Edge Function
+  // Confirmar cambio de contraseña usando método directo simplificado
   const handleConfirmResetPassword = async () => {
     try {
       if (!resetTargetUser) return;
@@ -634,23 +663,37 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       }
       setIsResetting(true);
       
-      await adminResetPasswordByUsername(resetTargetUser.username, pwd);
+      // Método directo: establecer contraseña temporal en el perfil
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          temp_password: pwd,
+          temp_password_created: new Date().toISOString()
+        })
+        .eq('id', resetTargetUser.id);
+
+      if (updateError) {
+        throw new Error('Error al establecer contraseña temporal: ' + updateError.message);
+      }
       
-      Alert.alert('Éxito', 'Contraseña actualizada correctamente.');
+      Alert.alert(
+        'Contraseña Temporal Establecida', 
+        `Se ha establecido una contraseña temporal para ${resetTargetUser.username}.\n\nEl usuario deberá usar esta nueva contraseña en su próximo login y cambiarla desde Configuración > Cambiar Contraseña.`
+      );
       setResetModalVisible(false);
     } catch (e) {
       console.error('Reset password error:', e);
-      let errorMessage = 'No se pudo cambiar la contraseña.';
+      let errorMessage = 'No se pudo establecer la contraseña temporal.';
       
-      if (e.message?.includes('CORS') || e.message?.includes('Failed to fetch')) {
-        errorMessage = 'Error de configuración del servidor. La función no está disponible.';
-      } else if (e.message) {
+      if (e.message) {
         errorMessage = e.message;
       }
       
       Alert.alert('Error', errorMessage);
     } finally {
       setIsResetting(false);
+      setResetPassword('');
+      setResetPassword2('');
     }
   };
 
@@ -811,7 +854,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       </View>
 
       <View style={styles.content}>
-  <Button title={userRole === 'collector' ? 'Crear Listero' : 'Crear Usuario'} onPress={() => { clearForm(); if (userRole==='collector'){ setRole('listero'); setSelectedCollector(currentUserId);} setModalVisible(true); }} />
+  <CustomButton title={userRole === 'collector' ? 'Crear Listero' : 'Crear Usuario'} onPress={() => { clearForm(); if (userRole==='collector'){ setRole('listero'); setSelectedCollector(currentUserId);} setModalVisible(true); }} />
 
         {userRole === 'collector' && hierarchicalUsers.length === 0 && (
           <Text style={styles.emptyListText}>No tienes listeros asignados todavía.</Text>
@@ -934,8 +977,8 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
                </>
              )}
 
-            <Button title={isEditing ? 'Guardar Cambios' : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')} onPress={handleCreateOrUpdate} />
-            <Button title="Cancelar" color="grey" onPress={() => setModalVisible(false)} />
+            <CustomButton title={isEditing ? 'Guardar Cambios' : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')} onPress={handleCreateOrUpdate} />
+            <CustomButton title="Cancelar" color="#666" onPress={() => setModalVisible(false)} />
           </View>
         </Modal>
 
@@ -958,8 +1001,8 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
               onChangeText={setResetPassword2}
               style={styles.input}
             />
-            <Button title={isResetting ? 'Actualizando…' : 'Actualizar'} disabled={isResetting} onPress={handleConfirmResetPassword} />
-            <Button title="Cancelar" color="grey" onPress={() => setResetModalVisible(false)} />
+            <CustomButton title={isResetting ? 'Actualizando…' : 'Actualizar'} disabled={isResetting} onPress={handleConfirmResetPassword} />
+            <CustomButton title="Cancelar" color="#666" onPress={() => setResetModalVisible(false)} />
           </View>
         </Modal>
       </View>

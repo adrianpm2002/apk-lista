@@ -13,6 +13,34 @@ import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 
+// Función helper para confirmaciones compatibles con web
+const showConfirmation = (title, message, onConfirm, onCancel = null) => {
+  if (Platform.OS === 'web') {
+    if (window.confirm(`${title}\n\n${message}`)) {
+      onConfirm();
+    } else if (onCancel) {
+      onCancel();
+    }
+  } else {
+    Alert.alert(
+      title,
+      message,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+          onPress: onCancel
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: onConfirm
+        }
+      ]
+    );
+  }
+};
+
 const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   return (
     <ScreenWrapper>
@@ -70,14 +98,19 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
   const formatTimeForDB = (date) => {
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
+    const seconds = '00'; // Siempre 00 segundos
+    return `${hours}:${minutes}:${seconds}`;
   };
 
   const parseTimeToDate = (timeString) => {
-    const [hours, minutes] = timeString.split(':');
+    // Manejar tanto formato HH:MM como HH:MM:SS
+    const timeParts = timeString.split(':');
+    const hours = parseInt(timeParts[0], 10);
+    const minutes = parseInt(timeParts[1], 10);
+    
     const date = new Date();
-    date.setHours(parseInt(hours, 10));
-    date.setMinutes(parseInt(minutes, 10));
+    date.setHours(hours);
+    date.setMinutes(minutes);
     date.setSeconds(0);
     return date;
   };
@@ -178,7 +211,6 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
         return;
       }
 
-      console.log('Added lottery:', data);
       setNewLottery('');
       
       // Actualizar cache y UI automáticamente
@@ -198,59 +230,52 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
       return;
     }
 
-    Alert.alert(
+    showConfirmation(
       'Confirmar eliminación',
       '¿Estás seguro de que deseas eliminar esta lotería? También se eliminarán todos sus horarios.',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Primero eliminar horarios
-              const { error: schedulesError } = await supabase
-                .from('horarios_loteria')
-                .delete()
-                .eq('id_loteria', id);
+      async () => {
+        try {
+          // Primero eliminar horarios
+          const { error: schedulesError } = await supabase
+            .from('horario')
+            .delete()
+            .eq('id_loteria', id);
 
-              if (schedulesError) {
-                console.error('Error deleting schedules:', schedulesError);
-              }
+          if (schedulesError) {
+            console.error('Error deleting schedules:', schedulesError);
+          }
 
-              // Luego eliminar la lotería
-              const { error } = await supabase
-                .from('loteria')
-                .delete()
-                .eq('id', id);
+          // Luego eliminar la lotería
+          const { error } = await supabase
+            .from('loteria')
+            .delete()
+            .eq('id', id);
 
-              if (error) {
-                console.error('Error deleting lottery:', error);
-                Alert.alert('Error', 'No se pudo eliminar la lotería');
-                return;
-              }
+          if (error) {
+            console.error('Error deleting lottery:', error);
+            Alert.alert('Error', 'No se pudo eliminar la lotería');
+            return;
+          }
 
-              // Actualizar cache y UI automáticamente
-              await cacheFetchLotteries();
-              
-              Alert.alert('Éxito', 'Lotería eliminada correctamente');
-            } catch (error) {
-              console.error('Error general deleting lottery:', error);
-              Alert.alert('Error', 'Error general al eliminar la lotería');
-            }
-          },
-        },
-      ]
+          // Actualizar cache y UI automáticamente
+          await cacheFetchLotteries();
+          
+          // Forzar actualización del estado local inmediatamente
+          setLotteries(prevLotteries => prevLotteries.filter(lottery => lottery.id !== id));
+          
+          Alert.alert('Éxito', 'Lotería eliminada correctamente');
+        } catch (error) {
+          console.error('Error general deleting lottery:', error);
+          Alert.alert('Error', 'Error general al eliminar la lotería');
+        }
+      }
     );
   };
 
   const openScheduleModal = (lottery) => {
     setSelectedLottery(lottery);
     setScheduleModalVisible(true);
-    fetchSchedules(lottery.id);
+    refreshSchedulesDirectly(lottery.id);
   };
 
   const closeScheduleModal = () => {
@@ -279,6 +304,26 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
     }
   };
 
+  // Función para obtener horarios directamente de la base de datos
+  const refreshSchedulesDirectly = async (lotteryId) => {
+    try {
+      const { data, error } = await supabase
+        .from('horario')
+        .select('*')
+        .eq('id_loteria', lotteryId)
+        .order('hora_inicio', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching schedules directly:', error);
+        return;
+      }
+
+      setSchedules(data || []);
+    } catch (error) {
+      console.error('Error general fetching schedules directly:', error);
+    }
+  };
+
   const handleAddSchedule = async () => {
     if (!newSchedule.name.trim()) {
       Alert.alert('Error', 'Por favor ingresa el nombre del horario');
@@ -295,14 +340,13 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
         id_loteria: selectedLottery.id,
         nombre: newSchedule.name.trim(),
         hora_inicio: formatTimeForDB(startTime),
-        hora_fin: formatTimeForDB(endTime),
-        estado: true
+        hora_fin: formatTimeForDB(endTime)
       };
 
       if (editingSchedule) {
         // Actualizar horario existente
         const { data, error } = await supabase
-          .from('horarios_loteria')
+          .from('horario')
           .update(scheduleData)
           .eq('id', editingSchedule.id)
           .select();
@@ -317,7 +361,7 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
       } else {
         // Crear nuevo horario
         const { data, error } = await supabase
-          .from('horarios_loteria')
+          .from('horario')
           .insert([scheduleData])
           .select();
 
@@ -336,9 +380,10 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
       setEndTime(new Date());
       setEditingSchedule(null);
       
-      // Actualizar horarios y cache automáticamente
-      await fetchSchedules(selectedLottery.id);
-      await cacheFetchSchedules(); // Actualizar cache de horarios
+      // Actualizar horarios directamente desde la base de datos
+      await refreshSchedulesDirectly(selectedLottery.id);
+      // También actualizar cache para mantener consistencia
+      await cacheFetchSchedules();
     } catch (error) {
       console.error('Error general with schedule:', error);
       Alert.alert('Error', 'Error general al procesar el horario');
@@ -359,42 +404,33 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
   };
 
   const handleDeleteSchedule = async (scheduleId) => {
-    Alert.alert(
+    showConfirmation(
       'Confirmar eliminación',
       '¿Estás seguro de que deseas eliminar este horario?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from('horarios_loteria')
-                .delete()
-                .eq('id', scheduleId);
+      async () => {
+        try {
+          const { error } = await supabase
+            .from('horario')
+            .delete()
+            .eq('id', scheduleId);
 
-              if (error) {
-                console.error('Error deleting schedule:', error);
-                Alert.alert('Error', 'No se pudo eliminar el horario');
-                return;
-              }
+          if (error) {
+            console.error('Error deleting schedule:', error);
+            Alert.alert('Error', 'No se pudo eliminar el horario');
+            return;
+          }
 
-              // Actualizar horarios y cache automáticamente
-              await fetchSchedules(selectedLottery.id);
-              await cacheFetchSchedules(); // Actualizar cache de horarios
-              
-              Alert.alert('Éxito', 'Horario eliminado correctamente');
-            } catch (error) {
-              console.error('Error general deleting schedule:', error);
-              Alert.alert('Error', 'Error general al eliminar el horario');
-            }
-          },
-        },
-      ]
+          // Actualizar horarios directamente desde la base de datos
+          await refreshSchedulesDirectly(selectedLottery.id);
+          // También actualizar cache para mantener consistencia
+          await cacheFetchSchedules();
+          
+          Alert.alert('Éxito', 'Horario eliminado correctamente');
+        } catch (error) {
+          console.error('Error general deleting schedule:', error);
+          Alert.alert('Error', 'Error general al eliminar el horario');
+        }
+      }
     );
   };
 
@@ -410,9 +446,13 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
   const formatTime = (timeString) => {
     if (!timeString) return '00:00';
     
-    // Si ya es un string en formato HH:MM, devolverlo tal como está
+    // Si es un string en formato HH:MM:SS, extraer solo HH:MM
     if (typeof timeString === 'string' && timeString.includes(':')) {
-      return timeString;
+      const timeParts = timeString.split(':');
+      if (timeParts.length >= 2) {
+        return `${timeParts[0]}:${timeParts[1]}`;
+      }
+      return timeString; // Si ya es HH:MM
     }
     
     // Si es un objeto Date, extraer horas y minutos

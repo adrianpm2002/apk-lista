@@ -377,6 +377,7 @@ const styles = {
   content: {
     flex: 1,
     padding: 16,
+    marginTop: 20,
   },
   section: {
     marginBottom: 24,

@@ -253,6 +253,8 @@ const PricesContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
         <ActionButton
           title="Nueva Configuración de Precios"
           onPress={() => {
+            console.log('🚨🚨🚨 BOTÓN NUEVA CONFIGURACIÓN PRESIONADO EN PRICESSCREEN 🚨🚨🚨');
+            console.log('Estado actual priceModalVisible:', priceModalVisible);
             setEditingBatch(false);
             setEditingConfigId(null);
             // Limpiar campos para nueva config
@@ -264,6 +266,7 @@ const PricesContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
             setPriceConfigName('');
             setPriceEntries([]);
             setPriceModalVisible(true);
+            console.log('🚨🚨🚨 DESPUÉS DE setPriceModalVisible(true) EN PRICESSCREEN 🚨🚨🚨');
           }}
           variant="primary"
           size="medium"
