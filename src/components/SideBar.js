@@ -60,13 +60,11 @@ const roleOptionsMap = {
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   collector: [
-  // Ajustado: solo las pantallas permitidas para collector
-  { id: 'statistics', icon: '📈', title: 'Estadísticas' },
-  { id: 'collectorStatistics', icon: '📊', title: 'Reportes' },
-  { id: 'insertResults', icon: '🎯', title: 'Resultados' },
-  // Icono corregido: el anterior tenía un carácter inválido que mostraba signo de interrogación
-  { id: 'createUser', icon: '🧑‍💼', title: 'Usuarios' },
-  { id: 'settings', icon: '⚙️', title: 'Configuración' },
+    // Solo las pantallas permitidas para collector, sin Reportes
+    { id: 'statistics', icon: '📈', title: 'Estadísticas' },
+    { id: 'insertResults', icon: '🎯', title: 'Resultados' },
+    { id: 'createUser', icon: '🧑‍💼', title: 'Usuarios' },
+    { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   listero: [
   { id: 'play', icon: '🎮', title: 'Inicio' },

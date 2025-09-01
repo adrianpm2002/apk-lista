@@ -38,7 +38,6 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   // Estados principales
   const [lotteries, setLotteries] = useState([]);
   const [activeJugadas, setActiveJugadas] = useState({});
-  const [allLimits, setAllLimits] = useState({}); // Para almacenar límites de todas las loterías
   
   // Estados del modal
   const [modalVisible, setModalVisible] = useState(false);
@@ -94,34 +93,11 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       
       if (!error) {
         setLotteries(data || []);
-        // Cargar todos los límites después de cargar las loterías
-        await loadAllLimits(data || []);
       }
     } catch (error) {
       console.error('Error loading lotteries:', error);
     }
     setLoading(false);
-  };
-
-  const loadAllLimits = async (lotteriesList) => {
-    try {
-      const { data, error } = await supabase
-        .from('limite_loteria')
-        .select('id_loteria, limites')
-        .in('id_loteria', lotteriesList.map(l => l.id));
-      
-      if (!error && data) {
-        const limitsMap = {};
-        data.forEach(item => {
-          limitsMap[item.id_loteria] = item.limites || {};
-        });
-        setAllLimits(limitsMap);
-      }
-    } catch (error) {
-      console.error('Error loading all limits:', error);
-      // Si hay error (tabla no existe), usar objeto vacío
-      setAllLimits({});
-    }
   };
 
   const loadActiveJugadas = async () => {
@@ -150,49 +126,22 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
 
   const loadLotteryLimits = async (lotteryId) => {
     try {
-      console.log('[lottery_limits] Cargando límites para lotería:', lotteryId);
-      
       const { data, error } = await supabase
         .from('limite_loteria')
         .select('id, limites')
         .eq('id_loteria', lotteryId)
-        .maybeSingle();
+        .single();
       
-      if (error) {
-        console.error('[lottery_limits] Error cargando límites:', error);
-        
-        // Si la tabla no existe (error 406 o 42P01), usar valores por defecto
-        if (error.code === '42P01' || error.message?.includes('406') || error.message?.includes('Not Acceptable')) {
-          console.warn('[lottery_limits] Tabla limite_loteria no existe o no es accesible. Usando valores por defecto.');
-          setLimitsRecordId(null);
-          setCurrentLimits({});
-          
-          // Mostrar alerta informativa al usuario
-          Alert.alert(
-            'Información',
-            'La tabla de límites no existe aún. Se creará automáticamente al guardar los primeros límites.',
-            [{ text: 'Entendido' }]
-          );
-          return;
-        }
-        
-        // Para otros errores, usar valores por defecto silenciosamente
-        setLimitsRecordId(null);
-        setCurrentLimits({});
-        return;
-      }
-      
-      if (data) {
-        console.log('[lottery_limits] Límites cargados:', data);
+      if (!error && data) {
         setLimitsRecordId(data.id);
         setCurrentLimits(data.limites || {});
       } else {
-        console.log('[lottery_limits] No existen límites para esta lotería');
+        // No existe registro, preparar para crear uno nuevo
         setLimitsRecordId(null);
         setCurrentLimits({});
       }
     } catch (error) {
-      console.error('[lottery_limits] Excepción cargando límites:', error);
+      console.error('Error loading lottery limits:', error);
       setLimitsRecordId(null);
       setCurrentLimits({});
     }
@@ -219,23 +168,16 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
         }
       });
 
-      console.log('[lottery_limits] Guardando límites:', processedLimits);
-
       if (limitsRecordId) {
         // Actualizar registro existente
-        console.log('[lottery_limits] Actualizando registro existente:', limitsRecordId);
         const { error } = await supabase
           .from('limite_loteria')
           .update({ limites: processedLimits })
           .eq('id', limitsRecordId);
         
-        if (error) {
-          console.error('[lottery_limits] Error actualizando:', error);
-          throw error;
-        }
+        if (error) throw error;
       } else {
         // Crear nuevo registro
-        console.log('[lottery_limits] Creando nuevo registro para lotería:', selectedLottery.id);
         const { data, error } = await supabase
           .from('limite_loteria')
           .insert({
@@ -245,104 +187,32 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
           .select('id')
           .single();
         
-        if (error) {
-          console.error('[lottery_limits] Error creando:', error);
-          
-          // Si la tabla no existe, mostrar mensaje más específico
-          if (error.code === '42P01' || error.message?.includes('406') || error.message?.includes('Not Acceptable')) {
-            Alert.alert(
-              'Error de Base de Datos',
-              'La tabla limite_loteria no existe en la base de datos. Por favor, contacta al administrador del sistema para crear la tabla con la siguiente estructura:\n\nCREATE TABLE limite_loteria (\n  id SERIAL PRIMARY KEY,\n  id_loteria UUID NOT NULL,\n  limites JSONB,\n  created_at TIMESTAMP DEFAULT NOW()\n);',
-              [{ text: 'Entendido' }]
-            );
-            return;
-          }
-          
-          throw error;
-        }
-        
-        if (data) {
-          console.log('[lottery_limits] Registro creado con ID:', data.id);
-          setLimitsRecordId(data.id);
-        }
+        if (error) throw error;
+        setLimitsRecordId(data.id);
       }
       
       Alert.alert('Éxito', 'Límites guardados correctamente');
-      
-      // Actualizar la vista previa en la lista
-      setAllLimits(prev => ({
-        ...prev,
-        [selectedLottery.id]: processedLimits
-      }));
-      
       setModalVisible(false);
     } catch (error) {
-      console.error('[lottery_limits] Error guardando límites:', error);
-      Alert.alert(
-        'Error',
-        `No se pudieron guardar los límites: ${error.message || 'Error desconocido'}`
-      );
+      console.error('Error saving limits:', error);
+      Alert.alert('Error', 'No se pudieron guardar los límites');
     }
     setSaving(false);
   };
 
-  const renderLotteryItem = ({ item }) => {
-    const itemLimits = allLimits[item.id] || {};
-    const hasLimits = Object.keys(itemLimits).length > 0;
-    const activeJugadasList = getActiveJugadasList();
-    
-    // Filtrar solo las jugadas que tienen límites configurados
-    const configuredLimits = activeJugadasList.filter(jugada => itemLimits[jugada]);
-    
-    // Crear filas con 3 elementos máximo por fila
-    const createLimitRows = () => {
-      const rows = [];
-      for (let i = 0; i < configuredLimits.length; i += 3) {
-        rows.push(configuredLimits.slice(i, i + 3));
-      }
-      return rows;
-    };
-    
-    return (
-      <View style={[styles.lotteryItem, isDarkMode && styles.lotteryItemDark]}>
-        <View style={styles.lotteryInfo}>
-          <Text style={[styles.lotteryName, isDarkMode && styles.lotteryNameDark]}>
-            {item.nombre}
-          </Text>
-          
-          {hasLimits ? (
-            <View style={styles.limitsPreview}>
-              <Text style={[styles.limitsPreviewTitle, isDarkMode && styles.limitsPreviewTitleDark]}>
-                Límites configurados:
-              </Text>
-              {createLimitRows().map((row, rowIndex) => (
-                <View key={rowIndex} style={styles.limitRow}>
-                  {row.map(jugada => (
-                    <View key={jugada} style={[styles.limitChip, isDarkMode && styles.limitChipDark]}>
-                      <Text style={[styles.limitChipText, isDarkMode && styles.limitChipTextDark]}>
-                        {jugada.charAt(0).toUpperCase() + jugada.slice(1)}: ${itemLimits[jugada].toLocaleString()}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Text style={[styles.noLimitsText, isDarkMode && styles.noLimitsTextDark]}>
-              Sin límites configurados
-            </Text>
-          )}
-        </View>
-        
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => openEditModal(item)}
-        >
-          <Text style={styles.editButtonText}>Editar Límites</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
+  const renderLotteryItem = ({ item }) => (
+    <View style={[styles.lotteryItem, isDarkMode && styles.lotteryItemDark]}>
+      <Text style={[styles.lotteryName, isDarkMode && styles.lotteryNameDark]}>
+        {item.nombre}
+      </Text>
+      <TouchableOpacity
+        style={styles.editButton}
+        onPress={() => openEditModal(item)}
+      >
+        <Text style={styles.editButtonText}>Editar Límites</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   const getActiveJugadasList = () => {
     return JUGADA_ORDER.filter(jugada => activeJugadas[jugada] === true);
@@ -395,55 +265,53 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       )}
 
       {/* Modal de edición de límites */}
-      {modalVisible && (
-        <Modal
-          visible={true}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
-                  Límites - {selectedLottery?.nombre}
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
+                Límites - {selectedLottery?.nombre}
+              </Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Text style={styles.modalCloseButton}>×</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              {getActiveJugadasList().length > 0 ? (
+                getActiveJugadasList().map(renderLimitInput)
+              ) : (
+                <Text style={[styles.noJugadasText, isDarkMode && styles.noJugadasTextDark]}>
+                  No hay jugadas activas configuradas
                 </Text>
-                <TouchableOpacity onPress={() => setModalVisible(false)}>
-                  <Text style={styles.modalCloseButton}>×</Text>
-                </TouchableOpacity>
-              </View>
+              )}
+            </View>
 
-              <View style={styles.modalBody}>
-                {getActiveJugadasList().length > 0 ? (
-                  getActiveJugadasList().map(renderLimitInput)
-                ) : (
-                  <Text style={[styles.noJugadasText, isDarkMode && styles.noJugadasTextDark]}>
-                    No hay jugadas activas configuradas
-                  </Text>
-                )}
-              </View>
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton]}
-                  onPress={() => setModalVisible(false)}
-                >
-                  <Text style={styles.modalButtonText}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.saveButton, saving && styles.saveButtonDisabled]}
-                  onPress={saveLimits}
-                  disabled={saving}
-                >
-                  <Text style={styles.modalButtonText}>
-                    {saving ? 'Guardando...' : 'Guardar'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.modalButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton, saving && styles.saveButtonDisabled]}
+                onPress={saveLimits}
+                disabled={saving}
+              >
+                <Text style={styles.modalButtonText}>
+                  {saving ? 'Guardando...' : 'Guardar'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
-        </Modal>
-      )}
+        </View>
+      </Modal>
 
       <SideBar
         isVisible={sidebarVisible}
@@ -520,76 +388,20 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     ...createShadowStyle(0, 2, '#000000', 0.1, 4)
   },
   lotteryItemDark: {
     backgroundColor: '#2c3e50'
   },
-  lotteryInfo: {
-    flex: 1,
-    marginRight: 15
-  },
   lotteryName: {
     fontSize: 18,
     fontWeight: '600',
     color: '#2D5016',
-    marginBottom: 8
+    flex: 1
   },
   lotteryNameDark: {
     color: '#E8F5E8'
-  },
-  limitsPreview: {
-    marginTop: 4
-  },
-  limitsPreviewTitle: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#4CAF50',
-    marginBottom: 6
-  },
-  limitsPreviewTitleDark: {
-    color: '#81C784'
-  },
-  limitRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 4
-  },
-  limitChip: {
-    backgroundColor: '#E8F5E8',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginRight: 6,
-    marginBottom: 3
-  },
-  limitChipDark: {
-    backgroundColor: '#34495e'
-  },
-  limitChipText: {
-    fontSize: 10,
-    color: '#2D5016',
-    fontWeight: '500'
-  },
-  limitChipTextDark: {
-    color: '#E8F5E8'
-  },
-  limitPreviewItem: {
-    fontSize: 11,
-    color: '#666',
-    marginBottom: 1
-  },
-  limitPreviewItemDark: {
-    color: '#bdc3c7'
-  },
-  noLimitsText: {
-    fontSize: 12,
-    color: '#e74c3c',
-    fontStyle: 'italic'
-  },
-  noLimitsTextDark: {
-    color: '#ec7063'
   },
   editButton: {
     backgroundColor: '#4CAF50',

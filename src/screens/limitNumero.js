@@ -7,6 +7,7 @@ import { useCache } from '../contexts/CacheContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
+import DropdownPicker from '../components/DropdownPicker';
 
 const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   return (
@@ -481,6 +482,23 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     return true;
   });
 
+  // Preparar opciones para dropdowns
+  const prepareLotteryOptions = () => {
+    return lotteries.map(l => ({ label: l.nombre, value: l.id, data: l }));
+  };
+
+  const prepareScheduleOptions = (selectedLot) => {
+    if (!selectedLot) return [];
+    const schedulesList = selectedLot === selectedLottery ? schedules : schedules2;
+    return schedulesList.map(s => ({ label: s.nombre, value: s.id, data: s }));
+  };
+
+  const prepareJugadaOptions = (selectedSch, isModal2 = false) => {
+    if (!selectedSch) return [];
+    const jugadasList = isModal2 ? jugadas2 : jugadas;
+    return jugadasList.map(j => ({ label: j.jugada, value: j.id, data: j }));
+  };
+
   return (
     <SafeAreaView style={[styles.container, isDarkMode && styles.containerDark]}>
       <View style={[styles.header, isDarkMode && styles.headerDark]}>
@@ -543,8 +561,8 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
                   />
                 }
                 renderItem={({item}) => (
-                  <View style={[styles.item, isDarkMode && styles.itemDark, {flexDirection:'row', justifyContent:'space-between', alignItems:'center'}]}> 
-                    <View style={{flex:1, paddingRight:8}}>
+                  <View style={[styles.item, isDarkMode && styles.itemDark, styles.itemRow]}> 
+                    <View style={styles.itemContent}>
           <Text style={[styles.itemNumber, isDarkMode && styles.itemNumberDark, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
                         {(item.horario?.loteria?.nombre || '') + (item.horario?.loteria?.nombre ? ' - ' : '') + (item.horario?.nombre || '')}
                       </Text>
@@ -588,8 +606,8 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
                   />
                 }
                 renderItem={({item}) => (
-                  <View style={[styles.item, isDarkMode && styles.itemDark, {flexDirection:'row', justifyContent:'space-between', alignItems:'center'}]}>
-                    <View style={{flex:1, paddingRight:8}}>
+                  <View style={[styles.item, isDarkMode && styles.itemDark, styles.itemRow]}>
+                    <View style={styles.itemContent}>
                       <Text style={[styles.itemNumber, isDarkMode && styles.itemNumberDark, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
                         {(item.horario?.loteria?.nombre || '') + (item.horario?.loteria?.nombre ? ' - ' : '') + (item.horario?.nombre || '')}
                       </Text>
@@ -609,14 +627,14 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       </View>
 
       {/* Modal para números limitados */}
-      <Modal
-        visible={limitedNumberModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => closeModal('left')}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
+      {limitedNumberModalVisible && (
+        <Modal
+          visible={true}
+          transparent={true}
+          onRequestClose={() => closeModal('left')}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
                 Números Limitados
@@ -628,43 +646,36 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
             
             <View style={styles.selectorRow}>
               <View style={styles.selectorColumn}>
-                <Text style={styles.selectorLabel}>Lotería</Text>
-                <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
-                  {lotteries.map(l => (
-                    <TouchableOpacity key={l.id} style={[styles.selectorOption, selectedLottery?.id===l.id && styles.selectorOptionActive]} onPress={() => handleSelectLottery(l)}>
-                      <Text style={[styles.selectorOptionText, selectedLottery?.id===l.id && styles.selectorOptionTextActive]}>{l.nombre}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {lotteries.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
-                </View>
+                <DropdownPicker
+                  label="Lotería"
+                  value={selectedLottery?.nombre}
+                  onSelect={(item) => handleSelectLottery(item.data)}
+                  options={prepareLotteryOptions()}
+                  placeholder="Seleccionar lotería..."
+                />
               </View>
               <View style={styles.selectorColumn}>
-                <Text style={styles.selectorLabel}>Horario</Text>
-                <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
-                  {schedules.map(s => (
-                    <TouchableOpacity key={s.id} style={[styles.selectorOption, selectedSchedule?.id===s.id && styles.selectorOptionActive]} onPress={() => handleSelectSchedule(s)}>
-                      <Text style={[styles.selectorOptionText, selectedSchedule?.id===s.id && styles.selectorOptionTextActive]}>{s.nombre}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {selectedLottery && schedules.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
-                  {!selectedLottery && <Text style={styles.selectorHint}>Selecciona lotería</Text>}
-                </View>
+                <DropdownPicker
+                  label="Horario"
+                  value={selectedSchedule?.nombre}
+                  onSelect={(item) => handleSelectSchedule(item.data)}
+                  options={prepareScheduleOptions(selectedLottery)}
+                  placeholder={selectedLottery ? "Seleccionar horario..." : "Selecciona lotería"}
+                  disabled={!selectedLottery}
+                />
               </View>
             </View>
             
             <View style={styles.selectorRow}>
               <View style={[styles.selectorColumn, { flex: 1 }] }>
-                <Text style={styles.selectorLabel}>Jugada</Text>
-                <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}> 
-                  {loadingJugadas && <Text style={styles.selectorHint}>Cargando...</Text>}
-                  {!loadingJugadas && jugadas.map(j => (
-                    <TouchableOpacity key={j.id} style={[styles.selectorOption, selectedJugada?.id===j.id && styles.selectorOptionActive]} onPress={() => setSelectedJugada(j)}>
-                      <Text style={[styles.selectorOptionText, selectedJugada?.id===j.id && styles.selectorOptionTextActive]}>{j.jugada}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {selectedSchedule && jugadas.length===0 && !loadingJugadas && <Text style={styles.selectorEmpty}>vacio</Text>}
-                  {!selectedSchedule && <Text style={styles.selectorHint}>Selecciona horario</Text>}
-                </View>
+                <DropdownPicker
+                  label="Jugada"
+                  value={selectedJugada?.jugada}
+                  onSelect={(item) => setSelectedJugada(item.data)}
+                  options={prepareJugadaOptions(selectedSchedule)}
+                  placeholder={selectedSchedule ? (loadingJugadas ? "Cargando..." : "Seleccionar jugada...") : "Selecciona horario"}
+                  disabled={!selectedSchedule || loadingJugadas}
+                />
               </View>
               <View style={[styles.selectorColumn, { flex: 1 }]}>
                 <Text style={styles.selectorLabel}>Número</Text>
@@ -707,17 +718,18 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
             )}
           </View>
         </View>
-      </Modal>
+        </Modal>
+      )}
 
       {/* Modal para límite de números */}
-      <Modal
-        visible={limitModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => closeModal('right')}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
+      {limitModalVisible && (
+        <Modal
+          visible={true}
+          transparent={true}
+          onRequestClose={() => closeModal('right')}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
                 Límite de Números
@@ -729,42 +741,36 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
             
             <View style={styles.selectorRow}>
               <View style={styles.selectorColumn}>
-                <Text style={styles.selectorLabel}>Lotería</Text>
-                <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
-                  {lotteries.map(l => (
-                    <TouchableOpacity key={l.id} style={[styles.selectorOption, selectedLottery2?.id===l.id && styles.selectorOptionActive]} onPress={()=> handleSelectLottery2(l)}>
-                      <Text style={[styles.selectorOptionText, selectedLottery2?.id===l.id && styles.selectorOptionTextActive]}>{l.nombre}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {lotteries.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
-                </View>
+                <DropdownPicker
+                  label="Lotería"
+                  value={selectedLottery2?.nombre}
+                  onSelect={(item) => handleSelectLottery2(item.data)}
+                  options={prepareLotteryOptions()}
+                  placeholder="Seleccionar lotería..."
+                />
               </View>
               <View style={styles.selectorColumn}>
-                <Text style={styles.selectorLabel}>Horario</Text>
-                <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
-                  {schedules2.map(s => (
-                    <TouchableOpacity key={s.id} style={[styles.selectorOption, selectedSchedule2?.id===s.id && styles.selectorOptionActive]} onPress={()=> handleSelectSchedule2(s)}>
-                      <Text style={[styles.selectorOptionText, selectedSchedule2?.id===s.id && styles.selectorOptionTextActive]}>{s.nombre}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {selectedLottery2 && schedules2.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
-                  {!selectedLottery2 && <Text style={styles.selectorHint}>Selecciona lotería</Text>}
-                </View>
+                <DropdownPicker
+                  label="Horario"
+                  value={selectedSchedule2?.nombre}
+                  onSelect={(item) => handleSelectSchedule2(item.data)}
+                  options={prepareScheduleOptions(selectedLottery2)}
+                  placeholder={selectedLottery2 ? "Seleccionar horario..." : "Selecciona lotería"}
+                  disabled={!selectedLottery2}
+                />
               </View>
             </View>
             
             <View style={styles.selectorRow}>
               <View style={[styles.selectorColumn,{flex:1}]}> 
-                <Text style={styles.selectorLabel}>Jugada</Text>
-                <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
-                  {!selectedSchedule2 && <Text style={styles.selectorHint}>Selecciona horario</Text>}
-                  {selectedSchedule2 && jugadas2.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
-                  {jugadas2.map(j => (
-                    <TouchableOpacity key={j.id} style={[styles.selectorOption, selectedJugada2?.id===j.id && styles.selectorOptionActive]} onPress={()=> setSelectedJugada2(j)}>
-                      <Text style={[styles.selectorOptionText, selectedJugada2?.id===j.id && styles.selectorOptionTextActive]}>{j.jugada}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <DropdownPicker
+                  label="Jugada"
+                  value={selectedJugada2?.jugada}
+                  onSelect={(item) => setSelectedJugada2(item.data)}
+                  options={prepareJugadaOptions(selectedSchedule2, true)}
+                  placeholder={selectedSchedule2 ? "Seleccionar jugada..." : "Selecciona horario"}
+                  disabled={!selectedSchedule2}
+                />
               </View>
               <View style={[styles.selectorColumn,{flex:1}]}> 
                 <Text style={styles.selectorLabel}>Número</Text>
@@ -818,7 +824,8 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
             )}
           </View>
         </View>
-      </Modal>
+        </Modal>
+      )}
 
       <SideBar
         isVisible={sidebarVisible}
@@ -918,6 +925,8 @@ const styles = StyleSheet.create({
   // Ítems más compactos para ver más registros por pantalla
   item: { backgroundColor: '#f8f9fa', borderRadius: 8, padding: 8, marginBottom: 6, borderLeftWidth: 4, borderLeftColor: '#27ae60' },
   itemDark: { backgroundColor: '#34495e' },
+  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  itemContent: { flex: 1, paddingRight: 8 },
   itemNumber: { fontSize: 14, fontWeight: '700', color: '#2c3e50' },
   itemNumberDark: { color: '#ecf0f1' },
   itemLimit: { fontSize: 12, marginTop: 2, color: '#34495e' },
@@ -928,7 +937,11 @@ const styles = StyleSheet.create({
   
   // Modal Styles
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -981,7 +994,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#95a5a6',
+    backgroundColor: '#e74c3c',
   },
   saveButton: {
     backgroundColor: '#27ae60',
