@@ -85,23 +85,22 @@ const InputField = ({
           {...otherProps}
         />
         {pasteButtonOverlay && (showPasteButton || showClearButtonOverlay) && (
-          <View style={styles.overlayButtonsContainer} pointerEvents="box-none">
-            {showPasteButton && (
+          <View style={[styles.overlayButtonsContainer, { pointerEvents: 'box-none' }]}>
+            {overlayButtons && overlayButtons.map((button, index) => (
               <Pressable
-                style={({ pressed }) => [styles.smallOverlayButton, pressed && styles.pasteButtonOverlayPressed]}
-                onPress={handlePaste}
+                key={index}
+                style={[
+                  styles.overlayButton,
+                  isDarkMode && styles.overlayButtonDark,
+                  button.style
+                ]}
+                onPress={button.onPress}
               >
-                <Text style={styles.pasteButtonOverlayText}>📋</Text>
+                <Text style={[styles.overlayButtonText, button.textStyle]}>
+                  {button.text}
+                </Text>
               </Pressable>
-            )}
-            {showClearButtonOverlay && (
-              <Pressable
-                style={({ pressed }) => [styles.smallOverlayButton, pressed && styles.pasteButtonOverlayPressed, { marginTop: 8 }]}
-                onPress={handleClear}
-              >
-                <Text style={styles.pasteButtonOverlayText}>🧹</Text>
-              </Pressable>
-            )}
+            ))}
           </View>
         )}
       </View>

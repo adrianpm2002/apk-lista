@@ -21,10 +21,10 @@ import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 
-const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+const JugadasScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
   return (
     <ScreenWrapper>
-      <ManagePricesContent
+      <JugadasContent
         navigation={navigation}
         isDarkMode={isDarkMode}
         onToggleDarkMode={onToggleDarkMode}
@@ -34,27 +34,22 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
   );
 };
 
-const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
-  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData, fetchPrices, fetchPriceConfigurations } = useCache();
-  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('prices');
+const JugadasContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData } = useCache();
+  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('activePlayTypes');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
   const [loading, setLoading] = useState(false);
-  // Inicializar basándose en el cache disponible
-  const [initialLoading, setInitialLoading] = useState(!(cache.prices && cache.prices.length > 0));
-  const [saving, setSaving] = useState(false); // ya no se usa para botón global, pero se mantiene por si se agrega persistencia JSONB
-  // fieldErrors removido (validaciones inline en modal)
+  
   const [updatingTypes, setUpdatingTypes] = useState(new Set());
-  const [priceModalVisible, setPriceModalVisible] = useState(false);
-  const [editingBatch, setEditingBatch] = useState(false); // si estamos modificando precios existentes
   
   // Estados para tipos de jugada disponibles
   const [availablePlayTypes] = useState([
     { id: 'fijo', label: 'Fijo', enabled: true },
     { id: 'corrido', label: 'Corrido', enabled: true },
     { id: 'posicion', label: 'Posición', enabled: true },
-  { id: 'parle', label: 'Parle', enabled: true },
+    { id: 'parle', label: 'Parle', enabled: true },
     { id: 'centena', label: 'Centena', enabled: true },
     { id: 'tripleta', label: 'Tripleta', enabled: true },
   ]);
@@ -70,73 +65,18 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
   });
   const [jugadasRecordId, setJugadasRecordId] = useState(null); // id de la fila en jugadas_activas
 
-  // Estado de precios (se gestionará vía modal). Cada entrada representa un tipo de jugada y sus valores.
-  const [winningPrices, setWinningPrices] = useState({
-    fijo: { regular: '', limited: '', collectorPct: '', listeroPct: '' },
-    corrido: { regular: '', limited: '', collectorPct: '', listeroPct: '' },
-    posicion: { regular: '', limited: '', collectorPct: '', listeroPct: '' },
-    parle: { regular: '', limited: '', collectorPct: '', listeroPct: '' },
-    centena: { regular: '', limited: '', collectorPct: '', listeroPct: '' },
-    tripleta: { regular: '', limited: '', collectorPct: '', listeroPct: '' },
-  });
-
-  // Lista CRUD de precios guardados - inicializar con cache
-  const [priceEntries, setPriceEntries] = useState([]); // mantiene última config para edición rápida
-  const [priceConfigName, setPriceConfigName] = useState('');
-  const [loadingPrices, setLoadingPrices] = useState(false);
-  const [priceConfigs, setPriceConfigs] = useState(cache.prices || []); // Inicializar con cache
-  const [expandedConfigs, setExpandedConfigs] = useState(new Set()); // ids expandids
-  const [modalError, setModalError] = useState('');
-  const [modalFieldErrors, setModalFieldErrors] = useState({}); // { playType: { regular:true, limited:true, collectorPct:true, listeroPct:true } }
-  const [editingConfigId, setEditingConfigId] = useState(null); // id de la configuración que se está editando (update), null = insert
-
-  // Usar datos del cache si están disponibles
+  // Efecto para cargar jugadas activas cuando cambia el banco
   useEffect(() => {
-    if (cache.prices && cache.prices.length > 0) {
-      console.log('Using cached prices:', cache.prices.length);
-      setPriceConfigs(cache.prices);
-      setInitialLoading(false);
-      
-      // Prefill modal con la última config disponible en cache
-      const latest = cache.prices[0];
-      if (latest) {
-        setPriceConfigName(latest.nombre || '');
-        if (latest.precios) {
-          const json = latest.precios;
-          const newWinning = { ...winningPrices };
-          const newEntries = [];
-          Object.keys(json).forEach(key => {
-            const obj = json[key] || {};
-            if (newWinning[key]) {
-              newWinning[key] = {
-                regular: obj.regular?.toString() || '',
-                limited: obj.limited?.toString() || '',
-                collectorPct: obj.collectorPct?.toString() || '',
-                listeroPct: obj.listeroPct?.toString() || ''
-              };
-            }
-            const anyVal = ['regular','limited','collectorPct','listeroPct'].some(k => obj[k] !== undefined && obj[k] !== null && obj[k] !== '');
-            if (anyVal) {
-              newEntries.push({
-                id: key + '-' + Date.now(),
-                jugada: key,
-                regular: obj.regular ?? null,
-                limited: obj.limited ?? null,
-                collectorPct: obj.collectorPct ?? null,
-                listeroPct: obj.listeroPct ?? null,
-              });
-            }
-          });
-          setWinningPrices(newWinning);
-          setPriceEntries(newEntries);
-        }
-      }
-    } else if (cacheBankId && initialLoading) {
-      // Solo cargar si no hay datos en cache y es la carga inicial
-      console.log('No cached prices, fetching from database...');
-      loadPriceConfigsFromCache();
+    if (currentBankId) {
+      fetchJugadasActivas(currentBankId);
     }
-  }, [cache.prices, cacheBankId, initialLoading]);
+  }, [currentBankId]);
+
+  // Carga inicial basada en caché o propiedades
+  useEffect(() => {
+    setUserRole(cacheUserRole);
+    setCurrentBankId(cacheBankId);
+  }, [cacheUserRole, cacheBankId]);
 
   useEffect(() => { initializeScreen(); }, []);
 
@@ -201,7 +141,7 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
 
   const DEFAULT_JUGADAS_JSON = { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
 
-  const loadSavedConfiguration = async (bankId) => {
+  const fetchJugadasActivas = async (bankId) => {
     try {
       console.log('[jugadas_activas] Cargando configuración (jsonb) para banco:', bankId);
       // Traer TODAS las filas (si hubiera duplicadas) para este banco
@@ -269,101 +209,7 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
       const merged = { ...DEFAULT_JUGADAS_JSON, ...(baseRow.jugadas || {}) };
       setEnabledPlayTypes(merged);
     } catch (error) {
-      console.error('Error en loadSavedConfiguration:', error);
-    }
-  };
-
-  // Nueva función que usa el cache context
-  const loadPriceConfigsFromCache = async () => {
-    try {
-      setLoadingPrices(true);
-      // Usar la función del cache context que ya maneja la lógica optimizada
-      await fetchPriceConfigurations();
-      setInitialLoading(false);
-    } catch (error) {
-      console.error('Error loading price configs from cache:', error);
-    } finally {
-      setLoadingPrices(false);
-    }
-  };
-
-  // Cargar última configuración de precios (tabla precio) - LEGACY, ahora usa cache
-  const loadPriceConfigs = async (bankId, forceRefresh = false) => {
-    try {
-      // Si no se fuerza el refresh y ya hay datos en cache, usarlos
-      if (!forceRefresh && cache.prices && cache.prices.length > 0) {
-        console.log('Using cached prices in loadPriceConfigs');
-        setPriceConfigs(cache.prices);
-        return;
-      }
-
-      setLoadingPrices(true);
-      const { data, error } = await supabase
-        .from('precio')
-        .select('id, precios, created_at, nombre')
-        .eq('id_banco', bankId || cacheBankId)
-        .order('created_at', { ascending: false });
-      if (error) {
-        console.error('Error cargando configuraciones de precios:', error);
-        return;
-      }
-      
-      // Actualizar cache
-      updateCacheData('prices', data || []);
-      setPriceConfigs(data || []);
-      // Prefill modal con la última config (más reciente)
-      if (data && data.length > 0) {
-        const latest = data[0];
-        setPriceConfigName(latest.nombre || '');
-        if (latest.precios) {
-          const json = latest.precios;
-            const newWinning = { ...winningPrices };
-            const newEntries = [];
-            Object.keys(json).forEach(key => {
-              const obj = json[key] || {};
-              if (newWinning[key]) {
-                newWinning[key] = {
-                  regular: obj.regular?.toString() || '',
-                  limited: obj.limited?.toString() || '',
-                  collectorPct: obj.collectorPct?.toString() || '',
-                  listeroPct: obj.listeroPct?.toString() || ''
-                };
-              }
-              const anyVal = ['regular','limited','collectorPct','listeroPct'].some(k => obj[k] !== undefined && obj[k] !== null && obj[k] !== '');
-              if (anyVal) {
-                newEntries.push({
-                  id: key + '-' + Date.now(),
-                  jugada: key,
-                  regular: obj.regular ?? null,
-                  limited: obj.limited ?? null,
-                  collectorPct: obj.collectorPct ?? null,
-                  listeroPct: obj.listeroPct ?? null,
-                });
-              }
-            });
-            setWinningPrices(newWinning);
-            setPriceEntries(newEntries);
-        }
-      }
-    } catch (e) {
-      console.error('Excepción loadPriceConfigs:', e);
-    } finally {
-      setLoadingPrices(false);
-    }
-  };
-
-  const handleRefresh = async () => {
-    try {
-      setLoadingPrices(true);
-      // Usar las funciones del cache context para refrescar datos
-      await Promise.all([
-        fetchPriceConfigurations(),
-        fetchPrices()
-      ]);
-    } catch (error) {
-      console.error('Error refreshing data:', error);
-    } finally {
-      setLoadingPrices(false);
+      console.error('Error en fetchJugadasActivas:', error);
     }
   };
 
@@ -380,8 +226,8 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
       let recordId = jugadasRecordId;
       if (!recordId) {
   // Reutilizamos lógica de carga para sanear duplicados si surgieron por carrera
-  await loadSavedConfiguration(currentBankId);
-  recordId = jugadasRecordId; // estado se actualizará dentro de loadSavedConfiguration
+  await fetchJugadasActivas(currentBankId);
+  recordId = jugadasRecordId; // estado se actualizará dentro de fetchJugadasActivas
   if (!recordId) throw new Error('No se pudo obtener/crear fila jugadas_activas');
       }
       const updatedJugadas = { ...enabledPlayTypes, [typeId]: newValue };

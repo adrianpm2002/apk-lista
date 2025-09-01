@@ -5,7 +5,9 @@ import MainAppScreen from '../screens/MainAppScreen';
 import CreateUserScreen from '../screens/CreateUserScreen';
 import InsertResultsScreen from '../screens/InsertResultsScreen';
 import ManageLotteriesScreen from '../screens/ManageLotteriesScreen';
-import ManagePricesScreen from '../screens/ManagePricesScreen';
+import PricesScreen from '../screens/PricesScreen';
+import JugadasScreen from '../screens/JugadasScreen';
+import LotteryLimitsScreen from '../screens/LotteryLimitsScreen';
 import LimitNumero from '../screens/limitNumero';
 import StatisticsScreen from '../screens/StatisticsScreen';
 import SavedPlaysScreen from '../screens/SavedPlaysScreen';
@@ -65,8 +67,24 @@ const AppNavigator = () => (
     />
 
     <Stack.Screen 
-      name="ManagePrices" 
-      component={ManagePricesScreen} 
+      name="Prices" 
+      component={PricesScreen} 
+      options={{
+        headerShown: false,
+      }}
+    />
+
+    <Stack.Screen 
+      name="Jugadas" 
+      component={JugadasScreen} 
+      options={{
+        headerShown: false,
+      }}
+    />
+
+    <Stack.Screen 
+      name="LotteryLimits" 
+      component={LotteryLimitsScreen} 
       options={{
         headerShown: false,
       }}

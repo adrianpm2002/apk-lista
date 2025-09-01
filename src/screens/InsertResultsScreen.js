@@ -25,9 +25,12 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
 };
 
 const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
-  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData } = useCache();
+  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData, fetchTodayResults, fetchLotteries, fetchSchedules } = useCache();
   const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('todayResults');
-  const [lotteryOptions, setLotteryOptions] = useState([]);
+  // Inicializar con datos del cache
+  const [lotteryOptions, setLotteryOptions] = useState(
+    cache.lotteries ? cache.lotteries.map(l => ({ label: l.nombre, value: l.id })) : []
+  );
   const [selectedLottery, setSelectedLottery] = useState(null);
   const [selectedLotteryLabel, setSelectedLotteryLabel] = useState('');
   const [horarioOptions, setHorarioOptions] = useState([]);
@@ -37,10 +40,10 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
-  const [todayResults, setTodayResults] = useState([]);
+  const [todayResults, setTodayResults] = useState(cache.todayResults || []); // Inicializar con cache
   const [editingId, setEditingId] = useState(null);
   const [editingValue, setEditingValue] = useState('');
-  const [loadingResults, setLoadingResults] = useState(false);
+  const [loadingResults, setLoadingResults] = useState(!(cache.todayResults && cache.todayResults.length >= 0)); // No loading si hay cache
   const [deniedEditId, setDeniedEditId] = useState(null);
 
   // Sanitiza la entrada del campo de resultado respetando:
@@ -64,6 +67,21 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
     result: false
   });
 
+  const fetchLoteriasFromCache = async () => {
+    if (!currentBankId && !cacheBankId) return;
+    
+    // Usar cache primero si está disponible
+    if (cache.lotteries && cache.lotteries.length > 0) {
+      const options = cache.lotteries.map((l) => ({ label: l.nombre, value: l.id }));
+      setLotteryOptions(options);
+      return;
+    }
+    
+    // Solo hacer fetch si no hay datos en cache
+    await fetchLotteries();
+  };
+
+  // Función legacy mantenida para compatibilidad
   const fetchLoterias = async () => {
     if (!currentBankId) return; // No cargar loterias si no tenemos el banco ID
     
@@ -88,19 +106,21 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
       return;
     }
 
-    const { data, error } = await supabase
-      .from('horario')
-      .select('id, nombre, hora_inicio, hora_fin')
-      .eq('id_loteria', lotteryId)
-      .order('hora_inicio', { ascending: true });
+    // Usar datos del cache filtrados por banco y lotería específica
+    const availableSchedules = cache.schedules?.filter(schedule => 
+      schedule.id_loteria === lotteryId && 
+      schedule.loteria?.id_banco === cacheBankId
+    ) || [];
 
-    if (error) {
-      console.error('Error cargando horarios:', error);
-      Alert.alert('Error cargando horarios');
+    if (availableSchedules.length === 0) {
+      console.log('No schedules found for lottery:', lotteryId, 'in bank:', cacheBankId);
+      setHorarioOptions([]);
+      setSelectedHorario(null);
+      setSelectedHorarioLabel('');
       return;
     }
 
-    const options = data.map((h) => ({ 
+    const options = availableSchedules.map((h) => ({ 
       label: `${h.nombre} (${h.hora_inicio.slice(0,5)} - ${h.hora_fin.slice(0,5)})`, 
       value: h.id 
     }));
@@ -111,8 +131,8 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
 
   useEffect(() => {
     if (currentBankId) {
-      fetchLoterias();
-      loadTodayResults();
+      fetchLoteriasFromCache();
+      loadTodayResultsFromCache();
     }
   }, [currentBankId]);
 
@@ -169,7 +189,29 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
     };
   };
 
-  // Cargar resultados del día actual (rango local) directamente desde la consulta
+  // Cargar resultados del día actual usando cache primero
+  const loadTodayResultsFromCache = async () => {
+    if (!currentBankId && !cacheBankId) return;
+    
+    // Usar cache primero si está disponible
+    if (cache.todayResults !== null && cache.todayResults !== undefined) {
+      setTodayResults(cache.todayResults);
+      setLoadingResults(false);
+      return;
+    }
+    
+    // Solo hacer fetch si no hay datos en cache
+    setLoadingResults(true);
+    try {
+      await fetchTodayResults();
+      setLoadingResults(false);
+    } catch (error) {
+      console.error('Error loading today results from cache:', error);
+      setLoadingResults(false);
+    }
+  };
+
+  // Función legacy - cargar resultados del día actual (rango local) directamente desde la consulta
   const loadTodayResults = async () => {
     if (!currentBankId) return;
     setLoadingResults(true);
@@ -192,12 +234,15 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
     }
   };
 
-  // Refresco automático al volver a la pantalla
+  // Refresco automático al volver a la pantalla - solo actualizar cache en background
   useFocusEffect(
     useCallback(() => {
       if (currentBankId) {
-        loadTodayResults();
-        fetchLoterias();
+        // Actualizar en background sin bloquear UI
+        setTimeout(() => {
+          fetchTodayResults();
+          fetchLotteries();
+        }, 100);
       }
     }, [currentBankId])
   );
@@ -312,6 +357,18 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
       setErrors(prev => ({ ...prev, horario: true }));
       hasErrors = true;
       errorMessages.push('- Seleccionar horario');
+    } else {
+      // Validar que el horario pertenece al banco actual (seguridad)
+      const isValidSchedule = cache.schedules?.some(
+        s => s.id === selectedHorario && s.loteria?.id_banco === cacheBankId
+      );
+      
+      if (!isValidSchedule) {
+        setErrors(prev => ({ ...prev, horario: true }));
+        hasErrors = true;
+        errorMessages.push('- Horario no válido para este banco');
+        console.error('Security validation failed: schedule does not belong to current bank');
+      }
     }
 
     // Validar resultado
@@ -403,22 +460,35 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
       result: false
     });
 
-  // Recargar lista de hoy
-  loadTodayResults();
+  // Recargar lista de hoy usando cache
+  await fetchTodayResults();
 
-  // Actualizar cache si es admin
-  if (cacheUserRole === 'admin') {
-    updateCacheData('todayResults');
-  }
+  // El cache ya se actualiza automáticamente con fetchTodayResults()
   };
 
+  // Función de refresh optimizada
+  const handleRefresh = async () => {
+    try {
+      setLoadingResults(true);
+      // Actualizar ambos tipos de datos usando las funciones del cache context
+      await Promise.all([
+        fetchTodayResults(),
+        fetchLotteries(),
+        fetchSchedules()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setLoadingResults(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
       {/* Header personalizado - arriba del todo */}
       <View style={styles.customHeader}>
         <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
-        <Text style={styles.headerTitle}>Insertar Resultado</Text>
+        <Text style={styles.headerTitle}>Resultados</Text>
       </View>
 
       <ScrollView 
@@ -426,8 +496,8 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={cacheUserRole === 'admin' ? cacheRefreshing : false}
-            onRefresh={cacheUserRole === 'admin' ? cacheOnRefresh : undefined}
+            refreshing={cacheUserRole === 'admin' ? loadingResults : false}
+            onRefresh={cacheUserRole === 'admin' ? handleRefresh : undefined}
             colors={['#27AE60']}
             tintColor="#27AE60"
           />
@@ -489,6 +559,16 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
         {/* Listado resultados hoy */}
         <View style={styles.todayContainer}>
           <Text style={styles.todayTitle}>Resultados de Hoy</Text>
+          
+          {/* Indicador de datos del cache */}
+          {!loadingResults && todayResults.length > 0 && cache.todayResults !== null && (
+            <View style={styles.cacheIndicator}>
+              <Text style={styles.cacheIndicatorText}>
+                📦 Datos desde cache • Desliza hacia abajo para actualizar
+              </Text>
+            </View>
+          )}
+          
           {loadingResults && (
             <Text style={styles.loadingText}>Cargando...</Text>
           )}
@@ -727,5 +807,18 @@ const styles = StyleSheet.create({
     color: '#1E293B',
     marginTop: 4,
     width: 120
+  },
+  cacheIndicator: {
+    backgroundColor: '#E8F4FD',
+    borderRadius: 6,
+    padding: 8,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#3498DB'
+  },
+  cacheIndicatorText: {
+    fontSize: 12,
+    color: '#2980B9',
+    textAlign: 'center'
   }
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, TextInput, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, TextInput, RefreshControl, Modal } from 'react-native';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -25,6 +25,10 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('numberLimits');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [role, setRole] = useState(null);
+
+  // Estados de modales
+  const [limitedNumberModalVisible, setLimitedNumberModalVisible] = useState(false);
+  const [limitModalVisible, setLimitModalVisible] = useState(false);
 
   // Datos locales (placeholder). Cada ítem: { id, number, limit }
   const [limitarNumero, setLimitarNumero] = useState([]); // no usado por ahora (lado izquierdo = formulario)
@@ -74,8 +78,7 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     }
   }, [cacheUserRole, cache.numberLimits]);
 
-  // Form states compartidos (se limpia al cambiar de panel)
-  const [activePanel, setActivePanel] = useState(null); // 'left' | 'right' | null
+  // Form states para modales
   const [tempNumber, setTempNumber] = useState('');
   const [tempLimit, setTempLimit] = useState('');
   const [statusMsg, setStatusMsg] = useState(null); // { type: 'error'|'ok', text }
@@ -85,8 +88,21 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     setTempLimit('');
   };
 
-  const togglePanel = (panel) => {
-    setActivePanel(prev => prev === panel ? null : panel);
+  const openModal = (modalType) => {
+    resetForm();
+    if (modalType === 'left') {
+      setLimitedNumberModalVisible(true);
+    } else {
+      setLimitModalVisible(true);
+    }
+  };
+
+  const closeModal = (modalType) => {
+    if (modalType === 'left') {
+      setLimitedNumberModalVisible(false);
+    } else {
+      setLimitModalVisible(false);
+    }
     resetForm();
   };
 
@@ -100,7 +116,8 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       setNumerosLimitados(prev => [item, ...prev]);
     }
     resetForm();
-    setActivePanel(null);
+    setLimitedNumberModalVisible(false);
+    setLimitModalVisible(false);
   };
 
   const renderItem = ({ item }) => (
@@ -307,7 +324,7 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       });
       if (!error) {
         resetForm();
-        setActivePanel(null);
+        setLimitedNumberModalVisible(false);
         await loadNumerosLimitados();
         setStatusMsg({ type: 'ok', text: 'Número limitado guardado.' });
         setTimeout(()=> setStatusMsg(null), 2500);
@@ -429,6 +446,7 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       });
       if(!error){
         setTempNumber2(''); setTempLimit2(''); setSelectedJugada2(null);
+        setLimitModalVisible(false);
         await loadLimitesNumeros();
         setStatusMsg2({type:'ok', text:'Límite guardado.'});
         setTimeout(()=> setStatusMsg2(null), 2500);
@@ -467,7 +485,7 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     <SafeAreaView style={[styles.container, isDarkMode && styles.containerDark]}>
       <View style={[styles.header, isDarkMode && styles.headerDark]}>
         <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
-        <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>Limitar Número</Text>
+        <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>Límites</Text>
         <TouchableOpacity style={styles.filterToggleBtn} onPress={()=> setFiltersVisible(v=>!v)}>
           <Text style={styles.filterToggleText}>🔍 Filtros</Text>
         </TouchableOpacity>
@@ -503,79 +521,10 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
         <View style={[styles.panel, isDarkMode && styles.panelDark]}>
           <View style={styles.panelHeaderRow}>
             <Text style={[styles.panelTitle, isDarkMode && styles.panelTitleDark]}>Números limitados</Text>
-            <TouchableOpacity style={styles.addBtn} onPress={() => togglePanel('left')}>
-              <Text style={styles.addBtnText}>{activePanel === 'left' ? '×' : '＋'}</Text>
+            <TouchableOpacity style={styles.addBtn} onPress={() => openModal('left')}>
+              <Text style={styles.addBtnText}>+</Text>
             </TouchableOpacity>
           </View>
-          {activePanel === 'left' && (
-            <View>
-              {/* Selectores (formulario principal de creación) */}
-              <View style={styles.selectorRow}>
-                <View style={styles.selectorColumn}>
-                  <Text style={styles.selectorLabel}>Lotería</Text>
-                  <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
-                    {lotteries.map(l => (
-                      <TouchableOpacity key={l.id} style={[styles.selectorOption, selectedLottery?.id===l.id && styles.selectorOptionActive]} onPress={() => handleSelectLottery(l)}>
-                        <Text style={[styles.selectorOptionText, selectedLottery?.id===l.id && styles.selectorOptionTextActive]}>{l.nombre}</Text>
-                      </TouchableOpacity>
-                    ))}
-                    {lotteries.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
-                  </View>
-                </View>
-                <View style={styles.selectorColumn}>
-                  <Text style={styles.selectorLabel}>Horario</Text>
-                  <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
-                    {schedules.map(s => (
-                      <TouchableOpacity key={s.id} style={[styles.selectorOption, selectedSchedule?.id===s.id && styles.selectorOptionActive]} onPress={() => handleSelectSchedule(s)}>
-                        <Text style={[styles.selectorOptionText, selectedSchedule?.id===s.id && styles.selectorOptionTextActive]}>{s.nombre}</Text>
-                      </TouchableOpacity>
-                    ))}
-                    {selectedLottery && schedules.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
-                    {!selectedLottery && <Text style={styles.selectorHint}>Selecciona lotería</Text>}
-                  </View>
-                </View>
-              </View>
-              <View style={styles.selectorRow}>
-                <View style={[styles.selectorColumn, { flex: 1 }] }>
-                  <Text style={styles.selectorLabel}>Jugada</Text>
-                  <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}> 
-                    {loadingJugadas && <Text style={styles.selectorHint}>Cargando...</Text>}
-                    {!loadingJugadas && jugadas.map(j => (
-                      <TouchableOpacity key={j.id} style={[styles.selectorOption, selectedJugada?.id===j.id && styles.selectorOptionActive]} onPress={() => setSelectedJugada(j)}>
-                        <Text style={[styles.selectorOptionText, selectedJugada?.id===j.id && styles.selectorOptionTextActive]}>{j.jugada}</Text>
-                      </TouchableOpacity>
-                    ))}
-                    {selectedSchedule && jugadas.length===0 && !loadingJugadas && <Text style={styles.selectorEmpty}>vacio</Text>}
-                    {!selectedSchedule && <Text style={styles.selectorHint}>Selecciona horario</Text>}
-                  </View>
-                </View>
-                <View style={[styles.selectorColumn, { flex: 1 }]}>
-                  <Text style={styles.selectorLabel}>Número</Text>
-                  <TextInput
-                    placeholder={selectedJugada ? '0'.repeat(DIGIT_RULES[selectedJugada.jugada] || 2) : '000'}
-                    placeholderTextColor="#95a5a6"
-                    value={tempNumber}
-                    onChangeText={t => {
-                      const clean = t.replace(/[^0-9]/g,'');
-                      const maxLen = selectedJugada ? (DIGIT_RULES[selectedJugada.jugada] || 2) : 6;
-                      setTempNumber(clean.slice(0, maxLen));
-                    }}
-                    keyboardType="numeric"
-                    style={[styles.input, isDarkMode && styles.inputDark]}
-                  />
-                </View>
-              </View>
-              <TouchableOpacity disabled={creatingDisabled || creating} style={[styles.saveBtn, (creatingDisabled||creating) && styles.saveBtnDisabled]} onPress={handleCreateLimitedNumber}>
-                <Text style={styles.saveBtnText}>{creating ? 'Guardando...' : 'Guardar'}</Text>
-              </TouchableOpacity>
-              {selectedJugada && tempNumber.length>0 && (
-                <Text style={styles.previewText}>Previsualización: {formatNumberDisplay(tempNumber, selectedJugada.jugada)}</Text>
-              )}
-              {statusMsg && (
-                <Text style={[styles.statusMsg, statusMsg.type==='error' ? styles.statusError : styles.statusOk]}>{statusMsg.text}</Text>
-              )}
-            </View>
-          )}
           <View style={styles.listBody}>
             {loadingNumeros ? (
               <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>Cargando...</Text>
@@ -617,88 +566,10 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
         <View style={[styles.panel, isDarkMode && styles.panelDark]}>
           <View style={styles.panelHeaderRow}>
             <Text style={[styles.panelTitle, isDarkMode && styles.panelTitleDark]}>Limite de números</Text>
-            <TouchableOpacity style={styles.addBtn} onPress={() => togglePanel('right')}>
-              <Text style={styles.addBtnText}>{activePanel === 'right' ? '×' : '＋'}</Text>
+            <TouchableOpacity style={styles.addBtn} onPress={() => openModal('right')}>
+              <Text style={styles.addBtnText}>+</Text>
             </TouchableOpacity>
           </View>
-          {activePanel === 'right' && (
-            <View>
-              <View style={styles.selectorRow}>
-                <View style={styles.selectorColumn}>
-                  <Text style={styles.selectorLabel}>Lotería</Text>
-                  <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
-                    {lotteries.map(l => (
-                      <TouchableOpacity key={l.id} style={[styles.selectorOption, selectedLottery2?.id===l.id && styles.selectorOptionActive]} onPress={()=> handleSelectLottery2(l)}>
-                        <Text style={[styles.selectorOptionText, selectedLottery2?.id===l.id && styles.selectorOptionTextActive]}>{l.nombre}</Text>
-                      </TouchableOpacity>
-                    ))}
-                    {lotteries.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
-                  </View>
-                </View>
-                <View style={styles.selectorColumn}>
-                  <Text style={styles.selectorLabel}>Horario</Text>
-                  <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
-                    {schedules2.map(s => (
-                      <TouchableOpacity key={s.id} style={[styles.selectorOption, selectedSchedule2?.id===s.id && styles.selectorOptionActive]} onPress={()=> handleSelectSchedule2(s)}>
-                        <Text style={[styles.selectorOptionText, selectedSchedule2?.id===s.id && styles.selectorOptionTextActive]}>{s.nombre}</Text>
-                      </TouchableOpacity>
-                    ))}
-                    {selectedLottery2 && schedules2.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
-                    {!selectedLottery2 && <Text style={styles.selectorHint}>Selecciona lotería</Text>}
-                  </View>
-                </View>
-              </View>
-              <View style={styles.selectorRow}>
-                <View style={[styles.selectorColumn,{flex:1}]}> 
-                  <Text style={styles.selectorLabel}>Jugada</Text>
-                  <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
-                    {!selectedSchedule2 && <Text style={styles.selectorHint}>Selecciona horario</Text>}
-                    {selectedSchedule2 && jugadas2.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
-                    {jugadas2.map(j => (
-                      <TouchableOpacity key={j.id} style={[styles.selectorOption, selectedJugada2?.id===j.id && styles.selectorOptionActive]} onPress={()=> setSelectedJugada2(j)}>
-                        <Text style={[styles.selectorOptionText, selectedJugada2?.id===j.id && styles.selectorOptionTextActive]}>{j.jugada}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-                <View style={[styles.selectorColumn,{flex:1}]}> 
-                  <Text style={styles.selectorLabel}>Número</Text>
-                  <TextInput
-                    placeholder={selectedJugada2 ? '0'.repeat(DIGIT_RULES[selectedJugada2.jugada]||2) : '000'}
-                    placeholderTextColor="#95a5a6"
-                    value={tempNumber2}
-                    onChangeText={t=>{
-                      const clean=t.replace(/[^0-9]/g,'');
-                      const maxLen = selectedJugada2 ? (DIGIT_RULES[selectedJugada2.jugada]||2) : 6;
-                      setTempNumber2(clean.slice(0,maxLen));
-                    }}
-                    keyboardType="numeric"
-                    style={[styles.input, isDarkMode && styles.inputDark]}
-                  />
-                </View>
-                <View style={[styles.selectorColumn,{flex:1}]}> 
-                  <Text style={styles.selectorLabel}>Límite</Text>
-                  <TextInput
-                    placeholder="0"
-                    placeholderTextColor="#95a5a6"
-                    value={tempLimit2}
-                    onChangeText={t=> setTempLimit2(t.replace(/[^0-9]/g,''))}
-                    keyboardType="numeric"
-                    style={[styles.input, isDarkMode && styles.inputDark]}
-                  />
-                </View>
-              </View>
-              <TouchableOpacity disabled={creatingDisabled2 || creating2} style={[styles.saveBtn, (creatingDisabled2||creating2) && styles.saveBtnDisabled]} onPress={handleCreateLimiteNumero}>
-                <Text style={styles.saveBtnText}>{creating2? 'Guardando...' : 'Guardar'}</Text>
-              </TouchableOpacity>
-              {selectedJugada2 && tempNumber2.length>0 && (
-                <Text style={styles.previewText}>Previsualización: {tempNumber2.padStart((DIGIT_RULES[selectedJugada2.jugada]||2),'0')}</Text>
-              )}
-              {statusMsg2 && (
-                <Text style={[styles.statusMsg, statusMsg2.type==='error'? styles.statusError: styles.statusOk]}>{statusMsg2.text}</Text>
-              )}
-            </View>
-          )}
           <View style={styles.listBody}>
             {loadingLimites ? (
               <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>Cargando...</Text>
@@ -736,6 +607,218 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
           </View>
         </View>
       </View>
+
+      {/* Modal para números limitados */}
+      <Modal
+        visible={limitedNumberModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => closeModal('left')}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
+                Números Limitados
+              </Text>
+              <TouchableOpacity onPress={() => closeModal('left')}>
+                <Text style={styles.modalCloseButton}>×</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.selectorRow}>
+              <View style={styles.selectorColumn}>
+                <Text style={styles.selectorLabel}>Lotería</Text>
+                <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
+                  {lotteries.map(l => (
+                    <TouchableOpacity key={l.id} style={[styles.selectorOption, selectedLottery?.id===l.id && styles.selectorOptionActive]} onPress={() => handleSelectLottery(l)}>
+                      <Text style={[styles.selectorOptionText, selectedLottery?.id===l.id && styles.selectorOptionTextActive]}>{l.nombre}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  {lotteries.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
+                </View>
+              </View>
+              <View style={styles.selectorColumn}>
+                <Text style={styles.selectorLabel}>Horario</Text>
+                <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
+                  {schedules.map(s => (
+                    <TouchableOpacity key={s.id} style={[styles.selectorOption, selectedSchedule?.id===s.id && styles.selectorOptionActive]} onPress={() => handleSelectSchedule(s)}>
+                      <Text style={[styles.selectorOptionText, selectedSchedule?.id===s.id && styles.selectorOptionTextActive]}>{s.nombre}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  {selectedLottery && schedules.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
+                  {!selectedLottery && <Text style={styles.selectorHint}>Selecciona lotería</Text>}
+                </View>
+              </View>
+            </View>
+            
+            <View style={styles.selectorRow}>
+              <View style={[styles.selectorColumn, { flex: 1 }] }>
+                <Text style={styles.selectorLabel}>Jugada</Text>
+                <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}> 
+                  {loadingJugadas && <Text style={styles.selectorHint}>Cargando...</Text>}
+                  {!loadingJugadas && jugadas.map(j => (
+                    <TouchableOpacity key={j.id} style={[styles.selectorOption, selectedJugada?.id===j.id && styles.selectorOptionActive]} onPress={() => setSelectedJugada(j)}>
+                      <Text style={[styles.selectorOptionText, selectedJugada?.id===j.id && styles.selectorOptionTextActive]}>{j.jugada}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  {selectedSchedule && jugadas.length===0 && !loadingJugadas && <Text style={styles.selectorEmpty}>vacio</Text>}
+                  {!selectedSchedule && <Text style={styles.selectorHint}>Selecciona horario</Text>}
+                </View>
+              </View>
+              <View style={[styles.selectorColumn, { flex: 1 }]}>
+                <Text style={styles.selectorLabel}>Número</Text>
+                <TextInput
+                  placeholder={selectedJugada ? '0'.repeat(DIGIT_RULES[selectedJugada.jugada] || 2) : '000'}
+                  placeholderTextColor="#95a5a6"
+                  value={tempNumber}
+                  onChangeText={t => {
+                    const clean = t.replace(/[^0-9]/g,'');
+                    const maxLen = selectedJugada ? (DIGIT_RULES[selectedJugada.jugada] || 2) : 6;
+                    setTempNumber(clean.slice(0, maxLen));
+                  }}
+                  keyboardType="numeric"
+                  style={[styles.input, isDarkMode && styles.inputDark]}
+                />
+              </View>
+            </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]} 
+                onPress={() => closeModal('left')}
+              >
+                <Text style={styles.modalButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                disabled={creatingDisabled || creating} 
+                style={[styles.modalButton, styles.saveButton, (creatingDisabled||creating) && styles.saveBtnDisabled]} 
+                onPress={handleCreateLimitedNumber}
+              >
+                <Text style={styles.modalButtonText}>{creating ? 'Guardando...' : 'Guardar'}</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {selectedJugada && tempNumber.length>0 && (
+              <Text style={styles.previewText}>Previsualización: {formatNumberDisplay(tempNumber, selectedJugada.jugada)}</Text>
+            )}
+            {statusMsg && (
+              <Text style={[styles.statusMsg, statusMsg.type==='error' ? styles.statusError : styles.statusOk]}>{statusMsg.text}</Text>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para límite de números */}
+      <Modal
+        visible={limitModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => closeModal('right')}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
+                Límite de Números
+              </Text>
+              <TouchableOpacity onPress={() => closeModal('right')}>
+                <Text style={styles.modalCloseButton}>×</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.selectorRow}>
+              <View style={styles.selectorColumn}>
+                <Text style={styles.selectorLabel}>Lotería</Text>
+                <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
+                  {lotteries.map(l => (
+                    <TouchableOpacity key={l.id} style={[styles.selectorOption, selectedLottery2?.id===l.id && styles.selectorOptionActive]} onPress={()=> handleSelectLottery2(l)}>
+                      <Text style={[styles.selectorOptionText, selectedLottery2?.id===l.id && styles.selectorOptionTextActive]}>{l.nombre}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  {lotteries.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
+                </View>
+              </View>
+              <View style={styles.selectorColumn}>
+                <Text style={styles.selectorLabel}>Horario</Text>
+                <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
+                  {schedules2.map(s => (
+                    <TouchableOpacity key={s.id} style={[styles.selectorOption, selectedSchedule2?.id===s.id && styles.selectorOptionActive]} onPress={()=> handleSelectSchedule2(s)}>
+                      <Text style={[styles.selectorOptionText, selectedSchedule2?.id===s.id && styles.selectorOptionTextActive]}>{s.nombre}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  {selectedLottery2 && schedules2.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
+                  {!selectedLottery2 && <Text style={styles.selectorHint}>Selecciona lotería</Text>}
+                </View>
+              </View>
+            </View>
+            
+            <View style={styles.selectorRow}>
+              <View style={[styles.selectorColumn,{flex:1}]}> 
+                <Text style={styles.selectorLabel}>Jugada</Text>
+                <View style={[styles.selectorBox, isDarkMode && styles.selectorBoxDark]}>
+                  {!selectedSchedule2 && <Text style={styles.selectorHint}>Selecciona horario</Text>}
+                  {selectedSchedule2 && jugadas2.length===0 && <Text style={styles.selectorEmpty}>vacio</Text>}
+                  {jugadas2.map(j => (
+                    <TouchableOpacity key={j.id} style={[styles.selectorOption, selectedJugada2?.id===j.id && styles.selectorOptionActive]} onPress={()=> setSelectedJugada2(j)}>
+                      <Text style={[styles.selectorOptionText, selectedJugada2?.id===j.id && styles.selectorOptionTextActive]}>{j.jugada}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={[styles.selectorColumn,{flex:1}]}> 
+                <Text style={styles.selectorLabel}>Número</Text>
+                <TextInput
+                  placeholder={selectedJugada2 ? '0'.repeat(DIGIT_RULES[selectedJugada2.jugada]||2) : '000'}
+                  placeholderTextColor="#95a5a6"
+                  value={tempNumber2}
+                  onChangeText={t=>{
+                    const clean=t.replace(/[^0-9]/g,'');
+                    const maxLen = selectedJugada2 ? (DIGIT_RULES[selectedJugada2.jugada]||2) : 6;
+                    setTempNumber2(clean.slice(0,maxLen));
+                  }}
+                  keyboardType="numeric"
+                  style={[styles.input, isDarkMode && styles.inputDark]}
+                />
+              </View>
+              <View style={[styles.selectorColumn,{flex:1}]}> 
+                <Text style={styles.selectorLabel}>Límite</Text>
+                <TextInput
+                  placeholder="0"
+                  placeholderTextColor="#95a5a6"
+                  value={tempLimit2}
+                  onChangeText={t=> setTempLimit2(t.replace(/[^0-9]/g,''))}
+                  keyboardType="numeric"
+                  style={[styles.input, isDarkMode && styles.inputDark]}
+                />
+              </View>
+            </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]} 
+                onPress={() => closeModal('right')}
+              >
+                <Text style={styles.modalButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                disabled={creatingDisabled2 || creating2} 
+                style={[styles.modalButton, styles.saveButton, (creatingDisabled2||creating2) && styles.saveBtnDisabled]} 
+                onPress={handleCreateLimiteNumero}
+              >
+                <Text style={styles.modalButtonText}>{creating2? 'Guardando...' : 'Guardar'}</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {selectedJugada2 && tempNumber2.length>0 && (
+              <Text style={styles.previewText}>Previsualización: {tempNumber2.padStart((DIGIT_RULES[selectedJugada2.jugada]||2),'0')}</Text>
+            )}
+            {statusMsg2 && (
+              <Text style={[styles.statusMsg, statusMsg2.type==='error'? styles.statusError: styles.statusOk]}>{statusMsg2.text}</Text>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <SideBar
         isVisible={sidebarVisible}
@@ -841,7 +924,73 @@ const styles = StyleSheet.create({
   itemLimitDark: { color: '#bdc3c7' },
   inactiveJugada: { color:'#c0392b' },
   deleteBtn: { backgroundColor:'#c0392b', paddingHorizontal:10, paddingVertical:6, borderRadius:6 },
-  deleteBtnText: { color:'#fff', fontSize:9, fontWeight:'700' }
+  deleteBtnText: { color:'#fff', fontSize:9, fontWeight:'700' },
+  
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 15,
+    padding: 20,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '90%',
+  },
+  modalContentDark: {
+    backgroundColor: '#2c3e50',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    paddingBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  modalTitleDark: {
+    color: '#ecf0f1',
+  },
+  modalCloseButton: {
+    fontSize: 24,
+    color: '#95a5a6',
+    fontWeight: 'bold',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 20,
+    gap: 10,
+  },
+  modalButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#95a5a6',
+  },
+  saveButton: {
+    backgroundColor: '#27ae60',
+  },
+  modalButtonText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
 });
 
 export default LimitNumberScreen;

@@ -3,15 +3,33 @@ import { supabase } from '../supabaseClient';
 export const fetchLimitsContext = async (horarios, userId) => {
   if(!horarios.length) return { limitMap:new Map(), specificLimits:null, usageMap:new Map() };
   let specificLimits=null;
+  let bankId=null;
   if(userId){
-    const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', userId).maybeSingle();
+    const { data: profile } = await supabase.from('profiles').select('limite_especifico, id_banco').eq('id', userId).maybeSingle();
     specificLimits = profile?.limite_especifico || null;
+    bankId = profile?.id_banco;
   }
   const { data: limitRows } = await supabase.from('limite_numero').select('numero, limite, jugada, id_horario').in('id_horario', horarios);
   const limitMap=new Map();
   (limitRows||[]).forEach(r=> limitMap.set(r.id_horario+"|"+r.jugada+"|"+r.numero, r.limite));
   const dayStart=new Date(); dayStart.setHours(0,0,0,0);
-  const { data: jugadasDia } = await supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', dayStart.toISOString()).in('id_horario', horarios);
+  
+  // Filtrar jugadas del día solo del mismo banco
+  let jugadasQuery = supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at,id_listero').gte('created_at', dayStart.toISOString()).in('id_horario', horarios);
+  
+  if (bankId) {
+    // Obtener listeros del mismo banco
+    const { data: listeros } = await supabase.from('profiles').select('id').eq('id_banco', bankId);
+    const listerosIds = (listeros||[]).map(l => l.id);
+    if (listerosIds.length > 0) {
+      jugadasQuery = jugadasQuery.in('id_listero', listerosIds);
+    } else {
+      // Si no hay listeros del banco, no hay jugadas válidas
+      return { limitMap, specificLimits, usageMap:new Map() };
+    }
+  }
+  
+  const { data: jugadasDia } = await jugadasQuery;
   const usageMap=new Map();
   (jugadasDia||[]).forEach(j=>{
     (j.numeros||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(n=>{

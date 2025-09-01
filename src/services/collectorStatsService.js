@@ -2,18 +2,31 @@ import { supabase } from '../supabaseClient';
 import { calculatePrize } from '../utils/prizeCalculator';
 
 export async function getDailyStatsForCollector(collectorId, startDate, endDate) {
+  // Obtener banco del colector primero
+  const { data: collectorProfile } = await supabase
+    .from('profiles')
+    .select('id_banco')
+    .eq('id', collectorId)
+    .maybeSingle();
+  
+  const bankId = collectorProfile?.id_banco;
+  if (!bankId) {
+    throw new Error('No se pudo obtener el banco del colector');
+  }
+
   const { data: jugadas, error } = await supabase
     .from('jugada')
     .select(`
       id, created_at, numeros, monto_unitario, monto_total,
       listero_id,
-      listero!inner(collector_id, nombre),
+      listero!inner(collector_id, nombre, id_banco),
       loteria!inner(nombre, tipo),
       horario!inner(nombre, hora),
       numero_limitado(numero, tarifa_aplicada),
       resultado(numero_ganador)
     `)
     .eq('listero.collector_id', collectorId)
+    .eq('listero.id_banco', bankId)  // Validación adicional de banco
     .gte('created_at', startDate)
     .lte('created_at', endDate)
     .order('created_at', { ascending: false });
@@ -46,18 +59,31 @@ export async function getDailyStatsForCollector(collectorId, startDate, endDate)
 }
 
 export async function getPlaysDetailsForCollector(collectorId, startDate, endDate, filters = {}) {
+  // Obtener banco del colector primero
+  const { data: collectorProfile } = await supabase
+    .from('profiles')
+    .select('id_banco')
+    .eq('id', collectorId)
+    .maybeSingle();
+  
+  const bankId = collectorProfile?.id_banco;
+  if (!bankId) {
+    throw new Error('No se pudo obtener el banco del colector');
+  }
+
   let query = supabase
     .from('jugada')
     .select(`
       id, created_at, numeros, monto_unitario, monto_total,
       listero_id,
-      listero!inner(collector_id, nombre),
+      listero!inner(collector_id, nombre, id_banco),
       loteria!inner(nombre, tipo),
       horario!inner(nombre, hora),
       numero_limitado(numero, tarifa_aplicada),
       resultado(numero_ganador)
     `)
     .eq('listero.collector_id', collectorId)
+    .eq('listero.id_banco', bankId)  // Validación adicional de banco
     .gte('created_at', startDate)
     .lte('created_at', endDate);
 

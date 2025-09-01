@@ -95,7 +95,7 @@ const ChangePasswordModal = ({ visible, onClose, isDarkMode }) => {
       presentationStyle="overFullScreen"
       accessibilityLabel="Cambiar contraseña"
     >
-      <View style={styles.overlay} pointerEvents="box-none">
+      <View style={[styles.overlay, { pointerEvents: 'box-none' }]}>
         <View style={[
           styles.container,
           isDarkMode && styles.containerDark

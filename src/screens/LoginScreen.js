@@ -154,8 +154,23 @@ const LoginContent = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.form}>
-        <Text style={styles.title}>Iniciar sesión</Text>
+      {isPreloading ? (
+        // Pantalla de carga completa - sin formulario para evitar aria-hidden conflicts
+        <View style={styles.form}>
+          <View 
+            style={styles.loadingContent}
+            accessible={true}
+            accessibilityRole="alert"
+            accessibilityLabel="Precargando datos del sistema"
+          >
+            <ActivityIndicator size="large" color="#27AE60" />
+            <Text style={styles.loadingText}>Precargando datos del sistema...</Text>
+          </View>
+        </View>
+      ) : (
+        // Formulario de login normal
+        <View style={styles.form}>
+          <Text style={styles.title}>Iniciar sesión</Text>
 
         <Formik
           initialValues={{ username: '', password: '' }}
@@ -233,30 +248,8 @@ const LoginContent = ({ navigation }) => {
             </>
           )}
         </Formik>
-      </View>
-      
-      {/* Modal de carga para precarga de datos */}
-      <Modal
-        visible={isPreloading}
-        transparent={true}
-        animationType="fade"
-        accessible={true}
-        accessibilityViewIsModal={false}
-        presentationStyle="overFullScreen"
-        accessibilityLabel="Cargando datos del sistema"
-      >
-        <View style={styles.modalOverlay} pointerEvents="box-none">
-          <View 
-            style={styles.modalContent}
-            accessible={true}
-            accessibilityRole="alert"
-            accessibilityLabel="Precargando datos del sistema"
-          >
-            <ActivityIndicator size="large" color="#27AE60" />
-            <Text style={styles.loadingText}>Precargando datos del sistema...</Text>
-          </View>
         </View>
-      </Modal>
+      )}
     </View>
   );
 }
@@ -281,6 +274,9 @@ const styles = StyleSheet.create({
       radius: 10,
       elevation: 4,
     }),
+  },
+  formDisabled: {
+    opacity: 0.6,
   },
   title: {
     fontSize: 28,
@@ -380,6 +376,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
   },
   modalContent: {
     backgroundColor: '#fff',

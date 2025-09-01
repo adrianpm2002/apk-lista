@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, Alert, FlatList, TouchableOpacity, Platform, Modal, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { supabase } from '../supabaseClient';
 import InputField from '../components/InputField';
@@ -26,42 +27,89 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
 };
 
 const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
-  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData } = useCache();
+  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData, fetchLotteries: cacheFetchLotteries, fetchSchedules: cacheFetchSchedules } = useCache();
   const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('lotteries');
-  const [lotteries, setLotteries] = useState([]);
+  
+  // Inicializar con datos del cache
+  const [lotteries, setLotteries] = useState(cache.lotteries || []);
   const [newLottery, setNewLottery] = useState('');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+  // No loading inicial si hay datos en cache
+  const [initialLoading, setInitialLoading] = useState(!(cache.lotteries && cache.lotteries.length > 0));
   
   // Estados para gestión de horarios
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
   const [selectedLottery, setSelectedLottery] = useState(null);
-  const [schedules, setSchedules] = useState([]);
+  // Inicializar schedules con cache también
+  const [schedules, setSchedules] = useState(cache.schedules || []);
   const [newSchedule, setNewSchedule] = useState({
     name: '',
     startTime: '12:00',
     endTime: '13:00'
   });
   const [editingSchedule, setEditingSchedule] = useState(null);
+  
+  // ========== TIME PICKER STATES ==========
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [startTime, setStartTime] = useState(new Date());
+  const [endTime, setEndTime] = useState(new Date());
 
-  // Usar datos del cache si están disponibles
+  // ========== HELPER FUNCTIONS ==========
+  const formatTime12Hour = (date) => {
+    return date.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatTimeForDB = (date) => {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  const parseTimeToDate = (timeString) => {
+    const [hours, minutes] = timeString.split(':');
+    const date = new Date();
+    date.setHours(parseInt(hours, 10));
+    date.setMinutes(parseInt(minutes, 10));
+    date.setSeconds(0);
+    return date;
+  };
+
+  // Sincronizar con cache
   useEffect(() => {
-    // Solo ejecutar en el mount inicial
-    if (initialLoading) {
-      if (cache.lotteries && cache.lotteries.length > 0) {
-        console.log('Using cached lotteries:', cache.lotteries.length);
-        setLotteries(cache.lotteries);
-        setInitialLoading(false);
-      } else if (cacheBankId) {
-        console.log('No cached data, fetching from database...');
-        fetchLotteries();
-      }
+    if (cache.lotteries) {
+      setLotteries(cache.lotteries);
     }
   }, [cache.lotteries, cacheBankId, initialLoading]);
 
+  // Nueva función que usa cache primero
+  const fetchLotteriesFromCache = async () => {
+    if (!cacheBankId) {
+      console.log('No bank ID available for fetching lotteries');
+      setInitialLoading(false);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      await cacheFetchLotteries();
+      setInitialLoading(false);
+    } catch (error) {
+      console.error('Error fetching lotteries from cache:', error);
+      setInitialLoading(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Función legacy - mantener para compatibilidad
   const fetchLotteries = async (forceRefresh = false) => {
     if (!cacheBankId) {
       console.log('No bank ID available for fetching lotteries');
@@ -69,129 +117,130 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
       return;
     }
     
-    // Si no es refresh forzado y hay datos en cache, usarlos
-    if (!forceRefresh && cache.lotteries && cache.lotteries.length > 0) {
-      console.log('Using existing cached data');
-      setLotteries(cache.lotteries);
-      setInitialLoading(false);
-      return;
-    }
-    
-    setLoading(true);
     try {
-      console.log('Fetching lotteries from database for bankId:', cacheBankId);
+      setLoading(true);
+
       const { data, error } = await supabase
         .from('loteria')
         .select('*')
         .eq('id_banco', cacheBankId)
-        .order('id', { ascending: true });
+        .order('nombre');
 
       if (error) {
-        console.error('Error al cargar lotería:', error.message);
+        console.error('Error fetching lotteries:', error);
         Alert.alert('Error', 'No se pudieron cargar las loterías');
-      } else {
-        console.log('Lotteries fetched successfully:', data.length);
-        setLotteries(data);
-        // Actualizar cache
-        await updateCacheData('lotteries', data);
+        return;
       }
+
+      console.log('Fetched lotteries:', data);
+      setLotteries(data || []);
+      // Actualizar cache
+      updateCacheData('lotteries', data || []);
+      setInitialLoading(false);
     } catch (error) {
-      console.error('Error fetching lotteries:', error);
-      Alert.alert('Error', 'Error inesperado al cargar las loterías');
+      console.error('Error general fetching lotteries:', error);
+      Alert.alert('Error', 'Error general al cargar las loterías');
+      setInitialLoading(false);
     } finally {
       setLoading(false);
-      setInitialLoading(false);
     }
   };
 
   const handleRefresh = async () => {
-    await fetchLotteries(true); // Forzar refresh desde BD
+    await fetchLotteriesFromCache();
   };
 
   const handleAddLottery = async () => {
     if (!newLottery.trim()) {
-      Alert.alert('Error', 'El nombre de la lotería no puede estar vacío');
+      Alert.alert('Error', 'Por favor ingresa el nombre de la lotería');
       return;
     }
 
-    console.log('Creating lottery with:', { 
-      nombre: newLottery.trim(), 
-      id_banco: currentBankId 
-    });
+    if (!currentBankId) {
+      Alert.alert('Error', 'No se puede determinar el banco actual');
+      return;
+    }
 
-    const { error } = await supabase
-      .from('loteria')
-      .insert({ 
-        nombre: newLottery.trim(),
-        id_banco: currentBankId
-      });
+    try {
+      const { data, error } = await supabase
+        .from('loteria')
+        .insert([
+          {
+            nombre: newLottery.trim(),
+            id_banco: currentBankId
+          }
+        ])
+        .select();
 
-    console.log('Insert lottery result:', { error });
-    if (error) {
-      Alert.alert('Error al agregar', error.message);
-    } else {
-      setNewLottery('');
-      fetchLotteries();
-      
-      // Actualizar cache si es admin
-      if (cacheUserRole === 'admin') {
-        updateCacheData('lotteries');
+      if (error) {
+        console.error('Error adding lottery:', error);
+        Alert.alert('Error', 'No se pudo agregar la lotería');
+        return;
       }
+
+      console.log('Added lottery:', data);
+      setNewLottery('');
+      await fetchLotteriesFromCache(); // Usar función optimizada
+      Alert.alert('Éxito', 'Lotería agregada correctamente');
+    } catch (error) {
+      console.error('Error general adding lottery:', error);
+      Alert.alert('Error', 'Error general al agregar la lotería');
     }
   };
 
   const handleDeleteLottery = async (id) => {
-  const isWeb = Platform.OS === 'web';
-
-  if (isWeb) {
-    console.log('Eliminando directamente en web:', id);
-    const { error } = await supabase
-      .from('loteria')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error al eliminar:', error.message);
-      Alert.alert('Error al eliminar', error.message);
-    } else {
-      console.log('Lotería eliminada con éxito');
-      fetchLotteries();
-      
-      // Actualizar cache si es admin
-      if (cacheUserRole === 'admin') {
-        updateCacheData('lotteries');
-      }
+    if (!id) {
+      Alert.alert('Error', 'ID de lotería no válido');
+      return;
     }
-  } else {
+
     Alert.alert(
-      'Eliminar Lotería',
-      '¿Estás seguro de que deseas eliminar esta lotería?',
+      'Confirmar eliminación',
+      '¿Estás seguro de que deseas eliminar esta lotería? También se eliminarán todos sus horarios.',
       [
-        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
         {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            console.log('Confirmado en nativo. Eliminando ID:', id);
-            const { error } = await supabase
-              .from('loteria')
-              .delete()
-              .eq('id', id);
+            try {
+              // Primero eliminar horarios
+              const { error: schedulesError } = await supabase
+                .from('horarios_loteria')
+                .delete()
+                .eq('id_loteria', id);
 
-            if (error) {
-              console.error('Error al eliminar:', error.message);
-              Alert.alert('Error al eliminar', error.message);
-            } else {
-              fetchLotteries();
+              if (schedulesError) {
+                console.error('Error deleting schedules:', schedulesError);
+              }
+
+              // Luego eliminar la lotería
+              const { error } = await supabase
+                .from('loteria')
+                .delete()
+                .eq('id', id);
+
+              if (error) {
+                console.error('Error deleting lottery:', error);
+                Alert.alert('Error', 'No se pudo eliminar la lotería');
+                return;
+              }
+
+              await fetchLotteriesFromCache(); // Usar función optimizada
+              Alert.alert('Éxito', 'Lotería eliminada correctamente');
+            } catch (error) {
+              console.error('Error general deleting lottery:', error);
+              Alert.alert('Error', 'Error general al eliminar la lotería');
             }
-          }
-        }
+          },
+        },
       ]
     );
-  }
-};
+  };
 
-  // Funciones para gestión de horarios
   const openScheduleModal = (lottery) => {
     setSelectedLottery(lottery);
     setScheduleModalVisible(true);
@@ -204,74 +253,88 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
     setSchedules([]);
     setNewSchedule({ name: '', startTime: '12:00', endTime: '13:00' });
     setEditingSchedule(null);
+    
+    // Resetear time pickers
+    setStartTime(new Date());
+    setEndTime(new Date());
+    setShowStartPicker(false);
+    setShowEndPicker(false);
   };
 
   const fetchSchedules = async (lotteryId) => {
-    console.log('Intentando cargar horarios para lotería ID:', lotteryId);
-    const { data, error } = await supabase
-      .from('horario')
-      .select('*')
-      .eq('id_loteria', lotteryId)
-      .order('hora_inicio', { ascending: true });
-
-    if (error) {
-      console.error('Error al cargar horarios:', error.message);
-      console.error('Detalles del error:', error);
-    } else {
-      console.log('Horarios cargados:', data);
-      setSchedules(data || []);
+    try {
+      await cacheFetchSchedules();
+      // Filtrar horarios de la lotería específica
+      const lotterySchedules = cache.schedules?.filter(schedule => schedule.id_loteria === lotteryId) || [];
+      setSchedules(lotterySchedules);
+    } catch (error) {
+      console.error('Error fetching schedules:', error);
+      Alert.alert('Error', 'No se pudieron cargar los horarios');
     }
   };
 
   const handleAddSchedule = async () => {
     if (!newSchedule.name.trim()) {
-      Alert.alert('Error', 'El nombre del horario es requerido');
+      Alert.alert('Error', 'Por favor ingresa el nombre del horario');
       return;
     }
 
-    // Validar formato de tiempo
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    if (!timeRegex.test(newSchedule.startTime)) {
-      Alert.alert('Error', 'Formato de hora de inicio inválido. Use HH:MM');
-      return;
-    }
-    if (!timeRegex.test(newSchedule.endTime)) {
-      Alert.alert('Error', 'Formato de hora de fin inválido. Use HH:MM');
+    if (!selectedLottery) {
+      Alert.alert('Error', 'No hay lotería seleccionada');
       return;
     }
 
-    const scheduleData = {
-      id_loteria: selectedLottery.id,
-      nombre: newSchedule.name.trim(),
-      hora_inicio: newSchedule.startTime + ':00', // Agregar segundos
-      hora_fin: newSchedule.endTime + ':00'
-    };
+    try {
+      const scheduleData = {
+        id_loteria: selectedLottery.id,
+        nombre: newSchedule.name.trim(),
+        hora_inicio: formatTimeForDB(startTime),
+        hora_fin: formatTimeForDB(endTime),
+        estado: true
+      };
 
-    console.log('Datos a enviar:', scheduleData);
+      if (editingSchedule) {
+        // Actualizar horario existente
+        const { data, error } = await supabase
+          .from('horarios_loteria')
+          .update(scheduleData)
+          .eq('id', editingSchedule.id)
+          .select();
 
-    let error;
-    if (editingSchedule) {
-      // Actualizar horario existente
-      const result = await supabase
-        .from('horario')
-        .update(scheduleData)
-        .eq('id', editingSchedule.id);
-      error = result.error;
-    } else {
-      // Crear nuevo horario
-      const result = await supabase
-        .from('horario')
-        .insert(scheduleData);
-      error = result.error;
-    }
+        if (error) {
+          console.error('Error updating schedule:', error);
+          Alert.alert('Error', 'No se pudo actualizar el horario');
+          return;
+        }
 
-    if (error) {
-      console.error('Error de Supabase:', error);
-      Alert.alert('Error', error.message);
-    } else {
+        Alert.alert('Éxito', 'Horario actualizado correctamente');
+      } else {
+        // Crear nuevo horario
+        const { data, error } = await supabase
+          .from('horarios_loteria')
+          .insert([scheduleData])
+          .select();
+
+        if (error) {
+          console.error('Error adding schedule:', error);
+          Alert.alert('Error', 'No se pudo agregar el horario');
+          return;
+        }
+
+        Alert.alert('Éxito', 'Horario agregado correctamente');
+      }
+
+      // Resetear formulario
       setNewSchedule({ name: '', startTime: '12:00', endTime: '13:00' });
+      setStartTime(new Date());
+      setEndTime(new Date());
       setEditingSchedule(null);
-      fetchSchedules(selectedLottery.id);
+      
+      // Recargar horarios
+      await fetchSchedules(selectedLottery.id);
+    } catch (error) {
+      console.error('Error general with schedule:', error);
+      Alert.alert('Error', 'Error general al procesar el horario');
     }
   };
 
@@ -279,99 +342,88 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
     setEditingSchedule(schedule);
     setNewSchedule({
       name: schedule.nombre,
-      startTime: schedule.hora_inicio.slice(0, 5), // HH:MM
-      endTime: schedule.hora_fin.slice(0, 5) // HH:MM
+      startTime: formatTime(schedule.hora_inicio),
+      endTime: formatTime(schedule.hora_fin)
     });
+    
+    // Configurar los time pickers con los valores del horario
+    setStartTime(parseTimeToDate(schedule.hora_inicio));
+    setEndTime(parseTimeToDate(schedule.hora_fin));
   };
 
   const handleDeleteSchedule = async (scheduleId) => {
-    const isWeb = Platform.OS === 'web';
-
-    if (isWeb) {
-      const { error } = await supabase
-        .from('horario')
-        .delete()
-        .eq('id', scheduleId);
-
-      if (error) {
-        Alert.alert('Error', error.message);
-      } else {
-        fetchSchedules(selectedLottery.id);
-      }
-    } else {
-      Alert.alert(
-        'Eliminar Horario',
-        '¿Estás seguro de que deseas eliminar este horario?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Eliminar',
-            style: 'destructive',
-            onPress: async () => {
+    Alert.alert(
+      'Confirmar eliminación',
+      '¿Estás seguro de que deseas eliminar este horario?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
               const { error } = await supabase
-                .from('horario')
+                .from('horarios_loteria')
                 .delete()
                 .eq('id', scheduleId);
 
               if (error) {
-                Alert.alert('Error', error.message);
-              } else {
-                fetchSchedules(selectedLottery.id);
+                console.error('Error deleting schedule:', error);
+                Alert.alert('Error', 'No se pudo eliminar el horario');
+                return;
               }
+
+              await fetchSchedules(selectedLottery.id);
+              Alert.alert('Éxito', 'Horario eliminado correctamente');
+            } catch (error) {
+              console.error('Error general deleting schedule:', error);
+              Alert.alert('Error', 'Error general al eliminar el horario');
             }
-          }
-        ]
-      );
-    }
+          },
+        },
+      ]
+    );
   };
 
-  // Función auxiliar para cancelar edición
   const cancelEdit = () => {
     setEditingSchedule(null);
-    setNewSchedule({
-      name: '',
-      startTime: '12:00',
-      endTime: '13:00'
-    });
+    setNewSchedule({ name: '', startTime: '12:00', endTime: '13:00' });
+    
+    // Resetear time pickers
+    setStartTime(new Date());
+    setEndTime(new Date());
   };
 
-  // Función auxiliar para formatear tiempo
   const formatTime = (timeString) => {
-    try {
-      // Si es un string de tiempo en formato HH:MM
-      if (typeof timeString === 'string' && timeString.includes(':')) {
-        return timeString.slice(0, 5); // Mostrar solo HH:MM
-      }
-      // Si es un objeto Date
-      if (timeString instanceof Date) {
-        return timeString.toLocaleTimeString('es-ES', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: false 
-        });
-      }
-      // Si es un timestamp
-      const date = new Date(timeString);
-      return date.toLocaleTimeString('es-ES', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false 
-      });
-    } catch (error) {
-      console.error('Error formatting time:', error);
-      return '00:00';
+    if (!timeString) return '00:00';
+    
+    // Si ya es un string en formato HH:MM, devolverlo tal como está
+    if (typeof timeString === 'string' && timeString.includes(':')) {
+      return timeString;
     }
+    
+    // Si es un objeto Date, extraer horas y minutos
+    if (timeString instanceof Date) {
+      return timeString.toTimeString().substring(0, 5);
+    }
+    
+    // Si es un string que representa una fecha
+    if (typeof timeString === 'string') {
+      const date = new Date(timeString);
+      if (!isNaN(date.getTime())) {
+        return date.toTimeString().substring(0, 5);
+      }
+    }
+    
+    return '00:00';
   };
 
-
-
-
-  useEffect(() => {
-    if (currentBankId) fetchLotteries();
-  }, [currentBankId]);
-
+  // Optimized focus refresh con cache
   const focusRefresh = useCallback(() => {
-    if (currentBankId) fetchLotteries();
+    if (currentBankId) fetchLotteriesFromCache();
   }, [currentBankId]);
 
   useFocusEffect(
@@ -414,71 +466,75 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
       {/* Header personalizado - arriba del todo */}
       <View style={styles.customHeader}>
         <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
-        <Text style={styles.headerTitle}>Gestionar Loterías</Text>
+        <Text style={styles.headerTitle}>Loterías</Text>
       </View>
         
-        <View style={styles.contentContainer}>
+      <View style={styles.contentContainer}>
+        <InputField
+          placeholder="Nombre de nueva lotería"
+          value={newLottery}
+          onChangeText={setNewLottery}
+          isDarkMode={isDarkMode}
+          style={styles.input}
+        />
 
-      <InputField
-        placeholder="Nombre de nueva lotería"
-        value={newLottery}
-        onChangeText={setNewLottery}
-        isDarkMode={isDarkMode}
-      />
+        <TouchableOpacity
+          style={[styles.addButton, { backgroundColor: isDarkMode ? '#27ae60' : '#2ecc71' }]}
+          onPress={handleAddLottery}
+        >
+          <Text style={styles.addButtonText}>➕ Agregar Lotería</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-  onPress={handleAddLottery}
-  style={{
-    backgroundColor: '#2ecc71',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 20
-  }}
->
-  <Text style={{ color: '#fff', fontWeight: 'bold' }}>Agregar Lotería</Text>
-</TouchableOpacity>
-
-
-      <FlatList
-        data={lotteries}
-        keyExtractor={(item) => item.id.toString()}
-        refreshControl={
-          <RefreshControl
-            refreshing={cacheUserRole === 'admin' ? (loading || cacheRefreshing) : false}
-            onRefresh={cacheUserRole === 'admin' ? handleRefresh : undefined}
-            colors={['#27AE60']}
-            tintColor="#27AE60"
-          />
-        }
-        renderItem={({ item }) => (
-          <View style={[styles.lotteryCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
-            <Text style={[styles.lotteryName, { color: isDarkMode ? '#fff' : '#000' }]}>
-              {item.nombre}
+        {initialLoading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={[styles.loadingText, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+              Cargando loterías...
             </Text>
-
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                onPress={() => openScheduleModal(item)}
-                style={[styles.actionButton, styles.scheduleButton]}
-              >
-                <Text style={styles.actionButtonText}>🕒 Gestionar Horarios</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => {
-                  console.log('Se hizo clic en eliminar', item.id);
-                  handleDeleteLottery(item.id);
-                }}
-                style={[styles.actionButton, styles.deleteButton]}
-              >
-                <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
-              </TouchableOpacity>
-            </View>
           </View>
+        ) : (
+          <FlatList
+            data={lotteries}
+            keyExtractor={(item) => item.id.toString()}
+            refreshControl={
+              <RefreshControl
+                refreshing={cacheRefreshing}
+                onRefresh={cacheOnRefresh}
+                colors={[isDarkMode ? '#3498db' : '#2ecc71']}
+                tintColor={isDarkMode ? '#3498db' : '#2ecc71'}
+              />
+            }
+            renderItem={({ item }) => (
+              <View style={[styles.lotteryCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
+                <Text style={[styles.lotteryName, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}>
+                  {item.nombre}
+                </Text>
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.scheduleButton]}
+                    onPress={() => openScheduleModal(item)}
+                  >
+                    <Text style={styles.actionButtonText}>🕒 Horarios</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.deleteButton]}
+                    onPress={() => handleDeleteLottery(item.id)}
+                  >
+                    <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+                  No hay loterías registradas
+                </Text>
+              </View>
+            }
+          />
         )}
-      />
+      </View>
 
       {/* Modal para gestionar horarios */}
       <Modal
@@ -516,30 +572,75 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
                 <View style={styles.timeRow}>
                   <View style={styles.timeField}>
                     <Text style={[styles.timeLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
-                      Hora Inicio (HH:MM):
+                      Hora de Inicio:
                     </Text>
-                    <InputField
-                      placeholder="12:00"
-                      value={newSchedule.startTime}
-                      onChangeText={(text) => setNewSchedule(prev => ({ ...prev, startTime: text }))}
-                      isDarkMode={isDarkMode}
-                      style={styles.timeInput}
-                    />
+                    <TouchableOpacity 
+                      style={[
+                        styles.timeSelector, 
+                        { 
+                          backgroundColor: isDarkMode ? '#34495e' : '#fff',
+                          borderColor: isDarkMode ? '#555' : '#ddd'
+                        }
+                      ]}
+                      onPress={() => setShowStartPicker(true)}
+                    >
+                      <Text style={[styles.timeSelectorText, { color: isDarkMode ? '#fff' : '#000' }]}>
+                        {formatTime12Hour(startTime)}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
 
                   <View style={styles.timeField}>
                     <Text style={[styles.timeLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
-                      Hora Fin (HH:MM):
+                      Hora de Fin:
                     </Text>
-                    <InputField
-                      placeholder="13:00"
-                      value={newSchedule.endTime}
-                      onChangeText={(text) => setNewSchedule(prev => ({ ...prev, endTime: text }))}
-                      isDarkMode={isDarkMode}
-                      style={styles.timeInput}
-                    />
+                    <TouchableOpacity 
+                      style={[
+                        styles.timeSelector, 
+                        { 
+                          backgroundColor: isDarkMode ? '#34495e' : '#fff',
+                          borderColor: isDarkMode ? '#555' : '#ddd'
+                        }
+                      ]}
+                      onPress={() => setShowEndPicker(true)}
+                    >
+                      <Text style={[styles.timeSelectorText, { color: isDarkMode ? '#fff' : '#000' }]}>
+                        {formatTime12Hour(endTime)}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
+
+                {/* Time Pickers */}
+                {showStartPicker && (
+                  <DateTimePicker
+                    value={startTime}
+                    mode="time"
+                    is24Hour={false}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={(event, selectedDate) => {
+                      setShowStartPicker(false);
+                      if (selectedDate) {
+                        setStartTime(selectedDate);
+                      }
+                    }}
+                  />
+                )}
+
+                {showEndPicker && (
+                  <DateTimePicker
+                    value={endTime}
+                    mode="time"
+                    is24Hour={false}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={(event, selectedDate) => {
+                      setShowEndPicker(false);
+                      if (selectedDate) {
+                        setEndTime(selectedDate);
+                      }
+                    }}
+                  />
+                )}
 
                 <View style={styles.formButtons}>
                   {editingSchedule && (
@@ -598,7 +699,6 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
           </View>
         </View>
       </Modal>
-      </View>
 
       <SideBar
         isVisible={sidebarVisible}
@@ -617,88 +717,94 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FDF5',
-    paddingTop: 0, // Sin padding para que el header esté arriba del todo
+    paddingTop: 0,
   },
   customHeader: {
-    height: 100, // 56 + 44 para status bar
+    height: 100,
     backgroundColor: '#F8F9FA',
     flexDirection: 'row',
-    alignItems: 'flex-end', // Alinear al final para que el botón esté abajo
-    paddingHorizontal: 16,
-    paddingBottom: 12, // Espacio desde el borde inferior
+    alignItems: 'flex-end',
+    paddingBottom: 10,
+    paddingHorizontal: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-    ...createShadowStyle({
-      color: '#000',
-      offsetY: 2,
-      opacity: 0.1,
-      radius: 2,
-      elevation: 4,
+    borderBottomColor: '#E9ECEF',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+      web: {
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+      }
     }),
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
   },
   sidebarButton: {
-    marginRight: 16,
-    marginLeft: 4,
-    marginBottom: 4,
+    marginRight: 15,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2C3E50',
-    flex: 1,
-    textAlign: 'center',
-    marginRight: 44, // Para centrar el texto compensando el botón
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#000',
+    ...Platform.select({
+      web: {
+        userSelect: 'none',
+      }
+    }),
   },
   contentContainer: {
     flex: 1,
-    padding: 16,
-    marginTop: 100, // Espacio para el header fijo (56 + 44 status bar)
+    padding: 20,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 12,
+  input: {
+    marginBottom: 15,
   },
   addButton: {
     backgroundColor: '#2ecc71',
-    padding: 12,
+    padding: 15,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10,
     marginBottom: 20,
   },
   addButtonText: {
     color: '#fff',
+    fontSize: 16,
     fontWeight: 'bold',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+  },
   lotteryCard: {
-    padding: 12,
-    marginTop: 10,
-    borderWidth: 1,
+    backgroundColor: '#fff',
+    padding: 15,
+    marginBottom: 10,
     borderRadius: 8,
-    borderColor: '#ccc',
+    ...createShadowStyle(2),
   },
   lotteryName: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 12,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
   },
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 8,
   },
   actionButton: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    padding: 10,
+    borderRadius: 5,
     alignItems: 'center',
+    marginHorizontal: 5,
   },
   scheduleButton: {
     backgroundColor: '#3498db',
@@ -708,8 +814,17 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#fff',
-    fontWeight: '600',
-    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 50,
+  },
+  emptyText: {
+    fontSize: 16,
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,
@@ -720,84 +835,67 @@ const styles = StyleSheet.create({
   modalContainer: {
     width: '90%',
     maxHeight: '80%',
-    borderRadius: 12,
-    ...createShadowStyle({
-      color: '#000',
-      offsetY: 2,
-      opacity: 0.25,
-      radius: 4,
-      elevation: 5,
-    }),
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 0,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: '#e0e0e0',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
   },
   closeButton: {
-    padding: 8,
-    backgroundColor: '#e74c3c',
-    borderRadius: 4,
+    padding: 5,
   },
   closeButtonText: {
-    color: '#fff',
+    fontSize: 18,
     fontWeight: 'bold',
+    color: '#666',
   },
   modalContent: {
-    padding: 16,
+    maxHeight: 400,
   },
   formSection: {
-    marginBottom: 24,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  input: {
-    marginBottom: 12,
-  },
-  timeInput: {
-    marginBottom: 8,
+    marginBottom: 15,
   },
   timeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
   },
   timeField: {
     flex: 1,
-    marginHorizontal: 4,
+    marginHorizontal: 5,
   },
   timeLabel: {
     fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: 5,
   },
-  timePicker: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 4,
-    padding: 8,
+  timeInput: {
+    marginBottom: 15,
   },
   formButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
   },
   formButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    minWidth: 80,
-    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 5,
+    marginLeft: 10,
   },
   cancelButton: {
     backgroundColor: '#95a5a6',
@@ -807,44 +905,52 @@ const styles = StyleSheet.create({
   },
   formButtonText: {
     color: '#fff',
+    fontWeight: 'bold',
+  },
+  // Time Selector Styles
+  timeSelector: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  timeSelectorText: {
+    fontSize: 16,
     fontWeight: '600',
   },
   schedulesSection: {
-    marginTop: 16,
-  },
-  emptyText: {
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginTop: 20,
+    padding: 20,
   },
   scheduleCard: {
+    padding: 15,
+    marginBottom: 10,
+    borderRadius: 5,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
   },
   scheduleInfo: {
     flex: 1,
   },
   scheduleName: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   scheduleTime: {
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 14,
+    marginTop: 5,
   },
   scheduleActions: {
     flexDirection: 'row',
-    gap: 8,
   },
   scheduleActionButton: {
-    padding: 6,
+    padding: 8,
     borderRadius: 4,
-    minWidth: 30,
-    alignItems: 'center',
+    marginLeft: 5,
   },
   editButton: {
     backgroundColor: '#f39c12',

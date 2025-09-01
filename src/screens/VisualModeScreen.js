@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,10 @@ import {
   Pressable,
   Animated,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../supabaseClient';
+import { useCache } from '../contexts/CacheContext';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import DropdownPicker from '../components/DropdownPicker';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import InputField from '../components/InputField';
@@ -30,6 +33,55 @@ import { createShadowStyle } from '../utils/shadowUtils';
 
 const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   
+  // ========== CACHE-FIRST OPTIMIZATION ==========
+  const { 
+    cache, 
+    userRole: cacheUserRole, 
+    currentBankId: cacheBankId, 
+    updateCacheData, 
+    fetchLotteries: cacheFetchLotteries, 
+    fetchSchedules: cacheFetchSchedules,
+    fetchActivePlayTypes: cacheFetchActivePlayTypes
+  } = useCache();
+  
+  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('lotteries');
+  
+  // ========== CONSTANTS AND HELPER FUNCTIONS ==========
+  const PLAY_TYPE_LABELS = { 
+    fijo: translatePlayTypeLabel('fijo'), 
+    corrido: translatePlayTypeLabel('corrido'), 
+    posicion: translatePlayTypeLabel('posicion'), 
+    parle: translatePlayTypeLabel('parle'), 
+    centena: translatePlayTypeLabel('centena'), 
+    tripleta: translatePlayTypeLabel('tripleta') 
+  };
+
+  const getPlayTypeLabel = (key) => PLAY_TYPE_LABELS[key] || key;
+  const getLotteryLabel = (value) => lotteries.find(l=>l.value===value)?.label || value;
+  // Helper para formatear horarios con horas de apertura y cierre
+  const formatScheduleLabel = (schedule) => {
+    if (!schedule.hora_inicio || !schedule.hora_fin) {
+      return schedule.nombre;
+    }
+    
+    // Formatear horas de 24h a 12h AM/PM
+    const formatTime = (timeStr) => {
+      if (!timeStr) return '';
+      const [hours, minutes] = timeStr.split(':');
+      const hour24 = parseInt(hours, 10);
+      const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+      const ampm = hour24 < 12 ? 'AM' : 'PM';
+      return `${hour12}:${minutes} ${ampm}`;
+    };
+    
+    const startTime = formatTime(schedule.hora_inicio);
+    const endTime = formatTime(schedule.hora_fin);
+    
+    return `${schedule.nombre} (${startTime} - ${endTime})`;
+  };
+
+  const getScheduleLabel = (lotteryValue, scheduleValue) => (scheduleOptionsMap[lotteryValue]||[]).find(s=>s.value===scheduleValue)?.label || scheduleValue;
+
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // values de loterías (máx 3)
   const [selectedSchedules, setSelectedSchedules] = useState({}); // { lotteryValue: scheduleValue }
@@ -52,6 +104,27 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
 
   // Feedback de inserción: éxito, fallos y duplicados
   const [insertFeedback, setInsertFeedback] = useState(null); // { success, fail, duplicates:[] }
+  
+  // ========== ESTADOS CON CACHE-FIRST INITIALIZATION ==========
+  // Inicializar con datos del cache para carga instantánea
+  const [lotteries, setLotteries] = useState(cache.lotteries?.map(l => ({ label: l.nombre, value: l.id })) || []); 
+  const [bankId, setBankId] = useState(cacheBankId || null);
+  const [userId, setUserId] = useState(null);
+  const [isInserting, setIsInserting] = useState(false);
+  
+  // Inicializar playTypes desde cache
+  const [playTypes, setPlayTypes] = useState(() => {
+    if (cache.activePlayTypes) {
+      const order = ['fijo','corrido','posicion','parle','centena','tripleta'];
+      return order
+        .filter(k => cache.activePlayTypes[k])
+        .map(k => ({ label: getPlayTypeLabel(k), value: k }));
+    }
+    return [];
+  });
+  
+  // No loading inicial si hay datos en cache
+  const [initialLoading, setInitialLoading] = useState(!(cache.lotteries && cache.lotteries.length > 0));
   useEffect(() => {
     if (insertFeedback && insertFeedback.fail === 0) {
       const timer = setTimeout(() => setInsertFeedback(null), 5000);
@@ -90,11 +163,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   }, [amounts, selectedPlayTypes]);
 
   // Datos para los dropdowns
-  const [lotteries, setLotteries] = useState([]); // desde BD
-  const [bankId, setBankId] = useState(null);
-  const [userId, setUserId] = useState(null);
-  const [isInserting, setIsInserting] = useState(false);
-  const [playTypes, setPlayTypes] = useState([]); // jugadas activas dinámicas
+  // Estados movidos arriba para cache-first initialization
+  
   // Edición
   const [editingId, setEditingId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -103,99 +173,235 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   // Forzar remount del PlaysInputField para limpiar internamente
   const [inputInstanceKey, setInputInstanceKey] = useState(0);
 
-  const PLAY_TYPE_LABELS = { fijo:translatePlayTypeLabel('fijo'), corrido:translatePlayTypeLabel('corrido'), posicion:translatePlayTypeLabel('posicion'), parle:translatePlayTypeLabel('parle'), centena:translatePlayTypeLabel('centena'), tripleta:translatePlayTypeLabel('tripleta') };
+  // ========== CACHE-FIRST DATA LOADING ==========
+  
+  // Sincronizar con cache cuando cambian los datos
+  useEffect(() => {
+    if (cache.lotteries) {
+      setLotteries(cache.lotteries.map(l => ({ label: l.nombre, value: l.id })));
+    }
+  }, [cache.lotteries]);
 
-  // Función que faltaba y causaba que no aparecieran las jugadas (se usaba más abajo)
-  const getPlayTypeLabel = (key) => PLAY_TYPE_LABELS[key] || key;
+  useEffect(() => {
+    if (cache.activePlayTypes) {
+      const order = ['fijo','corrido','posicion','parle','centena','tripleta'];
+      const ordered = order
+        .filter(k => cache.activePlayTypes[k])
+        .map(k => ({ label: getPlayTypeLabel(k), value: k }));
+      setPlayTypes(ordered);
+    }
+  }, [cache.activePlayTypes]);
 
-  const getLotteryLabel = (value) => lotteries.find(l=>l.value===value)?.label || value;
-  const getScheduleLabel = (lotteryValue, scheduleValue) => (scheduleOptionsMap[lotteryValue]||[]).find(s=>s.value===scheduleValue)?.label || scheduleValue;
+  useEffect(() => {
+    if (cacheBankId) {
+      setBankId(cacheBankId);
+    }
+  }, [cacheBankId]);
 
-  // Cargar banco (id_banco) y luego loterías + jugadas activas
-  useEffect(()=>{
+  // Función optimizada que usa cache primero
+  const fetchDataFromCache = async () => {
+    if (!cacheBankId) {
+      console.log('No bank ID available for fetching data');
+      setInitialLoading(false);
+      return;
+    }
+    
+    try {
+      // Cargar datos desde cache primero
+      await Promise.all([
+        cacheFetchLotteries(),
+        cacheFetchActivePlayTypes(),
+        cacheFetchSchedules()
+      ]);
+      setInitialLoading(false);
+    } catch (error) {
+      console.error('Error fetching data from cache:', error);
+      setInitialLoading(false);
+    }
+  };
+
+  // Función legacy para compatibilidad
   const loadContext = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if(!user) return;
-    setUserId(user.id);
-        const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).single();
-        if(!profile) return;
-        const bId = profile.role === 'admin' ? user.id : profile.id_banco;
-        setBankId(bId);
-      } catch(e) { /* silencioso */ }
-    };
-    loadContext();
-  },[]);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if(!user) return;
+      setUserId(user.id);
+      const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).single();
+      if(!profile) return;
+      const bId = profile.role === 'admin' ? user.id : profile.id_banco;
+      setBankId(bId);
+    } catch(e) { /* silencioso */ }
+  };
 
-  // Cargar loterías y jugadas activas cuando tengamos bankId
-  useEffect(()=>{
+  // Función legacy para cargar datos
+  const loadData = async () => {
     if(!bankId) return;
-    const loadData = async () => {
-      try {
-        const { data: lots } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
-        setLotteries((lots||[]).map(l=>({ label:l.nombre, value:l.id })));
-        const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
-        const jugadasObj = jugRow?.jugadas || { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
-        const enabled = Object.entries(jugadasObj)
-          .filter(([,v])=>v)
-          .map(([k])=>({ label: getPlayTypeLabel(k), value:k }));
-        const order = ['fijo','corrido','posicion','parle','centena','tripleta'];
-        const ordered = order
-          .filter(k => enabled.some(e=> e.value===k))
-          .map(k => enabled.find(e=> e.value===k));
-        setPlayTypes(ordered);
-      } catch(e){ /* ignore */ }
-    };
-    loadData();
-  },[bankId]);
+    try {
+      const { data: lots } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
+      setLotteries((lots||[]).map(l=>({ label:l.nombre, value:l.id })));
+      const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
+      const jugadasObj = jugRow?.jugadas || { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
+      const enabled = Object.entries(jugadasObj)
+        .filter(([,v])=>v)
+        .map(([k])=>({ label: getPlayTypeLabel(k), value:k }));
+      const order = ['fijo','corrido','posicion','parle','centena','tripleta'];
+      const ordered = order
+        .filter(k => enabled.some(e=> e.value===k))
+        .map(k => enabled.find(e=> e.value===k));
+      setPlayTypes(ordered);
+      // Actualizar cache
+      updateCacheData('lotteries', lots || []);
+      updateCacheData('activePlayTypes', jugadasObj);
+    } catch(e){ /* ignore */ }
+  };
 
-  // Cargar horarios de todas las loterías del banco, filtrar solo los que están abiertos actualmente y agrupar
-  useEffect(()=>{
-    if(!bankId || lotteries.length===0) return;
+  // Efectos optimizados
+  useEffect(() => {
+    loadContext();
+  }, []);
+
+  useEffect(() => {
+    if (bankId) {
+      fetchDataFromCache();
+    }
+  }, [bankId]);
+
+  // ========== OPTIMIZED SCHEDULES LOADING WITH CACHE ==========
+  useEffect(() => {
+    if (!bankId || lotteries.length === 0) return;
+    
     let cancelled = false;
-    const loadAllSchedules = async () => {
+    
+    const loadSchedulesFromCache = async () => {
       try {
-        const lotIds = lotteries.map(l=> l.value); // UUID strings
+        // Intentar cargar desde cache primero
+        await cacheFetchSchedules();
+        
+        if (cancelled) return;
+        
+        // Procesar schedules desde cache si están disponibles
+        if (cache.schedules && cache.schedules.length > 0) {
+          processSchedules(cache.schedules);
+        } else {
+          // Fallback a carga directa si no hay cache
+          await loadAllSchedulesDirect();
+        }
+      } catch (error) {
+        console.error('Error loading schedules from cache:', error);
+        if (!cancelled) {
+          await loadAllSchedulesDirect();
+        }
+      }
+    };
+
+    const loadAllSchedulesDirect = async () => {
+      try {
+        const lotIds = lotteries.map(l => l.value);
         const { data: rows } = await supabase
           .from('horario')
           .select('id,nombre,id_loteria,hora_inicio,hora_fin')
           .in('id_loteria', lotIds)
           .order('nombre');
-        if(cancelled) return;
-        const now = new Date();
-        const nowMinutes = now.getHours()*60 + now.getMinutes();
-        const isOpen = (hi, hf) => {
-          if(!hi || !hf) return false;
-          const [shi,smi] = hi.split(':');
-          const [shf,smf] = hf.split(':');
-            const start = parseInt(shi,10)*60 + parseInt(smi||'0',10);
-            const end = parseInt(shf,10)*60 + parseInt(smf||'0',10);
-            if(start === end) return true; // intervalo 24h
-            if(end > start) return nowMinutes >= start && nowMinutes < end; // mismo día
-            // cruza medianoche
-            return (nowMinutes >= start) || (nowMinutes < end);
-        };
-        const grouped = {}; (rows||[])
-          .filter(r => isOpen(r.hora_inicio, r.hora_fin))
-          .forEach(r=> {
-            const key = r.id_loteria;
-            if(!grouped[key]) grouped[key] = [];
-            grouped[key].push({ label: r.nombre, value: r.id });
-          });
-        setScheduleOptionsMap(grouped);
-        setSelectedSchedules(prev => {
-          const next = { ...prev };
-          Object.keys(next).forEach(lv => { if(!grouped[lv] || !grouped[lv].some(o=>o.value===next[lv])) delete next[lv]; });
-          return next;
-        });
-      } catch(e){ /* ignore */ }
-    setLimitViolations([]);
+        
+        if (cancelled) return;
+        
+        // Actualizar cache con datos frescos
+        updateCacheData('schedules', rows || []);
+        
+        processSchedules(rows || []);
+      } catch (e) {
+        console.error('Error loading schedules directly:', e);
+      }
     };
-    loadAllSchedules();
-    return ()=> { cancelled = true; };
-  },[bankId, lotteries]);
 
-  // (playTypes ahora proviene dinámicamente de la BD: estado playTypes)
+    const processSchedules = (schedules) => {
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      
+      const isOpen = (hi, hf) => {
+        if (!hi || !hf) return false;
+        const [shi, smi] = hi.split(':');
+        const [shf, smf] = hf.split(':');
+        const start = parseInt(shi, 10) * 60 + parseInt(smi || '0', 10);
+        const end = parseInt(shf, 10) * 60 + parseInt(smf || '0', 10);
+        if (start === end) return true; // intervalo 24h
+        if (end > start) return nowMinutes >= start && nowMinutes < end;
+        return (nowMinutes >= start) || (nowMinutes < end); // cruza medianoche
+      };
+
+      const grouped = {};
+      schedules
+        .filter(r => isOpen(r.hora_inicio, r.hora_fin))
+        .forEach(r => {
+          const key = r.id_loteria;
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push({ label: formatScheduleLabel(r), value: r.id });
+        });
+
+      setScheduleOptionsMap(grouped);
+      setSelectedSchedules(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(lv => {
+          if (!grouped[lv] || !grouped[lv].some(o => o.value === next[lv])) {
+            delete next[lv];
+          }
+        });
+        return next;
+      });
+      setLimitViolations([]);
+    };
+
+    loadSchedulesFromCache();
+    return () => { cancelled = true; };
+  }, [bankId, lotteries, cacheFetchSchedules]);
+
+  // Sincronizar con cambios en cache.schedules
+  useEffect(() => {
+    if (cache.schedules && lotteries.length > 0) {
+      // Procesar schedules cuando el cache se actualiza
+      const processSchedulesFromCache = () => {
+        const now = new Date();
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        
+        const isOpen = (hi, hf) => {
+          if (!hi || !hf) return false;
+          const [shi, smi] = hi.split(':');
+          const [shf, smf] = hf.split(':');
+          const start = parseInt(shi, 10) * 60 + parseInt(smi || '0', 10);
+          const end = parseInt(shf, 10) * 60 + parseInt(smf || '0', 10);
+          if (start === end) return true;
+          if (end > start) return nowMinutes >= start && nowMinutes < end;
+          return (nowMinutes >= start) || (nowMinutes < end);
+        };
+
+        const grouped = {};
+        cache.schedules
+          .filter(r => isOpen(r.hora_inicio, r.hora_fin))
+          .forEach(r => {
+            const key = r.id_loteria;
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push({ label: formatScheduleLabel(r), value: r.id });
+          });
+
+        setScheduleOptionsMap(grouped);
+      };
+
+      processSchedulesFromCache();
+    }
+  }, [cache.schedules, lotteries]);
+
+  // ========== FOCUS REFRESH OPTIMIZATION ==========
+  const focusRefresh = useCallback(() => {
+    if (bankId) {
+      fetchDataFromCache();
+    }
+  }, [bankId, fetchDataFromCache]);
+
+  useFocusEffect(
+    useCallback(() => {
+      focusRefresh();
+    }, [focusRefresh])
+  );
 
   // Efecto: escucha payload de edición enviado desde SavedPlaysScreen
   useEffect(()=>{
@@ -316,8 +522,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         if(!error){
           // Mostrar feedback usando banner estándar (auto-cierre 3s)
           setInsertFeedback({ success:1, fail:0, duplicates:[], edit:true });
-          // Limpiar estado completo
-          handleClear(); // esto limpia plays y montos
+          // Limpiar estado pero preservar nota
+          handleClearAfterInsert(); // esto limpia plays y montos pero preserva la nota
           setPlays(''); // refuerzo explícito
           setInputInstanceKey(k=>k+1); // forzar remount
           setIsEditing(false);
@@ -509,7 +715,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       if(failures.length===0){
         setPlays('');
         setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
-        setNote('');
+        // Nota: NO se limpia setNote('') para preservar la nota después de insertar
         setTotal(0);
         setShowFieldErrors(false);
       }
@@ -537,6 +743,20 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   setShowFieldErrors(false);
   setEditingInitialNumbers('');
   setInputInstanceKey(k=>k+1); // remount del input para asegurar limpieza visual
+  };
+
+  // Nueva función para limpiar después de insertar jugadas (preserva la nota)
+  const handleClearAfterInsert = () => {
+    setSelectedLotteries([]);
+    setSelectedSchedules({});
+    setSelectedPlayTypes([]);
+    setPlays('');
+    setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
+    // Nota: NO se limpia setNote('') para preservar la nota
+    setTotal(0);
+    setShowFieldErrors(false);
+    setEditingInitialNumbers('');
+    setInputInstanceKey(k=>k+1); // remount del input para asegurar limpieza visual
   };
 
   const handleTopBarOption = (option) => {
@@ -679,8 +899,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
-      <View style={styles.headerFloating} pointerEvents="box-none">
-        <View style={styles.inlineHeaderRow} pointerEvents="box-none">
+      <View style={[styles.headerFloating, { pointerEvents: 'box-none' }]}>
+        <View style={[styles.inlineHeaderRow, { pointerEvents: 'box-none' }]}>
           <SideBarToggle inline onToggle={toggleSidebar} />
           <View style={styles.modeSelectorWrapper}>
             <ModeSelector 
@@ -690,7 +910,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
               visibleModes={visibleModes || { visual: true, text: true }}
             />
           </View>
-          <View style={styles.rightButtonsGroup} pointerEvents="box-none">
+          <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
             <PricingInfoButton />
             <NotificationsButton />
           </View>

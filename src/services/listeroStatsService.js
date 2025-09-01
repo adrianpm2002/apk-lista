@@ -104,6 +104,15 @@ export async function getTotalRecogidoHistorico(listeroId, { excludeToday=true }
 }
 
 export async function getTotalPagadoHistorico(listeroId, { excludeToday=true } = {}){
+  // Obtener banco del listero primero
+  const { data: listeroProfile } = await supabase
+    .from('profiles')
+    .select('id_banco')
+    .eq('id', listeroId)
+    .maybeSingle();
+  
+  const bankId = listeroProfile?.id_banco;
+
   // Obtener todas las jugadas del listero (excluye hoy)
   const jugQuery = supabase
     .from('jugada')
@@ -122,12 +131,12 @@ export async function getTotalPagadoHistorico(listeroId, { excludeToday=true } =
   }));
   if (!js.length) return 0;
 
-  // Rango de resultados según fechas de jugadas
+  // Rango de resultados según fechas de jugadas (con filtro de banco)
   const minDate = js.reduce((min, j)=> Math.min(min, new Date(j.created_at).getTime()), Infinity);
   const maxDate = js.reduce((max, j)=> Math.max(max, new Date(j.created_at).getTime()), 0);
   const from = new Date(minDate);
   const to = new Date(maxDate);
-  const resMap = await fetchResultadosByHorarioDay(from, to);
+  const resMap = await fetchResultadosByHorarioDay(from, to, bankId);
   const limitedMap = await fetchNumeroLimitadoByHorario(js.map(j=> j.scheduleId));
   const prices = await fetchPricesForListero(listeroId);
 
@@ -145,24 +154,55 @@ export async function getTotalPagadoHistorico(listeroId, { excludeToday=true } =
   return Number(total.toFixed(2));
 }
 
-export async function fetchResultadosByHorarioDay(from, to){
+export async function fetchResultadosByHorarioDay(from, to, bankId = null){
   const { startStr, endStr } = buildRangeStrings(from, to);
-  const { data, error } = await supabase
-    .from('resultado')
-    .select('id_horario, numeros, created_at')
-    .gte('created_at', startStr)
-    .lte('created_at', endStr)
-    .order('created_at', { ascending: true });
-  if (error) {
-    throw error;
+  
+  if (bankId) {
+    // Consulta con filtro de banco
+    const { data, error } = await supabase
+      .from('resultado')
+      .select(`
+        id_horario, numeros, created_at,
+        horario:horario(id, loteria:loteria(id, id_banco))
+      `)
+      .gte('created_at', startStr)
+      .lte('created_at', endStr)
+      .order('created_at', { ascending: true });
+    if (error) {
+      throw error;
+    }
+    
+    // Filtrar por banco después de la consulta
+    const filteredData = (data||[]).filter(r => 
+      r.horario?.loteria?.id_banco === bankId
+    );
+    
+    // Mantener la última del día por id_horario
+    const map = new Map(); // key: `${id_horario}|${YYYY-MM-DD}` => numeros
+    filteredData.forEach(r=> {
+      const day = toLocalDateStr(r.created_at);
+      map.set(`${r.id_horario}|${day}`, r.numeros);
+    });
+    return map;
+  } else {
+    // Consulta sin filtro de banco (para compatibilidad)
+    const { data, error } = await supabase
+      .from('resultado')
+      .select('id_horario, numeros, created_at')
+      .gte('created_at', startStr)
+      .lte('created_at', endStr)
+      .order('created_at', { ascending: true });
+    if (error) {
+      throw error;
+    }
+    // Mantener la última del día por id_horario
+    const map = new Map(); // key: `${id_horario}|${YYYY-MM-DD}` => numeros
+    (data||[]).forEach(r=> {
+      const day = toLocalDateStr(r.created_at);
+      map.set(`${r.id_horario}|${day}`, r.numeros);
+    });
+    return map;
   }
-  // Mantener la última del día por id_horario
-  const map = new Map(); // key: `${id_horario}|${YYYY-MM-DD}` => numeros
-  (data||[]).forEach(r=> {
-    const day = toLocalDateStr(r.created_at);
-    map.set(`${r.id_horario}|${day}`, r.numeros);
-  });
-  return map;
 }
 
 export async function fetchNumeroLimitadoByHorario(horarioIds){
@@ -203,10 +243,19 @@ function guessPlayType(numbersStr){
 }
 
 export async function getDailyStats(listeroId, { from, to, lotteryId=null, scheduleId=null, includeToday=false, onlyClosedToday=false }){
+  // Obtener banco del listero primero
+  const { data: listeroProfile } = await supabase
+    .from('profiles')
+    .select('id_banco')
+    .eq('id', listeroId)
+    .maybeSingle();
+  
+  const bankId = listeroProfile?.id_banco;
+  
   const [prices, jugadas, resMap] = await Promise.all([
     fetchPricesForListero(listeroId),
   fetchJugadasForListero(listeroId, from, to, includeToday),
-    fetchResultadosByHorarioDay(from, to),
+    fetchResultadosByHorarioDay(from, to, bankId),
   ]);
 
   const horarioIds = jugadas.map(j=> j.scheduleId);
@@ -257,10 +306,19 @@ export async function getDailyStats(listeroId, { from, to, lotteryId=null, sched
 }
 
 export async function getByHorarioStats(listeroId, { from, to, includeToday=false }){
+  // Obtener banco del listero primero
+  const { data: listeroProfile } = await supabase
+    .from('profiles')
+    .select('id_banco')
+    .eq('id', listeroId)
+    .maybeSingle();
+  
+  const bankId = listeroProfile?.id_banco;
+  
   const [prices, jugadas, resMap] = await Promise.all([
     fetchPricesForListero(listeroId),
   fetchJugadasForListero(listeroId, from, to, includeToday),
-    fetchResultadosByHorarioDay(from, to),
+    fetchResultadosByHorarioDay(from, to, bankId),
   ]);
   const limitedMap = await fetchNumeroLimitadoByHorario(jugadas.map(j=> j.scheduleId));
 
@@ -283,10 +341,19 @@ export async function getByHorarioStats(listeroId, { from, to, includeToday=fals
 }
 
 export async function getPlaysDetails(listeroId, { from, to, lotteryId=null, scheduleId=null, includeToday=false, onlyClosedToday=false }){
+  // Obtener banco del listero primero
+  const { data: listeroProfile } = await supabase
+    .from('profiles')
+    .select('id_banco')
+    .eq('id', listeroId)
+    .maybeSingle();
+  
+  const bankId = listeroProfile?.id_banco;
+  
   const [prices, jugadas, resMap] = await Promise.all([
     fetchPricesForListero(listeroId),
   fetchJugadasForListero(listeroId, from, to, includeToday),
-    fetchResultadosByHorarioDay(from, to),
+    fetchResultadosByHorarioDay(from, to, bankId),
   ]);
   const limitedMap = await fetchNumeroLimitadoByHorario(jugadas.map(j=> j.scheduleId));
 

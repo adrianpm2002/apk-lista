@@ -73,6 +73,28 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
 
   const { submitPlayWithConfirmation } = usePlaySubmission();
 
+  // Helper para formatear horarios con horas de apertura y cierre
+  const formatScheduleLabel = (schedule) => {
+    if (!schedule.hora_inicio || !schedule.hora_fin) {
+      return schedule.nombre;
+    }
+    
+    // Formatear horas de 24h a 12h AM/PM
+    const formatTime = (timeStr) => {
+      if (!timeStr) return '';
+      const [hours, minutes] = timeStr.split(':');
+      const hour24 = parseInt(hours, 10);
+      const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+      const ampm = hour24 < 12 ? 'AM' : 'PM';
+      return `${hour12}:${minutes} ${ampm}`;
+    };
+    
+    const startTime = formatTime(schedule.hora_inicio);
+    const endTime = formatTime(schedule.hora_fin);
+    
+    return `${schedule.nombre} (${startTime} - ${endTime})`;
+  };
+
   // context
   const [bankId, setBankId] = useState(null);
   useEffect(()=>{
@@ -124,7 +146,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
         const grouped={};
         (rows||[]).filter(r=> isOpen(r.hora_inicio,r.hora_fin)).forEach(r=>{
           if(!grouped[r.id_loteria]) grouped[r.id_loteria]=[];
-          grouped[r.id_loteria].push({ label:r.nombre, value:r.id });
+          grouped[r.id_loteria].push({ label:formatScheduleLabel(r), value:r.id });
         });
         setScheduleOptionsMap(grouped);
         setSelectedSchedules(prev=>{ const next={...prev}; Object.keys(next).forEach(k=>{ if(!grouped[k] || !grouped[k].some(o=> o.value===next[k])) delete next[k]; }); return next; });
@@ -461,13 +483,13 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
-  <View style={styles.headerFloating} pointerEvents="box-none">
-        <View style={styles.inlineHeaderRow} pointerEvents="box-none">
+  <View style={[styles.headerFloating, { pointerEvents: 'box-none' }]}>
+        <View style={[styles.inlineHeaderRow, { pointerEvents: 'box-none' }]}>
           <SideBarToggle inline onToggle={()=> setSidebarVisible(s=>!s)} />
           <View style={styles.modeSelectorWrapper}>
     <ModeSelector currentMode={currentMode||'Vault'} onModeChange={onModeChange} isDarkMode={isDarkMode} visibleModes={visibleModes} />
           </View>
-          <View style={styles.rightButtonsGroup} pointerEvents="box-none">
+          <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
             <PricingInfoButton />
             <NotificationsButton />
           </View>

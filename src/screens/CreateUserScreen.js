@@ -868,7 +868,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     <View style={styles.container}>
       <View style={styles.customHeader}>
         <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
-        <Text style={styles.headerTitle}>Gestionar Usuarios</Text>
+        <Text style={styles.headerTitle}>Usuarios</Text>
       </View>
 
       <View style={styles.content}>

@@ -153,7 +153,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         const grouped={};
         (rows||[]).filter(r=> isOpen(r.hora_inicio,r.hora_fin)).forEach(r=>{
           if(!grouped[r.id_loteria]) grouped[r.id_loteria]=[];
-          grouped[r.id_loteria].push({ label:r.nombre, value:r.id });
+          grouped[r.id_loteria].push({ label:formatScheduleLabel(r), value:r.id });
         });
         setScheduleOptionsMap(grouped);
         // Podar horarios seleccionados para loterías removidas o cerradas
@@ -201,6 +201,28 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
   },[isEditing, parsedInstructions, parseErrors]);
 
   const getLotteryLabel = (value) => lotteries.find(l=> l.value===value)?.label || value;
+  // Helper para formatear horarios con horas de apertura y cierre
+  const formatScheduleLabel = (schedule) => {
+    if (!schedule.hora_inicio || !schedule.hora_fin) {
+      return schedule.nombre;
+    }
+    
+    // Formatear horas de 24h a 12h AM/PM
+    const formatTime = (timeStr) => {
+      if (!timeStr) return '';
+      const [hours, minutes] = timeStr.split(':');
+      const hour24 = parseInt(hours, 10);
+      const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+      const ampm = hour24 < 12 ? 'AM' : 'PM';
+      return `${hour12}:${minutes} ${ampm}`;
+    };
+    
+    const startTime = formatTime(schedule.hora_inicio);
+    const endTime = formatTime(schedule.hora_fin);
+    
+    return `${schedule.nombre} (${startTime} - ${endTime})`;
+  };
+
   const getScheduleLabel = (lotteryValue, scheduleValue) => (scheduleOptionsMap[lotteryValue]||[]).find(s=> s.value===scheduleValue)?.label || scheduleValue || '';
 
   // Parser delegado a util
@@ -477,8 +499,8 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
-      <View style={styles.headerFloating} pointerEvents="box-none">
-        <View style={styles.inlineHeaderRow} pointerEvents="box-none">
+      <View style={[styles.headerFloating, { pointerEvents: 'box-none' }]}>
+        <View style={[styles.inlineHeaderRow, { pointerEvents: 'box-none' }]}>
           <SideBarToggle inline onToggle={toggleSidebar} />
           <View style={styles.modeSelectorWrapper}>
             <ModeSelector 
@@ -499,7 +521,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
                 role="listero"
               />
           </View>
-          <View style={styles.rightButtonsGroup} pointerEvents="box-none">
+          <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
             <PricingInfoButton />
             <NotificationsButton />
           </View>

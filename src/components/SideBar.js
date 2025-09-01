@@ -50,20 +50,20 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
 const roleOptionsMap = {
   admin: [
     { id: 'statistics', icon: '📈', title: 'Estadísticas' },
-    { id: 'insertResults', icon: '🎯', title: 'Insertar Resultados' },
-    { id: 'createUser', icon: '🧑‍💼', title: 'Gestionar Usuarios' },
-    { id: 'lotteries', icon: '🎰', title: 'Gestionar Loterías' },
-    { id: 'prices', icon: '💰', title: 'Configurar Precios' },
-    { id: 'limitedNumbers', icon: '📊', title: 'Limitar Números' },
+    { id: 'insertResults', icon: '🎯', title: 'Resultados' },
+    { id: 'createUser', icon: '🧑‍💼', title: 'Usuarios' },
+    { id: 'lotteries', icon: '🎰', title: 'Loterías' },
+    { id: 'prices', icon: '💰', title: 'Precios' },
+    { id: 'limitedNumbers', icon: '📊', title: 'Límites' },
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   collector: [
   // Ajustado: solo las pantallas permitidas para collector
   { id: 'statistics', icon: '📈', title: 'Estadísticas' },
-  { id: 'collectorStatistics', icon: '📊', title: 'Estadísticas Collector' },
-  { id: 'insertResults', icon: '🎯', title: 'Insertar Resultados' },
+  { id: 'collectorStatistics', icon: '📊', title: 'Reportes' },
+  { id: 'insertResults', icon: '🎯', title: 'Resultados' },
   // Icono corregido: el anterior tenía un carácter inválido que mostraba signo de interrogación
-  { id: 'createUser', icon: '🧑‍💼', title: 'Gestionar Usuarios' },
+  { id: 'createUser', icon: '🧑‍💼', title: 'Usuarios' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   listero: [
@@ -503,7 +503,7 @@ const configOptions = roleOptionsMap[role] || [];
         accessibilityViewIsModal={false}
         presentationStyle="overFullScreen"
       >
-        <View style={styles.overlay} pointerEvents="box-none">
+        <View style={[styles.overlay, { pointerEvents: 'box-none' }]}>
           {/* Área para cerrar */}
           <Pressable 
             style={styles.overlayTouchable} 
@@ -619,13 +619,12 @@ const configOptions = roleOptionsMap[role] || [];
         presentationStyle="overFullScreen"
       >
         <Pressable 
-          style={styles.modalOverlay} 
+          style={[styles.modalOverlay, { pointerEvents: 'box-none' }]} 
           onPress={() => { if (settingsView === 'root') closeModal(); }}
           accessible={true}
           accessibilityRole="button"
           accessibilityLabel="Cerrar modal de configuración"
           importantForAccessibility="yes"
-          pointerEvents="box-none"
         >
           <View 
             style={styles.modalContainer}
