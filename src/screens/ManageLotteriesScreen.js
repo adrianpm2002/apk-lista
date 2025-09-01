@@ -106,7 +106,7 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
 
   // Función para obtener horarios de una lotería específica
   const getLotterySchedules = (lotteryId) => {
-    return schedules.filter(schedule => schedule.loteria_id === lotteryId);
+    return schedules.filter(schedule => schedule.id_loteria === lotteryId);
   };
 
   const formatTimeForDB = (date) => {
@@ -134,7 +134,10 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
     if (cache.lotteries) {
       setLotteries(cache.lotteries);
     }
-  }, [cache.lotteries, cacheBankId, initialLoading]);
+    if (cache.schedules) {
+      setSchedules(cache.schedules);
+    }
+  }, [cache.lotteries, cache.schedules, cacheBankId, initialLoading]);
 
   // Nueva función que usa cache primero
   const fetchLotteriesFromCache = async () => {
@@ -147,6 +150,7 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
     try {
       setLoading(true);
       await cacheFetchLotteries();
+      await cacheFetchSchedules(); // También cargar horarios
       setInitialLoading(false);
     } catch (error) {
       console.error('Error fetching lotteries from cache:', error);

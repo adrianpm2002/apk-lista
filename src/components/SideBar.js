@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -1190,4 +1190,13 @@ const styles = StyleSheet.create({
   },
 });
 
-export { SideBar, SideBarToggle };
+const MemoizedSideBar = React.memo(SideBar, (prevProps, nextProps) => {
+  // Solo re-renderizar si cambian props específicas importantes
+  return (
+    prevProps.isDarkMode === nextProps.isDarkMode &&
+    prevProps.navigation === nextProps.navigation &&
+    prevProps.isVisible === nextProps.isVisible
+  );
+});
+
+export { MemoizedSideBar as SideBar, SideBarToggle };

@@ -16,7 +16,7 @@ import useStatistics from '../hooks/useStatistics';
 import StatisticsChart from '../components/StatisticsChart';
 import DataTable from '../components/DataTable';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
-import { SideBar, SideBarToggle } from '../components/SideBar';
+import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import { getDailyStats, getPlaysDetails, getTotalRecogidoHistorico, getTotalPagadoHistorico } from '../services/listeroStatsService';
 import { useCache } from '../contexts/CacheContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -938,7 +938,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
         />
       )}
 
-      <SideBar
+      <SideBarWrapper
         isVisible={sidebarVisible}
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}

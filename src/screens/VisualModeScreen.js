@@ -24,7 +24,7 @@ import PricingInfoButton from '../components/PricingInfoButton';
 import FeedbackBanner from '../components/FeedbackBanner';
 import NotificationsButton from '../components/NotificationsButton';
 import ModeSelector from '../components/ModeSelector';
-import { SideBar, SideBarToggle } from '../components/SideBar';
+import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import { t, translatePlayTypeLabel } from '../utils/i18n';
 import { applyPlayTypeSelection } from '../utils/playTypeCombinations';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
@@ -1114,7 +1114,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         </View>
       </ScrollView>
       
-      <SideBar
+      <SideBarWrapper
         isVisible={sidebarVisible}
         onClose={closeSidebar}
         onOptionSelect={handleTopBarOption}
