@@ -6,6 +6,7 @@ import {
 import LimitedNumbersButton from './LimitedNumbersButton';
 import ListerLimitsButton from './ListerLimitsButton';
 import PricesButton from './PricesButton';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const TopBar = ({ onOptionSelect }) => {
   const handleOptionSelect = (option) => {
@@ -31,14 +32,13 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 3.84,
+      elevation: 3,
+    }),
   },
   buttonsContainer: {
     flexDirection: 'row',

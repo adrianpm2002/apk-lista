@@ -1,13 +1,32 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Alert, StyleSheet, Pressable, TextInput, Platform } from 'react-native';
+import { View, Text, ScrollView, Alert, StyleSheet, Pressable, TextInput, Platform, RefreshControl } from 'react-native';
 import DropdownPicker from '../components/DropdownPicker';
 import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { useFocusEffect } from '@react-navigation/native';
+import { useCache } from '../contexts/CacheContext';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import ScreenWrapper from '../components/ScreenWrapper';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+  return (
+    <ScreenWrapper>
+      <InsertResultsContent
+        navigation={navigation}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={onToggleDarkMode}
+        onModeVisibilityChange={onModeVisibilityChange}
+      />
+    </ScreenWrapper>
+  );
+};
+
+const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData } = useCache();
+  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('todayResults');
   const [lotteryOptions, setLotteryOptions] = useState([]);
   const [selectedLottery, setSelectedLottery] = useState(null);
   const [selectedLotteryLabel, setSelectedLotteryLabel] = useState('');
@@ -93,9 +112,27 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
   useEffect(() => {
     if (currentBankId) {
       fetchLoterias();
-  loadTodayResults();
+      loadTodayResults();
     }
   }, [currentBankId]);
+
+  // Sincronizar con cache para admins
+  useEffect(() => {
+    if (cacheUserRole === 'admin' && cache.todayResults) {
+      setTodayResults(cache.todayResults);
+    }
+  }, [cacheUserRole, cache.todayResults]);
+
+  // Sincronizar con cache para loterias de admins
+  useEffect(() => {
+    if (cacheUserRole === 'admin' && cache.lotteries) {
+      const options = cache.lotteries.map(lottery => ({
+        label: lottery.nombre,
+        value: lottery.id
+      }));
+      setLotteryOptions(options);
+    }
+  }, [cacheUserRole, cache.lotteries]);
 
   useEffect(() => {
     const fetchUserRole = async () => {
@@ -205,6 +242,11 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
     cancelEditing();
   // Se puede refrescar silenciosamente en background
   loadTodayResults();
+  
+  // Actualizar cache si es admin
+  if (cacheUserRole === 'admin') {
+    updateCacheData('todayResults');
+  }
   };
 
   const deleteResult = async (item) => {
@@ -222,6 +264,11 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
       }
       setTodayResults(prev => prev.filter(r => r.id !== item.id));
       loadTodayResults();
+      
+      // Actualizar cache si es admin
+      if (cacheUserRole === 'admin') {
+        updateCacheData('todayResults');
+      }
       return;
     }
     Alert.alert('Confirmar', '¿Eliminar este resultado?', [
@@ -234,6 +281,11 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
         }
         setTodayResults(prev => prev.filter(r => r.id !== item.id));
         loadTodayResults();
+        
+        // Actualizar cache si es admin
+        if (cacheUserRole === 'admin') {
+          updateCacheData('todayResults');
+        }
       }}
     ]);
   };
@@ -353,6 +405,11 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
 
   // Recargar lista de hoy
   loadTodayResults();
+
+  // Actualizar cache si es admin
+  if (cacheUserRole === 'admin') {
+    updateCacheData('todayResults');
+  }
   };
 
 
@@ -364,7 +421,18 @@ const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
         <Text style={styles.headerTitle}>Insertar Resultado</Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={cacheUserRole === 'admin' ? cacheRefreshing : false}
+            onRefresh={cacheUserRole === 'admin' ? cacheOnRefresh : undefined}
+            colors={['#27AE60']}
+            tintColor="#27AE60"
+          />
+        }
+      >
         <DropdownPicker
           label="Lotería"
           value={selectedLotteryLabel}
@@ -510,11 +578,13 @@ const styles = StyleSheet.create({
     paddingBottom: 12, // Espacio desde el borde inferior
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 4,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 2,
+      elevation: 4,
+    }),
     position: 'absolute',
     top: 0,
     left: 0,

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { createShadowStyle } from '../utils/shadowUtils';
 import {
   View,
   Pressable,
@@ -130,11 +131,13 @@ const styles = StyleSheet.create({
     padding: 2,
     alignSelf: 'center',
     maxWidth: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.08,
+      radius: 3,
+      elevation: 2,
+    }),
   },
   containerDark: {
     backgroundColor: '#34495e',
@@ -158,19 +161,23 @@ const styles = StyleSheet.create({
   },
   activeButton: {
     backgroundColor: '#3498db',
-    shadowColor: '#2980b9',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.22,
-    shadowRadius: 3,
-    elevation: 4,
+    ...createShadowStyle({
+      color: '#2980b9',
+      offsetY: 2,
+      opacity: 0.22,
+      radius: 3,
+      elevation: 4,
+    }),
   },
   activeButtonDark: {
     backgroundColor: '#e74c3c',
-    shadowColor: '#c0392b',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.22,
-    shadowRadius: 3,
-    elevation: 4,
+    ...createShadowStyle({
+      color: '#c0392b',
+      offsetY: 2,
+      opacity: 0.22,
+      radius: 3,
+      elevation: 4,
+    }),
   },
   modeText: {
     fontSize: 12,

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 
 import { supabase } from '../supabaseClient';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
 
@@ -204,14 +205,13 @@ const styles = StyleSheet.create({
     borderColor: '#B8D4A8',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2D5016',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#2D5016',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 3,
+      elevation: 3,
+    }),
   },
   buttonIcon: {
     fontSize: 16,
@@ -232,14 +232,13 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     maxHeight: '80%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 4,
+      opacity: 0.3,
+      radius: 6,
+      elevation: 8,
+    }),
   },
   scrollView: {
     maxHeight: 400,

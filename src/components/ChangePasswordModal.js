@@ -10,6 +10,8 @@ import {
   Platform
 } from 'react-native';
 import { supabase } from '../supabaseClient';
+import { createShadowStyle } from '../utils/shadowUtils';
+import { getAccessibilityProps } from '../utils/accessibilityUtils';
 
 const ChangePasswordModal = ({ visible, onClose, isDarkMode }) => {
   const [newPassword, setNewPassword] = useState('');
@@ -88,12 +90,18 @@ const ChangePasswordModal = ({ visible, onClose, isDarkMode }) => {
       transparent
       animationType="fade"
       onRequestClose={handleClose}
+      accessible={true}
+      accessibilityViewIsModal={false}
+      presentationStyle="overFullScreen"
+      accessibilityLabel="Cambiar contraseña"
     >
-      <View style={styles.overlay}>
+      <View style={styles.overlay} pointerEvents="box-none">
         <View style={[
           styles.container,
           isDarkMode && styles.containerDark
-        ]}>
+        ]}
+        {...getAccessibilityProps('dialog', 'Formulario para cambiar contraseña')}
+        >
           <Text style={[
             styles.title,
             isDarkMode && styles.titleDark
@@ -183,11 +191,13 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '100%',
     maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 4,
+      opacity: 0.25,
+      radius: 8,
+      elevation: 8,
+    }),
   },
   containerDark: {
     backgroundColor: '#2c3e50',

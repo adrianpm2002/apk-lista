@@ -8,6 +8,7 @@ import {
   ScrollView,
   FlatList,
 } from 'react-native';
+import { createShadowStyle, shadowPresets } from '../utils/shadowUtils';
 
 const MultiSelectDropdown = ({ 
   label, 
@@ -237,14 +238,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 320,
     maxHeight: '70%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
+    ...createShadowStyle(shadowPresets.modal),
   },
   modalDark: {
     backgroundColor: '#2C3E50',

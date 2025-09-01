@@ -1,11 +1,26 @@
-import React from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, Modal, ActivityIndicator } from 'react-native';
 import { Formik } from 'formik';
 import { supabase } from '../supabaseClient';
 import Svg, { Path, G } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
+import { useCache } from '../contexts/CacheContext';
+import ScreenWrapper from '../components/ScreenWrapper';
+import { createShadowStyle } from '../utils/shadowUtils';
 
-export default function LoginScreen({ navigation }) {
+const LoginScreen = ({ navigation }) => {
+  return (
+    <ScreenWrapper showCacheStatus={false}>
+      <LoginContent navigation={navigation} />
+    </ScreenWrapper>
+  );
+};
+
+const LoginContent = ({ navigation }) => {
+  // Usar el contexto de forma segura
+  const { setUserRole, setCurrentBankId, preloadAllData } = useCache();
+  const [isPreloading, setIsPreloading] = useState(false);
+  
   const validateForm = (values) => {
     const errors = {};
     if (!values.username || !values.password) {
@@ -56,15 +71,17 @@ export default function LoginScreen({ navigation }) {
         return;
       }
 
-      // Obtener rol y estado activo del perfil
+      // Obtener rol, estado activo y banco_id del perfil
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('role, activo')
+        .select('role, activo, id_banco')
         .eq('id', userId)
         .maybeSingle();
 
       if (profileError || !profile) {
-        setFieldError('general', 'Error al obtener el perfil del usuario.');
+        console.error('Profile error:', profileError);
+        console.log('Profile data:', profile);
+        setFieldError('general', `Error al obtener el perfil del usuario: ${profileError?.message || 'Datos no encontrados'}`);
         setSubmitting(false);
         return;
       }
@@ -79,13 +96,45 @@ export default function LoginScreen({ navigation }) {
       }
 
       const userRole = profile.role;
-
-      // Navegación basada en rol
+      
+      // Determinar el banco_id correcto según el rol
+      let bankId;
       if (userRole === 'admin') {
-        navigation.navigate('Statistics');
-      } else if (userRole === 'collector') {
-        // Collector también inicia en estadísticas según nueva especificación
-        navigation.navigate('Statistics');
+        bankId = userId; // El admin ES el banco
+      } else if (userRole === 'collector' || userRole === 'listero') {
+        bankId = profile.id_banco;
+      }
+      
+      if (!bankId) {
+        setFieldError('general', 'No se pudo determinar el banco ID.');
+        setSubmitting(false);
+        return;
+      }
+
+      // Configurar el contexto global con la información del usuario
+      try {
+        setUserRole(userRole);
+        setCurrentBankId(bankId);
+        
+        // Esperar un tick para que se actualice el contexto antes de precargar
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        console.error('Error updating cache context:', error);
+      }
+
+      // Si es admin o collector, precargar todos los datos
+      if (userRole === 'admin' || userRole === 'collector') {
+        setIsPreloading(true);
+        // Iniciar la precarga en segundo plano
+        preloadAllData().then(() => {
+          setIsPreloading(false);
+          navigation.navigate('Statistics');
+        }).catch(error => {
+          console.error('Error en precarga de datos:', error);
+          setIsPreloading(false);
+          // Navegar de todas formas si falla la precarga
+          navigation.navigate('Statistics');
+        });
       } else if (userRole === 'listero') {
         navigation.navigate('MainApp');
       } else {
@@ -94,8 +143,10 @@ export default function LoginScreen({ navigation }) {
       
       setSubmitting(false);
     } catch (error) {
-      console.error('Login error:', error);
-      setFieldError('general', 'Error inesperado. Inténtalo de nuevo.');
+      console.error('Login error details:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      setFieldError('general', `Error inesperado: ${error.message}`);
       setSubmitting(false);
     }
   };
@@ -183,6 +234,29 @@ export default function LoginScreen({ navigation }) {
           )}
         </Formik>
       </View>
+      
+      {/* Modal de carga para precarga de datos */}
+      <Modal
+        visible={isPreloading}
+        transparent={true}
+        animationType="fade"
+        accessible={true}
+        accessibilityViewIsModal={false}
+        presentationStyle="overFullScreen"
+        accessibilityLabel="Cargando datos del sistema"
+      >
+        <View style={styles.modalOverlay} pointerEvents="box-none">
+          <View 
+            style={styles.modalContent}
+            accessible={true}
+            accessibilityRole="alert"
+            accessibilityLabel="Precargando datos del sistema"
+          >
+            <ActivityIndicator size="large" color="#27AE60" />
+            <Text style={styles.loadingText}>Precargando datos del sistema...</Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -200,12 +274,11 @@ const styles = StyleSheet.create({
     width: 350,
     borderRadius: 20,
     fontFamily: 'System',
-    ...(Platform.OS === 'web' ? {
-      boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.05)',
-    } : {
-      shadowColor: '#000',
-      shadowOpacity: 0.05,
-      shadowRadius: 10,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 4,
+      opacity: 0.05,
+      radius: 10,
       elevation: 4,
     }),
   },
@@ -302,4 +375,25 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'left',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    padding: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    minWidth: 200,
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+  },
 });
+
+export default LoginScreen;

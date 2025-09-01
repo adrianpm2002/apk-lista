@@ -9,18 +9,39 @@ import {
   Switch, 
   TouchableOpacity,
   ActivityIndicator,
-  Platform
+  Platform,
+  RefreshControl
 } from 'react-native';
 import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
+import { useCache } from '../contexts/CacheContext';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import ScreenWrapper from '../components/ScreenWrapper';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+  return (
+    <ScreenWrapper>
+      <ManagePricesContent
+        navigation={navigation}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={onToggleDarkMode}
+        onModeVisibilityChange={onModeVisibilityChange}
+      />
+    </ScreenWrapper>
+  );
+};
+
+const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData } = useCache();
+  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('prices');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [saving, setSaving] = useState(false); // ya no se usa para botón global, pero se mantiene por si se agrega persistencia JSONB
   // fieldErrors removido (validaciones inline en modal)
   const [updatingTypes, setUpdatingTypes] = useState(new Set());
@@ -68,20 +89,34 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
   const [modalFieldErrors, setModalFieldErrors] = useState({}); // { playType: { regular:true, limited:true, collectorPct:true, listeroPct:true } }
   const [editingConfigId, setEditingConfigId] = useState(null); // id de la configuración que se está editando (update), null = insert
 
+  // Usar datos del cache si están disponibles
+  useEffect(() => {
+    if (cache.prices && cache.prices.length > 0) {
+      console.log('Using cached prices:', cache.prices.length);
+      setPriceConfigs(cache.prices);
+      setInitialLoading(false);
+    } else if (cacheBankId && initialLoading) {
+      // Solo cargar si no hay datos en cache y es la carga inicial
+      console.log('No cached prices, fetching from database...');
+      loadPriceConfigs();
+    }
+  }, [cache.prices, cacheBankId, initialLoading]);
+
   useEffect(() => { initializeScreen(); }, []);
 
-  const refreshOnFocus = useCallback(async () => {
-    if (currentBankId) {
-      await loadSavedConfiguration(currentBankId);
-      await loadPriceConfigs(currentBankId);
-    }
-  }, [currentBankId]);
+  // Comentado para evitar cargas innecesarias - ahora usamos cache
+  // const refreshOnFocus = useCallback(async () => {
+  //   if (currentBankId) {
+  //     await loadSavedConfiguration(currentBankId);
+  //     await loadPriceConfigs(currentBankId);
+  //   }
+  // }, [currentBankId]);
 
-  useFocusEffect(
-    useCallback(() => {
-      refreshOnFocus();
-    }, [refreshOnFocus])
-  );
+  // useFocusEffect(
+  //   useCallback(() => {
+  //     refreshOnFocus();
+  //   }, [refreshOnFocus])
+  // );
 
   const initializeScreen = async () => {
     try {
@@ -117,9 +152,10 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
           return;
         }
         
-  // Cargar activación de jugadas y precios después de obtener el bankId
+  // Cargar activación de jugadas después de obtener el bankId
   await loadSavedConfiguration(bankId);
-  await loadPriceConfigs(bankId);
+  // loadPriceConfigs ahora se maneja por useEffect con cache
+  // await loadPriceConfigs(bankId);
       } else {
         console.error('Error cargando rol:', error);
         Alert.alert('Error', 'No se pudo cargar el perfil del usuario');
@@ -202,18 +238,28 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
   };
 
   // Cargar última configuración de precios (tabla precio)
-  const loadPriceConfigs = async (bankId) => {
+  const loadPriceConfigs = async (bankId, forceRefresh = false) => {
     try {
+      // Si no se fuerza el refresh y ya hay datos en cache, usarlos
+      if (!forceRefresh && cache.prices && cache.prices.length > 0) {
+        console.log('Using cached prices in loadPriceConfigs');
+        setPriceConfigs(cache.prices);
+        return;
+      }
+
       setLoadingPrices(true);
       const { data, error } = await supabase
         .from('precio')
         .select('id, precios, created_at, nombre')
-        .eq('id_banco', bankId)
+        .eq('id_banco', bankId || cacheBankId)
         .order('created_at', { ascending: false });
       if (error) {
         console.error('Error cargando configuraciones de precios:', error);
         return;
       }
+      
+      // Actualizar cache
+      updateCacheData('prices', data || []);
       setPriceConfigs(data || []);
       // Prefill modal con la última config (más reciente)
       if (data && data.length > 0) {
@@ -253,6 +299,12 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
       console.error('Excepción loadPriceConfigs:', e);
     } finally {
       setLoadingPrices(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (currentBankId || cacheBankId) {
+      await loadPriceConfigs(currentBankId || cacheBankId, true); // Forzar refresh desde BD
     }
   };
 
@@ -554,7 +606,18 @@ const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
         <Text style={styles.headerTitle}>Configurar Precios</Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={cacheUserRole === 'admin' ? (loading || loadingPrices || cacheRefreshing) : false}
+            onRefresh={cacheUserRole === 'admin' ? handleRefresh : undefined}
+            colors={['#27AE60']}
+            tintColor="#27AE60"
+          />
+        }
+      >
         
         {/* Sección: Tipos de Jugada */}
         <View style={styles.section}>
@@ -846,11 +909,13 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 4,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 2,
+      elevation: 4,
+    }),
     position: 'absolute',
     top: 0,
     left: 0,
@@ -881,11 +946,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 4,
+      elevation: 3,
+    }),
   },
   sectionTitle: {
     fontSize: 18,
@@ -1081,10 +1148,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 6,
+    ...createShadowStyle({
+      color: '#000',
+      opacity: 0.2,
+      radius: 6,
+      elevation: 6,
+    }),
   },
   pricesModalTitle: {
     fontSize: 18,

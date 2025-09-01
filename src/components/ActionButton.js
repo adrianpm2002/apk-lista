@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
 } from 'react-native';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const ActionButton = ({ 
   title, 
@@ -57,14 +58,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 3,
+      elevation: 3,
+    }),
   },
   // Sizes
   small: {

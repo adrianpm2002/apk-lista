@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const KPICard = ({ 
   title, 
@@ -137,11 +138,13 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 150,
     borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 4,
+      elevation: 3,
+    }),
   },
   containerDark: {
     backgroundColor: '#34495e',

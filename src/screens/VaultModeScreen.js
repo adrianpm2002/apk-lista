@@ -17,6 +17,7 @@ import { t } from '../utils/i18n';
 import { supabase } from '../supabaseClient';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const padLen = (n, len) => String(n || '').replace(/[^0-9]/g, '').padStart(len, '0');
 
@@ -800,7 +801,13 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
 const styles = StyleSheet.create({
   container:{ flex:1, backgroundColor:'#f0f8ff' },
   containerDark:{ backgroundColor:'#2c3e50' },
-  headerFloating:{ position:'absolute', top:0, left:0, right:0, flexDirection:'row', flexWrap:'wrap', justifyContent:'flex-start', alignItems:'flex-start', zIndex:3000, paddingTop:10, paddingBottom:10, paddingHorizontal:12, backgroundColor:'rgba(255,255,255,0.96)', borderBottomWidth:1, borderBottomColor:'#E2E6EA', shadowColor:'#000', shadowOffset:{ width:0, height:2 }, shadowOpacity:0.12, shadowRadius:4, elevation:4 },
+  headerFloating:{ position:'absolute', top:0, left:0, right:0, flexDirection:'row', flexWrap:'wrap', justifyContent:'flex-start', alignItems:'flex-start', zIndex:3000, paddingTop:10, paddingBottom:10, paddingHorizontal:12, backgroundColor:'rgba(255,255,255,0.96)', borderBottomWidth:1, borderBottomColor:'#E2E6EA', ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.12,
+      radius: 4,
+      elevation: 4,
+    }), },
   inlineHeaderRow:{ flexDirection:'row', alignItems:'center', gap:6, flex:1, paddingTop:0, minHeight:44 },
   rightButtonsGroup:{ flexDirection:'row', alignItems:'center', gap:6, marginLeft:'auto', flexWrap:'wrap' },
   modeSelectorWrapper:{ marginLeft:6, flexShrink:1 },
@@ -830,7 +837,13 @@ const styles = StyleSheet.create({
   actionButton:{ flex:1 },
   // modal estilos
   editOverlay:{ position:'absolute', top:0, left:0, right:0, bottom:0, alignItems:'center', justifyContent:'center', backgroundColor:'rgba(0,0,0,0.2)', zIndex:4000, padding:16 },
-  editCard:{ width:'92%', maxWidth:380, backgroundColor:'#FFFFFF', borderRadius:10, padding:12, borderWidth:1, borderColor:'#E2E6EA', shadowColor:'#000', shadowOffset:{ width:0, height:2 }, shadowOpacity:0.12, shadowRadius:4, elevation:5 },
+  editCard:{ width:'92%', maxWidth:380, backgroundColor:'#FFFFFF', borderRadius:10, padding:12, borderWidth:1, borderColor:'#E2E6EA', ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.12,
+      radius: 4,
+      elevation: 5,
+    }), },
   editCardDark:{ backgroundColor:'#2E4053', borderColor:'#5D6D7E' },
   editTitle:{ fontSize:16, fontWeight:'800', color:'#2D5016', marginBottom:8 },
   editHint:{ fontSize:11, color:'#7F8C8D', marginTop:6, textAlign:'center' },

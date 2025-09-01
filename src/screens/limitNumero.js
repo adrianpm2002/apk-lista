@@ -1,10 +1,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, TextInput } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, TextInput, RefreshControl } from 'react-native';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { useFocusEffect } from '@react-navigation/native';
+import { useCache } from '../contexts/CacheContext';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import ScreenWrapper from '../components/ScreenWrapper';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
+  return (
+    <ScreenWrapper>
+      <LimitNumberContent
+        navigation={navigation}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={onToggleDarkMode}
+      />
+    </ScreenWrapper>
+  );
+};
+
+const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
+  const { cache, userRole: cacheUserRole, updateCacheData } = useCache();
+  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('numberLimits');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [role, setRole] = useState(null);
 
@@ -47,6 +65,14 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   const [limitesNumeros, setLimitesNumeros] = useState([]);
   const [loadingLimites, setLoadingLimites] = useState(false);
   const [statusMsg2, setStatusMsg2] = useState(null);
+
+  // Sincronizar con cache para admins
+  useEffect(() => {
+    if (cacheUserRole === 'admin' && cache.numberLimits) {
+      setNumerosLimitados(cache.numberLimits.limitedNumbers || []);
+      setLimitesNumeros(cache.numberLimits.specificLimits || []);
+    }
+  }, [cacheUserRole, cache.numberLimits]);
 
   // Form states compartidos (se limpia al cambiar de panel)
   const [activePanel, setActivePanel] = useState(null); // 'left' | 'right' | null
@@ -557,8 +583,16 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
               <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>vacio</Text>
             ) : (
               <FlatList
-        data={filteredNumerosLimitados}
+                data={filteredNumerosLimitados}
                 keyExtractor={i => i.id.toString()}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={cacheUserRole === 'admin' ? cacheRefreshing : false}
+                    onRefresh={cacheUserRole === 'admin' ? cacheOnRefresh : undefined}
+                    colors={['#27AE60']}
+                    tintColor="#27AE60"
+                  />
+                }
                 renderItem={({item}) => (
                   <View style={[styles.item, isDarkMode && styles.itemDark, {flexDirection:'row', justifyContent:'space-between', alignItems:'center'}]}> 
                     <View style={{flex:1, paddingRight:8}}>
@@ -674,6 +708,14 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
               <FlatList
                 data={filteredLimitesNumeros}
                 keyExtractor={i=> i.id.toString()}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={cacheUserRole === 'admin' ? cacheRefreshing : false}
+                    onRefresh={cacheUserRole === 'admin' ? cacheOnRefresh : undefined}
+                    colors={['#27AE60']}
+                    tintColor="#27AE60"
+                  />
+                }
                 renderItem={({item}) => (
                   <View style={[styles.item, isDarkMode && styles.itemDark, {flexDirection:'row', justifyContent:'space-between', alignItems:'center'}]}>
                     <View style={{flex:1, paddingRight:8}}>
@@ -720,11 +762,13 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.08,
+      radius: 3,
+      elevation: 3,
+    }),
   },
   sidebarButton: {
     marginRight: 12,
@@ -740,11 +784,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 5,
-    elevation: 2,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.06,
+      radius: 5,
+      elevation: 2,
+    }),
   },
   panelDark: { backgroundColor: '#2c3e50' },
   panelHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },

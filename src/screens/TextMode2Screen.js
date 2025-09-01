@@ -29,6 +29,7 @@ import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { supabase } from '../supabaseClient';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   // Estados para los campos
@@ -711,11 +712,13 @@ const styles = StyleSheet.create({
   backgroundColor: 'rgba(255,255,255,0.96)',
   borderBottomWidth: 1,
   borderBottomColor: '#E2E6EA',
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.12,
-  shadowRadius: 4,
-  elevation: 4,
+  ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.12,
+      radius: 4,
+      elevation: 4,
+    }),
   },
   inlineHeaderRow: {
     flexDirection: 'row',
@@ -826,11 +829,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width:0, height:2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 4,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.12,
+      radius: 4,
+      elevation: 4,
+    }),
     zIndex: 4000,
   },
   feedbackText:{ flex:1, fontSize:13, fontWeight:'600', color:'#2D5016' },

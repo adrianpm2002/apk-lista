@@ -2,19 +2,39 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { View, Text, Alert, FlatList, TouchableOpacity, Platform, Modal, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Alert, FlatList, TouchableOpacity, Platform, Modal, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 
 import { supabase } from '../supabaseClient';
 import InputField from '../components/InputField';
 import { SideBar, SideBarToggle } from '../components/SideBar';
-
+import { useCache } from '../contexts/CacheContext';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import ScreenWrapper from '../components/ScreenWrapper';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+  return (
+    <ScreenWrapper>
+      <ManageLotteriesContent
+        navigation={navigation}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={onToggleDarkMode}
+        onModeVisibilityChange={onModeVisibilityChange}
+      />
+    </ScreenWrapper>
+  );
+};
+
+const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData } = useCache();
+  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('lotteries');
   const [lotteries, setLotteries] = useState([]);
   const [newLottery, setNewLottery] = useState('');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   
   // Estados para gestión de horarios
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
@@ -27,26 +47,65 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
   });
   const [editingSchedule, setEditingSchedule] = useState(null);
 
-  const fetchLotteries = async () => {
-    console.log('fetchLotteries called with currentBankId:', currentBankId);
-    if (!currentBankId) {
-      console.log('No currentBankId, not loading lotteries');
-      return; // No cargar loterias si no tenemos el banco ID
+  // Usar datos del cache si están disponibles
+  useEffect(() => {
+    // Solo ejecutar en el mount inicial
+    if (initialLoading) {
+      if (cache.lotteries && cache.lotteries.length > 0) {
+        console.log('Using cached lotteries:', cache.lotteries.length);
+        setLotteries(cache.lotteries);
+        setInitialLoading(false);
+      } else if (cacheBankId) {
+        console.log('No cached data, fetching from database...');
+        fetchLotteries();
+      }
+    }
+  }, [cache.lotteries, cacheBankId, initialLoading]);
+
+  const fetchLotteries = async (forceRefresh = false) => {
+    if (!cacheBankId) {
+      console.log('No bank ID available for fetching lotteries');
+      setInitialLoading(false);
+      return;
     }
     
-    const { data, error } = await supabase
-      .from('loteria')
-      .select('*')
-      .eq('id_banco', currentBankId) // Solo loterias del mismo banco
-      .order('id', { ascending: true });
-
-    console.log('Lotteries query result:', { data, error, currentBankId });
-    if (error) {
-      console.error('Error al cargar lotería:', error.message);
-    } else {
-      console.log('Setting lotteries:', data);
-      setLotteries(data);
+    // Si no es refresh forzado y hay datos en cache, usarlos
+    if (!forceRefresh && cache.lotteries && cache.lotteries.length > 0) {
+      console.log('Using existing cached data');
+      setLotteries(cache.lotteries);
+      setInitialLoading(false);
+      return;
     }
+    
+    setLoading(true);
+    try {
+      console.log('Fetching lotteries from database for bankId:', cacheBankId);
+      const { data, error } = await supabase
+        .from('loteria')
+        .select('*')
+        .eq('id_banco', cacheBankId)
+        .order('id', { ascending: true });
+
+      if (error) {
+        console.error('Error al cargar lotería:', error.message);
+        Alert.alert('Error', 'No se pudieron cargar las loterías');
+      } else {
+        console.log('Lotteries fetched successfully:', data.length);
+        setLotteries(data);
+        // Actualizar cache
+        await updateCacheData('lotteries', data);
+      }
+    } catch (error) {
+      console.error('Error fetching lotteries:', error);
+      Alert.alert('Error', 'Error inesperado al cargar las loterías');
+    } finally {
+      setLoading(false);
+      setInitialLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    await fetchLotteries(true); // Forzar refresh desde BD
   };
 
   const handleAddLottery = async () => {
@@ -73,6 +132,11 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
     } else {
       setNewLottery('');
       fetchLotteries();
+      
+      // Actualizar cache si es admin
+      if (cacheUserRole === 'admin') {
+        updateCacheData('lotteries');
+      }
     }
   };
 
@@ -92,6 +156,11 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
     } else {
       console.log('Lotería eliminada con éxito');
       fetchLotteries();
+      
+      // Actualizar cache si es admin
+      if (cacheUserRole === 'admin') {
+        updateCacheData('lotteries');
+      }
     }
   } else {
     Alert.alert(
@@ -375,6 +444,14 @@ const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onMod
       <FlatList
         data={lotteries}
         keyExtractor={(item) => item.id.toString()}
+        refreshControl={
+          <RefreshControl
+            refreshing={cacheUserRole === 'admin' ? (loading || cacheRefreshing) : false}
+            onRefresh={cacheUserRole === 'admin' ? handleRefresh : undefined}
+            colors={['#27AE60']}
+            tintColor="#27AE60"
+          />
+        }
         renderItem={({ item }) => (
           <View style={[styles.lotteryCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
             <Text style={[styles.lotteryName, { color: isDarkMode ? '#fff' : '#000' }]}>
@@ -551,11 +628,13 @@ const styles = StyleSheet.create({
     paddingBottom: 12, // Espacio desde el borde inferior
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 4,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 2,
+      elevation: 4,
+    }),
     position: 'absolute',
     top: 0,
     left: 0,
@@ -642,11 +721,13 @@ const styles = StyleSheet.create({
     width: '90%',
     maxHeight: '80%',
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.25,
+      radius: 4,
+      elevation: 5,
+    }),
   },
   modalHeader: {
     flexDirection: 'row',

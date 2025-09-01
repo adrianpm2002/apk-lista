@@ -7,7 +7,7 @@ import InsertResultsScreen from '../screens/InsertResultsScreen';
 import ManageLotteriesScreen from '../screens/ManageLotteriesScreen';
 import ManagePricesScreen from '../screens/ManagePricesScreen';
 import LimitNumero from '../screens/limitNumero';
-import StaticsBanck from '../screens/StatisticsScreen';
+import StatisticsScreen from '../screens/StatisticsScreen';
 import SavedPlaysScreen from '../screens/SavedPlaysScreen';
 import CollectorStatisticsScreen from '../screens/CollectorStatisticsScreen';
 
@@ -82,7 +82,7 @@ const AppNavigator = () => (
 
     <Stack.Screen 
       name="Statistics" 
-      component={StaticsBanck} 
+      component={StatisticsScreen} 
       options={{
         headerShown: false,
       }}

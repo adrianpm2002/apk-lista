@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, Text, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const ListButton = ({ isDarkMode = false, currentMode = 'Visual' }) => {
   const navigation = useNavigation();
@@ -28,11 +29,13 @@ const styles = StyleSheet.create({
     borderColor: '#B8D4A8',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2D5016',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#2D5016',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 3,
+      elevation: 3,
+    }),
   },
   buttonDark: {
     backgroundColor: '#34495E',

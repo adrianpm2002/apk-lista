@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createShadowStyle } from '../utils/shadowUtils';
 import {
   View,
   Text,
@@ -308,11 +309,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     margin: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 4,
+      elevation: 3,
+    }),
   },
   containerDark: {
     backgroundColor: '#34495e',

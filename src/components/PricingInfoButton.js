@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, Pressable, Modal, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { supabase } from '../supabaseClient';
 import { t } from '../utils/i18n';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 // Botón que muestra la configuración de precios (id_precio) asignada al listero
 // Obtiene el id_precio del perfil del usuario actual y luego la fila de precio
@@ -335,7 +336,24 @@ const styles = StyleSheet.create({
   lotteryName: { fontSize:13, fontWeight:'700', color:'#1B3E0F', marginBottom:4, textTransform:'uppercase', letterSpacing:0.5 },
   scheduleItem: { fontSize:11, color:'#34495E', marginBottom:2 },
   grid: { flexDirection:'row', flexWrap:'wrap', marginHorizontal:-6 },
-  playCard: { width:'50%', padding:8, paddingBottom:10, backgroundColor:'#FFFFFF', borderRadius:10, borderWidth:1, borderColor:'#E2E8E5', shadowColor:'#000', shadowOpacity:0.03, shadowOffset:{width:0,height:1}, shadowRadius:2, marginBottom:12, paddingHorizontal:10 },
+  playCard: { 
+    width:'50%', 
+    padding:8, 
+    paddingBottom:10, 
+    backgroundColor:'#FFFFFF', 
+    borderRadius:10, 
+    borderWidth:1, 
+    borderColor:'#E2E8E5', 
+    marginBottom:12, 
+    paddingHorizontal:10,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 1,
+      opacity: 0.03,
+      radius: 2,
+      elevation: 1,
+    }),
+  },
   playType: { fontSize:14, fontWeight:'700', color:'#2D5016', marginBottom:4 },
   inlineDetail: { fontSize:11, color:'#34495E', marginBottom:2, lineHeight:14 },
   inlineLabel: { fontWeight:'600', color:'#4a5b4f' },

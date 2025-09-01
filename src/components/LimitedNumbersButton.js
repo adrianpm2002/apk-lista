@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createShadowStyle } from '../utils/shadowUtils';
 import {
   View,
   Text,
@@ -345,14 +346,13 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     maxHeight: '80%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 4,
+      opacity: 0.3,
+      radius: 6,
+      elevation: 8,
+    }),
   },
   header: {
     flexDirection: 'row',

@@ -14,13 +14,16 @@ import {
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import ChangePasswordModal from './ChangePasswordModal';
+import { createShadowStyle } from '../utils/shadowUtils';
+import { getAccessibilityProps } from '../utils/accessibilityUtils';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkMode, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
 
   const sidebarWidth = screenWidth * 0.75;
-  const slideAnim = useRef(new Animated.Value(-sidebarWidth)).current;
+  // Inicializar slideAnim con validación
+  const slideAnim = useRef(new Animated.Value(isNaN(sidebarWidth) ? -300 : -sidebarWidth)).current;
   const [modalVisible, setModalVisible] = useState(false);
   const [modalContent, setModalContent] = useState(null);
   // Vista interna del modal de configuración: 'root' o 'modes' (Modos Visibles)
@@ -76,20 +79,48 @@ const configOptions = roleOptionsMap[role] || [];
 
   // Animación del sidebar
   useEffect(() => {
-    if (isVisible) {
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: -sidebarWidth,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+    if (!slideAnim) {
+      console.warn('slideAnim is not initialized');
+      return;
+    }
+
+    try {
+      if (isVisible) {
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: Platform.OS !== 'web', // Solo usar native driver en móvil
+        }).start((finished) => {
+          if (!finished) {
+            console.warn('Animation interrupted');
+          }
+        });
+      } else {
+        Animated.timing(slideAnim, {
+          toValue: -sidebarWidth,
+          duration: 300,
+          useNativeDriver: Platform.OS !== 'web', // Solo usar native driver en móvil
+        }).start((finished) => {
+          if (!finished) {
+            console.warn('Animation interrupted');
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Animation error:', error);
+      // Fallback sin animación
+      slideAnim.setValue(isVisible ? 0 : -sidebarWidth);
     }
   }, [isVisible, sidebarWidth]);
+
+  // Cleanup de animaciones
+  useEffect(() => {
+    return () => {
+      if (slideAnim) {
+        slideAnim.stopAnimation();
+      }
+    };
+  }, []);
 
   const handleClose = () => {
     onClose && onClose();
@@ -422,11 +453,17 @@ const configOptions = roleOptionsMap[role] || [];
                     setToastMsg('Preferencias guardadas');
                     toastOpacity.stopAnimation();
                     toastOpacity.setValue(0);
-                    Animated.sequence([
-                      Animated.timing(toastOpacity, { toValue: 1, duration: 160, useNativeDriver: true }),
-                      Animated.delay(1200),
-                      Animated.timing(toastOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-                    ]).start();
+                    try {
+                      Animated.sequence([
+                        Animated.timing(toastOpacity, { toValue: 1, duration: 160, useNativeDriver: Platform.OS !== 'web' }),
+                        Animated.delay(1200),
+                        Animated.timing(toastOpacity, { toValue: 0, duration: 180, useNativeDriver: Platform.OS !== 'web' }),
+                      ]).start();
+                    } catch (error) {
+                      console.error('Toast animation error:', error);
+                      toastOpacity.setValue(1);
+                      setTimeout(() => toastOpacity.setValue(0), 1200);
+                    }
                     backToSettingsRoot();
                   }}
                 >
@@ -462,10 +499,20 @@ const configOptions = roleOptionsMap[role] || [];
         transparent
         animationType="none"
         onRequestClose={handleClose}
+        accessible={true}
+        accessibilityViewIsModal={false}
+        presentationStyle="overFullScreen"
       >
-        <View style={styles.overlay}>
+        <View style={styles.overlay} pointerEvents="box-none">
           {/* Área para cerrar */}
-          <Pressable style={styles.overlayTouchable} onPress={handleClose} />
+          <Pressable 
+            style={styles.overlayTouchable} 
+            onPress={handleClose}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar menú lateral"
+            importantForAccessibility="yes"
+          />
           
           {/* Sidebar */}
           <Animated.View
@@ -476,6 +523,9 @@ const configOptions = roleOptionsMap[role] || [];
                 transform: [{ translateX: slideAnim }],
               },
             ]}
+            {...getAccessibilityProps('navigation', 'Menú de navegación principal', {
+              importantForAccessibility: 'yes'
+            })}
           >
             {/* Header */}
             <View style={[styles.header, isDarkMode && styles.headerDark]}>
@@ -564,12 +614,26 @@ const configOptions = roleOptionsMap[role] || [];
         transparent
         animationType="fade"
         onRequestClose={closeModal}
+        accessible={true}
+        accessibilityViewIsModal={false}
+        presentationStyle="overFullScreen"
       >
-        <Pressable style={styles.modalOverlay} onPress={() => { if (settingsView === 'root') closeModal(); }}>
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => { if (settingsView === 'root') closeModal(); }}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar modal de configuración"
+          importantForAccessibility="yes"
+          pointerEvents="box-none"
+        >
           <View 
             style={styles.modalContainer}
             onStartShouldSetResponder={() => true}
             onTouchEnd={(e) => e.stopPropagation()}
+            {...getAccessibilityProps('dialog', 'Configuración', {
+              importantForAccessibility: 'yes'
+            })}
           >
             <ScrollView 
               style={styles.modalContent}
@@ -635,11 +699,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: screenWidth * 0.75,
     backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 8,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 0,
+      opacity: 0.25,
+      radius: 5,
+      elevation: 8,
+    }),
   },
   sidebarDark: {
     backgroundColor: '#2c3e50',
@@ -873,11 +939,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 12,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.25,
+      radius: 4,
+      elevation: 12,
+    }),
     zIndex: 2000,
   },
   toggleButtonInline: {
@@ -888,11 +956,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 6,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.25,
+      radius: 4,
+      elevation: 6,
+    }),
   },
   toggleButtonPressed: {
     opacity: 0.8,
@@ -1002,11 +1072,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.2,
+      radius: 3,
+      elevation: 3,
+    }),
   },
   toastText: {
     color: '#FFFFFF',

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, useWindowDimensions, Platform } from 'react-native';
 import { t } from '../utils/i18n';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 /* Responsive feedback banner to avoid overflow on small mobile screens */
 const defaultDurations = {
@@ -79,8 +80,13 @@ const styles = StyleSheet.create({
   container:{
     position:'absolute', left:12, right:12,
     borderWidth:1, borderRadius:12, zIndex:5000,
-    shadowColor:'#000', shadowOpacity:0.12, shadowRadius:4,
-    shadowOffset:{ width:0, height:2 }, elevation:5,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.12,
+      radius: 4,
+      elevation: 5,
+    }),
   },
   row:{ flexDirection:'row', alignItems:'flex-start' },
   message:{ flex:1, fontWeight:'700', lineHeight:18 },

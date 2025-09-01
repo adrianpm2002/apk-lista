@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const CollectorDataTable = ({ data, expandedListeros, onToggleListero, isDarkMode }) => {
   const formatDateTime = (dateStr) => {
@@ -176,10 +177,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 1,
+      opacity: 0.2,
+      radius: 2,
+      elevation: 2,
+    }),
   },
   darkListeroGroup: {
     backgroundColor: '#1E1E1E',

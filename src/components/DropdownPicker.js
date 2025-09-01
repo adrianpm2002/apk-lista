@@ -1,12 +1,6 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  Modal,
-  FlatList,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable, FlatList } from 'react-native';
+import { createShadowStyle, shadowPresets } from '../utils/shadowUtils';
 
 const DropdownPicker = ({ 
   label, 
@@ -105,14 +99,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: '#2D5016',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#2D5016',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 3,
+      elevation: 3,
+    }),
   },
   dropdownText: {
     fontSize: 15,
@@ -138,14 +131,7 @@ const styles = StyleSheet.create({
     padding: 16,
     maxHeight: 300,
     width: '80%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
+    ...createShadowStyle(shadowPresets.modal),
   },
   modalTitle: {
     fontSize: 16,

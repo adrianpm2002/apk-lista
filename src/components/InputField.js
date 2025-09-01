@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, Platform } from 'react-native';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const InputField = ({
   label,
@@ -153,11 +154,13 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#B8D4A8',
-    shadowColor: '#2D5016',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    ...createShadowStyle({
+      color: '#2D5016',
+      offsetY: 1,
+      opacity: 0.1,
+      radius: 2,
+      elevation: 2,
+    }),
   },
   pasteButtonOverlayText: { fontSize: 16, color: '#2D5016' },
   input: {
@@ -169,14 +172,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: '#2D5016',
-    shadowColor: '#2D5016',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#2D5016',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 3,
+      elevation: 3,
+    }),
   },
   multilineInput: { minHeight: 80, textAlignVertical: 'top' },
   readOnlyInput: { backgroundColor: '#e8f5e8', color: '#27ae60', fontWeight: 'bold', borderColor: '#27ae60' },

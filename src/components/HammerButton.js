@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { View, Text, Pressable, Modal, StyleSheet, Clipboard, Platform, Alert, ScrollView, TextInput } from 'react-native';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 // HammerButton reescrito: se elimina AnimatedModalWrapper para evitar parpadeos.
 // Se mantiene TODA la lógica original (generación, parle, combinación, edición, duplicados, parejas AA, pegado, limpieza, inserción).
@@ -487,14 +488,13 @@ const styles = StyleSheet.create({
     borderColor: '#B8D4A8',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2D5016',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#2D5016',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 3,
+      elevation: 3,
+    }),
   },
   buttonDark: {
     backgroundColor: '#34495E',
@@ -523,11 +523,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: '#E4EBE2',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 12,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 4,
+      opacity: 0.2,
+      radius: 10,
+      elevation: 12,
+    }),
   },
   modalDark: {
     backgroundColor: '#2C3E50',

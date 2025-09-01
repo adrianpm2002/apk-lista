@@ -4,6 +4,7 @@ import { Picker } from '../components/PickerWrapper';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { adminResetPasswordByUsername } from '../utils/adminUtils';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 // Orden canónico unificado de jugadas en toda la app
 const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
@@ -1053,11 +1054,13 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 4,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 2,
+      elevation: 4,
+    }),
     position: 'absolute',
     top: 0,
     left: 0,

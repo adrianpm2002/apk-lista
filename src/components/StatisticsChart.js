@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { LineChart, BarChart, PieChart, StackedBarChart } from 'react-native-chart-kit';
 import Svg, { Line as SvgLine, Rect as SvgRect, Text as SvgText } from 'react-native-svg';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -424,11 +425,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     margin: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 4,
+      elevation: 3,
+    }),
   },
   containerDark: {
     backgroundColor: '#34495e',
