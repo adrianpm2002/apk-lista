@@ -123,7 +123,11 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
         const grouped={};
         (rows||[]).filter(r=> isOpen(r.hora_inicio,r.hora_fin)).forEach(r=>{
           if(!grouped[r.id_loteria]) grouped[r.id_loteria]=[];
-          grouped[r.id_loteria].push({ label:r.nombre, value:r.id });
+          // Formatear las horas para mostrarlas en el label
+          const horaInicio = r.hora_inicio ? r.hora_inicio.substring(0, 5) : '';
+          const horaFin = r.hora_fin ? r.hora_fin.substring(0, 5) : '';
+          const labelConHoras = horaInicio && horaFin ? `${r.nombre} (${horaInicio} - ${horaFin})` : r.nombre;
+          grouped[r.id_loteria].push({ label:labelConHoras, value:r.id });
         });
         setScheduleOptionsMap(grouped);
         setSelectedSchedules(prev=>{ const next={...prev}; Object.keys(next).forEach(k=>{ if(!grouped[k] || !grouped[k].some(o=> o.value===next[k])) delete next[k]; }); return next; });
@@ -385,7 +389,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
 
   const validateForm = () => {
     const anyEntry = fcEntries.length + parleEntries.length + centenaEntries.length > 0;
-    return selectedLotteries.length>0 && selectedLotteries.every(l=> selectedSchedules[l]) && anyEntry && note.trim();
+    return selectedLotteries.length>0 && selectedLotteries.every(l=> selectedSchedules[l]) && anyEntry;
   };
 
   const handleVerify = async () => {
@@ -434,7 +438,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
         const schedule = selectedSchedules[lottery];
         for(const i of instr){
           const nums = normalizeNumbers(i.playType, i.numbers).join(',');
-          playsToSave.push({ lottery, schedule, playType:i.playType, numbers: nums, note: note.trim(), amount: i.amountEach, total: i.totalPerLottery });
+          playsToSave.push({ lottery, schedule, playType:i.playType, numbers: nums, note: note.trim() || null, amount: i.amountEach, total: i.totalPerLottery });
         }
       }
       let success=0, fail=0; let errMsgs=[]; let blockedViolations=[];
@@ -446,7 +450,8 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
       setInsertFeedback({ success, fail, blocked:false, serverError: errMsgs.join(' | ') });
       if(success){
         setFcEntries([]); setParleEntries([]); setCentenaEntries([]);
-        setFcNumber(''); setFijoAmount(''); setCorridoAmount(''); setParleNumber(''); setParleAmount(''); setCentenaNumber(''); setCentenaAmount(''); setNote(''); setTotal(0);
+        setFcNumber(''); setFijoAmount(''); setCorridoAmount(''); setParleNumber(''); setParleAmount(''); setCentenaNumber(''); setCentenaAmount(''); setTotal(0);
+        // Mantener la nota después del envío exitoso
       }
     } catch(e){ setInsertFeedback({ success:0, fail:1, blocked:false, serverError: e?.message || 'Error' }); }
   };

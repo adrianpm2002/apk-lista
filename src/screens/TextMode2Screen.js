@@ -149,7 +149,11 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         const grouped={};
         (rows||[]).filter(r=> isOpen(r.hora_inicio,r.hora_fin)).forEach(r=>{
           if(!grouped[r.id_loteria]) grouped[r.id_loteria]=[];
-          grouped[r.id_loteria].push({ label:r.nombre, value:r.id });
+          // Formatear las horas para mostrarlas en el label
+          const horaInicio = r.hora_inicio ? r.hora_inicio.substring(0, 5) : '';
+          const horaFin = r.hora_fin ? r.hora_fin.substring(0, 5) : '';
+          const labelConHoras = horaInicio && horaFin ? `${r.nombre} (${horaInicio} - ${horaFin})` : r.nombre;
+          grouped[r.id_loteria].push({ label:labelConHoras, value:r.id });
         });
         setScheduleOptionsMap(grouped);
         // Podar horarios seleccionados para loterías removidas o cerradas
@@ -230,16 +234,15 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
     const missingSchedules = selectedLotteries.filter(lv => !selectedSchedules[lv]);
     if(missingSchedules.length){ setScheduleError(true); hasErrors=true; }
     if(!plays.trim()){ setPlaysError(true); hasErrors=true; }
-    if(includeNote && !note.trim()){ setNoteError(true); hasErrors=true; }
+    // Quitar validación de nota obligatoria
     if(hasErrors) setShowFieldErrors(true);
     return !hasErrors;
   };
 
   const handleVerify = async () => {
     setVerifyFeedback(null);
-  if(!note.trim()) setNoteError(true);
-    // Reusar validación base
-    const valid = validateForm(true);
+    // Reusar validación base sin requerir nota
+    const valid = validateForm(false);
     if(!valid){
   setVerifyFeedback({ type:'error', message:t('errors.requiredOrFix') });
       return;
@@ -381,13 +384,14 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         const pad=(n)=> String(n).padStart(2,'0');
         const now=new Date();
         const tsLocal = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-    const updatePayload={ numeros: instr.numbers.join(','), nota: note.trim() || 'Sin nombre', monto_unitario: instr.amountEach, monto_total: instr.totalPerLottery, jugada: instr.playType };
+    const updatePayload={ numeros: instr.numbers.join(','), nota: note.trim() || null, monto_unitario: instr.amountEach, monto_total: instr.totalPerLottery, jugada: instr.playType };
         if(newHorario) updatePayload.id_horario = newHorario;
   const { error } = await supabase.from('jugada').update(updatePayload).eq('id', editingId);
         if(error) throw error;
         setInsertFeedback({ success:1, fail:0, duplicates:[], edit:true });
         setIsEditing(false); setEditingId(null);
-        setPlays(''); setNote(''); setParsedInstructions([]); setTotal(0);
+        setPlays(''); setParsedInstructions([]); setTotal(0);
+        // Mantener la nota después del envío exitoso
       } catch(e){
   console.error('Error al actualizar jugada:', e);
   setInsertFeedback({ success:0, fail:1, edit:true, serverError: e?.message || 'Error al actualizar' });
@@ -396,7 +400,7 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
     }
 
     // Validar campos requeridos
-  let hasErrors = !validateForm(true);
+  let hasErrors = !validateForm(false);
 
     // Validación de capacidad (unificada con modo visual) usando uso del día en tabla jugada
     if (!hasErrors) {
@@ -438,7 +442,7 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
               schedule: selectedSchedules[lottery],
               playType: instr.playType,
               numbers: instr.numbers.join(','),
-              note: note.trim(),
+              note: note.trim() || null,
               amount: unit,
               total
             });
@@ -458,7 +462,8 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         }
   setInsertFeedback({ success, fail, duplicates:[], edit:false, serverError: errMsgs.join(' | ') });
         if(success){
-          setPlays(''); setNote(''); setCalculatedAmount(0); setTotal(0); setParsedInstructions([]);
+          setPlays(''); setCalculatedAmount(0); setTotal(0); setParsedInstructions([]);
+          // Mantener la nota después del envío exitoso
         }
       } catch (error) {
         console.error('Error al guardar las jugadas:', error);

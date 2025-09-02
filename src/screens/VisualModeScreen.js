@@ -179,7 +179,11 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           .forEach(r=> {
             const key = r.id_loteria;
             if(!grouped[key]) grouped[key] = [];
-            grouped[key].push({ label: r.nombre, value: r.id });
+            // Formatear las horas para mostrarlas en el label
+            const horaInicio = r.hora_inicio ? r.hora_inicio.substring(0, 5) : '';
+            const horaFin = r.hora_fin ? r.hora_fin.substring(0, 5) : '';
+            const labelConHoras = horaInicio && horaFin ? `${r.nombre} (${horaInicio} - ${horaFin})` : r.nombre;
+            grouped[key].push({ label: labelConHoras, value: r.id });
           });
         setScheduleOptionsMap(grouped);
         setSelectedSchedules(prev => {
@@ -302,7 +306,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         const newHorario = selectedSchedules[newLottery];
         const updatePayload = {
           numeros: plays.replace(/\s+/g,'').replace(/,+/g,','),
-          nota: note?.trim() || 'Sin nombre',
+          nota: note?.trim() || null,
           monto_unitario: unit,
           monto_total: totalCalc,
           created_at: tsLocal,
@@ -472,7 +476,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           id_horario,
           jugada: pt,
           numeros: numerosForThisPlay,
-          nota: note?.trim() || 'Sin nombre',
+          nota: note?.trim() || null,
           monto_unitario: unit,
           monto_total: rowTotal,
         });
@@ -508,7 +512,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       if(failures.length===0){
         setPlays('');
         setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
-        setNote('');
+        // Mantener la nota después del envío exitoso
         setTotal(0);
         setShowFieldErrors(false);
       }
@@ -580,8 +584,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     if(missingSchedules.length){ setScheduleError(true); hasErrors = true; }
     if(!selectedPlayTypes.length){ setPlayTypeError(true); hasErrors = true; }
     if(!plays.trim()){ setPlaysError(true); hasErrors = true; }
-    // Nota requerida también
-    if(!note.trim()){ hasErrors = true; }
+    // Quitar validación de nota obligatoria
     if(selectedPlayTypes.some(pt => { const raw = amounts[pt]; const val = parseInt((raw||'').toString().replace(/[^0-9]/g,''),10)||0; return !raw || val<=0; })){ setAmountError(true); hasErrors = true; }
     if(!hasErrors){
       const primary = selectedPlayTypes[0];
