@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -11,6 +10,7 @@ import {
   Platform,
   RefreshControl
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
@@ -90,9 +90,47 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
     tripleta: true,
   });
 
-  // Cargar datos directamente de la tabla precio
+  // Fetch user profile and load data (optimizado para no bloquear UI)
+  const fetchUserProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role, id_banco')
+          .eq('id', user.id)
+          .single();
+
+        if (data && !error) {
+          setUserRole(data.role);
+          // Si es admin (banco), su propio ID es el banco ID, si es colector usa id_banco
+          const bankId = data.role === 'admin' ? user.id : data.id_banco;
+          setCurrentBankId(bankId);
+          
+          // Solo los admins pueden acceder a esta pantalla
+          if (data.role !== 'admin') {
+            Alert.alert('Acceso Denegado', 'Solo los administradores pueden configurar precios');
+            navigation.goBack();
+            return;
+          }
+        } else {
+          console.error('Error cargando rol:', error);
+          Alert.alert('Error', 'No se pudo cargar el perfil del usuario');
+        }
+      }
+    } catch (error) {
+      console.error('Error inicializando pantalla:', error);
+      Alert.alert('Error', 'No se pudo cargar la información del usuario');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => { 
-    initializeScreen(); 
+    // Cargar perfil de forma no bloqueante
+    setLoading(true);
+    const timeoutId = setTimeout(fetchUserProfile, 10);
+    return () => clearTimeout(timeoutId);
   }, []);
 
   useEffect(() => {
@@ -101,6 +139,16 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
       loadActivePlayTypes();
     }
   }, [currentBankId]);
+
+  // Refrescar datos cuando se regresa a la pantalla
+  useFocusEffect(
+    React.useCallback(() => {
+      if (currentBankId) {
+        loadPriceConfigurations();
+        loadActivePlayTypes();
+      }
+    }, [currentBankId])
+  );
 
   const loadActivePlayTypes = async () => {
     if (!currentBankId) return;
@@ -134,7 +182,7 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
         .from('precio')
         .select('*')
         .eq('id_banco', currentBankId)
-        .order('created_at', { ascending: false });
+        .order('id', { ascending: false });
 
       if (error) {
         console.error('Error loading price configurations:', error);
@@ -156,103 +204,19 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
     }
   };
 
-  // Comentado para evitar cargas innecesarias - ahora usamos cache
-  // const refreshOnFocus = useCallback(async () => {
-  //   if (currentBankId) {
-  //     await loadSavedConfiguration(currentBankId);
-  //     await loadPriceConfigs(currentBankId);
-  //   }
-  // }, [currentBankId]);
-
-  // useFocusEffect(
-  //   useCallback(() => {
-  //     refreshOnFocus();
-  //   }, [refreshOnFocus])
-  // );
-
-  const initializeScreen = async () => {
-    try {
-      setLoading(true);
-      await fetchUserRole();
-    } catch (error) {
-      console.error('Error inicializando pantalla:', error);
-      Alert.alert('Error', 'No se pudo cargar la información del usuario');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchUserRole = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role, id_banco')
-        .eq('id', user.id)
-        .single();
-
-      if (data) {
-        setUserRole(data.role);
-        // Si es admin (banco), su propio ID es el banco ID, si es colector usa id_banco
-        const bankId = data.role === 'admin' ? user.id : data.id_banco;
-        setCurrentBankId(bankId);
-        
-        // Solo los admins pueden acceder a esta pantalla
-        if (data.role !== 'admin') {
-          Alert.alert('Acceso Denegado', 'Solo los administradores pueden configurar precios');
-          navigation.goBack();
-          return;
-        }
-      } else {
-        console.error('Error cargando rol:', error);
-        Alert.alert('Error', 'No se pudo cargar el perfil del usuario');
-      }
-    }
-  };
-
-  // Nueva función que usa el cache context
-  const loadPriceConfigsFromCache = async () => {
-    // Si ya tenemos datos en cache, no mostrar loading
-    if (cache.prices && cache.prices.length > 0) {
-      setPriceConfigs(cache.prices);
-      setInitialLoading(false);
-      return;
-    }
-    
-    try {
-      setLoadingPrices(true);
-      // Usar la función del cache context que ya maneja la lógica optimizada
-      await fetchPriceConfigurations();
-      setInitialLoading(false);
-    } catch (error) {
-      console.error('Error loading price configs from cache:', error);
-    } finally {
-      setLoadingPrices(false);
-    }
-  };
-
-  // Cargar última configuración de precios (tabla precio) - LEGACY, ahora usa cache
   const loadPriceConfigs = async (bankId, forceRefresh = false) => {
     try {
-      // Si no se fuerza el refresh y ya hay datos en cache, usarlos
-      if (!forceRefresh && cache.prices && cache.prices.length > 0) {
-        setPriceConfigs(cache.prices);
-        return;
-      }
-
       setLoadingPrices(true);
       const { data, error } = await supabase
         .from('precio')
-        .select('id, precios, created_at, nombre')
-        .eq('id_banco', bankId || cacheBankId)
-        .order('created_at', { ascending: false });
+        .select('id, precios, id, nombre')
+        .eq('id_banco', bankId || currentBankId)
+        .order('id', { ascending: false });
       if (error) {
         console.error('Error cargando configuraciones de precios:', error);
         return;
       }
       
-      // Actualizar cache
-      updateCacheData('prices', data || []);
       setPriceConfigs(data || []);
       // Prefill modal con la última config (más reciente)
       if (data && data.length > 0) {

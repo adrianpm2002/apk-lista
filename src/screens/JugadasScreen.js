@@ -2,8 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Alert, ActivityIndicator, Switch, RefreshControl } from 'react-native';
 import { supabase } from '../supabaseClient';
 import { SideBar, SideBarToggle } from '../components/SideBar';
-import { useCache } from '../contexts/CacheContext';
-import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { createShadowStyle } from '../utils/shadowUtils';
 
 const JugadasScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
@@ -48,14 +46,12 @@ const JugadasContent = React.memo(({
   sidebarVisible,
   setSidebarVisible 
 }) => {
-  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId } = useCache();
-  
-  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('activePlayTypes');
-  
-  // Inicializar con cache si está disponible, sino mostrar loading
-  const [loading, setLoading] = useState(!cache.activePlayTypes);
-  
+  // Estados locales
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [updatingTypes, setUpdatingTypes] = useState(new Set());
+  const [userRole, setUserRole] = useState(null);
+  const [currentBankId, setCurrentBankId] = useState(null);
   
   // Estados para tipos de jugada disponibles
   const [availablePlayTypes] = useState([
@@ -78,39 +74,48 @@ const JugadasContent = React.memo(({
   });
   const [jugadasRecordId, setJugadasRecordId] = useState(null); // id de la fila en jugadas_activas
 
-  // Efecto para cargar jugadas activas desde cache primero
-  useEffect(() => {
-    if (cacheBankId) {
-      // Si tenemos datos en cache, usarlos inmediatamente
-      if (cache.activePlayTypes) {
-        setEnabledPlayTypes(cache.activePlayTypes);
-        setLoading(false);
-      } else {
-        // Solo mostrar loading si no hay cache disponible
-        setLoading(true);
-        fetchJugadasActivas(cacheBankId).finally(() => {
-          setLoading(false);
-        });
+  // ========== FETCH FUNCTIONS ==========
+  const fetchUserProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('role, id_banco')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return;
       }
+
+      if (profile) {
+        setUserRole(profile.role);
+        const bankId = profile.role === 'admin' ? user.id : profile.id_banco;
+        setCurrentBankId(bankId);
+      }
+    } catch (error) {
+      console.error('Error in fetchUserProfile:', error);
+    }
+  };
+
+  // Efecto para cargar datos al montar
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  // Cargar jugadas activas cuando tengamos bankId
+  useEffect(() => {
+    if (currentBankId) {
+      fetchJugadasActivas(currentBankId).finally(() => {
+        setLoading(false);
+      });
     } else {
       setLoading(false);
     }
-  }, [cacheBankId, cache.activePlayTypes]);
-
-  // Carga inicial basada en caché o propiedades
-  useEffect(() => {
-    // No necesitamos setters locales, usamos directamente cacheUserRole y cacheBankId
-  }, [cacheUserRole, cacheBankId]);
-
-  const initializeScreen = async () => {
-    try {
-      // El userRole y currentBankId vienen del cache, no necesitamos fetch adicional
-      // El loading se maneja en el useEffect de cacheBankId
-    } catch (error) {
-      console.error('Error inicializando pantalla:', error);
-      Alert.alert('Error', 'No se pudo cargar la información del usuario');
-    }
-  };
+  }, [currentBankId]);
 
   const fetchJugadasActivas = useCallback(async (bankId) => {
     try {
@@ -214,7 +219,7 @@ const JugadasContent = React.memo(({
   }, []); // useCallback sin dependencias porque usa setters directamente
 
   const togglePlayType = useCallback(async (typeId) => {
-    if (!cacheBankId) {
+    if (!currentBankId) {
       return;
     }
     
@@ -260,7 +265,20 @@ const JugadasContent = React.memo(({
         return n; 
       });
     }
-  }, [enabledPlayTypes, cacheBankId, jugadasRecordId]); // useCallback con las dependencias necesarias
+  }, [enabledPlayTypes, currentBankId, jugadasRecordId]); // useCallback con las dependencias necesarias
+
+  const handleRefresh = async () => {
+    if (!currentBankId) return;
+    
+    setRefreshing(true);
+    try {
+      await fetchJugadasActivas(currentBankId);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -290,8 +308,8 @@ const JugadasContent = React.memo(({
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={cacheRefreshing}
-            onRefresh={cacheOnRefresh}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
             colors={['#27AE60']}
             tintColor="#27AE60"
           />
@@ -327,7 +345,7 @@ const JugadasContent = React.memo(({
         isDarkMode={isDarkMode}
         onToggleDarkMode={onToggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
-        role={cacheUserRole}
+        role={userRole}
       />
     </View>
   );

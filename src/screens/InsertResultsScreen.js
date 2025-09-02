@@ -6,8 +6,6 @@ import ActionButton from '../components/ActionButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCache } from '../contexts/CacheContext';
-import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
@@ -25,28 +23,14 @@ const InsertResultsScreen = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
-  const { 
-    cache, 
-    userRole: cacheUserRole, 
-    currentBankId: cacheBankId, 
-    updateCacheData, 
-    fetchTodayResults, 
-    fetchLotteries, 
-    fetchSchedules,
-    preloadAllData
-  } = useCache();
-  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('todayResults');
-  
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   
   // Crear estilos adaptativos para modo oscuro
   const commonStyles = createCommonDarkStyles(isDarkMode);
   const formStyles = createFormDarkStyles(isDarkMode);
   
-  // Inicializar con datos del cache
-  const [lotteryOptions, setLotteryOptions] = useState(
-    cache.lotteries ? cache.lotteries.map(l => ({ label: l.nombre, value: l.id })) : []
-  );
+  // Estados locales
+  const [lotteryOptions, setLotteryOptions] = useState([]);
   const [selectedLottery, setSelectedLottery] = useState(null);
   const [selectedLotteryLabel, setSelectedLotteryLabel] = useState('');
   const [horarioOptions, setHorarioOptions] = useState([]);
@@ -54,14 +38,15 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
   const [selectedHorarioLabel, setSelectedHorarioLabel] = useState('');
   const [result, setResult] = useState('');
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [userRole, setUserRole] = useState(cacheUserRole); // Usar cache como inicial
-  const [currentBankId, setCurrentBankId] = useState(cacheBankId); // Usar cache como inicial
-  const [todayResults, setTodayResults] = useState(cache.todayResults || []); // Inicializar con cache
+  const [userRole, setUserRole] = useState(null);
+  const [currentBankId, setCurrentBankId] = useState(null);
+  const [todayResults, setTodayResults] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [editingValue, setEditingValue] = useState('');
-  const [loadingResults, setLoadingResults] = useState(false); // Optimizado para cache
+  const [loadingResults, setLoadingResults] = useState(false);
   const [deniedEditId, setDeniedEditId] = useState(null);
-  const [initialLoading, setInitialLoading] = useState(!(cache.lotteries && cache.schedules)); // Loading solo si no hay datos
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Sanitiza la entrada del campo de resultado respetando:
   // - Máximo 7 dígitos
@@ -77,37 +62,92 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
   return digits.slice(0, 3) + ' ' + digits.slice(3);
   };
 
-  // ========== CACHE SYNCHRONIZATION ==========
-  // Sincronizar userRole y bankId con cache
-  useEffect(() => {
-    if (cacheUserRole) {
-      setUserRole(cacheUserRole);
+  // Funciones para obtener datos directamente
+  const fetchUserProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile, error } = await supabase.from('profiles').select('role, id_banco').eq('id', user.id).single();
+        if (profile && !error) {
+          setUserRole(profile.role);
+          // Usar la misma lógica que otras pantallas para obtener bankId
+          const bankId = profile.role === 'admin' ? user.id : profile.id_banco;
+          setCurrentBankId(bankId);
+        } else {
+          console.error('Error loading user profile:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
     }
-  }, [cacheUserRole]);
+  };
 
-  useEffect(() => {
-    if (cacheBankId) {
-      setCurrentBankId(cacheBankId);
+  const fetchLotteries = async (bankId) => {
+    if (!bankId) {
+      setLotteryOptions([]);
+      return;
     }
-  }, [cacheBankId]);
-
-  // Sincronizar con cache para todayResults
-  useEffect(() => {
-    if (cache.todayResults) {
-      setTodayResults(cache.todayResults);
-    }
-  }, [cache.todayResults]);
-
-  // Sincronizar con cache para loterias
-  useEffect(() => {
-    if (cache.lotteries) {
-      const options = cache.lotteries.map(lottery => ({
+    
+    try {
+      const { data, error } = await supabase
+        .from('loteria')
+        .select('id, nombre')
+        .eq('id_banco', bankId)
+        .order('nombre');
+      
+      if (error) {
+        console.error('Error fetching lotteries:', error);
+        setLotteryOptions([]);
+        return;
+      }
+      
+      if (!data || data.length === 0) {
+        setLotteryOptions([]);
+        return;
+      }
+      
+      const options = data.map(lottery => ({
         label: lottery.nombre,
         value: lottery.id
       }));
+      
       setLotteryOptions(options);
+    } catch (error) {
+      console.error('Error fetching lotteries:', error);
+      setLotteryOptions([]);
     }
-  }, [cache.lotteries]);
+  };
+
+  const fetchTodayResults = async (bankId) => {
+    if (!bankId) return;
+    setLoadingResults(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const startStr = `${today}T00:00:00.000Z`;
+      const endStr = `${today}T23:59:59.999Z`;
+
+      const { data, error } = await supabase
+        .from('resultado')
+        .select(`
+          id, numeros, created_at, id_horario,
+          horario!inner(
+            id, nombre, hora_inicio, hora_fin, id_loteria,
+            loteria!inner(id, nombre, id_banco)
+          )
+        `)
+        .gte('created_at', startStr)
+        .lte('created_at', endStr)
+        .eq('horario.loteria.id_banco', bankId);
+
+      if (error) throw error;
+
+      setTodayResults(data || []);
+    } catch (error) {
+      console.error('Error fetching today results:', error);
+    } finally {
+      setLoadingResults(false);
+    }
+  };
 
   // Estados para errores de validación
   const [errors, setErrors] = useState({
@@ -137,107 +177,104 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // ========== INITIAL DATA LOADING ==========
   useEffect(() => {
-    if (cacheBankId) {
-      loadTodayResultsFromCache();
-    }
+    const timeoutId = setTimeout(fetchUserProfile, 10);
+    return () => clearTimeout(timeoutId);
   }, []); // Solo al montar el componente
 
-  // ========== CACHE DEPENDENCY LOADING ==========
+  // ========== LOAD DATA WHEN BANK ID IS AVAILABLE ==========
   useEffect(() => {
-    if (cacheBankId) {
-      loadTodayResultsFromCache();
+    if (currentBankId) {
+      fetchLotteries(currentBankId);
+      fetchTodayResults(currentBankId);
     }
-  }, [cacheBankId]); // Cuando cambie el bankId
+    // Siempre detener el loading inicial después de intentar cargar el perfil
+    setInitialLoading(false);
+  }, [currentBankId]); // Cuando cambie el bankId
 
-  // ========== DATA FETCHING ==========
-  const fetchAllDataFromCache = async () => {
-    if (!cacheBankId) {
-      console.log('No bank ID available for fetching data');
-      setInitialLoading(false);
-      return;
+  // ========== FORCE RE-RENDER WHEN OPTIONS CHANGE ==========
+  useEffect(() => {
+    // Forzar actualización del componente cuando cambien las opciones
+    if (lotteryOptions.length > 0 && !selectedLottery) {
+      // Opcional: auto-seleccionar la primera lotería si solo hay una
+      if (lotteryOptions.length === 1) {
+        const firstOption = lotteryOptions[0];
+        setSelectedLottery(firstOption.value);
+        setSelectedLotteryLabel(firstOption.label);
+        fetchHorarios(firstOption.value);
+      }
     }
+  }, [lotteryOptions]);
+
+  // Refrescar datos cuando se regresa a la pantalla
+  useFocusEffect(
+    React.useCallback(() => {
+      if (currentBankId) {
+        fetchTodayResults(currentBankId);
+        fetchLotteries(currentBankId);
+      }
+    }, [currentBankId])
+  );
+
+  // ========== REFRESH HANDLER ==========
+  const handleRefresh = async () => {
+    if (!currentBankId) return;
     
+    setRefreshing(true);
     try {
-      setInitialLoading(true);
-      // Precargar todos los datos necesarios
-      await preloadAllData();
-      setInitialLoading(false);
+      await Promise.all([
+        fetchLotteries(currentBankId),
+        fetchTodayResults(currentBankId)
+      ]);
     } catch (error) {
-      console.error('Error fetching data from cache:', error);
-      setInitialLoading(false);
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
-  // ========== FOCUS REFRESH ==========
-  const focusRefresh = useCallback(() => {
-    if (cacheBankId) {
-      // Actualizar datos en background sin bloquear UI
-      setTimeout(() => {
-        fetchTodayResults();
-        fetchLotteries();
-        fetchSchedules();
-      }, 100);
-    }
-  }, [cacheBankId, fetchTodayResults, fetchLotteries, fetchSchedules]);
 
-  // Función optimizada para cargar loterías desde cache
-  const fetchLoteriasFromCache = async () => {
-    if (!cacheBankId) return;
-    
-    // Usar cache primero si está disponible
-    if (cache.lotteries && cache.lotteries.length > 0) {
-      const options = cache.lotteries.map((l) => ({ label: l.nombre, value: l.id }));
-      setLotteryOptions(options);
-      return;
-    }
-    
-    // Solo hacer fetch si no hay datos en cache
-    await fetchLotteries();
-  };
+
+
 
   const fetchHorarios = async (lotteryId) => {
-    if (!lotteryId) {
+    if (!lotteryId || !currentBankId) {
       setHorarioOptions([]);
       setSelectedHorario(null);
       setSelectedHorarioLabel('');
       return;
     }
 
-    // Usar datos del cache filtrados por banco y lotería específica
-    const availableSchedules = cache.schedules?.filter(schedule => 
-      schedule.id_loteria === lotteryId && 
-      schedule.loteria?.id_banco === cacheBankId
-    ) || [];
+    try {
+      const { data, error } = await supabase
+        .from('horario')
+        .select('id, nombre, hora_inicio, hora_fin')
+        .eq('id_loteria', lotteryId)
+        .order('hora_inicio');
 
-    if (availableSchedules.length === 0) {
+      if (error) {
+        console.error('Error fetching schedules:', error);
+        setHorarioOptions([]);
+        setSelectedHorario(null);
+        setSelectedHorarioLabel('');
+        return;
+      }
+
+      const options = (data || []).map((h) => ({ 
+        label: `${h.nombre} (${h.hora_inicio.slice(0,5)} - ${h.hora_fin.slice(0,5)})`, 
+        value: h.id 
+      }));
+      setHorarioOptions(options);
+      setSelectedHorario(null);
+      setSelectedHorarioLabel('');
+    } catch (error) {
+      console.error('Error in fetchHorarios:', error);
       setHorarioOptions([]);
       setSelectedHorario(null);
       setSelectedHorarioLabel('');
-      return;
     }
-
-    const options = availableSchedules.map((h) => ({ 
-      label: `${h.nombre} (${h.hora_inicio.slice(0,5)} - ${h.hora_fin.slice(0,5)})`, 
-      value: h.id 
-    }));
-    setHorarioOptions(options);
-    setSelectedHorario(null);
-    setSelectedHorarioLabel('');
   };
 
-  useEffect(() => {
-    if (cacheBankId) {
-      fetchLoteriasFromCache();
-      loadTodayResultsFromCache();
-    }
-  }, [cacheBankId]);
 
-  // ========== INITIAL DATA LOADING ==========
-  useEffect(() => {
-    if (cacheBankId && initialLoading) {
-      fetchAllDataFromCache();
-    }
-  }, [cacheBankId, initialLoading]);
 
   // Utilidad para rango del día local (created_at es timestamp sin zona)
   const buildLocalDayRange = (base = new Date()) => {
@@ -251,32 +288,9 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
     };
   };
 
-  // Cargar resultados del día actual usando cache primero
-  const loadTodayResultsFromCache = async () => {
-    if (!cacheBankId) {
-      return;
-    }
-
-    // Solo usar cache si realmente tiene datos, no si es un array vacío
-    if (cache.todayResults !== null && cache.todayResults !== undefined && cache.todayResults.length > 0) {
-      setTodayResults(cache.todayResults);
-      setLoadingResults(false);
-      return;
-    }
-    
-    // Si el cache está vacío o no tiene datos, hacer fetch
-    setLoadingResults(true);
-    try {
-      const results = await fetchTodayResults();
-      setTodayResults(results || []);
-      setLoadingResults(false);
-    } catch (error) {
-      console.error('[InsertResults] ❌ Error loading today results from cache:', error);
-      setLoadingResults(false);
-    }
-  };  // Función legacy - cargar resultados del día actual (rango local) directamente desde la consulta
+  // Función legacy - cargar resultados del día actual (rango local) directamente desde la consulta
   const loadTodayResults = async () => {
-    if (!cacheBankId) {
+    if (!currentBankId) {
       return;
     }
     
@@ -289,7 +303,7 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
         .select('id, numeros, created_at, rol, horario:id_horario ( id, nombre, loteria:id_loteria ( id, nombre, id_banco ) )')
         .gte('created_at', start)
         .lte('created_at', end)
-        .eq('horario.loteria.id_banco', cacheBankId)
+        .eq('horario.loteria.id_banco', currentBankId)
         .order('created_at', { ascending: false });
       
       if (error) {
@@ -303,16 +317,10 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
       console.error('[InsertResults] ❌ Error cargando resultados del día:', e.message);
     } finally {
       setLoadingResults(false);
-      console.log('[InsertResults] loadTodayResults - FIN');
     }
   };
 
-  // Refresco automático al volver a la pantalla - solo actualizar cache en background
-  useFocusEffect(
-    useCallback(() => {
-      focusRefresh();
-    }, [focusRefresh])
-  );
+
 
   const startEditing = (item) => {
     // Permisos: collector no puede editar resultados de admin
@@ -356,8 +364,8 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
     setTodayResults(prev => prev.map(r => r.id === editingId ? { ...r, numeros: formatted } : r));
     cancelEditing();
     
-    // Actualizar cache
-    await updateCacheData('todayResults');
+    // Recargar resultados después de actualizar
+    await fetchTodayResults(currentBankId);
   };
 
   const deleteResult = async (item) => {
@@ -374,9 +382,6 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
         return;
       }
       setTodayResults(prev => prev.filter(r => r.id !== item.id));
-      
-      // Actualizar cache
-      await updateCacheData('todayResults');
       return;
     }
     Alert.alert('Confirmar', '¿Eliminar este resultado?', [
@@ -388,9 +393,6 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
           return;
         }
         setTodayResults(prev => prev.filter(r => r.id !== item.id));
-        
-        // Actualizar cache
-        await updateCacheData('todayResults');
       }}
     ]);
   };
@@ -418,16 +420,14 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
       hasErrors = true;
       errorMessages.push('- Seleccionar horario');
     } else {
-      // Validar que el horario pertenece al banco actual (seguridad)
-      const isValidSchedule = cache.schedules?.some(
-        s => s.id === selectedHorario && s.loteria?.id_banco === cacheBankId
-      );
+      // Validar que el horario es uno de los disponibles (seguridad básica)
+      const isValidSchedule = horarioOptions.some(h => h.value === selectedHorario);
       
       if (!isValidSchedule) {
         setErrors(prev => ({ ...prev, horario: true }));
         hasErrors = true;
-        errorMessages.push('- Horario no válido para este banco');
-        console.error('Security validation failed: schedule does not belong to current bank');
+        errorMessages.push('- Horario no válido');
+        console.error('Security validation failed: schedule not in available options');
       }
     }
 
@@ -522,26 +522,11 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
       result: false
     });
 
-    // Recargar lista de hoy usando cache
-    await updateCacheData('todayResults');
+    // Recargar lista de resultados de hoy
+    await fetchTodayResults(currentBankId);
   };
 
-  // Función de refresh optimizada para ambos roles
-  const handleRefresh = async () => {
-    try {
-      setLoadingResults(true);
-      // Actualizar datos usando las funciones del cache context
-      await Promise.all([
-        fetchTodayResults(),
-        fetchLotteries(),
-        fetchSchedules()
-      ]);
-    } catch (error) {
-      console.error('Error refreshing data:', error);
-    } finally {
-      setLoadingResults(false);
-    }
-  };
+
 
   return (
     <View style={[styles.container, commonStyles.container]}>
@@ -562,8 +547,8 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={cacheRefreshing || loadingResults}
-            onRefresh={cacheOnRefresh}
+            refreshing={refreshing || loadingResults}
+            onRefresh={handleRefresh}
             colors={isDarkMode ? ['#3498db'] : ['#27AE60']}
             tintColor={isDarkMode ? '#3498db' : '#27AE60'}
           />
@@ -722,7 +707,7 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
-        role={cacheUserRole}
+        role={userRole}
       />
     </View>
   );

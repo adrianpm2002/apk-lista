@@ -3,8 +3,6 @@ import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, TextI
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCache } from '../contexts/CacheContext';
-import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import DropdownPicker from '../components/DropdownPicker';
@@ -22,10 +20,9 @@ const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
 };
 
 const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
-  const { cache, userRole: cacheUserRole, updateCacheData } = useCache();
-  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('numberLimits');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [role, setRole] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Estados de modales
   const [limitedNumberModalVisible, setLimitedNumberModalVisible] = useState(false);
@@ -247,6 +244,24 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
 
   useEffect(() => { loadNumerosLimitados(true); }, [bankId]);
   useEffect(() => { loadLimitesNumeros(true); }, [bankId]);
+
+  // ========== REFRESH FUNCTION ==========
+  const handleRefresh = async () => {
+    if (!bankId) return;
+    
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadNumerosLimitados(true),
+        loadLimitesNumeros(true),
+        loadActives()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Cargar jugadas activas globales
   const loadActives = useCallback(async () => {
@@ -573,8 +588,8 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
                 keyExtractor={i => i.id.toString()}
                 refreshControl={
                   <RefreshControl
-                    refreshing={cacheUserRole === 'admin' ? cacheRefreshing : false}
-                    onRefresh={cacheUserRole === 'admin' ? cacheOnRefresh : undefined}
+                    refreshing={role === 'admin' ? refreshing : false}
+                    onRefresh={role === 'admin' ? handleRefresh : undefined}
                     colors={['#27AE60']}
                     tintColor="#27AE60"
                   />
@@ -618,8 +633,8 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
                 keyExtractor={i=> i.id.toString()}
                 refreshControl={
                   <RefreshControl
-                    refreshing={cacheUserRole === 'admin' ? cacheRefreshing : false}
-                    onRefresh={cacheUserRole === 'admin' ? cacheOnRefresh : undefined}
+                    refreshing={role === 'admin' ? refreshing : false}
+                    onRefresh={role === 'admin' ? handleRefresh : undefined}
                     colors={['#27AE60']}
                     tintColor="#27AE60"
                   />

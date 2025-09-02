@@ -8,8 +8,6 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '../supabaseClient';
 import InputField from '../components/InputField';
 import { SideBar, SideBarToggle } from '../components/SideBar';
-import { useCache } from '../contexts/CacheContext';
-import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
@@ -55,30 +53,27 @@ const ManageLotteriesScreen = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
-  const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData, fetchLotteries: cacheFetchLotteries, fetchSchedules: cacheFetchSchedules } = useCache();
-  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('lotteries');
-  
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   
   // Crear estilos adaptativos para modo oscuro
   const commonStyles = createCommonDarkStyles(isDarkMode);
   const formStyles = createFormDarkStyles(isDarkMode);
   
-  // Inicializar con datos del cache
-  const [lotteries, setLotteries] = useState(cache.lotteries || []);
+  // Estados locales
+  const [lotteries, setLotteries] = useState([]);
   const [newLottery, setNewLottery] = useState('');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
   const [loading, setLoading] = useState(false);
-  // No loading inicial si hay datos en cache
-  const [initialLoading, setInitialLoading] = useState(!(cache.lotteries && cache.lotteries.length > 0));
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   
   // Estados para gestión de horarios
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
   const [selectedLottery, setSelectedLottery] = useState(null);
-  // Inicializar schedules con cache también
-  const [schedules, setSchedules] = useState(cache.schedules || []);
+  // Inicializar schedules
+  const [schedules, setSchedules] = useState([]);
   const [newSchedule, setNewSchedule] = useState({
     name: '',
     startTime: '12:00',
@@ -135,76 +130,133 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
     return date;
   };
 
-  // Sincronizar con cache
-  useEffect(() => {
-    if (cache.lotteries) {
-      setLotteries(cache.lotteries);
-    }
-    if (cache.schedules) {
-      setSchedules(cache.schedules);
-    }
-  }, [cache.lotteries, cache.schedules, cacheBankId, initialLoading]);
-
-  // Nueva función que usa cache primero
-  const fetchLotteriesFromCache = async () => {
-    if (!cacheBankId) {
-      console.log('No bank ID available for fetching lotteries');
-      setInitialLoading(false);
-      return;
-    }
-    
+  // ========== FETCH FUNCTIONS ==========
+  const fetchUserProfile = async () => {
     try {
-      setLoading(true);
-      await cacheFetchLotteries();
-      await cacheFetchSchedules(); // También cargar horarios
-      setInitialLoading(false);
-    } catch (error) {
-      console.error('Error fetching lotteries from cache:', error);
-      setInitialLoading(false);
-    } finally {
-      setLoading(false);
-    }
-  };
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-  // Función legacy - mantener para compatibilidad
-  const fetchLotteries = async (forceRefresh = false) => {
-    if (!cacheBankId) {
-      console.log('No bank ID available for fetching lotteries');
-      setInitialLoading(false);
-      return;
-    }
-    
-    try {
-      setLoading(true);
-
-      const { data, error } = await supabase
-        .from('loteria')
-        .select('*')
-        .eq('id_banco', cacheBankId)
-        .order('nombre');
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('role, id_banco')
+        .eq('id', user.id)
+        .maybeSingle();
 
       if (error) {
-        console.error('Error fetching lotteries:', error);
-        Alert.alert('Error', 'No se pudieron cargar las loterías');
+        console.error('Error fetching user profile:', error);
         return;
       }
 
-      console.log('Fetched lotteries:', data);
-      setLotteries(data || []);
-      // Actualizar cache
-      updateCacheData('lotteries', data || []);
-      setInitialLoading(false);
+      if (profile) {
+        setUserRole(profile.role);
+        const bankId = profile.role === 'admin' ? user.id : profile.id_banco;
+        setCurrentBankId(bankId);
+      }
     } catch (error) {
-      console.error('Error general fetching lotteries:', error);
-      Alert.alert('Error', 'Error general al cargar las loterías');
-      setInitialLoading(false);
+      console.error('Error in fetchUserProfile:', error);
+    }
+  };
+
+  const fetchLotteriesData = async () => {
+    if (!currentBankId) return;
+    
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('loteria')
+        .select('*')
+        .eq('id_banco', currentBankId)
+        .order('nombre', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching lotteries:', error);
+        return;
+      }
+
+      setLotteries(data || []);
+    } catch (error) {
+      console.error('Error in fetchLotteries:', error);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchSchedulesData = async () => {
+    if (!currentBankId) return;
+    
+    try {
+      // Primero obtenemos las loterías del banco
+      const { data: lotteries, error: lotteriesError } = await supabase
+        .from('loteria')
+        .select('id')
+        .eq('id_banco', currentBankId);
+
+      if (lotteriesError) {
+        console.error('Error fetching lotteries for schedules:', lotteriesError);
+        return;
+      }
+
+      if (!lotteries || lotteries.length === 0) {
+        setSchedules([]);
+        return;
+      }
+
+      // Luego obtenemos los horarios de esas loterías
+      const lotteryIds = lotteries.map(l => l.id);
+      const { data, error } = await supabase
+        .from('horario')
+        .select('*')
+        .in('id_loteria', lotteryIds)
+        .order('hora_inicio', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching schedules:', error);
+        return;
+      }
+
+      setSchedules(data || []);
+    } catch (error) {
+      console.error('Error in fetchSchedules:', error);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchLotteriesData(), fetchSchedulesData()]);
+    setRefreshing(false);
+  };
+
+  // Cargar datos al montar el componente (optimizado)
+  useEffect(() => {
+    const timeoutId = setTimeout(fetchUserProfile, 10);
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  // Cargar loterias y horarios cuando tengamos bankId
+  useEffect(() => {
+    if (currentBankId) {
+      fetchLotteriesData();
+      fetchSchedulesData();
+    }
+    // Siempre detener el loading inicial después de intentar cargar el perfil
+    setInitialLoading(false);
+  }, [currentBankId]);
+
+  // Refrescar datos cuando se regresa a la pantalla
+  useFocusEffect(
+    React.useCallback(() => {
+      if (currentBankId) {
+        fetchLotteriesData();
+        fetchSchedulesData();
+      }
+    }, [currentBankId])
+  );
+
+
+
+
   const handleRefresh = async () => {
-    await fetchLotteriesFromCache();
+    await onRefresh();
   };
 
   const handleAddLottery = async () => {
@@ -237,9 +289,8 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
 
       setNewLottery('');
       
-      // Actualizar cache y UI automáticamente
-      await cacheFetchLotteries();
-      await updateCacheData('lotteries');
+      // Recargar datos
+      await fetchLotteriesData();
       
       Alert.alert('Éxito', 'Lotería agregada correctamente');
     } catch (error) {
@@ -281,11 +332,9 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
             return;
           }
 
-          // Actualizar cache y UI automáticamente
-          await cacheFetchLotteries();
-          
-          // Forzar actualización del estado local inmediatamente
-          setLotteries(prevLotteries => prevLotteries.filter(lottery => lottery.id !== id));
+          // Recargar datos
+          await fetchLotteriesData();
+          await fetchSchedulesData();
           
           Alert.alert('Éxito', 'Lotería eliminada correctamente');
         } catch (error) {
@@ -299,7 +348,7 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
   const openScheduleModal = (lottery) => {
     setSelectedLottery(lottery);
     setScheduleModalVisible(true);
-    refreshSchedulesDirectly(lottery.id);
+    fetchSchedulesForLottery(lottery.id);
   };
 
   const closeScheduleModal = () => {
@@ -309,27 +358,11 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
     setNewSchedule({ name: '', startTime: '12:00', endTime: '13:00' });
     setEditingSchedule(null);
     
-    // Resetear time pickers
-    setStartTime(new Date());
-    setEndTime(new Date());
-    setShowStartPicker(false);
-    setShowEndPicker(false);
+    // Refrescar la vista previa de horarios después de cerrar el modal
+    fetchSchedulesData();
   };
 
-  const fetchSchedules = async (lotteryId) => {
-    try {
-      await cacheFetchSchedules();
-      // Filtrar horarios de la lotería específica
-      const lotterySchedules = cache.schedules?.filter(schedule => schedule.id_loteria === lotteryId) || [];
-      setSchedules(lotterySchedules);
-    } catch (error) {
-      console.error('Error fetching schedules:', error);
-      Alert.alert('Error', 'No se pudieron cargar los horarios');
-    }
-  };
-
-  // Función para obtener horarios directamente de la base de datos
-  const refreshSchedulesDirectly = async (lotteryId) => {
+  const fetchSchedulesForLottery = async (lotteryId) => {
     try {
       const { data, error } = await supabase
         .from('horario')
@@ -338,13 +371,13 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
         .order('hora_inicio', { ascending: true });
 
       if (error) {
-        console.error('Error fetching schedules directly:', error);
+        console.error('Error fetching schedules for lottery:', error);
         return;
       }
 
       setSchedules(data || []);
     } catch (error) {
-      console.error('Error general fetching schedules directly:', error);
+      console.error('Error general fetching schedules for lottery:', error);
     }
   };
 
@@ -404,10 +437,11 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
       setEndTime(new Date());
       setEditingSchedule(null);
       
-      // Actualizar horarios directamente desde la base de datos
-      await refreshSchedulesDirectly(selectedLottery.id);
-      // También actualizar cache para mantener consistencia
-      await cacheFetchSchedules();
+      // Actualizar horarios del modal
+      await fetchSchedulesForLottery(selectedLottery.id);
+      
+      // Actualizar vista previa de horarios
+      await fetchSchedulesData();
     } catch (error) {
       console.error('Error general with schedule:', error);
       Alert.alert('Error', 'Error general al procesar el horario');
@@ -444,10 +478,11 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
             return;
           }
 
-          // Actualizar horarios directamente desde la base de datos
-          await refreshSchedulesDirectly(selectedLottery.id);
-          // También actualizar cache para mantener consistencia
-          await cacheFetchSchedules();
+          // Actualizar horarios del modal
+          await fetchSchedulesForLottery(selectedLottery.id);
+          
+          // Actualizar vista previa de horarios
+          await fetchSchedulesData();
           
           Alert.alert('Éxito', 'Horario eliminado correctamente');
         } catch (error) {
@@ -495,9 +530,12 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
     return '00:00';
   };
 
-  // Optimized focus refresh con cache
+  // Optimized focus refresh sin cache
   const focusRefresh = useCallback(() => {
-    if (currentBankId) fetchLotteriesFromCache();
+    if (currentBankId) {
+      fetchLotteriesData();
+      fetchSchedulesData();
+    }
   }, [currentBankId]);
 
   useFocusEffect(
@@ -566,8 +604,8 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
             keyExtractor={(item) => item.id.toString()}
             refreshControl={
               <RefreshControl
-                refreshing={cacheRefreshing}
-                onRefresh={cacheOnRefresh}
+                refreshing={refreshing}
+                onRefresh={onRefresh}
                 colors={[isDarkMode ? '#3498db' : '#2ecc71']}
                 tintColor={isDarkMode ? '#3498db' : '#2ecc71'}
               />

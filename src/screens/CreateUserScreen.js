@@ -5,7 +5,6 @@ import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { adminResetPasswordByUsername } from '../utils/adminUtils';
 import { createShadowStyle } from '../utils/shadowUtils';
-import { useCache } from '../contexts/CacheContext';
 import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
 import { useDarkMode } from '../contexts/DarkModeContext';
 
@@ -42,8 +41,8 @@ const CustomButton = ({ title, onPress, disabled = false, color = '#007AFF', sty
 );
 
 const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
-  // Cache context para obtener el rol del usuario de forma consistente
-  const { userRole: cacheUserRole } = useCache();
+  // Estados locales
+  const [userRole, setUserRole] = useState(null);
   
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   
@@ -68,7 +67,6 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   const [selectedGainId, setSelectedGainId] = useState(null); // id_precio seleccionado
   const [selectedGainDetail, setSelectedGainDetail] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
   const [updatingUsers, setUpdatingUsers] = useState(new Set()); // Para tracking de actualizaciones
   const [activePlayTypes, setActivePlayTypes] = useState([]); // jugadas activas del banco
@@ -84,6 +82,30 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   // Estado para modal de ganancia
   const [gainModalVisible, setGainModalVisible] = useState(false);
   const [gainTargetUser, setGainTargetUser] = useState(null);
+
+  // Función para obtener el perfil del usuario actual
+  const fetchUserProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+        
+        const { data: profile } = await supabase.from('profiles').select('role, id_banco').eq('id', user.id).single();
+        if (profile) {
+          if (profile.role !== 'admin' && profile.role !== 'collector') {
+            Alert.alert('No Autorizado', 'Solo administradores o colectores autorizados');
+            return;
+          }
+          
+          setUserRole(profile.role);
+          const bankId = profile.role === 'admin' ? user.id : profile.id_banco;
+          setCurrentBankId(bankId);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
 
   const createHierarchicalStructure = useCallback((userData) => {
     const hierarchical = [];
@@ -155,33 +177,8 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   }, [currentBankId, userRole, currentUserId, createHierarchicalStructure]);
 
   useEffect(() => {
-    const fetchUserRole = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setCurrentUserId(user.id);
-        
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role, id_banco')
-          .eq('id', user.id)
-          .single();
-        
-        if (data) {
-          if (data.role !== 'admin' && data.role !== 'collector') {
-            Alert.alert('No Autorizado', 'Solo administradores o colectores autorizados');
-            return;
-          }
-          
-          setUserRole(data.role);
-          const bankId = data.role === 'admin' ? user.id : data.id_banco;
-          setCurrentBankId(bankId);
-        } else if (error) {
-          console.error('Error cargando rol:', error);
-        }
-      }
-    };
-
-    fetchUserRole();
+    const timeoutId = setTimeout(fetchUserProfile, 10);
+    return () => clearTimeout(timeoutId);
   }, []);
 
   useEffect(() => {
@@ -785,7 +782,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     const isExpanded = expandedCollectors.has(item.id);
     const isUpdating = updatingUsers.has(item.id);
     const parentCollectorInactive = isListero && item.id_collector ? (users.find(u => u.id === item.id_collector)?.activo === false) : false;
-    const canToggleActive = cacheUserRole !== 'collector' || (cacheUserRole === 'collector' && isListero && item.id_collector === currentUserId);
+    const canToggleActive = userRole !== 'collector' || (userRole === 'collector' && isListero && item.id_collector === currentUserId);
     
     // No renderizar administradores
     if (isAdmin || item.role === 'admin') {
@@ -817,7 +814,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
             </Text>
           </TouchableOpacity>
           
-          {cacheUserRole === 'admin' && (
+          {userRole === 'admin' && (
             <View style={styles.buttonRow}>
               <View style={styles.toggleContainer}>
                 <Switch
@@ -929,7 +926,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                 <Text style={styles.buttonText}>Editar</Text>
               </TouchableOpacity>
               
-              {cacheUserRole === 'collector' && (
+              {userRole === 'collector' && (
                 <TouchableOpacity
                   style={styles.gainButton}
                   onPress={() => openGainModal(item)}
@@ -938,7 +935,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                 </TouchableOpacity>
               )}
               
-              {cacheUserRole === 'admin' && (
+              {userRole === 'admin' && (
                 <TouchableOpacity
                   style={styles.resetButton}
                   onPress={() => openResetPasswordModal(item)}
@@ -1192,7 +1189,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
-        role={cacheUserRole}
+        role={userRole}
       />
     </View>
   );

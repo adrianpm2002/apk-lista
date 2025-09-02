@@ -18,8 +18,6 @@ import DataTable from '../components/DataTable';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import { getDailyStats, getPlaysDetails, getTotalRecogidoHistorico, getTotalPagadoHistorico } from '../services/listeroStatsService';
-import { useCache } from '../contexts/CacheContext';
-import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { useDarkMode } from '../contexts/DarkModeContext';
@@ -28,28 +26,22 @@ const { width: screenWidth } = Dimensions.get('window');
 
 const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
-  const [showDebug, setShowDebug] = useState(false);
   
   return (
-    <ScreenWrapper showCacheStatus={showDebug} isDarkMode={isDarkMode}>
+    <ScreenWrapper isDarkMode={isDarkMode}>
       <StatisticsContent
         navigation={navigation}
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
-        showDebug={showDebug}
-        setShowDebug={setShowDebug}
       />
     </ScreenWrapper>
   );
 };
 
-const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, onModeVisibilityChange, showDebug, setShowDebug }) => {
-  // Usar el contexto de forma consolidada (ahora garantizado por ScreenWrapper)
-  const { cache, userRole: cacheUserRole } = useCache();
-  
-  // Solo usar pull to refresh si el contexto está disponible
-  const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('statistics');
+const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, onModeVisibilityChange }) => {
+  // Estado local para bank ID
+  const [currentBankId, setCurrentBankId] = useState(null);
   
   // Estados para filtros
   const [selectedPeriod, setSelectedPeriod] = useState('last7days');
@@ -121,25 +113,35 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
     loadInitialData();
   }, []);
 
-  // Obtener rol del usuario para la sidebar
+  // Obtener rol del usuario y bank ID para la sidebar (en background)
   useEffect(() => {
-    const fetchUserRole = async () => {
-      const { supabase } = await import('../supabaseClient');
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single();
+    const fetchUserProfile = async () => {
+      try {
+        const { supabase } = await import('../supabaseClient');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('role, id_banco')
+            .eq('id', user.id)
+            .single();
 
-        if (data) {
-          setUserRole(data.role);
+          if (data && !error) {
+            setUserRole(data.role);
+            // Si es admin (banco), su propio ID es el banco ID, si es colector usa id_banco
+            const bankId = data.role === 'admin' ? user.id : data.id_banco;
+            setCurrentBankId(bankId);
+          }
         }
+      } catch (error) {
+        console.warn('Error cargando perfil de usuario:', error);
+        // No bloquear la interfaz por este error
       }
     };
 
-    fetchUserRole();
+    // Cargar el perfil después de un pequeño delay para no bloquear la UI inicial
+    const timeoutId = setTimeout(fetchUserProfile, 50);
+    return () => clearTimeout(timeoutId);
   }, []);
 
   // Cargar datos cuando cambian los filtros
@@ -254,24 +256,18 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   // noop: modal eliminado
   };
 
-  // Manejar refresh - usar cache si es admin, fallback al método original
+  // Manejar refresh - simplificado sin cache
   const onRefresh = useCallback(async () => {
-    if (cacheUserRole === 'admin') {
-      // Usar el refresh del cache para admins
-      await cacheOnRefresh();
-    } else {
-      // Usar el método original para otros roles
-      setRefreshing(true);
-      try {
-        await loadAllStats();
-        await loadServiceData(startDate, endDate);
-      } catch (error) {
-        Alert.alert('Error', 'No se pudieron actualizar las estadísticas');
-      } finally {
-        setRefreshing(false);
-      }
+    setRefreshing(true);
+    try {
+      await loadAllStats();
+      await loadServiceData(startDate, endDate);
+    } catch (error) {
+      Alert.alert('Error', 'No se pudieron actualizar las estadísticas');
+    } finally {
+      setRefreshing(false);
     }
-  }, [cacheUserRole, cacheOnRefresh, loadAllStats, startDate, endDate]);
+  }, [loadAllStats, startDate, endDate]);
 
   const loadServiceData = async (start, end) => {
     try{
@@ -430,17 +426,6 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
         <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>
           Estadísticas
         </Text>
-        
-        {__DEV__ && (
-          <TouchableOpacity
-            style={[styles.debugButton, isDarkMode && styles.debugButtonDark, showDebug && styles.debugButtonActive]}
-            onPress={() => setShowDebug(!showDebug)}
-          >
-            <Text style={[styles.debugButtonText, isDarkMode && styles.debugButtonTextDark]}>
-              🔧
-            </Text>
-          </TouchableOpacity>
-        )}
         
         <TouchableOpacity
           style={[styles.filterButton, isDarkMode && styles.filterButtonDark]}
@@ -916,7 +901,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
         style={styles.content}
         refreshControl={
           <RefreshControl
-            refreshing={cacheUserRole === 'admin' ? cacheRefreshing : refreshing}
+            refreshing={refreshing}
             onRefresh={onRefresh}
             colors={['#27AE60']}
             tintColor="#27AE60"
@@ -1041,31 +1026,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   filterButtonTextDark: {
-    color: '#ecf0f1',
-  },
-  debugButton: {
-    backgroundColor: '#f8f9fa',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#dee2e6',
-    marginRight: 8,
-  },
-  debugButtonDark: {
-    backgroundColor: '#34495e',
-    borderColor: '#34495e',
-  },
-  debugButtonActive: {
-    backgroundColor: '#007bff',
-    borderColor: '#007bff',
-  },
-  debugButtonText: {
-    color: '#495057',
-    fontWeight: '500',
-    fontSize: 16,
-  },
-  debugButtonTextDark: {
     color: '#ecf0f1',
   },
   exportButton: {

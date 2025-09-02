@@ -21,8 +21,6 @@ export const DarkModeProvider = ({ children }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  console.log('DarkModeProvider initialized'); // Debug log
-
   // Cargar preferencia de modo oscuro al inicializar
   useEffect(() => {
     const loadDarkModePreference = async () => {

@@ -1,28 +1,23 @@
 import { useState, useCallback } from 'react';
-import { useCache } from '../contexts/CacheContext';
 
-export const usePullToRefresh = (dataType) => {
+export const usePullToRefresh = (onRefreshCallback) => {
   const [refreshing, setRefreshing] = useState(false);
   
-  // Obtener el contexto de cache de forma segura
-  const cacheContext = useCache();
-  const { updateCacheData } = cacheContext;
-  
   const onRefresh = useCallback(async () => {
-    if (!updateCacheData) {
-      console.log('Pull to refresh not available without cache context');
+    if (!onRefreshCallback) {
+      console.log('Pull to refresh: no callback provided');
       return;
     }
     
     setRefreshing(true);
     try {
-      await updateCacheData(dataType);
+      await onRefreshCallback();
     } catch (error) {
-      console.error(`Error refreshing ${dataType}:`, error);
+      console.error('Error during refresh:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [dataType, updateCacheData]);
+  }, [onRefreshCallback]);
 
   return { refreshing, onRefresh };
 };

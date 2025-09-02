@@ -4,7 +4,6 @@ import { Formik } from 'formik';
 import { supabase } from '../supabaseClient';
 import Svg, { Path, G } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
-import { useCache } from '../contexts/CacheContext';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 
@@ -17,8 +16,6 @@ const LoginScreen = ({ navigation }) => {
 };
 
 const LoginContent = ({ navigation }) => {
-  // Usar el contexto de forma segura
-  const { setUserRole, setCurrentBankId, preloadAllData } = useCache();
   const [isPreloading, setIsPreloading] = useState(false);
   
   const validateForm = (values) => {
@@ -111,30 +108,17 @@ const LoginContent = ({ navigation }) => {
         return;
       }
 
-      // Configurar el contexto global con la información del usuario
-      try {
-        setUserRole(userRole);
-        setCurrentBankId(bankId);
-        
-        // Esperar un tick para que se actualice el contexto antes de precargar
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } catch (error) {
-        console.error('Error updating cache context:', error);
-      }
-
-      // Si es admin o collector, precargar todos los datos
+      // Configurar información del usuario en el storage local si es necesario
+      // (Para este ejemplo, navegamos directamente sin precarga)
+      
+      // Si es admin o collector, navegar a Statistics
       if (userRole === 'admin' || userRole === 'collector') {
         setIsPreloading(true);
-        // Iniciar la precarga en segundo plano
-        preloadAllData().then(() => {
+        // Navegación inmediata para mejor UX
+        setTimeout(() => {
           setIsPreloading(false);
           navigation.navigate('Statistics');
-        }).catch(error => {
-          console.error('Error en precarga de datos:', error);
-          setIsPreloading(false);
-          // Navegar de todas formas si falla la precarga
-          navigation.navigate('Statistics');
-        });
+        }, 100); // Reducido a 100ms
       } else if (userRole === 'listero') {
         navigation.navigate('MainApp');
       } else {
@@ -165,10 +149,10 @@ const LoginContent = ({ navigation }) => {
             style={styles.loadingContent}
             accessible={true}
             accessibilityRole="alert"
-            accessibilityLabel="Precargando datos del sistema"
+            accessibilityLabel="Iniciando sesión"
           >
             <ActivityIndicator size="large" color="#27AE60" />
-            <Text style={styles.loadingText}>Precargando datos del sistema...</Text>
+            <Text style={styles.loadingText}>Iniciando sesión...</Text>
           </View>
         </View>
       ) : (
