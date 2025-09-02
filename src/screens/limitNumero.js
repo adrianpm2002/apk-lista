@@ -918,6 +918,7 @@ const styles = StyleSheet.create({
     borderRadius: Platform.OS === 'android' ? 16 : 14, 
     justifyContent: 'center', 
     alignItems: 'center',
+    ...(Platform.OS === 'android' && { marginLeft: -8 }),
     ...createShadowStyle(2),
   },
   addBtnText: { 

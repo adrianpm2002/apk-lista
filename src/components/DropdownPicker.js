@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, FlatList } from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable, FlatList, Platform } from 'react-native';
 import { createShadowStyle, shadowPresets } from '../utils/shadowUtils';
 
 const DropdownPicker = ({ 
@@ -10,7 +10,8 @@ const DropdownPicker = ({
   placeholder = "Seleccionar...",
   style,
   hasError = false,
-  disabled = false
+  disabled = false,
+  isDarkMode = false
 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -33,10 +34,11 @@ const DropdownPicker = ({
 
   return (
     <View style={[styles.container, style]}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, isDarkMode && styles.labelDark]}>{label}</Text>
       <Pressable
         style={({ pressed }) => [
           styles.dropdown,
+          isDarkMode && styles.dropdownDark,
           hasError && styles.dropdownError,
           disabled && styles.dropdownDisabled,
           pressed && !disabled && styles.dropdownPressed
@@ -45,12 +47,14 @@ const DropdownPicker = ({
       >
         <Text style={[
           styles.dropdownText,
+          isDarkMode && styles.dropdownTextDark,
           !value && styles.placeholder,
+          !value && isDarkMode && styles.placeholderDark,
           hasError && styles.dropdownTextError
         ]}>
           {value || placeholder}
         </Text>
-        <Text style={styles.arrow}>▼</Text>
+        <Text style={[styles.arrow, isDarkMode && styles.arrowDark]}>▼</Text>
       </Pressable>
 
       <Modal
@@ -63,8 +67,8 @@ const DropdownPicker = ({
           style={styles.overlay}
           onPress={() => setIsVisible(false)}
         >
-          <View style={styles.modal}>
-            <Text style={styles.modalTitle}>{label}</Text>
+          <View style={[styles.modal, isDarkMode && styles.modalDark]}>
+            <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>{label}</Text>
             <FlatList
               data={options}
               renderItem={renderOption}
@@ -88,6 +92,7 @@ const styles = StyleSheet.create({
     color: '#2D5016',
     marginBottom: 6,
     marginLeft: 4,
+    ...(Platform.OS === 'android' && { marginTop: 2 }),
   },
   dropdown: {
     backgroundColor: '#FFFFFF',
@@ -178,6 +183,30 @@ const styles = StyleSheet.create({
   optionPressed: {
     backgroundColor: '#E8F5E8',
     opacity: 0.9,
+  },
+  // Dark mode styles
+  labelDark: {
+    color: '#ecf0f1',
+  },
+  dropdownDark: {
+    backgroundColor: '#34495e',
+    borderColor: '#566175',
+  },
+  dropdownTextDark: {
+    color: '#ecf0f1',
+  },
+  placeholderDark: {
+    color: '#7f8c8d',
+  },
+  arrowDark: {
+    color: '#ecf0f1',
+  },
+  modalDark: {
+    backgroundColor: '#2c3e50',
+  },
+  modalTitleDark: {
+    color: '#ecf0f1',
+    borderBottomColor: '#34495e',
   },
 });
 

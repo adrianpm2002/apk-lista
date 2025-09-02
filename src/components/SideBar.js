@@ -251,6 +251,105 @@ const configOptions = isDataReady && role ? (roleOptionsMap[role] || []) : [];
     }
   };
 
+  // Estados para configuraciones
+  const [currentFontSize, setCurrentFontSize] = useState('mediano'); // 'pequeno', 'mediano', 'grande'
+  const [keepSessionActive, setKeepSessionActive] = useState(false);
+
+  // Función para manejar "Mantener sesión iniciada"
+  const handleKeepSessionPress = () => {
+    Alert.alert(
+      'Mantener sesión iniciada',
+      `Actualmente: ${keepSessionActive ? 'Activado' : 'Desactivado'}`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: keepSessionActive ? 'Desactivar' : 'Activar', 
+          onPress: () => {
+            setKeepSessionActive(!keepSessionActive);
+            console.log(`Sesión permanente ${!keepSessionActive ? 'activada' : 'desactivada'}`);
+          }
+        }
+      ]
+    );
+  };
+
+  // Función para manejar "Tamaño de letra"
+  const handleFontSizePress = () => {
+    const fontSizeLabels = {
+      pequeno: 'Pequeño',
+      mediano: 'Mediano',
+      grande: 'Grande'
+    };
+
+    Alert.alert(
+      'Tamaño de letra',
+      `Actual: ${fontSizeLabels[currentFontSize]}\n\nSelecciona el tamaño de letra:`,
+      [
+        { 
+          text: 'Pequeño', 
+          onPress: () => {
+            setCurrentFontSize('pequeno');
+            console.log('Tamaño pequeño seleccionado');
+            // Aquí se aplicaría el cambio global
+          }
+        },
+        { 
+          text: 'Mediano', 
+          onPress: () => {
+            setCurrentFontSize('mediano');
+            console.log('Tamaño mediano seleccionado');
+          }
+        },
+        { 
+          text: 'Grande', 
+          onPress: () => {
+            setCurrentFontSize('grande');
+            console.log('Tamaño grande seleccionado');
+          }
+        },
+        { text: 'Cancelar', style: 'cancel' }
+      ]
+    );
+  };
+
+  // Función para manejar "Patrón de seguridad"
+  const handleSecurityPatternPress = () => {
+    Alert.alert(
+      'Patrón de seguridad',
+      '¿Qué deseas hacer?',
+      [
+        { 
+          text: 'Configurar nuevo patrón', 
+          onPress: () => {
+            Alert.alert(
+              'Configurar patrón',
+              'Funcionalidad en desarrollo. Permitirá configurar un patrón de 9 puntos para desbloquear la aplicación.',
+              [{ text: 'OK' }]
+            );
+          }
+        },
+        { 
+          text: 'Desactivar patrón', 
+          onPress: () => {
+            Alert.alert(
+              'Desactivar patrón',
+              '¿Estás seguro de que deseas desactivar el patrón de seguridad?',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                { 
+                  text: 'Desactivar', 
+                  style: 'destructive',
+                  onPress: () => console.log('Patrón desactivado')
+                }
+              ]
+            );
+          }
+        },
+        { text: 'Cancelar', style: 'cancel' }
+      ]
+    );
+  };
+
   // Abre la vista de Modos Visibles dentro del mismo modal de Configuración
   const handleModeVisibilityPress = () => {
     setSettingsView('modes');
@@ -290,23 +389,37 @@ const configOptions = isDataReady && role ? (roleOptionsMap[role] || []) : [];
             <>
               <View style={styles.settingsContainer}>
                 {/* Mantener sesión iniciada */}
-                <Pressable style={styles.settingOption}>
+                <Pressable style={styles.settingOption} onPress={handleKeepSessionPress}>
                   <Text style={styles.settingIcon}>🔐</Text>
-                  <Text style={styles.settingText}>Mantener sesión iniciada</Text>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingText}>Mantener sesión iniciada</Text>
+                    <Text style={styles.settingStatus}>
+                      {keepSessionActive ? 'Activado' : 'Desactivado'}
+                    </Text>
+                  </View>
                   <Text style={styles.settingArrow}>▶</Text>
                 </Pressable>
 
                 {/* Tamaño de letra */}
-                <Pressable style={styles.settingOption}>
+                <Pressable style={styles.settingOption} onPress={handleFontSizePress}>
                   <Text style={styles.settingIcon}>🔤</Text>
-                  <Text style={styles.settingText}>Tamaño de letra</Text>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingText}>Tamaño de letra</Text>
+                    <Text style={styles.settingStatus}>
+                      {currentFontSize === 'pequeno' ? 'Pequeño' : 
+                       currentFontSize === 'mediano' ? 'Mediano' : 'Grande'}
+                    </Text>
+                  </View>
                   <Text style={styles.settingArrow}>▶</Text>
                 </Pressable>
 
                 {/* Patrón de seguridad */}
-                <Pressable style={styles.settingOption}>
+                <Pressable style={styles.settingOption} onPress={handleSecurityPatternPress}>
                   <Text style={styles.settingIcon}>🔒</Text>
-                  <Text style={styles.settingText}>Patrón de seguridad</Text>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={styles.settingText}>Patrón de seguridad</Text>
+                    <Text style={styles.settingStatus}>No configurado</Text>
+                  </View>
                   <Text style={styles.settingArrow}>▶</Text>
                 </Pressable>
 
@@ -1044,10 +1157,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   settingText: {
-    flex: 1,
     fontSize: 16,
     color: '#2c3e50',
     fontWeight: '500',
+  },
+  settingTextContainer: {
+    flex: 1,
+  },
+  settingStatus: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginTop: 2,
+    fontWeight: '400',
   },
   settingArrow: {
     fontSize: 12,

@@ -576,6 +576,7 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
           options={lotteryOptions}
           placeholder="Seleccionar lotería"
           hasError={errors.lottery}
+          isDarkMode={isDarkMode}
         />
 
         <DropdownPicker
@@ -591,6 +592,7 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
           placeholder="Seleccionar horario"
           disabled={!selectedLottery}
           hasError={errors.horario}
+          isDarkMode={isDarkMode}
         />
 
         <InputField
@@ -606,6 +608,7 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
           placeholder="Ej: 2538666 o 253 8666"
           keyboardType="numeric"
           hasError={errors.result}
+          isDarkMode={isDarkMode}
         />
 
         <ActionButton
