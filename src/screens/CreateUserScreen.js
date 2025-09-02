@@ -765,43 +765,39 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           </View>
           
           {userRole === 'admin' && (
-            <View style={styles.userActions}>
-              <View style={styles.actionRow}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.editButton]}
-                  onPress={() => openEditModal(item)}
-                >
-                  <Text style={styles.actionButtonText}>✏️ Editar</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.actionButton, 
-                    item.activo ? styles.deactivateButton : styles.activateButton
-                  ]}
-                  onPress={() => handleToggleActive(item.id, item.activo)}
-                >
-                  <Text style={styles.actionButtonText}>
-                    {item.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => openEditModal(item)}
+              >
+                <Text style={styles.buttonText}>✏️ Editar</Text>
+              </TouchableOpacity>
               
-              <View style={styles.actionRow}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.deleteButton]}
-                  onPress={() => handleDelete(item.id)}
-                >
-                  <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.passwordButton]}
-                  onPress={() => openResetPasswordModal(item)}
-                >
-                  <Text style={styles.actionButtonText}>🔑 Contraseña</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={[
+                  styles.editButton,
+                  { backgroundColor: item.activo ? '#e67e22' : '#27ae60' }
+                ]}
+                onPress={() => handleToggleActive(item.id, item.activo)}
+              >
+                <Text style={styles.buttonText}>
+                  {item.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDelete(item.id)}
+              >
+                <Text style={styles.buttonText}>🗑️ Eliminar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={() => openResetPasswordModal(item)}
+              >
+                <Text style={styles.buttonText}>🔑 Contraseña</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -834,43 +830,39 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           </TouchableOpacity>
           
           {userRole === 'admin' && (
-            <View style={styles.userActions}>
-              <View style={styles.actionRow}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.editButton]}
-                  onPress={() => openEditModal(item)}
-                >
-                  <Text style={styles.actionButtonText}>✏️ Editar</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.actionButton, 
-                    item.activo ? styles.deactivateButton : styles.activateButton
-                  ]}
-                  onPress={() => handleToggleActive(item.id, item.activo)}
-                >
-                  <Text style={styles.actionButtonText}>
-                    {item.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => openEditModal(item)}
+              >
+                <Text style={styles.buttonText}>✏️ Editar</Text>
+              </TouchableOpacity>
               
-              <View style={styles.actionRow}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.deleteButton]}
-                  onPress={() => handleDelete(item.id)}
-                >
-                  <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.passwordButton]}
-                  onPress={() => openResetPasswordModal(item)}
-                >
-                  <Text style={styles.actionButtonText}>🔑 Contraseña</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={[
+                  styles.editButton,
+                  { backgroundColor: item.activo ? '#e67e22' : '#27ae60' }
+                ]}
+                onPress={() => handleToggleActive(item.id, item.activo)}
+              >
+                <Text style={styles.buttonText}>
+                  {item.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDelete(item.id)}
+              >
+                <Text style={styles.buttonText}>🗑️ Eliminar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={() => openResetPasswordModal(item)}
+              >
+                <Text style={styles.buttonText}>🔑 Contraseña</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -927,87 +919,40 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           </View>
           
           {canToggleActive && (
-            <View style={[styles.listeroActions, isOrphan && styles.userActions]}>
-              {isOrphan ? (
-                // Botones completos para listeros huérfanos
-                <View style={styles.actionRow}>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.editButton]}
-                    onPress={() => openEditModal(item)}
-                  >
-                    <Text style={styles.actionButtonText}>✏️ Editar</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.actionButton, 
-                      item.activo ? styles.deactivateButton : styles.activateButton
-                    ]}
-                    onPress={() => handleToggleActive(item.id, item.activo)}
-                  >
-                    <Text style={styles.actionButtonText}>
-                      {item.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                // Botones compactos para listeros anidados
-                <>
-                  <TouchableOpacity
-                    style={[styles.smallActionButton, styles.editButton]}
-                    onPress={() => openEditModal(item)}
-                  >
-                    <Text style={styles.smallActionButtonText}>✏️</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.smallActionButton, 
-                      item.activo ? styles.deactivateButton : styles.activateButton
-                    ]}
-                    onPress={() => handleToggleActive(item.id, item.activo)}
-                  >
-                    <Text style={styles.smallActionButtonText}>
-                      {item.activo ? '🔒' : '🔓'}
-                    </Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[styles.smallActionButton, styles.deleteButton]}
-                    onPress={() => handleDelete(item.id)}
-                  >
-                    <Text style={styles.smallActionButtonText}>🗑️</Text>
-                  </TouchableOpacity>
-                  
-                  {userRole === 'admin' && (
-                    <TouchableOpacity
-                      style={[styles.smallActionButton, styles.passwordButton]}
-                      onPress={() => openResetPasswordModal(item)}
-                    >
-                      <Text style={styles.smallActionButtonText}>🔑</Text>
-                    </TouchableOpacity>
-                  )}
-                </>
-              )}
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => openEditModal(item)}
+              >
+                <Text style={styles.buttonText}>✏️ Editar</Text>
+              </TouchableOpacity>
               
-              {isOrphan && (
-                <View style={styles.actionRow}>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.deleteButton]}
-                    onPress={() => handleDelete(item.id)}
-                  >
-                    <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
-                  </TouchableOpacity>
-                  
-                  {userRole === 'admin' && (
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.passwordButton]}
-                      onPress={() => openResetPasswordModal(item)}
-                    >
-                      <Text style={styles.actionButtonText}>🔑 Contraseña</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
+              <TouchableOpacity
+                style={[
+                  styles.editButton,
+                  { backgroundColor: item.activo ? '#e67e22' : '#27ae60' }
+                ]}
+                onPress={() => handleToggleActive(item.id, item.activo)}
+              >
+                <Text style={styles.buttonText}>
+                  {item.activo ? '🔒 Deshabilitar' : '� Habilitar'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDelete(item.id)}
+              >
+                <Text style={styles.buttonText}>🗑️ Eliminar</Text>
+              </TouchableOpacity>
+              
+              {userRole === 'admin' && (
+                <TouchableOpacity
+                  style={styles.resetButton}
+                  onPress={() => openResetPasswordModal(item)}
+                >
+                  <Text style={styles.buttonText}>🔑 Contraseña</Text>
+                </TouchableOpacity>
               )}
             </View>
           )}
@@ -1613,39 +1558,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     marginTop: 2,
-  },
-  userActions: {
-    flexDirection: 'column',
-    gap: 8,
-    marginTop: 8,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  actionButton: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 40,
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: Platform.OS === 'android' ? 12 : 12,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  activateButton: {
-    backgroundColor: '#27ae60',
-  },
-  deactivateButton: {
-    backgroundColor: '#e67e22',
-  },
-  passwordButton: {
-    backgroundColor: '#9b59b6',
   },
 });
