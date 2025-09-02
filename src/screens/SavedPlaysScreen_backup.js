@@ -50,6 +50,16 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   const loadSavedPlays = async () => {
     try {
       setIsLoading(true);
+      
+      // Obtener usuario actual
+      const { data: userRes } = await supabase.auth.getUser();
+      const uid = userRes?.user?.id;
+      if (!uid) {
+        console.error('No hay usuario autenticado');
+        setIsLoading(false);
+        return;
+      }
+
       // Construir rango local del día (00:00:00 a 23:59:59.999) SIN convertir a UTC para columnas timestamp without time zone
       const now = new Date();
       const pad = (n) => String(n).padStart(2, '0');
@@ -62,6 +72,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
       const { data, error } = await supabase
         .from('jugada')
         .select('id, id_horario, jugada, numeros, monto_unitario, monto_total, created_at, nota, horario:horario(id,nombre,hora_inicio,hora_fin,loteria:loteria(id,nombre)))')
+        .eq('id_listero', uid)  // Filtrar por usuario actual
         .gte('created_at', startStr)
         .lte('created_at', endStr)
         .order('created_at', { ascending: false });
@@ -85,23 +96,34 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         result: 'no disponible',
         timestamp: new Date(r.created_at)
       }));
-      // Resultados del día por horario
-      const { data: resultadosRows, error: resErr } = await supabase
-        .from('resultado')
-        .select('id, id_horario, numeros, created_at')
-        .gte('created_at', startStr)
-        .lte('created_at', endStr);
-      if (resErr) throw resErr;
-      const resultadosByHorario = new Map();
-      (resultadosRows||[]).forEach(r => {
-        const prev = resultadosByHorario.get(r.id_horario);
-        if (!prev) {
-          resultadosByHorario.set(r.id_horario, r.numeros);
-        } else {
-          // Mantener el más reciente: como no tenemos la anterior fecha a la mano, sobreescribir en orden; opcional: ordenar antes
-          resultadosByHorario.set(r.id_horario, r.numeros);
-        }
-      });
+      // Resultados del día por horario (filtrados por banco)
+      let resultadosByHorario = new Map();
+      if (bankId) {
+        const { data: resultadosRows, error: resErr } = await supabase
+          .from('resultado')
+          .select(`
+            id, id_horario, numeros, created_at,
+            horario:horario(id, loteria:loteria(id, id_banco))
+          `)
+          .gte('created_at', startStr)
+          .lte('created_at', endStr);
+        if (resErr) throw resErr;
+        
+        // Filtrar por banco después de la consulta
+        const filteredResults = (resultadosRows||[]).filter(r => 
+          r.horario?.loteria?.id_banco === bankId
+        );
+        
+        filteredResults.forEach(r => {
+          const prev = resultadosByHorario.get(r.id_horario);
+          if (!prev) {
+            resultadosByHorario.set(r.id_horario, r.numeros);
+          } else {
+            // Mantener el más reciente: como no tenemos la anterior fecha a la mano, sobreescribir en orden; opcional: ordenar antes
+            resultadosByHorario.set(r.id_horario, r.numeros);
+          }
+        });
+      }
 
       // Números limitados por horario
       const uniqueHorarios = Array.from(new Set(mapped.map(m => m.scheduleId).filter(Boolean)));
@@ -120,14 +142,16 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         }, new Map());
       }
 
-      // Precios según perfil
+      // Precios según perfil y filtro de banco para resultados
       let prices = DEFAULT_PRICES;
+      let bankId = null;
       try {
         const { data: userRes } = await supabase.auth.getUser();
         const uid = userRes?.user?.id;
         if (uid) {
-          const { data: profile } = await supabase.from('profiles').select('id_precio').eq('id', uid).maybeSingle();
+          const { data: profile } = await supabase.from('profiles').select('id_precio, id_banco').eq('id', uid).maybeSingle();
           const idPrecio = profile?.id_precio;
+          bankId = profile?.id_banco;
           if (idPrecio) {
             const { data: priceRow } = await supabase.from('precio').select('precios').eq('id', idPrecio).maybeSingle();
             if (priceRow?.precios) prices = priceRow.precios;

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Modal, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const TextModeInfoButton = ({ icon='ℹ️', mode='texto' }) => {
   const [open, setOpen] = useState(false);
@@ -94,16 +95,24 @@ const styles = StyleSheet.create({
     borderColor: '#B8D4A8',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2D5016',
-    shadowOffset: { width:0, height:2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#2D5016',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 3,
+      elevation: 3,
+    }),
   },
   btnPressed: { opacity:0.7, transform:[{ scale:0.95 }] },
   btnTxt: { fontSize:20 },
   backdrop: { flex:1, backgroundColor:'rgba(0,0,0,0.35)', padding:24, justifyContent:'center' },
-  modal: { backgroundColor:'#FFFFFF', borderRadius:14, padding:18, borderWidth:1, borderColor:'#B8D4A8', shadowColor:'#000', shadowOffset:{ width:0,height:4 }, shadowOpacity:0.15, shadowRadius:8, elevation:6 },
+  modal: { backgroundColor:'#FFFFFF', borderRadius:14, padding:18, borderWidth:1, borderColor:'#B8D4A8', ...createShadowStyle({
+      color: '#000',
+      offsetY: 4,
+      opacity: 0.15,
+      radius: 8,
+      elevation: 6,
+    }), },
   headerRow:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 },
   title: { fontSize:18, fontWeight:'700', color:'#2D5016' },
   close: { fontSize:18, fontWeight:'700', color:'#C0392B', paddingHorizontal:6 },

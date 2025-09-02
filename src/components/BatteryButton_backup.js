@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import CapacityModal from './CapacityModal';
 import useCapacityData from '../hooks/useCapacityData';
 import AnimatedModalWrapper from './AnimatedModalWrapper';
+import { createShadowStyle } from '../utils/shadowUtils';
 
 const BatteryButton = ({ onOptionSelect, selectedLotteries, selectedSchedules, selectedPlayTypes, lotteryOptions, scheduleOptionsMap, getScheduleLabel, playTypeLabels, bankId, onLotteryError, icon='🔋', animationProps }) => {
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -54,14 +55,13 @@ const styles = StyleSheet.create({
     borderColor: '#B8D4A8',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2D5016',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    ...createShadowStyle({
+      color: '#2D5016',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 3,
+      elevation: 3,
+    }),
   },
   icon: {
     fontSize: 18,
