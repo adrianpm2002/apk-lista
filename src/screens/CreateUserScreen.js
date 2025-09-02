@@ -763,17 +763,18 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
                 <Text style={styles.buttonText}>✏️ Editar</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity
-                style={[
-                  styles.editButton,
-                  { backgroundColor: item.activo ? '#e67e22' : '#27ae60' }
-                ]}
-                onPress={() => handleToggleActive(item.id, item.activo)}
-              >
-                <Text style={styles.buttonText}>
-                  {item.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
+              <View style={styles.toggleContainer}>
+                <Switch
+                  style={styles.toggleSwitch}
+                  value={item.activo}
+                  onValueChange={() => handleToggleActive(item.id, item.activo)}
+                  trackColor={{ false: '#e74c3c', true: '#27ae60' }}
+                  thumbColor={item.activo ? '#fff' : '#fff'}
+                />
+                <Text style={styles.toggleLabel}>
+                  {item.activo ? 'ON' : 'OFF'}
                 </Text>
-              </TouchableOpacity>
+              </View>
               
               <TouchableOpacity
                 style={styles.deleteButton}
