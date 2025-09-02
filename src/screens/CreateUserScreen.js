@@ -77,18 +77,8 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     const hierarchical = [];
     const collectors = userData.filter(user => user.role === 'collector');
     const listeros = userData.filter(user => user.role === 'listero');
-    const admins = userData.filter(user => user.role === 'admin');
     
-    // Agregar admins primero
-    admins.forEach(admin => {
-      hierarchical.push({
-        ...admin,
-        type: 'user',
-        level: 0
-      });
-    });
-    
-    // Agregar collectors con sus listeros
+    // Solo procesar collectors y listeros - ignorar administradores
     collectors.forEach(collector => {
       const collectorListeros = listeros.filter(listero => listero.id_collector === collector.id);
       
@@ -831,37 +821,38 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           
           {userRole === 'admin' && (
             <View style={styles.buttonRow}>
+              <View style={styles.toggleContainer}>
+                <Switch
+                  style={styles.toggleSwitch}
+                  value={item.activo}
+                  onValueChange={() => handleToggleActive(item.id, item.activo)}
+                  trackColor={{ false: '#e74c3c', true: '#27ae60' }}
+                  thumbColor={item.activo ? '#fff' : '#fff'}
+                />
+                <Text style={styles.toggleLabel}>
+                  {item.activo ? 'ON' : 'OFF'}
+                </Text>
+              </View>
+              
               <TouchableOpacity
                 style={styles.editButton}
                 onPress={() => openEditModal(item)}
               >
-                <Text style={styles.buttonText}>✏️ Editar</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.editButton,
-                  { backgroundColor: item.activo ? '#e67e22' : '#27ae60' }
-                ]}
-                onPress={() => handleToggleActive(item.id, item.activo)}
-              >
-                <Text style={styles.buttonText}>
-                  {item.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleDelete(item.id)}
-              >
-                <Text style={styles.buttonText}>🗑️ Eliminar</Text>
+                <Text style={styles.buttonText}>✏️</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
                 style={styles.resetButton}
                 onPress={() => openResetPasswordModal(item)}
               >
-                <Text style={styles.buttonText}>🔑 Contraseña</Text>
+                <Text style={styles.buttonText}>�</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDelete(item.id)}
+              >
+                <Text style={styles.buttonText}>�️</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -976,6 +967,8 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         {userRole === 'collector' && hierarchicalUsers.length === 0 && (
           <Text style={styles.emptyListText}>No tienes listeros asignados todavía.</Text>
         )}
+        
+        {/* Solo mostrar Collectors y Listeros */}
         <FlatList
           data={hierarchicalUsers}
           keyExtractor={(item) => `${item.id}-${item.type}`}
@@ -1317,25 +1310,34 @@ const styles = StyleSheet.create({
   },
   buttonRow: { 
     flexDirection: 'row',
-    marginTop: 5,
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
   },
   editButton: {
-    backgroundColor: '#3498db',
-    padding: 8,
-    borderRadius: 5,
-    marginRight: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+    backgroundColor: '#f39c12',
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   resetButton: {
-    backgroundColor: '#6c5ce7',
-    padding: 8,
-    borderRadius: 5,
-    marginRight: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+    backgroundColor: '#9b59b6',
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   deleteButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
     backgroundColor: '#e74c3c',
-    padding: 8,
-    borderRadius: 5,
-    minWidth: 60,
+    minWidth: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1343,6 +1345,19 @@ const styles = StyleSheet.create({
     color: '#fff', 
     fontWeight: 'bold',
     fontSize: 12,
+    textAlign: 'center',
+  },
+  toggleContainer: {
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  toggleSwitch: {
+    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
+  },
+  toggleLabel: {
+    fontSize: 10,
+    color: '#666',
+    marginTop: 2,
   },
   modalContent: {
     flex: 1,
