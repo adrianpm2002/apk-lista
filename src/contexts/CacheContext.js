@@ -71,6 +71,27 @@ export const CacheProvider = ({ children }) => {
     currentBankIdRef.current = currentBankId;
   }, [currentBankId]);
 
+  // Helper function para crear timeout en consultas de red
+  const createNetworkTimeout = (timeoutMs = 10000) => {
+    return new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
+    );
+  };
+
+  // Helper function para ejecutar consulta con timeout
+  const executeWithTimeout = async (queryPromise, timeoutMs = 10000) => {
+    try {
+      const result = await Promise.race([queryPromise, createNetworkTimeout(timeoutMs)]);
+      return result;
+    } catch (error) {
+      if (error.message === 'Request timeout') {
+        console.warn(`Network request timed out after ${timeoutMs}ms`);
+        throw error;
+      }
+      throw error;
+    }
+  };
+
   // Función para obtener estadísticas
       // Función para obtener estadísticas
   const fetchStatistics = useCallback(async () => {
@@ -215,7 +236,12 @@ export const CacheProvider = ({ children }) => {
       
       const bankId = currentBankId || currentBankIdRef.current;
       
-      const { data, error } = await supabase
+      // Timeout para la consulta
+      const timeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      );
+      
+      const query = supabase
         .from('loteria')
         .select(`
           *,
@@ -224,6 +250,8 @@ export const CacheProvider = ({ children }) => {
         .eq('id_banco', bankId)
         .order('nombre');
 
+      const { data, error } = await Promise.race([query, timeout]);
+
       if (error) {
         console.error('Error fetching lotteries:', error);
         return [];
@@ -231,7 +259,11 @@ export const CacheProvider = ({ children }) => {
       
       return data || [];
     } catch (error) {
-      console.error('Error fetching lotteries:', error);
+      if (error.message === 'Request timeout') {
+        console.warn('Lotteries request timed out');
+      } else {
+        console.error('Error fetching lotteries:', error);
+      }
       return [];
     }
   }, [currentBankId]);
@@ -319,8 +351,13 @@ export const CacheProvider = ({ children }) => {
       const bankId = currentBankIdRef.current || currentBankId;
       if (!bankId) return [];
       
+      // Timeout para la consulta
+      const timeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      );
+      
       // Consulta directa con JOIN para obtener horarios del banco
-      const { data, error } = await supabase
+      const query = supabase
         .from('horario')
         .select(`
           id,
@@ -339,6 +376,8 @@ export const CacheProvider = ({ children }) => {
         .eq('loteria.id_banco', bankId)  // Filtrar por banco usando JOIN
         .order('hora_inicio', { ascending: true });
 
+      const { data, error } = await Promise.race([query, timeout]);
+
       if (error) {
         console.error('Error fetching schedules:', error);
         return [];
@@ -346,7 +385,11 @@ export const CacheProvider = ({ children }) => {
       
       return data || [];
     } catch (error) {
-      console.error('Error fetching schedules:', error);
+      if (error.message === 'Request timeout') {
+        console.warn('Schedules request timed out');
+      } else {
+        console.error('Error fetching schedules:', error);
+      }
       return [];
     }
   }, [currentBankId]);
@@ -422,11 +465,18 @@ export const CacheProvider = ({ children }) => {
 
       const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
       
-      const { data, error } = await supabase
+      // Timeout para la consulta
+      const timeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      );
+      
+      const query = supabase
         .from('jugadas_activas')
         .select('jugadas')
         .eq('id_banco', bankId)
         .maybeSingle();
+        
+      const { data, error } = await Promise.race([query, timeout]);
         
       if (error && error.code !== 'PGRST116') { // ignorar no rows
         console.error('Error fetching active play types:', error);
@@ -452,7 +502,11 @@ export const CacheProvider = ({ children }) => {
       
       return actives;
     } catch (error) {
-      console.error('Error fetching active play types:', error);
+      if (error.message === 'Request timeout') {
+        console.warn('Active play types fetch timed out after 10 seconds');
+      } else {
+        console.error('Error in fetchActivePlayTypes:', error);
+      }
       return [];
     }
   }, [currentBankId]);
