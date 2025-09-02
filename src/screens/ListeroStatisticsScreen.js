@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from
 import StatisticsChart from '../components/StatisticsChart';
 import GroupedAccordionTable from '../components/GroupedAccordionTable';
 import { last7DaysSummary, groupByLottery, groupBySchedule, quickKPIs, mockPlays, exportCSV, exportPDF } from '../utils/statisticsUtils';
+import { createCommonDarkStyles, createStatisticsDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -56,36 +57,48 @@ export default function ListeroStatisticsScreen({ isDarkMode=false }){
       <View style={styles.kpisRow}>
         <View style={[styles.kpiCard, isDarkMode && styles.kpiCardDark]}>
           <Text style={[styles.kpiTitle, isDarkMode && styles.kpiTitleDark]}>Total recogido</Text>
-          <Text style={[styles.kpiVal, styles.kpiGreen]}>${Math.round(kpis.collected).toLocaleString('es-DO')}</Text>
+          <Text style={[styles.kpiVal, isDarkMode && styles.kpiValDark, styles.kpiGreen]}>${Math.round(kpis.collected).toLocaleString('es-DO')}</Text>
         </View>
         <View style={[styles.kpiCard, isDarkMode && styles.kpiCardDark]}>
           <Text style={[styles.kpiTitle, isDarkMode && styles.kpiTitleDark]}>Total pagado</Text>
-          <Text style={[styles.kpiVal, styles.kpiRed]}>${Math.round(kpis.paid).toLocaleString('es-DO')}</Text>
+          <Text style={[styles.kpiVal, isDarkMode && styles.kpiValDark, styles.kpiRed]}>${Math.round(kpis.paid).toLocaleString('es-DO')}</Text>
         </View>
         <View style={[styles.kpiCard, isDarkMode && styles.kpiCardDark]}>
           <Text style={[styles.kpiTitle, isDarkMode && styles.kpiTitleDark]}>Balance neto</Text>
-          <Text style={[styles.kpiVal, (kpis.net>=0? styles.kpiGreen:styles.kpiRed)]}>${Math.round(kpis.net).toLocaleString('es-DO')}</Text>
+          <Text style={[styles.kpiVal, isDarkMode && styles.kpiValDark, (kpis.net>=0? styles.kpiGreen:styles.kpiRed)]}>${Math.round(kpis.net).toLocaleString('es-DO')}</Text>
         </View>
       </View>
 
       {/* Controles */}
       <View style={styles.controlsRow}>
-        <View style={styles.segments}>
+        <View style={[styles.segments, isDarkMode && styles.segmentsDark]}>
           {['last7','last30','custom'].map(v=> (
-            <TouchableOpacity key={v} style={[styles.segmentBtn, range===v && styles.segmentBtnActive]} onPress={()=> setRange(v)}>
-              <Text style={[styles.segmentTxt, range===v && styles.segmentTxtActive]}>{v==='last7'?'Últ. 7': v==='last30'?'Últ. 30':'Personalizado'}</Text>
+            <TouchableOpacity key={v} style={[
+              styles.segmentBtn, 
+              range===v && styles.segmentBtnActive,
+              range===v && isDarkMode && styles.segmentBtnActiveDark
+            ]} onPress={()=> setRange(v)}>
+              <Text style={[
+                styles.segmentTxt, 
+                isDarkMode && styles.segmentTxtDark,
+                range===v && styles.segmentTxtActive
+              ]}>{v==='last7'?'Últ. 7': v==='last30'?'Últ. 30':'Personalizado'}</Text>
             </TouchableOpacity>
           ))}
         </View>
         <View style={styles.sizeBtns}>
-          <TouchableOpacity style={styles.sizeBtn} onPress={()=> setChartHeight(h=> Math.max(160, h-40))}><Text style={styles.sizeTxt}>−</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.sizeBtn} onPress={()=> setChartHeight(h=> Math.min(480, h+40))}><Text style={styles.sizeTxt}>＋</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.sizeBtn, isDarkMode && styles.sizeBtnDark]} onPress={()=> setChartHeight(h=> Math.max(160, h-40))}>
+            <Text style={[styles.sizeTxt, isDarkMode && styles.sizeTxtDark]}>−</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.sizeBtn, isDarkMode && styles.sizeBtnDark]} onPress={()=> setChartHeight(h=> Math.min(480, h+40))}>
+            <Text style={[styles.sizeTxt, isDarkMode && styles.sizeTxtDark]}>＋</Text>
+          </TouchableOpacity>
         </View>
         <View style={{ flexDirection:'row' }}>
-          <TouchableOpacity style={styles.exportBtn} onPress={async ()=>{ const { csv } = await exportCSV(filterPlays(mockPlays)); console.log(csv?.slice(0,120)+'...'); }}>
+          <TouchableOpacity style={[styles.exportBtn, isDarkMode && styles.exportBtnDark]} onPress={async ()=>{ const { csv } = await exportCSV(filterPlays(mockPlays)); console.log(csv?.slice(0,120)+'...'); }}>
             <Text style={styles.exportTxt}>CSV</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.exportBtn} onPress={async ()=>{ await exportPDF('Resumen listero'); }}>
+          <TouchableOpacity style={[styles.exportBtn, isDarkMode && styles.exportBtnDark]} onPress={async ()=>{ await exportPDF('Resumen listero'); }}>
             <Text style={styles.exportTxt}>PDF</Text>
           </TouchableOpacity>
         </View>
@@ -142,24 +155,31 @@ export default function ListeroStatisticsScreen({ isDarkMode=false }){
 
 const styles = StyleSheet.create({
   container: { flex:1, backgroundColor:'#f5f6f7' },
-  containerDark: { backgroundColor:'#22303c' },
+  containerDark: { backgroundColor:'#1a1a1a' },
   kpisRow: { flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8 },
-  kpiCard: { flexBasis:'32%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6, elevation:2 },
-  kpiCardDark: { backgroundColor:'#34495e' },
+  kpiCard: { flexBasis:'32%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6, elevation:2, borderWidth:1, borderColor:'#e0e0e0' },
+  kpiCardDark: { backgroundColor:'#2c3e50', borderColor:'#34495e' },
   kpiTitle: { fontSize:13, color:'#6c757d' },
   kpiTitleDark: { color:'#bdc3c7' },
-  kpiVal: { fontSize:18, fontWeight:'800', marginTop:4 },
+  kpiVal: { fontSize:18, fontWeight:'800', marginTop:4, color:'#2c3e50' },
+  kpiValDark: { color:'#ecf0f1' },
   kpiGreen: { color:'#27AE60' },
   kpiRed: { color:'#e74c3c' },
   controlsRow: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', margin:8 },
   segments: { flexDirection:'row', backgroundColor:'#ecf0f1', borderRadius:8, overflow:'hidden' },
+  segmentsDark: { backgroundColor:'#34495e' },
   segmentBtn: { paddingHorizontal:10, paddingVertical:6 },
   segmentBtnActive: { backgroundColor:'#27AE60' },
+  segmentBtnActiveDark: { backgroundColor:'#3498db' },
   segmentTxt: { color:'#2c3e50' },
+  segmentTxtDark: { color:'#bdc3c7' },
   segmentTxtActive: { color:'#fff', fontWeight:'700' },
   sizeBtns: { flexDirection:'row' },
   sizeBtn: { width:36, height:36, borderRadius:8, backgroundColor:'#ecf0f1', alignItems:'center', justifyContent:'center', marginHorizontal:4 },
+  sizeBtnDark: { backgroundColor:'#34495e' },
   sizeTxt: { fontSize:18, fontWeight:'800', color:'#2c3e50' },
+  sizeTxtDark: { color:'#bdc3c7' },
   exportBtn: { paddingHorizontal:10, paddingVertical:8, backgroundColor:'#2c3e50', borderRadius:8, marginLeft:8 },
+  exportBtnDark: { backgroundColor:'#3498db' },
   exportTxt: { color:'#fff', fontWeight:'700' },
 });

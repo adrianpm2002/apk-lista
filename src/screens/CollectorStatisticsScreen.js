@@ -17,10 +17,18 @@ import CollectorDataTable from '../components/CollectorDataTable';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { getDailyStatsForCollector, getPlaysDetailsForCollector, getTotalRecogidoHistoricoCollector, getTotalPagadoHistoricoCollector } from '../services/collectorStatsService';
+import { useDarkMode } from '../contexts/DarkModeContext';
+import { createCommonDarkStyles, createStatisticsDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const CollectorStatisticsScreen = ({ navigation, collectorId = 1, isDarkMode = false, onToggleDarkMode, onModeVisibilityChange }) => {
+const CollectorStatisticsScreen = ({ navigation, collectorId = 1, onModeVisibilityChange }) => {
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
+  
+  // Crear estilos adaptativos para modo oscuro
+  const commonStyles = createCommonDarkStyles(isDarkMode);
+  const statisticsStyles = createStatisticsDarkStyles(isDarkMode);
+  
   // Estados para filtros
   const [selectedPeriod, setSelectedPeriod] = useState('last7days');
   const [startDate, setStartDate] = useState(new Date());
@@ -157,19 +165,19 @@ const CollectorStatisticsScreen = ({ navigation, collectorId = 1, isDarkMode = f
   const balance = totalRecogido - totalPagado;
 
   return (
-    <View style={[styles.container, isDarkMode && styles.darkContainer]}>
+    <View style={[styles.container, isDarkMode && styles.containerDark]}>
       <SideBarToggle onPress={() => setSidebarVisible(true)} />
       
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.title, isDarkMode && styles.darkText]}>
+        <View style={[styles.header, isDarkMode && styles.headerDark]}>
+          <Text style={[styles.title, isDarkMode && styles.titleDark]}>
             Estadísticas del Collector
           </Text>
           <TouchableOpacity 
-            style={styles.filterButton}
+            style={[styles.filterButton, isDarkMode && styles.filterButtonDark]}
             onPress={() => setFiltersVisible(true)}
           >
             <Text style={styles.filterButtonText}>Filtros</Text>
@@ -178,22 +186,22 @@ const CollectorStatisticsScreen = ({ navigation, collectorId = 1, isDarkMode = f
 
         {/* Summary Cards */}
         <View style={styles.summaryContainer}>
-          <View style={[styles.summaryCard, { backgroundColor: '#E3F2FD' }]}>
-            <Text style={styles.summaryLabel}>Total Recogido</Text>
-            <Text style={styles.summaryValue}>
+          <View style={[styles.summaryCard, styles.summaryCardDark && isDarkMode, { backgroundColor: '#E3F2FD' }]}>
+            <Text style={[styles.summaryLabel, isDarkMode && styles.summaryLabelDark]}>Total Recogido</Text>
+            <Text style={[styles.summaryValue, isDarkMode && styles.summaryValueDark]}>
               ${totalRecogido.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
             </Text>
           </View>
-          <View style={[styles.summaryCard, { backgroundColor: '#FFEBEE' }]}>
-            <Text style={styles.summaryLabel}>Total Pagado</Text>
-            <Text style={styles.summaryValue}>
+          <View style={[styles.summaryCard, styles.summaryCardDark && isDarkMode, { backgroundColor: '#FFEBEE' }]}>
+            <Text style={[styles.summaryLabel, isDarkMode && styles.summaryLabelDark]}>Total Pagado</Text>
+            <Text style={[styles.summaryValue, isDarkMode && styles.summaryValueDark]}>
               ${totalPagado.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
             </Text>
           </View>
           <View style={[styles.summaryCard, { 
             backgroundColor: balance >= 0 ? '#E8F5E8' : '#FFEBEE' 
-          }]}>
-            <Text style={styles.summaryLabel}>Balance</Text>
+          }, isDarkMode && styles.summaryCardDark]}>
+            <Text style={[styles.summaryLabel, isDarkMode && styles.summaryLabelDark]}>Balance</Text>
             <Text style={[styles.summaryValue, { 
               color: balance >= 0 ? '#2E7D32' : '#C62828' 
             }]}>
@@ -203,28 +211,28 @@ const CollectorStatisticsScreen = ({ navigation, collectorId = 1, isDarkMode = f
         </View>
 
         {/* Historical Totals */}
-        <View style={styles.historicalContainer}>
-          <Text style={[styles.historicalTitle, isDarkMode && styles.darkText]}>
+        <View style={[styles.historicalContainer, isDarkMode && styles.historicalContainerDark]}>
+          <Text style={[styles.historicalTitle, isDarkMode && styles.historicalTitleDark]}>
             Totales Históricos
           </Text>
           <View style={styles.historicalRow}>
-            <Text style={[styles.historicalLabel, isDarkMode && styles.darkText]}>
+            <Text style={[styles.historicalLabel, isDarkMode && styles.historicalLabelDark]}>
               Total Recogido Histórico: 
             </Text>
-            <Text style={[styles.historicalValue, isDarkMode && styles.darkText]}>
+            <Text style={[styles.historicalValue, isDarkMode && styles.historicalValueDark]}>
               ${totalHistorico.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
             </Text>
           </View>
           <View style={styles.historicalRow}>
-            <Text style={[styles.historicalLabel, isDarkMode && styles.darkText]}>
+            <Text style={[styles.historicalLabel, isDarkMode && styles.historicalLabelDark]}>
               Total Pagado Histórico: 
             </Text>
-            <Text style={[styles.historicalValue, isDarkMode && styles.darkText]}>
+            <Text style={[styles.historicalValue, isDarkMode && styles.historicalValueDark]}>
               ${totalPagadoHistorico.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
             </Text>
           </View>
           <View style={styles.historicalRow}>
-            <Text style={[styles.historicalLabel, isDarkMode && styles.darkText]}>
+            <Text style={[styles.historicalLabel, isDarkMode && styles.historicalLabelDark]}>
               Balance Histórico: 
             </Text>
             <Text style={[styles.historicalValue, { 
@@ -238,18 +246,36 @@ const CollectorStatisticsScreen = ({ navigation, collectorId = 1, isDarkMode = f
         {/* Tabs */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'charts' && styles.activeTab]}
+            style={[
+              styles.tab, 
+              isDarkMode && styles.tabDark,
+              activeTab === 'charts' && styles.activeTab,
+              activeTab === 'charts' && isDarkMode && styles.activeTabDark
+            ]}
             onPress={() => setActiveTab('charts')}
           >
-            <Text style={[styles.tabText, activeTab === 'charts' && styles.activeTabText]}>
+            <Text style={[
+              styles.tabText, 
+              isDarkMode && styles.tabTextDark,
+              activeTab === 'charts' && styles.activeTabText
+            ]}>
               Gráficos
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'details' && styles.activeTab]}
+            style={[
+              styles.tab, 
+              isDarkMode && styles.tabDark,
+              activeTab === 'details' && styles.activeTab,
+              activeTab === 'details' && isDarkMode && styles.activeTabDark
+            ]}
             onPress={() => setActiveTab('details')}
           >
-            <Text style={[styles.tabText, activeTab === 'details' && styles.activeTabText]}>
+            <Text style={[
+              styles.tabText, 
+              isDarkMode && styles.tabTextDark,
+              activeTab === 'details' && styles.activeTabText
+            ]}>
               Detalles
             </Text>
           </TouchableOpacity>
@@ -257,13 +283,13 @@ const CollectorStatisticsScreen = ({ navigation, collectorId = 1, isDarkMode = f
 
         {/* Content */}
         {activeTab === 'charts' ? (
-          <View style={styles.chartContainer}>
+          <View style={[styles.chartContainer, isDarkMode && styles.chartContainerDark]}>
             <View style={styles.chartControls}>
               <TouchableOpacity
-                style={styles.chartSizeButton}
+                style={[styles.chartSizeButton, isDarkMode && styles.chartSizeButtonDark]}
                 onPress={() => setChartHeight(chartHeight === 240 ? 400 : 240)}
               >
-                <Text style={styles.chartSizeButtonText}>
+                <Text style={[styles.chartSizeButtonText, isDarkMode && styles.chartSizeButtonTextDark]}>
                   {chartHeight === 240 ? 'Grande' : 'Pequeño'}
                 </Text>
               </TouchableOpacity>
@@ -290,21 +316,21 @@ const CollectorStatisticsScreen = ({ navigation, collectorId = 1, isDarkMode = f
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
         isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
+        onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
       />
 
       {/* Filters Modal */}
       <Modal visible={filtersVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, isDarkMode && styles.darkModalContent]}>
-            <Text style={[styles.modalTitle, isDarkMode && styles.darkText]}>Filtros</Text>
+        <View style={[styles.modalOverlay, isDarkMode && styles.modalOverlayDark]}>
+          <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
+            <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>Filtros</Text>
             
-            <Text style={[styles.filterLabel, isDarkMode && styles.darkText]}>Período:</Text>
+            <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Período:</Text>
             <Picker
               selectedValue={selectedPeriod}
               onValueChange={setSelectedPeriod}
-              style={[styles.picker, isDarkMode && styles.darkPicker]}
+              style={[styles.picker, isDarkMode && styles.pickerDark]}
             >
               <Picker.Item label="Últimos 7 días" value="last7days" />
               <Picker.Item label="Últimos 30 días" value="last30days" />
@@ -314,46 +340,46 @@ const CollectorStatisticsScreen = ({ navigation, collectorId = 1, isDarkMode = f
             {selectedPeriod === 'custom' && (
               <View style={styles.datePickerContainer}>
                 <TouchableOpacity
-                  style={styles.dateButton}
+                  style={[styles.dateButton, isDarkMode && styles.dateButtonDark]}
                   onPress={() => {
                     setDatePickerType('start');
                     setShowDatePicker(true);
                   }}
                 >
-                  <Text style={styles.dateButtonText}>
+                  <Text style={[styles.dateButtonText, isDarkMode && styles.dateButtonTextDark]}>
                     Inicio: {startDate.toLocaleDateString('es-DO')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.dateButton}
+                  style={[styles.dateButton, isDarkMode && styles.dateButtonDark]}
                   onPress={() => {
                     setDatePickerType('end');
                     setShowDatePicker(true);
                   }}
                 >
-                  <Text style={styles.dateButtonText}>
+                  <Text style={[styles.dateButtonText, isDarkMode && styles.dateButtonTextDark]}>
                     Fin: {endDate.toLocaleDateString('es-DO')}
                   </Text>
                 </TouchableOpacity>
               </View>
             )}
 
-            <Text style={[styles.filterLabel, isDarkMode && styles.darkText]}>Lotería:</Text>
+            <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Lotería:</Text>
             <Picker
               selectedValue={selectedLottery}
               onValueChange={setSelectedLottery}
-              style={[styles.picker, isDarkMode && styles.darkPicker]}
+              style={[styles.picker, isDarkMode && styles.pickerDark]}
             >
               <Picker.Item label="Todas" value="all" />
               <Picker.Item label="Lotería Nacional" value="nacional" />
               <Picker.Item label="Leidsa" value="leidsa" />
             </Picker>
 
-            <Text style={[styles.filterLabel, isDarkMode && styles.darkText]}>Horario:</Text>
+            <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Horario:</Text>
             <Picker
               selectedValue={selectedSchedule}
               onValueChange={setSelectedSchedule}
-              style={[styles.picker, isDarkMode && styles.darkPicker]}
+              style={[styles.picker, isDarkMode && styles.pickerDark]}
             >
               <Picker.Item label="Todos" value="all" />
               <Picker.Item label="Matutino" value="matutino" />
@@ -361,11 +387,11 @@ const CollectorStatisticsScreen = ({ navigation, collectorId = 1, isDarkMode = f
               <Picker.Item label="Nocturno" value="nocturno" />
             </Picker>
 
-            <Text style={[styles.filterLabel, isDarkMode && styles.darkText]}>Listero:</Text>
+            <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Listero:</Text>
             <Picker
               selectedValue={selectedListero}
               onValueChange={setSelectedListero}
-              style={[styles.picker, isDarkMode && styles.darkPicker]}
+              style={[styles.picker, isDarkMode && styles.pickerDark]}
             >
               <Picker.Item label="Todos" value="all" />
               <Picker.Item label="Juan Pérez" value="1" />
@@ -375,7 +401,15 @@ const CollectorStatisticsScreen = ({ navigation, collectorId = 1, isDarkMode = f
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalButton}
+                style={[styles.modalButton, styles.cancelButton, isDarkMode && styles.cancelButtonDark]}
+                onPress={() => {
+                  setFiltersVisible(false);
+                }}
+              >
+                <Text style={styles.modalButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, isDarkMode && styles.modalButtonDark]}
                 onPress={() => {
                   setFiltersVisible(false);
                   loadData();
@@ -385,12 +419,6 @@ const CollectorStatisticsScreen = ({ navigation, collectorId = 1, isDarkMode = f
                 }}
               >
                 <Text style={styles.modalButtonText}>Aplicar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setFiltersVisible(false)}
-              >
-                <Text style={styles.modalButtonText}>Cancelar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -413,28 +441,38 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
-  darkContainer: {
-    backgroundColor: '#121212',
+  containerDark: {
+    backgroundColor: '#1a1a1a',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  headerDark: {
+    backgroundColor: '#2c3e50',
+    borderBottomColor: '#34495e',
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
   },
-  darkText: {
-    color: '#FFF',
+  titleDark: {
+    color: '#ecf0f1',
   },
   filterButton: {
     backgroundColor: '#007AFF',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
+  },
+  filterButtonDark: {
+    backgroundColor: '#3498db',
   },
   filterButtonText: {
     color: '#FFF',
@@ -451,6 +489,13 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     borderRadius: 8,
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  summaryCardDark: {
+    backgroundColor: '#2c3e50',
+    borderColor: '#34495e',
   },
   summaryLabel: {
     fontSize: 12,
@@ -458,11 +503,17 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     textAlign: 'center',
   },
+  summaryLabelDark: {
+    color: '#bdc3c7',
+  },
   summaryValue: {
     fontSize: 14,
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
+  },
+  summaryValueDark: {
+    color: '#ecf0f1',
   },
   historicalContainer: {
     paddingHorizontal: 16,
@@ -471,12 +522,21 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderRadius: 8,
     padding: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  historicalContainerDark: {
+    backgroundColor: '#2c3e50',
+    borderColor: '#34495e',
   },
   historicalTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 8,
+  },
+  historicalTitleDark: {
+    color: '#ecf0f1',
   },
   historicalRow: {
     flexDirection: 'row',
@@ -487,10 +547,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
   },
+  historicalLabelDark: {
+    color: '#bdc3c7',
+  },
   historicalValue: {
     fontSize: 12,
     fontWeight: '600',
     color: '#333',
+  },
+  historicalValueDark: {
+    color: '#ecf0f1',
   },
   tabContainer: {
     flexDirection: 'row',
@@ -505,12 +571,21 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     borderRadius: 8,
   },
+  tabDark: {
+    backgroundColor: '#34495e',
+  },
   activeTab: {
     backgroundColor: '#007AFF',
+  },
+  activeTabDark: {
+    backgroundColor: '#3498db',
   },
   tabText: {
     fontSize: 14,
     color: '#666',
+  },
+  tabTextDark: {
+    color: '#bdc3c7',
   },
   activeTabText: {
     color: '#FFF',
@@ -518,6 +593,16 @@ const styles = StyleSheet.create({
   },
   chartContainer: {
     padding: 16,
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  chartContainerDark: {
+    backgroundColor: '#2c3e50',
+    borderColor: '#34495e',
   },
   chartControls: {
     alignItems: 'flex-end',
@@ -529,9 +614,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 6,
   },
+  chartSizeButtonDark: {
+    backgroundColor: '#34495e',
+  },
   chartSizeButtonText: {
     fontSize: 12,
     color: '#666',
+  },
+  chartSizeButtonTextDark: {
+    color: '#bdc3c7',
   },
   modalOverlay: {
     flex: 1,
@@ -539,34 +630,45 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
+  modalOverlayDark: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  },
   modalContent: {
     backgroundColor: '#FFF',
     borderRadius: 12,
     padding: 20,
     maxHeight: '80%',
   },
-  darkModalContent: {
-    backgroundColor: '#1E1E1E',
+  modalContentDark: {
+    backgroundColor: '#2c3e50',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
+    color: '#333',
+  },
+  modalTitleDark: {
+    color: '#ecf0f1',
   },
   filterLabel: {
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
     marginTop: 12,
+    color: '#333',
+  },
+  filterLabelDark: {
+    color: '#ecf0f1',
   },
   picker: {
     backgroundColor: '#F0F0F0',
     borderRadius: 8,
   },
-  darkPicker: {
-    backgroundColor: '#333',
-    color: '#FFF',
+  pickerDark: {
+    backgroundColor: '#34495e',
+    color: '#ecf0f1',
   },
   datePickerContainer: {
     flexDirection: 'row',
@@ -579,10 +681,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     flex: 0.48,
   },
+  dateButtonDark: {
+    backgroundColor: '#34495e',
+  },
   dateButtonText: {
     textAlign: 'center',
     color: '#1976D2',
     fontWeight: '600',
+  },
+  dateButtonTextDark: {
+    color: '#3498db',
   },
   modalButtons: {
     flexDirection: 'row',
@@ -597,8 +705,14 @@ const styles = StyleSheet.create({
     minWidth: 100,
     alignItems: 'center',
   },
+  modalButtonDark: {
+    backgroundColor: '#3498db',
+  },
   cancelButton: {
     backgroundColor: '#666',
+  },
+  cancelButtonDark: {
+    backgroundColor: '#7f8c8d',
   },
   modalButtonText: {
     color: '#FFF',

@@ -17,24 +17,30 @@ import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
+import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
+import { useDarkMode } from '../contexts/DarkModeContext';
 
-const ManagePricesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+const ManagePricesScreen = ({ navigation, onModeVisibilityChange }) => {
   return (
     <ScreenWrapper>
       <ManagePricesContent
         navigation={navigation}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
       />
     </ScreenWrapper>
   );
 };
 
-const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
+  
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
+  
+  // Crear estilos adaptativos para modo oscuro
+  const commonStyles = createCommonDarkStyles(isDarkMode);
+  const formStyles = createFormDarkStyles(isDarkMode);
   
   // Solo mostrar loading si realmente no hay datos
   const [loading, setLoading] = useState(false);
@@ -513,19 +519,19 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
+      <View style={[styles.container, commonStyles.container, styles.loadingContainer]}>
         <ActivityIndicator size="large" color="#27AE60" />
-        <Text style={styles.loadingText}>Cargando configuración...</Text>
+        <Text style={[styles.loadingText, commonStyles.textPrimary]}>Cargando configuración...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, commonStyles.container]}>
       {/* Header personalizado */}
-      <View style={styles.customHeader}>
+      <View style={[styles.customHeader, commonStyles.header]}>
         <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
-        <Text style={styles.headerTitle}>Precios</Text>
+        <Text style={[styles.headerTitle, commonStyles.textPrimary]}>Precios</Text>
       </View>
 
       <ScrollView 
@@ -597,10 +603,10 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
             const hasConfigError = hasInactiveConfigured || hasMissingActive;
             
             return (
-              <View key={cfg.id} style={[styles.configItem, hasConfigError && styles.configItemError]}>
+              <View key={cfg.id} style={[styles.configItem, commonStyles.card, hasConfigError && styles.configItemError]}>
                 <TouchableOpacity onPress={toggle} style={styles.configHeaderRow}>
-                  <Text style={[styles.configName, hasConfigError && styles.configNameError]}>{cfg.nombre || 'Sin nombre'}</Text>
-                  <Text style={styles.configArrow}>{expanded ? '▲' : '▼'}</Text>
+                  <Text style={[styles.configName, commonStyles.textPrimary, hasConfigError && styles.configNameError]}>{cfg.nombre || 'Sin nombre'}</Text>
+                  <Text style={[styles.configArrow, commonStyles.textSecondary]}>{expanded ? '▲' : '▼'}</Text>
                 </TouchableOpacity>
                 {expanded && (
                   <View style={styles.configDetails}>
@@ -614,7 +620,7 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
                       </View>
                     )}
                     {jugadasKeys.length === 0 && (
-                      <Text style={styles.configEmpty}>Sin jugadas configuradas.</Text>
+                      <Text style={[styles.configEmpty, commonStyles.textSecondary]}>Sin jugadas configuradas.</Text>
                     )}
                     {(() => {
                       const allRows = [];
@@ -625,7 +631,7 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
                         const hasAny = ['regular','limited','collectorPct','listeroPct'].some(f => obj[f] !== null && obj[f] !== undefined && obj[f] !== '');
                         allRows.push(
                           <View key={jk} style={styles.detailRow}>
-                            <Text style={styles.detailText}>
+                            <Text style={[styles.detailText, commonStyles.textSecondary]}>
                               {jk} - Reg: {obj.regular ?? '—'}  Lim: {obj.limited ?? '—'}  Col%: {obj.collectorPct ?? '—'}  Lis%: {obj.listeroPct ?? '—'}
                             </Text>
                           </View>
@@ -688,63 +694,68 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
 
       {/* Modal de precios */}
       {priceModalVisible && (
-        <View style={[styles.pricesModalOverlay]}>
-          <View style={styles.pricesModal}>
-            <Text style={styles.pricesModalTitle}>{editingBatch ? 'Editar Precios' : 'Agregar Precios'}</Text>
+        <View style={[styles.pricesModalOverlay, commonStyles.modalOverlay]}>
+          <View style={[styles.pricesModal, commonStyles.modalContent]}>
+            <Text style={[styles.pricesModalTitle, commonStyles.textPrimary]}>{editingBatch ? 'Editar Precios' : 'Agregar Precios'}</Text>
             <ScrollView style={{ maxHeight: 470 }}>
               <View style={styles.modalPriceGroup}>
-                <Text style={styles.modalPriceGroupTitle}>Nombre de la Configuración</Text>
+                <Text style={[styles.modalPriceGroupTitle, commonStyles.textPrimary]}>Nombre de la Configuración</Text>
                 <InputField
                   value={priceConfigName}
                   onChangeText={setPriceConfigName}
                   placeholder="Ej: pagos_globales"
                   autoCapitalize="none"
+                  isDarkMode={isDarkMode}
                 />
               </View>
               {availablePlayTypes.filter(pt => enabledPlayTypes[pt.id]).map(pt => (
                 <View key={pt.id} style={styles.modalPriceGroup}>
-                  <Text style={styles.modalPriceGroupTitle}>{pt.label}</Text>
+                  <Text style={[styles.modalPriceGroupTitle, commonStyles.textPrimary]}>{pt.label}</Text>
                   <View style={styles.modalRow}>
                     <View style={styles.modalField}>
-                      <Text style={styles.modalLabel}>Regular</Text>
+                      <Text style={[styles.modalLabel, commonStyles.textSecondary]}>Regular</Text>
                       <InputField
                         value={winningPrices[pt.id].regular}
                         onChangeText={v => updateWinningPrice(pt.id, 'regular', v)}
                         placeholder="0"
                         keyboardType="numeric"
                         hasError={!!modalFieldErrors[pt.id]?.regular}
+                        isDarkMode={isDarkMode}
                       />
                     </View>
                     <View style={styles.modalField}>
-                      <Text style={styles.modalLabel}>Limitado</Text>
+                      <Text style={[styles.modalLabel, commonStyles.textSecondary]}>Limitado</Text>
                       <InputField
                         value={winningPrices[pt.id].limited}
                         onChangeText={v => updateWinningPrice(pt.id, 'limited', v)}
                         placeholder="0"
                         keyboardType="numeric"
                         hasError={!!modalFieldErrors[pt.id]?.limited}
+                        isDarkMode={isDarkMode}
                       />
                     </View>
                   </View>
                   <View style={styles.modalRow}>
                     <View style={styles.modalField}>
-                      <Text style={styles.modalLabel}>% Colector</Text>
+                      <Text style={[styles.modalLabel, commonStyles.textSecondary]}>% Colector</Text>
                       <InputField
                         value={winningPrices[pt.id].collectorPct}
                         onChangeText={v => updateWinningPrice(pt.id, 'collectorPct', v)}
                         placeholder="0"
                         keyboardType="numeric"
                         hasError={!!modalFieldErrors[pt.id]?.collectorPct}
+                        isDarkMode={isDarkMode}
                       />
                     </View>
                     <View style={styles.modalField}>
-                      <Text style={styles.modalLabel}>% Listero</Text>
+                      <Text style={[styles.modalLabel, commonStyles.textSecondary]}>% Listero</Text>
                       <InputField
                         value={winningPrices[pt.id].listeroPct}
                         onChangeText={v => updateWinningPrice(pt.id, 'listeroPct', v)}
                         placeholder="0"
                         keyboardType="numeric"
                         hasError={!!modalFieldErrors[pt.id]?.listeroPct}
+                        isDarkMode={isDarkMode}
                       />
                     </View>
                   </View>
@@ -757,15 +768,17 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
                 onPress={() => { setPriceModalVisible(false); setEditingBatch(false); }}
                 variant="danger"
                 size="small"
+                isDarkMode={isDarkMode}
               />
               <ActionButton
                 title={editingBatch ? 'Guardar Cambios' : 'Guardar'}
                 onPress={handleSavePricesBatch}
                 variant="success"
                 size="small"
+                isDarkMode={isDarkMode}
               />
             </View>
-            {!!modalError && <Text style={styles.modalErrorText}>{modalError}</Text>}
+            {!!modalError && <Text style={[styles.modalErrorText, commonStyles.textError]}>{modalError}</Text>}
           </View>
         </View>
       )}
@@ -775,7 +788,7 @@ const ManagePricesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeV
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
         isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
+        onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
         role={userRole}
       />

@@ -6,6 +6,8 @@ import { supabase } from '../supabaseClient';
 import { adminResetPasswordByUsername } from '../utils/adminUtils';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { useCache } from '../contexts/CacheContext';
+import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
+import { useDarkMode } from '../contexts/DarkModeContext';
 
 // Orden canónico unificado de jugadas en toda la app
 const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
@@ -39,9 +41,15 @@ const CustomButton = ({ title, onPress, disabled = false, color = '#007AFF', sty
   </TouchableOpacity>
 );
 
-const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   // Cache context para obtener el rol del usuario de forma consistente
   const { userRole: cacheUserRole } = useCache();
+  
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
+  
+  // Crear estilos adaptativos para modo oscuro
+  const commonStyles = createCommonDarkStyles(isDarkMode);
+  const formStyles = createFormDarkStyles(isDarkMode);
   
   const [users, setUsers] = useState([]);
   const [hierarchicalUsers, setHierarchicalUsers] = useState([]);
@@ -955,17 +963,17 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.customHeader}>
+    <View style={[styles.container, commonStyles.container]}>
+      <View style={[styles.customHeader, commonStyles.header]}>
         <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
-        <Text style={styles.headerTitle}>Usuarios</Text>
+        <Text style={[styles.headerTitle, commonStyles.textPrimary]}>Usuarios</Text>
       </View>
 
-      <View style={styles.content}>
+      <View style={[styles.content, commonStyles.containerSecondary]}>
   <CustomButton title={userRole === 'collector' ? 'Crear Listero' : 'Crear Usuario'} onPress={() => { clearForm(); if (userRole==='collector'){ setRole('listero'); setSelectedCollector(currentUserId);} setModalVisible(true); }} />
 
         {userRole === 'collector' && hierarchicalUsers.length === 0 && (
-          <Text style={styles.emptyListText}>No tienes listeros asignados todavía.</Text>
+          <Text style={[styles.emptyListText, commonStyles.textSecondary]}>No tienes listeros asignados todavía.</Text>
         )}
         
         {/* Solo mostrar Collectors y Listeros */}
@@ -977,8 +985,8 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         />
 
         <Modal visible={modalVisible} animationType="slide">
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{isEditing ? (userRole==='collector' ? 'Editar Listero' : 'Editar Usuario') : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')}</Text>
+          <View style={[styles.modalContent, commonStyles.modalContent]}>
+            <Text style={[styles.modalTitle, commonStyles.textPrimary]}>{isEditing ? (userRole==='collector' ? 'Editar Listero' : 'Editar Usuario') : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')}</Text>
 
             <ScrollView 
               style={styles.modalScrollView}
@@ -990,7 +998,8 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
                 placeholder="Nombre de usuario"
                 value={username}
                 onChangeText={setUsername}
-                style={styles.input}
+                style={[styles.input, formStyles.inputField]}
+                placeholderTextColor={isDarkMode ? '#7f8c8d' : '#95a5a6'}
               />
 
               {!isEditing && (
@@ -1181,7 +1190,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
         isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
+        onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
         role={cacheUserRole}
       />

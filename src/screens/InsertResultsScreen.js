@@ -10,21 +10,21 @@ import { useCache } from '../contexts/CacheContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
+import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
+import { useDarkMode } from '../contexts/DarkModeContext';
 
-const InsertResultsScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+const InsertResultsScreen = ({ navigation, onModeVisibilityChange }) => {
   return (
     <ScreenWrapper>
       <InsertResultsContent
         navigation={navigation}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
       />
     </ScreenWrapper>
   );
 };
 
-const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
   const { 
     cache, 
     userRole: cacheUserRole, 
@@ -36,6 +36,12 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
     preloadAllData
   } = useCache();
   const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('todayResults');
+  
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
+  
+  // Crear estilos adaptativos para modo oscuro
+  const commonStyles = createCommonDarkStyles(isDarkMode);
+  const formStyles = createFormDarkStyles(isDarkMode);
   
   // Inicializar con datos del cache
   const [lotteryOptions, setLotteryOptions] = useState(
@@ -538,21 +544,21 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#F8FDF5' }]}>
+    <View style={[styles.container, commonStyles.container]}>
       {/* Header personalizado - arriba del todo */}
-      <View style={[styles.customHeader, { backgroundColor: isDarkMode ? '#2c3e50' : '#F8F9FA' }]}>
+      <View style={[styles.customHeader, commonStyles.header]}>
         <SideBarToggle 
           inline 
           onToggle={() => setSidebarVisible(!sidebarVisible)} 
           style={styles.sidebarButton} 
         />
-        <Text style={[styles.headerTitle, { color: isDarkMode ? '#fff' : '#2C3E50' }]}>
+        <Text style={[styles.headerTitle, commonStyles.textPrimary]}>
           Resultados
         </Text>
       </View>
 
       <ScrollView 
-        style={styles.content} 
+        style={[styles.content, commonStyles.containerSecondary]} 
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -617,21 +623,22 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
           variant="success"
           size="medium"
           style={styles.submitButton}
+          isDarkMode={isDarkMode}
         />
 
         {/* Listado resultados hoy */}
         <View style={styles.todayContainer}>
-          <Text style={[styles.todayTitle, { color: isDarkMode ? '#ecf0f1' : '#2C3E50' }]}>
+          <Text style={[styles.todayTitle, commonStyles.textPrimary]}>
             Resultados de Hoy
           </Text>
           
           {(loadingResults || initialLoading) && (
-            <Text style={[styles.loadingText, { color: isDarkMode ? '#bdc3c7' : '#64748B' }]}>
+            <Text style={[styles.loadingText, commonStyles.textSecondary]}>
               Cargando...
             </Text>
           )}
           {!loadingResults && !initialLoading && todayResults.length === 0 && (
-            <Text style={[styles.emptyText, { color: isDarkMode ? '#bdc3c7' : '#94A3B8' }]}>
+            <Text style={[styles.emptyText, commonStyles.textTertiary]}>
               No hay resultados registrados hoy.
             </Text>
           )}
@@ -640,7 +647,7 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
             return (
               <View key={item.id} style={[
                 styles.resultRow, 
-                { backgroundColor: isDarkMode ? '#2c3e50' : '#FFFFFF' },
+                commonStyles.card,
                 item.id === deniedEditId && styles.resultRowDenied
               ]}>
                 <View style={styles.resultInfo}>
@@ -713,7 +720,7 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
         isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
+        onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
         role={cacheUserRole}
       />

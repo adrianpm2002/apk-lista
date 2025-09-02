@@ -11,10 +11,11 @@ import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
 import TextMode2Screen from './TextMode2Screen';
 import VaultModeScreen from './VaultModeScreen';
+import { useDarkMode } from '../contexts/DarkModeContext';
 
 const MainAppScreen = ({ navigation, route }) => {
   const [currentMode, setCurrentMode] = useState('Visual');
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { isDarkMode, toggleDarkMode, isLoading } = useDarkMode();
   const [visibleModes, setVisibleModes] = useState({
     visual: true,
   text: true,
@@ -112,7 +113,7 @@ const MainAppScreen = ({ navigation, route }) => {
 
   const handleToggleDarkMode = async () => {
     try {
-      setIsDarkMode(!isDarkMode);
+      toggleDarkMode();
     } catch (error) {
       console.error('Error toggling dark mode:', error);
     }

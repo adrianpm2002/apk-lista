@@ -12,6 +12,8 @@ import { useCache } from '../contexts/CacheContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
+import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
+import { useDarkMode } from '../contexts/DarkModeContext';
 
 // Función helper para confirmaciones compatibles con web
 const showConfirmation = (title, message, onConfirm, onCancel = null) => {
@@ -41,22 +43,26 @@ const showConfirmation = (title, message, onConfirm, onCancel = null) => {
   }
 };
 
-const ManageLotteriesScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+const ManageLotteriesScreen = ({ navigation, onModeVisibilityChange }) => {
   return (
     <ScreenWrapper>
       <ManageLotteriesContent
         navigation={navigation}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
       />
     </ScreenWrapper>
   );
 };
 
-const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
   const { cache, userRole: cacheUserRole, currentBankId: cacheBankId, updateCacheData, fetchLotteries: cacheFetchLotteries, fetchSchedules: cacheFetchSchedules } = useCache();
   const { refreshing: cacheRefreshing, onRefresh: cacheOnRefresh } = usePullToRefresh('lotteries');
+  
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
+  
+  // Crear estilos adaptativos para modo oscuro
+  const commonStyles = createCommonDarkStyles(isDarkMode);
+  const formStyles = createFormDarkStyles(isDarkMode);
   
   // Inicializar con datos del cache
   const [lotteries, setLotteries] = useState(cache.lotteries || []);
@@ -525,14 +531,14 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
   }, []);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, commonStyles.container]}>
       {/* Header personalizado - arriba del todo */}
-      <View style={styles.customHeader}>
+      <View style={[styles.customHeader, commonStyles.header]}>
         <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
-        <Text style={styles.headerTitle}>Loterías</Text>
+        <Text style={[styles.headerTitle, commonStyles.textPrimary]}>Loterías</Text>
       </View>
         
-      <View style={styles.contentContainer}>
+      <View style={[styles.contentContainer, commonStyles.containerSecondary]}>
         <InputField
           placeholder="Nombre de nueva lotería"
           value={newLottery}
@@ -550,7 +556,7 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
 
         {initialLoading ? (
           <View style={styles.loadingContainer}>
-            <Text style={[styles.loadingText, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+            <Text style={[styles.loadingText, commonStyles.textSecondary]}>
               Cargando loterías...
             </Text>
           </View>
@@ -569,25 +575,25 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
             renderItem={({ item }) => {
               const lotterySchedules = getLotterySchedules(item.id);
               return (
-                <View style={[styles.lotteryCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
-                  <Text style={[styles.lotteryName, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}>
+                <View style={[styles.lotteryCard, commonStyles.card]}>
+                  <Text style={[styles.lotteryName, commonStyles.textPrimary]}>
                     {item.nombre}
                   </Text>
                   
                   {/* Vista previa de horarios */}
                   <View style={styles.schedulePreviewContainer}>
-                    <Text style={[styles.schedulePreviewTitle, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+                    <Text style={[styles.schedulePreviewTitle, commonStyles.textSecondary]}>
                       Horarios ({lotterySchedules.length}):
                     </Text>
                     {lotterySchedules.length > 0 ? (
                       <View style={styles.schedulePreviewList}>
                         {lotterySchedules.slice(0, 3).map((schedule, index) => (
-                          <Text key={schedule.id} style={[styles.schedulePreviewItem, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}>
+                          <Text key={schedule.id} style={[styles.schedulePreviewItem, commonStyles.textPrimary]}>
                             {schedule.nombre}: {formatTimeFromString(schedule.hora_inicio)} - {formatTimeFromString(schedule.hora_fin)}
                           </Text>
                         ))}
                         {lotterySchedules.length > 3 && (
-                          <Text style={[styles.schedulePreviewMore, { color: isDarkMode ? '#95a5a6' : '#7f8c8d' }]}>
+                          <Text style={[styles.schedulePreviewMore, commonStyles.textTertiary]}>
                             y {lotterySchedules.length - 3} más...
                           </Text>
                         )}
@@ -841,7 +847,7 @@ const ManageLotteriesContent = ({ navigation, isDarkMode, onToggleDarkMode, onMo
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
         isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
+        onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
         role={userRole}
       />
