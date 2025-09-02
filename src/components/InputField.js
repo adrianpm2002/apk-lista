@@ -48,6 +48,25 @@ const InputField = ({
     else if (onChangeText) onChangeText('');
   };
 
+  // Crear array de botones overlay basándose en las props
+  const overlayButtons = [];
+  if (showPasteButton) {
+    overlayButtons.push({
+      text: '📋 Pegar',
+      onPress: handlePaste,
+      style: {},
+      textStyle: {}
+    });
+  }
+  if (showClearButtonOverlay) {
+    overlayButtons.push({
+      text: '✕ Limpiar',
+      onPress: handleClear,
+      style: {},
+      textStyle: {}
+    });
+  }
+
   return (
     <View style={[styles.container, style]}>
       {!pasteButtonOverlay && (

@@ -22,10 +22,12 @@ import { useCache } from '../contexts/CacheContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
+import { useDarkMode } from '../contexts/DarkModeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, onModeVisibilityChange }) => {
+const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
   const [showDebug, setShowDebug] = useState(false);
   
   return (
@@ -33,7 +35,7 @@ const StatisticsScreen = ({ navigation, isDarkMode = false, onToggleDarkMode, on
       <StatisticsContent
         navigation={navigation}
         isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
+        onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
         showDebug={showDebug}
         setShowDebug={setShowDebug}

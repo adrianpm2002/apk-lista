@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
+  Text,
   StyleSheet,
   Platform,
   BackHandler,
@@ -22,6 +23,15 @@ const MainAppScreen = ({ navigation, route }) => {
   text2: true,
   vault: true,
   });
+
+  // Si el contexto aún está cargando, mostrar pantalla de carga
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa' }}>
+        <Text style={{ color: isDarkMode ? '#ecf0f1' : '#2c3e50' }}>Cargando...</Text>
+      </View>
+    );
+  }
   
   // Usar configuraciones locales simples
 

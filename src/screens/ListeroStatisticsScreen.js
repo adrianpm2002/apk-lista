@@ -4,10 +4,12 @@ import StatisticsChart from '../components/StatisticsChart';
 import GroupedAccordionTable from '../components/GroupedAccordionTable';
 import { last7DaysSummary, groupByLottery, groupBySchedule, quickKPIs, mockPlays, exportCSV, exportPDF } from '../utils/statisticsUtils';
 import { createCommonDarkStyles, createStatisticsDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
+import { useDarkMode } from '../contexts/DarkModeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-export default function ListeroStatisticsScreen({ isDarkMode=false }){
+export default function ListeroStatisticsScreen(){
+  const { isDarkMode } = useDarkMode();
   const [range, setRange] = useState('last7'); // 'last7' | 'last30' | 'custom'
   const [selectedLottery, setSelectedLottery] = useState('all');
   const [selectedSchedule, setSelectedSchedule] = useState('all');

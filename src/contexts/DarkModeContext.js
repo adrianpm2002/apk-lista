@@ -6,7 +6,13 @@ const DarkModeContext = createContext();
 export const useDarkMode = () => {
   const context = useContext(DarkModeContext);
   if (!context) {
-    throw new Error('useDarkMode debe ser usado dentro de DarkModeProvider');
+    // Fallback para desarrollo: devolver valores por defecto
+    console.warn('useDarkMode debe ser usado dentro de DarkModeProvider. Usando valores por defecto.');
+    return {
+      isDarkMode: false,
+      toggleDarkMode: () => console.warn('toggleDarkMode no disponible fuera del DarkModeProvider'),
+      isLoading: false,
+    };
   }
   return context;
 };
@@ -14,6 +20,8 @@ export const useDarkMode = () => {
 export const DarkModeProvider = ({ children }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  console.log('DarkModeProvider initialized'); // Debug log
 
   // Cargar preferencia de modo oscuro al inicializar
   useEffect(() => {
