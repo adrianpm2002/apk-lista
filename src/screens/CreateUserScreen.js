@@ -72,6 +72,10 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
   const [resetPassword, setResetPassword] = useState('');
   const [resetPassword2, setResetPassword2] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+  
+  // Estado para modal de ganancia
+  const [gainModalVisible, setGainModalVisible] = useState(false);
+  const [gainTargetUser, setGainTargetUser] = useState(null);
 
   const createHierarchicalStructure = useCallback((userData) => {
     const hierarchical = [];
@@ -136,8 +140,10 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       setHierarchicalUsers(onlyListeros.map(u => ({ ...u, type: 'listero', level: 0 })));
       return;
     }
-    setUsers(data || []);
-    createHierarchicalStructure(data || []);
+    // Filtrar administradores - solo mostrar colectores y listeros
+    const filteredData = (data || []).filter(u => u.role !== 'admin');
+    setUsers(filteredData);
+    createHierarchicalStructure(filteredData);
   }, [currentBankId, userRole, currentUserId, createHierarchicalStructure]);
 
   useEffect(() => {
@@ -660,6 +666,16 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     setResetModalVisible(true);
   };
 
+  // Abrir modal de asignación de ganancia (solo colector)
+  const openGainModal = (user) => {
+    if (userRole !== 'collector') return;
+    setGainTargetUser(user);
+    setSelectedGainId(user.id_precio);
+    const gOption = gainOptions.find(g => g.id === user.id_precio);
+    setSelectedGainDetail(gOption ? gOption.precios : null);
+    setGainModalVisible(true);
+  };
+
   // Confirmar cambio de contraseña usando método directo simplificado
   const handleConfirmResetPassword = async () => {
     try {
@@ -710,6 +726,32 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     }
   };
 
+  // Función para asignar ganancia a listero
+  const handleAssignGain = async () => {
+    if (!gainTargetUser || !selectedGainId) {
+      Alert.alert('Error', 'Selecciona una ganancia válida');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ id_precio: selectedGainId })
+        .eq('id', gainTargetUser.id);
+
+      if (error) {
+        throw error;
+      }
+
+      Alert.alert('Éxito', 'Ganancia asignada correctamente');
+      setGainModalVisible(false);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error asignando ganancia:', error);
+      Alert.alert('Error', 'No se pudo asignar la ganancia');
+    }
+  };
+
   // Optimizar filtros con useMemo
   const collectors = useMemo(() => 
     users.filter(u => u.role === 'collector'), 
@@ -735,64 +777,11 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
     const isExpanded = expandedCollectors.has(item.id);
     const isUpdating = updatingUsers.has(item.id);
     const parentCollectorInactive = isListero && item.id_collector ? (users.find(u => u.id === item.id_collector)?.activo === false) : false;
-    const canToggleActive = userRole !== 'collector' || (userRole === 'collector' && isListero && item.id_collector === currentUserId);
+    const canToggleActive = cacheUserRole !== 'collector' || (cacheUserRole === 'collector' && isListero && item.id_collector === currentUserId);
     
-    // Admin card
-    if (isAdmin) {
-      return (
-        <View style={[styles.userCard, styles.adminCard, { backgroundColor: isDarkMode ? '#34495e' : '#fff' }]}>
-          <View style={styles.userNameContainer}>
-            <Text 
-              style={[styles.username, { color: isDarkMode ? '#ecf0f1' : '#2c3e50', fontWeight: 'bold' }]}
-              numberOfLines={2}
-              ellipsizeMode="tail"
-            >
-              👑 {item.username}
-            </Text>
-            <Text style={[styles.userRole, { color: isDarkMode ? '#e74c3c' : '#e74c3c' }]}>
-              Administrador • {item.activo ? 'Habilitado' : 'Deshabilitado'}
-            </Text>
-          </View>
-          
-          {userRole === 'admin' && (
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={styles.editButton}
-                onPress={() => openEditModal(item)}
-              >
-                <Text style={styles.buttonText}>✏️ Editar</Text>
-              </TouchableOpacity>
-              
-              <View style={styles.toggleContainer}>
-                <Switch
-                  style={styles.toggleSwitch}
-                  value={item.activo}
-                  onValueChange={() => handleToggleActive(item.id, item.activo)}
-                  trackColor={{ false: '#e74c3c', true: '#27ae60' }}
-                  thumbColor={item.activo ? '#fff' : '#fff'}
-                />
-                <Text style={styles.toggleLabel}>
-                  {item.activo ? 'ON' : 'OFF'}
-                </Text>
-              </View>
-              
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleDelete(item.id)}
-              >
-                <Text style={styles.buttonText}>🗑️ Eliminar</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.resetButton}
-                onPress={() => openResetPasswordModal(item)}
-              >
-                <Text style={styles.buttonText}>🔑 Contraseña</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      );
+    // No renderizar administradores
+    if (isAdmin || item.role === 'admin') {
+      return null;
     }
     
     // Collector card
@@ -820,7 +809,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
             </Text>
           </TouchableOpacity>
           
-          {userRole === 'admin' && (
+          {cacheUserRole === 'admin' && (
             <View style={styles.buttonRow}>
               <View style={styles.toggleContainer}>
                 <Switch
@@ -839,21 +828,21 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
                 style={styles.editButton}
                 onPress={() => openEditModal(item)}
               >
-                <Text style={styles.buttonText}>✏️</Text>
+                <Text style={styles.buttonText}>Editar</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
                 style={styles.resetButton}
                 onPress={() => openResetPasswordModal(item)}
               >
-                <Text style={styles.buttonText}>�</Text>
+                <Text style={styles.buttonText}>Contraseña</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
                 style={styles.deleteButton}
                 onPress={() => handleDelete(item.id)}
               >
-                <Text style={styles.buttonText}>�️</Text>
+                <Text style={styles.buttonText}>Eliminar</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -912,40 +901,50 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           
           {canToggleActive && (
             <View style={styles.buttonRow}>
+              <View style={styles.toggleContainer}>
+                <Switch
+                  style={styles.toggleSwitch}
+                  value={item.activo}
+                  onValueChange={() => handleToggleActive(item.id, item.activo)}
+                  trackColor={{ false: '#e74c3c', true: '#27ae60' }}
+                  thumbColor={item.activo ? '#fff' : '#fff'}
+                />
+                <Text style={styles.toggleLabel}>
+                  {item.activo ? 'ON' : 'OFF'}
+                </Text>
+              </View>
+              
               <TouchableOpacity
                 style={styles.editButton}
                 onPress={() => openEditModal(item)}
               >
-                <Text style={styles.buttonText}>✏️ Editar</Text>
+                <Text style={styles.buttonText}>Editar</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity
-                style={[
-                  styles.editButton,
-                  { backgroundColor: item.activo ? '#e67e22' : '#27ae60' }
-                ]}
-                onPress={() => handleToggleActive(item.id, item.activo)}
-              >
-                <Text style={styles.buttonText}>
-                  {item.activo ? '🔒 Deshabilitar' : '� Habilitar'}
-                </Text>
-              </TouchableOpacity>
+              {cacheUserRole === 'collector' && (
+                <TouchableOpacity
+                  style={styles.gainButton}
+                  onPress={() => openGainModal(item)}
+                >
+                  <Text style={styles.buttonText}>Ganancia</Text>
+                </TouchableOpacity>
+              )}
+              
+              {cacheUserRole === 'admin' && (
+                <TouchableOpacity
+                  style={styles.resetButton}
+                  onPress={() => openResetPasswordModal(item)}
+                >
+                  <Text style={styles.buttonText}>Contraseña</Text>
+                </TouchableOpacity>
+              )}
               
               <TouchableOpacity
                 style={styles.deleteButton}
                 onPress={() => handleDelete(item.id)}
               >
-                <Text style={styles.buttonText}>🗑️ Eliminar</Text>
+                <Text style={styles.buttonText}>Eliminar</Text>
               </TouchableOpacity>
-              
-              {userRole === 'admin' && (
-                <TouchableOpacity
-                  style={styles.resetButton}
-                  onPress={() => openResetPasswordModal(item)}
-                >
-                  <Text style={styles.buttonText}>🔑 Contraseña</Text>
-                </TouchableOpacity>
-              )}
             </View>
           )}
         </View>
@@ -1127,6 +1126,51 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
               />
               <CustomButton title={isResetting ? 'Actualizando…' : 'Actualizar'} disabled={isResetting} onPress={handleConfirmResetPassword} />
               <CustomButton title="Cancelar" color="#666" onPress={() => setResetModalVisible(false)} />
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Modal para asignar ganancia (solo colector) */}
+        <Modal visible={gainModalVisible} animationType="fade">
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Asignar Ganancia</Text>
+            <ScrollView 
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+            >
+              <Text style={{ marginBottom: 8 }}>Usuario: {gainTargetUser?.username}</Text>
+              <Text style={{ fontWeight:'600' }}>Ganancia:</Text>
+              <Picker
+                selectedValue={selectedGainId || ''}
+                onValueChange={(val) => {
+                  setSelectedGainId(val || null);
+                  const f = gainOptions.find(g => g.id === val);
+                  setSelectedGainDetail(f ? f.precios : null);
+                }}
+                style={styles.picker}
+              >
+                <Picker.Item label="Selecciona una ganancia" value="" />
+                {gainOptions.map(g => (
+                  <Picker.Item key={g.id} label={g.nombre} value={g.id} />
+                ))}
+              </Picker>
+              {selectedGainDetail && (
+                <View style={{ borderWidth:1, borderColor:'#ccc', padding:10, borderRadius:6, backgroundColor:'#fff', marginBottom:15 }}>
+                  {activePlayTypes.map(pt => {
+                    const d = selectedGainDetail[pt];
+                    if (!d) return null;
+                    return (
+                      <Text key={pt} style={{ fontSize:12, marginBottom:4 }}>
+                        <Text style={{ fontWeight:'700', color:'#1d6fd1' }}>{pt.toUpperCase()}</Text>: regular {d.regular}, limitado {d.limited}, listero% {d.listeroPct}, colector% {d.collectorPct}
+                      </Text>
+                    );
+                  })}
+                </View>
+              )}
+              <CustomButton title="Asignar" onPress={handleAssignGain} />
+              <CustomButton title="Cancelar" color="#666" onPress={() => setGainModalVisible(false)} />
             </ScrollView>
           </View>
         </Modal>
@@ -1342,6 +1386,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  gainButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+    backgroundColor: '#27ae60',
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   buttonText: { 
     color: '#fff', 
     fontWeight: 'bold',
@@ -1447,11 +1500,6 @@ const styles = StyleSheet.create({
         elevation: 4,
       },
     }),
-  },
-  adminCard: {
-    backgroundColor: '#fff',
-    borderLeftWidth: 4,
-    borderLeftColor: '#e74c3c',
   },
   collectorCard: {
     backgroundColor: '#fff',
