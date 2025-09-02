@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, Alert, Modal, StyleSheet, TextInput, FlatList, TouchableOpacity, Switch, Platform } from 'react-native';
+import { View, Text, Alert, Modal, StyleSheet, TextInput, FlatList, TouchableOpacity, Switch, Platform, ScrollView } from 'react-native';
 import { Picker } from '../components/PickerWrapper';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
@@ -870,115 +870,122 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{isEditing ? (userRole==='collector' ? 'Editar Listero' : 'Editar Usuario') : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')}</Text>
 
-            <TextInput
-              placeholder="Nombre de usuario"
-              value={username}
-              onChangeText={setUsername}
-              style={styles.input}
-            />
-
-            {!isEditing && (
+            <ScrollView 
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+            >
               <TextInput
-                placeholder="Contraseña"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
+                placeholder="Nombre de usuario"
+                value={username}
+                onChangeText={setUsername}
                 style={styles.input}
               />
-            )}
 
-            {userRole !== 'collector' && (
-              <>
-                <Text>Rol:</Text>
-                <Picker
-                  selectedValue={role}
-                  onValueChange={setRole}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Selecciona un rol" value="" />
-                  <Picker.Item label="Colector" value="collector" />
-                  <Picker.Item label="Listero" value="listero" />
-                </Picker>
-              </>
-            )}
+              {!isEditing && (
+                <TextInput
+                  placeholder="Contraseña"
+                  secureTextEntry
+                  value={password}
+                  onChangeText={setPassword}
+                  style={styles.input}
+                />
+              )}
 
-            {role === 'listero' && userRole !== 'collector' && (
-              <>
-                <Text>Seleccionar colector:</Text>
-                <Picker
-                  selectedValue={selectedCollector}
-                  onValueChange={setSelectedCollector}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Selecciona un colector" value="" />
-                  {collectors.map((col) => (
-                    <Picker.Item key={col.id} label={col.username} value={col.id} />
-                  ))}
-                </Picker>
-                <View style={styles.limitsToggleRow}>
-                  <Text style={styles.limitsToggleLabel}>Límites específicos</Text>
-                  <Switch value={enableSpecificLimits} onValueChange={setEnableSpecificLimits} />
-                </View>
-                {enableSpecificLimits && (
-                  <View style={styles.limitsContainer}>
-                    {activePlayTypes.length === 0 && (
-                      <Text style={styles.limitsHint}>No hay jugadas activas.</Text>
-                    )}
-                    {activePlayTypes.map(pt => (
-                      <View key={pt} style={styles.limitInputRow}>
-                        <Text style={styles.limitPlayType}>{pt}</Text>
-                        <TextInput
-                          placeholder="Limite"
-                          keyboardType="numeric"
-                          value={limitsValues[pt] || ''}
-                          onChangeText={val => setLimitsValues(prev => ({ ...prev, [pt]: val.replace(/[^0-9]/g,'') }))}
-                          style={styles.limitInput}
-                        />
-                      </View>
+              {userRole !== 'collector' && (
+                <>
+                  <Text>Rol:</Text>
+                  <Picker
+                    selectedValue={role}
+                    onValueChange={setRole}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Selecciona un rol" value="" />
+                    <Picker.Item label="Colector" value="collector" />
+                    <Picker.Item label="Listero" value="listero" />
+                  </Picker>
+                </>
+              )}
+
+              {role === 'listero' && userRole !== 'collector' && (
+                <>
+                  <Text>Seleccionar colector:</Text>
+                  <Picker
+                    selectedValue={selectedCollector}
+                    onValueChange={setSelectedCollector}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Selecciona un colector" value="" />
+                    {collectors.map((col) => (
+                      <Picker.Item key={col.id} label={col.username} value={col.id} />
                     ))}
+                  </Picker>
+                  <View style={styles.limitsToggleRow}>
+                    <Text style={styles.limitsToggleLabel}>Límites específicos</Text>
+                    <Switch value={enableSpecificLimits} onValueChange={setEnableSpecificLimits} />
                   </View>
-                )}
-              </>
-            )}
-
-            {userRole === 'collector' && (role === 'listero' || isEditing) && (
-              <>
-                <Text style={{ fontWeight:'600' }}>Ganancia:</Text>
-                <Picker
-                  selectedValue={selectedGainId || ''}
-                   onValueChange={(val) => {
-                    setSelectedGainId(val || null);
-                    const f = gainOptions.find(g => g.id === val);
-                     setSelectedGainDetail(f ? f.precios : null);
-                   }}
-                   style={styles.picker}
-                 >
-                   <Picker.Item label="Selecciona una ganancia" value="" />
-                  {gainOptions.map(g => (
-                    <Picker.Item key={g.id} label={g.nombre} value={g.id} />
-                  ))}
-                  {selectedGainId && !gainOptions.some(g => g.id === selectedGainId) && (
-                    <Picker.Item label={`Configuración no válida`} value={selectedGainId} />
+                  {enableSpecificLimits && (
+                    <View style={styles.limitsContainer}>
+                      {activePlayTypes.length === 0 && (
+                        <Text style={styles.limitsHint}>No hay jugadas activas.</Text>
+                      )}
+                      {activePlayTypes.map(pt => (
+                        <View key={pt} style={styles.limitInputRow}>
+                          <Text style={styles.limitPlayType}>{pt}</Text>
+                          <TextInput
+                            placeholder="Limite"
+                            keyboardType="numeric"
+                            value={limitsValues[pt] || ''}
+                            onChangeText={val => setLimitsValues(prev => ({ ...prev, [pt]: val.replace(/[^0-9]/g,'') }))}
+                            style={styles.limitInput}
+                          />
+                        </View>
+                      ))}
+                    </View>
                   )}
-                </Picker>
-                {selectedGainDetail && (
-                  <View style={{ borderWidth:1, borderColor:'#ccc', padding:10, borderRadius:6, backgroundColor:'#fff', marginBottom:15 }}>
-                    {activePlayTypes.map(pt => {
-                       const d = selectedGainDetail[pt];
-                       if (!d) return null;
-                       return (
-                         <Text key={pt} style={{ fontSize:12, marginBottom:4 }}>
-                           <Text style={{ fontWeight:'700', color:'#1d6fd1' }}>{pt.toUpperCase()}</Text>: regular {d.regular}, limitado {d.limited}, listero% {d.listeroPct}, colector% {d.collectorPct}
-                         </Text>
-                       );
-                     })}
-                  </View>
-                )}
-               </>
-             )}
+                </>
+              )}
 
-            <CustomButton title={isEditing ? 'Guardar Cambios' : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')} onPress={handleCreateOrUpdate} />
-            <CustomButton title="Cancelar" color="#666" onPress={() => setModalVisible(false)} />
+              {userRole === 'collector' && (role === 'listero' || isEditing) && (
+                <>
+                  <Text style={{ fontWeight:'600' }}>Ganancia:</Text>
+                  <Picker
+                    selectedValue={selectedGainId || ''}
+                     onValueChange={(val) => {
+                      setSelectedGainId(val || null);
+                      const f = gainOptions.find(g => g.id === val);
+                       setSelectedGainDetail(f ? f.precios : null);
+                     }}
+                     style={styles.picker}
+                   >
+                     <Picker.Item label="Selecciona una ganancia" value="" />
+                    {gainOptions.map(g => (
+                      <Picker.Item key={g.id} label={g.nombre} value={g.id} />
+                    ))}
+                    {selectedGainId && !gainOptions.some(g => g.id === selectedGainId) && (
+                      <Picker.Item label={`Configuración no válida`} value={selectedGainId} />
+                    )}
+                  </Picker>
+                  {selectedGainDetail && (
+                    <View style={{ borderWidth:1, borderColor:'#ccc', padding:10, borderRadius:6, backgroundColor:'#fff', marginBottom:15 }}>
+                      {activePlayTypes.map(pt => {
+                         const d = selectedGainDetail[pt];
+                         if (!d) return null;
+                         return (
+                           <Text key={pt} style={{ fontSize:12, marginBottom:4 }}>
+                             <Text style={{ fontWeight:'700', color:'#1d6fd1' }}>{pt.toUpperCase()}</Text>: regular {d.regular}, limitado {d.limited}, listero% {d.listeroPct}, colector% {d.collectorPct}
+                           </Text>
+                         );
+                       })}
+                    </View>
+                  )}
+                 </>
+               )}
+
+              <CustomButton title={isEditing ? 'Guardar Cambios' : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')} onPress={handleCreateOrUpdate} />
+              <CustomButton title="Cancelar" color="#666" onPress={() => setModalVisible(false)} />
+            </ScrollView>
           </View>
         </Modal>
 
@@ -986,23 +993,30 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         <Modal visible={resetModalVisible} animationType="fade">
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Cambiar contraseña</Text>
-            <Text style={{ marginBottom: 8 }}>Usuario: {resetTargetUser?.username}</Text>
-            <TextInput
-              placeholder="Nueva contraseña"
-              secureTextEntry
-              value={resetPassword}
-              onChangeText={setResetPassword}
-              style={styles.input}
-            />
-            <TextInput
-              placeholder="Confirmar contraseña"
-              secureTextEntry
-              value={resetPassword2}
-              onChangeText={setResetPassword2}
-              style={styles.input}
-            />
-            <CustomButton title={isResetting ? 'Actualizando…' : 'Actualizar'} disabled={isResetting} onPress={handleConfirmResetPassword} />
-            <CustomButton title="Cancelar" color="#666" onPress={() => setResetModalVisible(false)} />
+            <ScrollView 
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+            >
+              <Text style={{ marginBottom: 8 }}>Usuario: {resetTargetUser?.username}</Text>
+              <TextInput
+                placeholder="Nueva contraseña"
+                secureTextEntry
+                value={resetPassword}
+                onChangeText={setResetPassword}
+                style={styles.input}
+              />
+              <TextInput
+                placeholder="Confirmar contraseña"
+                secureTextEntry
+                value={resetPassword2}
+                onChangeText={setResetPassword2}
+                style={styles.input}
+              />
+              <CustomButton title={isResetting ? 'Actualizando…' : 'Actualizar'} disabled={isResetting} onPress={handleConfirmResetPassword} />
+              <CustomButton title="Cancelar" color="#666" onPress={() => setResetModalVisible(false)} />
+            </ScrollView>
           </View>
         </Modal>
       </View>
@@ -1217,6 +1231,12 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     backgroundColor: '#F8FDF5',
+  },
+  modalScrollView: {
+    flex: 1,
+  },
+  modalScrollContent: {
+    paddingBottom: 40, // Espacio extra para que los botones sean visibles
   },
   modalTitle: {
     fontSize: 20,

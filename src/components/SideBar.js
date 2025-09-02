@@ -39,6 +39,19 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkM
     text2: true,
     vault: true,
   });
+  
+  // Estado para controlar si el componente está listo para mostrar contenido
+  const [isDataReady, setIsDataReady] = useState(false);
+  
+  // Verificar si los datos están listos
+  useEffect(() => {
+    if (role && role !== undefined && role !== null) {
+      setIsDataReady(true);
+    } else {
+      setIsDataReady(false);
+    }
+  }, [role]);
+  
   // Sincronizar con estado externo si llega
   useEffect(() => {
     if (incomingVisibleModes && typeof incomingVisibleModes === 'object') {
@@ -75,8 +88,8 @@ const roleOptionsMap = {
   ]
 };
 
-// Selección de opciones dinámicamente según rol
-const configOptions = roleOptionsMap[role] || [];
+// Selección de opciones dinámicamente según rol con valor por defecto
+const configOptions = isDataReady && role ? (roleOptionsMap[role] || []) : [];
 
 
   // Animación del sidebar
@@ -594,25 +607,35 @@ const configOptions = roleOptionsMap[role] || [];
               style={styles.content}
               showsVerticalScrollIndicator={false}
             >
-              {configOptions.map((option) => (
-                <Pressable
-                  key={option.id}
-                  style={({ pressed }) => [
-                    styles.optionRow,
-                    isDarkMode && styles.optionRowDark,
-                    pressed && styles.optionRowPressed
-                  ]}
-                  onPress={() => handleOptionPress(option)}
-                >
-                  <Text style={styles.optionIcon}>{option.icon}</Text>
-                  <View style={styles.optionTextContainer}>
-                    <Text style={[styles.optionTitle, isDarkMode && styles.optionTitleDark]}>
-                      {option.title}
-                    </Text>
-                  </View>
-                  <Text style={[styles.arrowIcon, isDarkMode && styles.arrowIconDark]}>▶</Text>
-                </Pressable>
-              ))}
+              {!isDataReady ? (
+                // Estado de carga cuando los datos no están listos
+                <View style={styles.loadingContainer}>
+                  <Text style={[styles.loadingText, isDarkMode && styles.loadingTextDark]}>
+                    Cargando menú...
+                  </Text>
+                </View>
+              ) : (
+                // Contenido normal cuando los datos están listos
+                configOptions.map((option) => (
+                  <Pressable
+                    key={option.id}
+                    style={({ pressed }) => [
+                      styles.optionRow,
+                      isDarkMode && styles.optionRowDark,
+                      pressed && styles.optionRowPressed
+                    ]}
+                    onPress={() => handleOptionPress(option)}
+                  >
+                    <Text style={styles.optionIcon}>{option.icon}</Text>
+                    <View style={styles.optionTextContainer}>
+                      <Text style={[styles.optionTitle, isDarkMode && styles.optionTitleDark]}>
+                        {option.title}
+                      </Text>
+                    </View>
+                    <Text style={[styles.arrowIcon, isDarkMode && styles.arrowIconDark]}>▶</Text>
+                  </Pressable>
+                ))
+              )}
             </ScrollView>
 
             {/* Footer */}
@@ -816,6 +839,22 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 8,
+  },
+  
+  // Loading state
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#7f8c8d',
+    textAlign: 'center',
+  },
+  loadingTextDark: {
+    color: '#bdc3c7',
   },
   
   // Option rows

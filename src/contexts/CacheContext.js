@@ -97,31 +97,58 @@ export const CacheProvider = ({ children }) => {
 
   // Función para obtener resultados del día
   const fetchTodayResults = useCallback(async () => {
+    console.log('[CacheContext] fetchTodayResults - INICIO');
     try {
       // Siempre usar la referencia actual primero
       const bankId = currentBankIdRef.current || currentBankId;
-      if (!bankId) return [];
+      console.log('[CacheContext] bankId para fetch:', bankId);
       
-      const today = new Date().toISOString().split('T')[0];
+      if (!bankId) {
+        console.log('[CacheContext] ❌ No bankId disponible');
+        return [];
+      }
+      
+      // Obtener fecha actual en zona horaria de La Habana, Cuba
+      const now = new Date();
+      const todayUTC = now.toISOString().split('T')[0];
+      
+      // Crear fecha en zona horaria de La Habana (CDT = UTC-4 o CST = UTC-5)
+      // Cuba está en CDT (UTC-4) en septiembre
+      const havanaTime = new Date(now.getTime() - (4 * 60 * 60 * 1000)); // Restar 4 horas
+      const todayHavana = havanaTime.toISOString().split('T')[0];
+      
+      console.log('[CacheContext] Fecha UTC:', todayUTC);
+      console.log('[CacheContext] Fecha La Habana:', todayHavana);
+      console.log('[CacheContext] Hora actual UTC:', now.toISOString());
+      console.log('[CacheContext] Hora La Habana calculada:', havanaTime.toISOString());
+      
+      const today = todayHavana;
+      console.log('[CacheContext] Fecha de hoy (usada):', today);
       
       // Primero obtener IDs de horarios válidos para el banco
+      console.log('[CacheContext] 🔄 Buscando horarios válidos...');
       const { data: validSchedules, error: schedulesError } = await supabase
         .from('horario')
         .select('id, loteria!inner(id_banco)')
         .eq('loteria.id_banco', bankId);
       
       if (schedulesError) {
-        console.error('Error fetching valid schedules:', schedulesError);
+        console.error('[CacheContext] ❌ Error fetching valid schedules:', schedulesError);
         return [];
       }
       
+      console.log('[CacheContext] Horarios válidos encontrados:', validSchedules);
+      
       if (!validSchedules || validSchedules.length === 0) {
+        console.log('[CacheContext] ⚠️ No hay horarios válidos para este banco');
         return [];
       }
       
       const validScheduleIds = validSchedules.map(s => s.id);
+      console.log('[CacheContext] IDs de horarios válidos:', validScheduleIds);
       
       // Luego buscar resultados solo de esos horarios
+      console.log('[CacheContext] 🔄 Buscando resultados del día...');
       const { data, error } = await supabase
         .from('resultado')
         .select(`
@@ -149,14 +176,26 @@ export const CacheProvider = ({ children }) => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching today results:', error);
+        console.error('[CacheContext] ❌ Error fetching today results:', error);
         return [];
       }
+      
+      console.log('[CacheContext] ✅ Resultados encontrados:', data);
+      console.log('[CacheContext] Cantidad de resultados:', data?.length || 0);
+      
+      // Actualizar el cache
+      setCache(prev => ({
+        ...prev,
+        todayResults: data || [],
+        lastUpdated: { ...prev.lastUpdated, todayResults: Date.now() }
+      }));
+      
+      console.log('[CacheContext] ✅ Cache actualizado con resultados');
       
       // Ya no necesitamos filtrar porque consultamos directamente con .in('id_horario', validScheduleIds)
       return data || [];
     } catch (error) {
-      console.error('Error fetching today results:', error);
+      console.error('[CacheContext] ❌ Error general en fetchTodayResults:', error);
       return [];
     }
   }, [currentBankId]);

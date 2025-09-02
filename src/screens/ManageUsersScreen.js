@@ -357,6 +357,24 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
     setEditingUser({ ...editingUser, [field]: cleanText });
   };
 
+  const handleChangePassword = (user) => {
+    Alert.alert(
+      'Cambiar Contraseña',
+      `¿Deseas cambiar la contraseña del usuario "${user.usuario}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Cambiar', 
+          onPress: () => {
+            // Aquí puedes implementar la lógica para cambiar contraseña
+            // Por ejemplo, abrir un modal específico para cambio de contraseña
+            Alert.alert('Info', 'Funcionalidad de cambio de contraseña por implementar');
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#F8FDF5' }]}>
       {/* Header personalizado */}
@@ -406,70 +424,59 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
         ) : (
           users.map((user) => (
             <View key={user.id} style={[styles.userCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
-              {/* Nombre de usuario en línea completa */}
+              {/* Nombre de usuario y rol en línea completa */}
               <View style={styles.userNameContainer}>
                 <Text 
                   style={[styles.username, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}
-                  numberOfLines={Platform.OS === 'android' ? 2 : 1}
+                  numberOfLines={2}
                   ellipsizeMode="tail"
                 >
                   {user.usuario}
                 </Text>
+                <Text style={[styles.userRole, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+                  {user.role === 'admin' ? 'Administrador' : 'Colector'} • {user.activo ? 'Habilitado' : 'Deshabilitado'}
+                </Text>
               </View>
               
-              {/* Información de rol y estado */}
-              <View style={styles.userInfoContainer}>
-                <View style={styles.userDetails}>
-                  <Text style={[styles.userRole, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
-                    {user.role === 'admin' ? 'Administrador' : 'Colector'}
-                  </Text>
-                  <Text style={[
-                    styles.userStatus,
-                    { color: user.activo ? '#27ae60' : '#e74c3c' }
-                  ]}>
-                    {user.activo ? 'Habilitado' : 'Deshabilitado'}
-                  </Text>
-                </View>
-              </View>
-              
-              {/* Botones de acción en layout responsive */}
+              {/* Botones de acción organizados en filas */}
               {cacheUserRole === 'admin' && (
-                <View style={[
-                  styles.userActions,
-                  Platform.OS === 'android' && styles.userActionsMobile
-                ]}>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.editButton]}
-                    onPress={() => handleEditUser(user)}
-                  >
-                    <Text style={styles.actionButtonText}>
-                      {Platform.OS === 'android' ? '✏️ Editar' : '✏️ Editar'}
-                    </Text>
-                  </TouchableOpacity>
+                <View style={styles.userActions}>
+                  <View style={styles.actionRow}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.editButton]}
+                      onPress={() => handleEditUser(user)}
+                    >
+                      <Text style={styles.actionButtonText}>✏️ Editar</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={[
+                        styles.actionButton, 
+                        user.activo ? styles.deactivateButton : styles.activateButton
+                      ]}
+                      onPress={() => handleToggleUserStatus(user)}
+                    >
+                      <Text style={styles.actionButtonText}>
+                        {user.activo ? '🔒 Deshabilitar' : '� Habilitar'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                   
-                  <TouchableOpacity
-                    style={[
-                      styles.actionButton, 
-                      user.activo ? styles.deactivateButton : styles.activateButton
-                    ]}
-                    onPress={() => handleToggleUserStatus(user)}
-                  >
-                    <Text style={styles.actionButtonText}>
-                      {user.activo ? 
-                        (Platform.OS === 'android' ? '🔒 Deshabilitar' : '🔒 Deshabilitar') : 
-                        (Platform.OS === 'android' ? '🔓 Habilitar' : '🔓 Habilitar')
-                      }
-                    </Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.deleteButton]}
-                    onPress={() => handleDeleteUser(user.id, user.usuario)}
-                  >
-                    <Text style={styles.actionButtonText}>
-                      {Platform.OS === 'android' ? '🗑️ Eliminar' : '🗑️ Eliminar'}
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={styles.actionRow}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.deleteButton]}
+                      onPress={() => handleDeleteUser(user.id, user.usuario)}
+                    >
+                      <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.passwordButton]}
+                      onPress={() => handleChangePassword(user)}
+                    >
+                      <Text style={styles.actionButtonText}>🔑 Contraseña</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
             </View>
@@ -495,7 +502,12 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalContent}>
+            <ScrollView 
+              style={styles.modalContent}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+            >
               <Text style={[styles.inputLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
                 Nombre de Usuario:
               </Text>
@@ -565,7 +577,7 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -588,7 +600,12 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalContent}>
+            <ScrollView 
+              style={styles.modalContent}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+            >
               <Text style={[styles.inputLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
                 Nombre de Usuario:
               </Text>
@@ -658,7 +675,7 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -767,53 +784,42 @@ const styles = StyleSheet.create({
   },
   userNameContainer: {
     width: '100%',
-    marginBottom: 10,
+    marginBottom: 12,
     paddingBottom: 8,
     borderBottomWidth: Platform.OS === 'android' ? 1.5 : 1,
     borderBottomColor: Platform.OS === 'android' ? '#e8e8e8' : '#f0f0f0',
   },
   username: {
-    fontSize: Platform.OS === 'android' ? 16 : 18,
+    fontSize: Platform.OS === 'android' ? 18 : 18,
     fontWeight: 'bold',
-    lineHeight: Platform.OS === 'android' ? 22 : 26,
+    lineHeight: Platform.OS === 'android' ? 24 : 26,
     flexWrap: 'wrap',
-  },
-  userInfoContainer: {
-    width: '100%',
-    marginBottom: 12,
-  },
-  userDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
+    textAlign: 'left',
+    marginBottom: 4,
   },
   userRole: {
     fontSize: 14,
     fontWeight: '500',
-  },
-  userStatus: {
-    fontSize: 14,
-    fontWeight: '600',
+    lineHeight: 18,
   },
   userActions: {
+    flexDirection: 'column',
+    gap: 8,
+    marginTop: 8,
+  },
+  actionRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 8,
   },
-  userActionsMobile: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: 6,
-  },
   actionButton: {
-    paddingHorizontal: Platform.OS === 'android' ? 10 : 12,
-    paddingVertical: Platform.OS === 'android' ? 8 : 6,
-    borderRadius: 6,
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
     alignItems: 'center',
-    minWidth: Platform.OS === 'android' ? 0 : 80,
-    flex: Platform.OS === 'android' ? 1 : 0,
+    justifyContent: 'center',
+    minHeight: 40,
   },
   editButton: {
     backgroundColor: '#f39c12',
@@ -826,6 +832,9 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     backgroundColor: '#e74c3c',
+  },
+  passwordButton: {
+    backgroundColor: '#9b59b6',
   },
   actionButtonText: {
     color: '#fff',
@@ -847,7 +856,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 15,
     padding: 0,
-    maxHeight: '80%',
+    maxHeight: Platform.OS === 'android' ? '85%' : '80%', // Más altura en Android
+    flexDirection: 'column',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -870,7 +880,11 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   modalContent: {
+    flex: 1,
+  },
+  modalScrollContent: {
     padding: 20,
+    paddingBottom: 40, // Espacio extra para que el botón sea visible
   },
   inputLabel: {
     fontSize: 14,
