@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     color: '#2D5016',
     marginBottom: 6,
     marginLeft: 4,
-    ...(Platform.OS === 'android' && { marginTop: 2 }),
+    ...(Platform.OS === 'android' && { marginTop: 12 }),
   },
   dropdown: {
     backgroundColor: '#FFFFFF',

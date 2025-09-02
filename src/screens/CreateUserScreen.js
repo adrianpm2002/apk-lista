@@ -801,7 +801,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
                 📊 {item.username}
               </Text>
               <Text style={[styles.userRole, { color: isDarkMode ? '#3498db' : '#3498db' }]}>
-                Colector • {item.activo ? 'Habilitado' : 'Deshabilitado'} • {item.hasListeros ? 'Con listeros' : 'Sin listeros'}
+                Colector • {item.activo ? 'Habilitado' : 'Deshabilitado'}
               </Text>
             </View>
             <Text style={[styles.expandIcon, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>

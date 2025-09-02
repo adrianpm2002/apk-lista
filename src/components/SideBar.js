@@ -160,9 +160,12 @@ const configOptions = isDataReady && role ? (roleOptionsMap[role] || []) : [];
   };
 
   const handleOptionPress = (option) => {
-  handleClose();
+    // Solo cerrar el sidebar si NO es configuración
+    if (option.id !== 'settings') {
+      handleClose();
+    }
 
-  switch (option.id) {
+    switch (option.id) {
     case 'createUser':
       navigation.navigate('CreateUser');
       break;
@@ -197,6 +200,7 @@ const configOptions = isDataReady && role ? (roleOptionsMap[role] || []) : [];
       navigation.navigate('MainApp');
       break;
     case 'settings':
+      handleClose(); // Cerrar sidebar primero
       setModalContent(option);
       setModalVisible(true);
       break;
@@ -378,49 +382,115 @@ const configOptions = isDataReady && role ? (roleOptionsMap[role] || []) : [];
   };
 
   const renderModalContent = () => {
-    if (!modalContent) return null;
+    if (!modalContent) {
+      return null;
+    }
 
     if (modalContent.id === 'settings') {
       return (
-        <View style={styles.modalContentInner}>
-          <Text style={styles.modalTitle}>{settingsView === 'modes' ? 'Modos Visibles' : modalContent.title}</Text>
+        <View style={[
+          styles.modalContentInner,
+          Platform.OS === 'android' && { 
+            backgroundColor: '#FFFFFF',
+            minHeight: 150,
+            padding: 5
+          }
+        ]}>
+          <Text style={[
+            styles.modalTitle,
+            Platform.OS === 'android' && { 
+              color: '#000000',
+              fontSize: 16,
+              fontWeight: 'bold',
+              marginBottom: 10,
+              textAlign: 'center'
+            }
+          ]}>
+            {settingsView === 'modes' ? 'Modos Visibles' : modalContent.title}
+          </Text>
 
           {settingsView === 'root' ? (
             <>
-              <View style={styles.settingsContainer}>
+              <View style={[
+                styles.settingsContainer,
+                Platform.OS === 'android' && {
+                  backgroundColor: '#F8F8F8',
+                  padding: 5,
+                  borderRadius: 6,
+                  marginBottom: 10
+                }
+              ]}>
                 {/* Mantener sesión iniciada */}
-                <Pressable style={styles.settingOption} onPress={handleKeepSessionPress}>
-                  <Text style={styles.settingIcon}>🔐</Text>
+                <Pressable style={[
+                  styles.settingOption,
+                  Platform.OS === 'android' && {
+                    backgroundColor: '#FFFFFF',
+                    marginVertical: 2,
+                    borderRadius: 4,
+                    elevation: 1,
+                    paddingVertical: 8,
+                    paddingHorizontal: 10
+                  }
+                ]} onPress={handleKeepSessionPress}>
+                  <Text style={[styles.settingIcon, { fontSize: 14 }]}>🔐</Text>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingText}>Mantener sesión iniciada</Text>
-                    <Text style={styles.settingStatus}>
+                    <Text style={[styles.settingText, Platform.OS === 'android' && { color: '#000000', fontSize: 13 }]}>
+                      Mantener sesión iniciada
+                    </Text>
+                    <Text style={[styles.settingStatus, Platform.OS === 'android' && { color: '#666666', fontSize: 11 }]}>
                       {keepSessionActive ? 'Activado' : 'Desactivado'}
                     </Text>
                   </View>
-                  <Text style={styles.settingArrow}>▶</Text>
+                  <Text style={[styles.settingArrow, { fontSize: 12 }]}>▶</Text>
                 </Pressable>
 
                 {/* Tamaño de letra */}
-                <Pressable style={styles.settingOption} onPress={handleFontSizePress}>
-                  <Text style={styles.settingIcon}>🔤</Text>
+                <Pressable style={[
+                  styles.settingOption,
+                  Platform.OS === 'android' && {
+                    backgroundColor: '#FFFFFF',
+                    marginVertical: 2,
+                    borderRadius: 4,
+                    elevation: 1,
+                    paddingVertical: 8,
+                    paddingHorizontal: 10
+                  }
+                ]} onPress={handleFontSizePress}>
+                  <Text style={[styles.settingIcon, { fontSize: 14 }]}>🔤</Text>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingText}>Tamaño de letra</Text>
-                    <Text style={styles.settingStatus}>
+                    <Text style={[styles.settingText, Platform.OS === 'android' && { color: '#000000', fontSize: 13 }]}>
+                      Tamaño de letra
+                    </Text>
+                    <Text style={[styles.settingStatus, Platform.OS === 'android' && { color: '#666666', fontSize: 11 }]}>
                       {currentFontSize === 'pequeno' ? 'Pequeño' : 
                        currentFontSize === 'mediano' ? 'Mediano' : 'Grande'}
                     </Text>
                   </View>
-                  <Text style={styles.settingArrow}>▶</Text>
+                  <Text style={[styles.settingArrow, { fontSize: 12 }]}>▶</Text>
                 </Pressable>
 
                 {/* Patrón de seguridad */}
-                <Pressable style={styles.settingOption} onPress={handleSecurityPatternPress}>
-                  <Text style={styles.settingIcon}>🔒</Text>
+                <Pressable style={[
+                  styles.settingOption,
+                  Platform.OS === 'android' && {
+                    backgroundColor: '#FFFFFF',
+                    marginVertical: 2,
+                    borderRadius: 4,
+                    elevation: 1,
+                    paddingVertical: 8,
+                    paddingHorizontal: 10
+                  }
+                ]} onPress={handleSecurityPatternPress}>
+                  <Text style={[styles.settingIcon, { fontSize: 14 }]}>🔒</Text>
                   <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingText}>Patrón de seguridad</Text>
-                    <Text style={styles.settingStatus}>No configurado</Text>
+                    <Text style={[styles.settingText, Platform.OS === 'android' && { color: '#000000', fontSize: 13 }]}>
+                      Patrón de seguridad
+                    </Text>
+                    <Text style={[styles.settingStatus, Platform.OS === 'android' && { color: '#666666', fontSize: 11 }]}>
+                      No configurado
+                    </Text>
                   </View>
-                  <Text style={styles.settingArrow}>▶</Text>
+                  <Text style={[styles.settingArrow, { fontSize: 12 }]}>▶</Text>
                 </Pressable>
 
                 {/* Modos Visibles (solo listero) */}
@@ -450,8 +520,24 @@ const configOptions = isDataReady && role ? (roleOptionsMap[role] || []) : [];
                 )}
               </View>
 
-              <Pressable style={styles.modalCloseButton} onPress={closeModal}>
-                <Text style={styles.modalCloseButtonText}>Cerrar</Text>
+              <Pressable style={[
+                styles.modalCloseButton,
+                Platform.OS === 'android' && {
+                  backgroundColor: '#007AFF',
+                  padding: 6,
+                  borderRadius: 4,
+                  marginTop: 8,
+                  marginBottom: 5
+                }
+              ]} onPress={closeModal}>
+                <Text style={[
+                  styles.modalCloseButtonText,
+                  Platform.OS === 'android' && {
+                    color: '#FFFFFF',
+                    fontSize: 12,
+                    fontWeight: 'bold'
+                  }
+                ]}>Cerrar</Text>
               </Pressable>
             </>
           ) : (
@@ -784,16 +870,19 @@ const configOptions = isDataReady && role ? (roleOptionsMap[role] || []) : [];
         </View>
       </Modal>
 
-      {/* Modal para opciones */}
+      {/* Modal para opciones - INDEPENDIENTE del SideBar */}
       <Modal
         visible={modalVisible}
-        transparent
-        animationType={Platform.OS === 'android' ? 'slide' : 'fade'}
-        onRequestClose={closeModal}
+        transparent={true}
+        animationType={Platform.OS === 'android' ? 'none' : 'fade'}
+        onRequestClose={() => {
+          closeModal();
+        }}
         accessible={true}
         accessibilityViewIsModal={true}
-        presentationStyle={Platform.OS === 'android' ? 'overFullScreen' : 'overFullScreen'}
+        presentationStyle="overFullScreen"
         statusBarTranslucent={Platform.OS === 'android'}
+        hardwareAccelerated={Platform.OS === 'android'}
         onShow={() => {
           if (Platform.OS === 'android') {
             StatusBar.setBackgroundColor('rgba(0, 0, 0, 0.7)', true);
@@ -805,41 +894,69 @@ const configOptions = isDataReady && role ? (roleOptionsMap[role] || []) : [];
           }
         }}
       >
-        <Pressable 
-          style={[styles.modalOverlay, { pointerEvents: 'box-none' }]} 
-          onPress={() => { if (settingsView === 'root') closeModal(); }}
-          accessible={false}
-          accessibilityRole="button"
-          accessibilityLabel="Cerrar modal de configuración"
-          importantForAccessibility={Platform.OS === 'android' ? 'no-hide-descendants' : 'yes'}
+        <View 
+          style={{
+            flex: 1,
+            backgroundColor: Platform.OS === 'android' ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.8)',
+            justifyContent: Platform.OS === 'android' ? 'flex-start' : 'center',
+            alignItems: 'center',
+            paddingTop: Platform.OS === 'android' ? 40 : 0,
+            padding: 20,
+          }}
         >
           <View 
-            style={[
-              styles.modalContainer,
-              Platform.OS === 'android' && styles.modalContainerAndroid
-            ]}
-            onStartShouldSetResponder={() => true}
-            onTouchEnd={(e) => e.stopPropagation()}
-            {...getAccessibilityProps('dialog', 'Configuración', {
-              importantForAccessibility: Platform.OS === 'android' ? 'yes' : 'yes'
-            })}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: Platform.OS === 'android' ? 8 : 12,
+              padding: 15,
+              width: '90%',
+              maxWidth: 380,
+              maxHeight: Platform.OS === 'android' ? '90%' : '80%',
+              minHeight: Platform.OS === 'android' ? 480 : 300,
+              ...(Platform.OS === 'android' && {
+                elevation: 10,
+                shadowColor: '#000000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 6,
+              }),
+            }}
           >
-            <ScrollView 
-              style={styles.modalContent}
-              showsVerticalScrollIndicator={Platform.OS !== 'android'}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ flexGrow: 1 }}
-              nestedScrollEnabled={Platform.OS === 'android'}
-              removeClippedSubviews={Platform.OS === 'android'}
-            >
-              {renderModalContent()}
-            </ScrollView>
+            <View style={{ flex: 1 }}>
+              {/* Botón cerrar */}
+              <Pressable 
+                style={{
+                  position: 'absolute',
+                  top: 5,
+                  right: 5,
+                  zIndex: 1000,
+                  backgroundColor: '#666666',
+                  borderRadius: 12,
+                  width: 24,
+                  height: 24,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                onPress={() => {
+                  closeModal();
+                }}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 }}>✕</Text>
+              </Pressable>
+
+              {/* Contenido del modal - SIN SCROLLVIEW */}
+              <View style={{ flex: 1, marginTop: 25 }}>
+                {renderModalContent()}
+              </View>
+            </View>
           </View>
-          {/* Toast dentro del modal */}
-          <Animated.View style={[styles.toastContainer, { opacity: toastOpacity }]}>
-            <Text style={styles.toastText}>{toastMsg}</Text>
-          </Animated.View>
-        </Pressable>
+          {/* Toast fuera del contenedor principal */}
+          {Platform.OS !== 'android' && (
+            <Animated.View style={[styles.toastContainer, { opacity: toastOpacity }]}>
+              <Text style={styles.toastText}>{toastMsg}</Text>
+            </Animated.View>
+          )}
+        </View>
       </Modal>
 
   {/* Modal de visibilidad eliminado: ahora se gestiona dentro del modal de Configuración */}
