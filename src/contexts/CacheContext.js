@@ -137,18 +137,13 @@ export const CacheProvider = ({ children }) => {
         return [];
       }
       
-      console.log('[CacheContext] Horarios válidos encontrados:', validSchedules);
-      
       if (!validSchedules || validSchedules.length === 0) {
-        console.log('[CacheContext] ⚠️ No hay horarios válidos para este banco');
         return [];
       }
       
       const validScheduleIds = validSchedules.map(s => s.id);
-      console.log('[CacheContext] IDs de horarios válidos:', validScheduleIds);
       
       // Luego buscar resultados solo de esos horarios
-      console.log('[CacheContext] 🔄 Buscando resultados del día...');
       const { data, error } = await supabase
         .from('resultado')
         .select(`
@@ -180,17 +175,12 @@ export const CacheProvider = ({ children }) => {
         return [];
       }
       
-      console.log('[CacheContext] ✅ Resultados encontrados:', data);
-      console.log('[CacheContext] Cantidad de resultados:', data?.length || 0);
-      
       // Actualizar el cache
       setCache(prev => ({
         ...prev,
         todayResults: data || [],
         lastUpdated: { ...prev.lastUpdated, todayResults: Date.now() }
       }));
-      
-      console.log('[CacheContext] ✅ Cache actualizado con resultados');
       
       // Ya no necesitamos filtrar porque consultamos directamente con .in('id_horario', validScheduleIds)
       return data || [];

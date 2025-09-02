@@ -87,14 +87,8 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
 
   // Sincronizar con cache para todayResults
   useEffect(() => {
-    console.log('[InsertResults] 🔄 Sincronizando todayResults con cache...');
-    console.log('[InsertResults] cache.todayResults:', cache.todayResults);
-    
     if (cache.todayResults) {
-      console.log('[InsertResults] ✅ Actualizando todayResults desde cache');
       setTodayResults(cache.todayResults);
-    } else {
-      console.log('[InsertResults] ⚠️ No hay todayResults en cache');
     }
   }, [cache.todayResults]);
 
@@ -118,23 +112,14 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
 
   // ========== INITIAL DATA LOADING ==========
   useEffect(() => {
-    console.log('[InsertResults] 🚀 Componente montado, cargando datos iniciales...');
-    console.log('[InsertResults] cacheBankId inicial:', cacheBankId);
-    
     if (cacheBankId) {
-      console.log('[InsertResults] ✅ Iniciando carga de datos...');
       loadTodayResultsFromCache();
-    } else {
-      console.log('[InsertResults] ⚠️ No cacheBankId en mount inicial');
     }
   }, []); // Solo al montar el componente
 
   // ========== CACHE DEPENDENCY LOADING ==========
   useEffect(() => {
-    console.log('[InsertResults] 🔄 cacheBankId cambió:', cacheBankId);
-    
     if (cacheBankId) {
-      console.log('[InsertResults] ✅ BankId disponible, cargando datos...');
       loadTodayResultsFromCache();
     }
   }, [cacheBankId]); // Cuando cambie el bankId
@@ -160,19 +145,13 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
 
   // ========== FOCUS REFRESH ==========
   const focusRefresh = useCallback(() => {
-    console.log('[InsertResults] 🔄 focusRefresh ejecutándose...');
-    console.log('[InsertResults] cacheBankId en focusRefresh:', cacheBankId);
-    
     if (cacheBankId) {
-      console.log('[InsertResults] ✅ Ejecutando refresh en background...');
       // Actualizar datos en background sin bloquear UI
       setTimeout(() => {
         fetchTodayResults();
         fetchLotteries();
         fetchSchedules();
       }, 100);
-    } else {
-      console.log('[InsertResults] ⚠️ No cacheBankId en focusRefresh');
     }
   }, [cacheBankId, fetchTodayResults, fetchLotteries, fetchSchedules]);
 
@@ -249,58 +228,37 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
 
   // Cargar resultados del día actual usando cache primero
   const loadTodayResultsFromCache = async () => {
-    console.log('[InsertResults] loadTodayResultsFromCache - INICIO');
-    console.log('[InsertResults] cacheBankId:', cacheBankId);
-    console.log('[InsertResults] userRole:', userRole);
-    
     if (!cacheBankId) {
-      console.log('[InsertResults] ❌ No cacheBankId disponible');
       return;
     }
-    
-    // Usar cache primero si está disponible
-    console.log('[InsertResults] Verificando cache.todayResults:', cache.todayResults);
-    console.log('[InsertResults] Cantidad en cache:', cache.todayResults?.length);
-    
+
     // Solo usar cache si realmente tiene datos, no si es un array vacío
     if (cache.todayResults !== null && cache.todayResults !== undefined && cache.todayResults.length > 0) {
-      console.log('[InsertResults] ✅ Usando datos del cache (con datos reales)');
       setTodayResults(cache.todayResults);
       setLoadingResults(false);
       return;
     }
     
     // Si el cache está vacío o no tiene datos, hacer fetch
-    console.log('[InsertResults] 🔄 Cache vacío o sin datos, haciendo fetch...');
     setLoadingResults(true);
     try {
       const results = await fetchTodayResults();
-      console.log('[InsertResults] ✅ Fetch completado, resultados:', results);
-      console.log('[InsertResults] Cantidad recibida:', results?.length || 0);
       setTodayResults(results || []);
       setLoadingResults(false);
     } catch (error) {
       console.error('[InsertResults] ❌ Error loading today results from cache:', error);
       setLoadingResults(false);
     }
-  };
-
-  // Función legacy - cargar resultados del día actual (rango local) directamente desde la consulta
+  };  // Función legacy - cargar resultados del día actual (rango local) directamente desde la consulta
   const loadTodayResults = async () => {
-    console.log('[InsertResults] loadTodayResults - INICIO');
-    console.log('[InsertResults] cacheBankId:', cacheBankId);
-    
     if (!cacheBankId) {
-      console.log('[InsertResults] ❌ No cacheBankId disponible');
       return;
     }
     
     setLoadingResults(true);
     const { start, end } = buildLocalDayRange();
-    console.log('[InsertResults] Rango de fechas:', { start, end });
     
     try {
-      console.log('[InsertResults] 🔄 Ejecutando consulta a Supabase...');
       const { data, error } = await supabase
         .from('resultado')
         .select('id, numeros, created_at, rol, horario:id_horario ( id, nombre, loteria:id_loteria ( id, nombre, id_banco ) )')
@@ -314,12 +272,8 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
         throw error;
       }
       
-      console.log('[InsertResults] ✅ Datos recibidos de Supabase:', data);
-      console.log('[InsertResults] Cantidad de resultados:', data?.length);
-      
       // Ya viene filtrado; no se necesita filtrado en cliente salvo fallback
       setTodayResults(data || []);
-      console.log('[InsertResults] ✅ Estado actualizado con resultados');
     } catch (e) {
       console.error('[InsertResults] ❌ Error cargando resultados del día:', e.message);
     } finally {
@@ -331,7 +285,6 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
   // Refresco automático al volver a la pantalla - solo actualizar cache en background
   useFocusEffect(
     useCallback(() => {
-      console.log('[InsertResults] 📱 useFocusEffect ejecutándose...');
       focusRefresh();
     }, [focusRefresh])
   );
@@ -650,15 +603,6 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
             Resultados de Hoy
           </Text>
           
-          {(() => {
-            console.log('[InsertResults] 🎨 Renderizando resultados...');
-            console.log('[InsertResults] loadingResults:', loadingResults);
-            console.log('[InsertResults] initialLoading:', initialLoading);
-            console.log('[InsertResults] todayResults.length:', todayResults.length);
-            console.log('[InsertResults] todayResults:', todayResults);
-            return null;
-          })()}
-          
           {(loadingResults || initialLoading) && (
             <Text style={[styles.loadingText, { color: isDarkMode ? '#bdc3c7' : '#64748B' }]}>
               Cargando...
@@ -670,7 +614,6 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
             </Text>
           )}
           {!loadingResults && !initialLoading && todayResults.map(item => {
-            console.log('[InsertResults] 🎨 Renderizando item:', item);
             const isEditing = editingId === item.id;
             return (
               <View key={item.id} style={[
@@ -750,7 +693,7 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
         isDarkMode={isDarkMode}
         onToggleDarkMode={onToggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
-        role={userRole}
+        role={cacheUserRole}
       />
     </View>
   );

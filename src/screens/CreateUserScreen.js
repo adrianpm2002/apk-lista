@@ -5,6 +5,7 @@ import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { adminResetPasswordByUsername } from '../utils/adminUtils';
 import { createShadowStyle } from '../utils/shadowUtils';
+import { useCache } from '../contexts/CacheContext';
 
 // Orden canónico unificado de jugadas en toda la app
 const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
@@ -39,6 +40,9 @@ const CustomButton = ({ title, onPress, disabled = false, color = '#007AFF', sty
 );
 
 const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+  // Cache context para obtener el rol del usuario de forma consistente
+  const { userRole: cacheUserRole } = useCache();
+  
   const [users, setUsers] = useState([]);
   const [hierarchicalUsers, setHierarchicalUsers] = useState([]);
   const [expandedCollectors, setExpandedCollectors] = useState(new Set());
@@ -1028,7 +1032,7 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
         isDarkMode={isDarkMode}
         onToggleDarkMode={onToggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
-        role={userRole}
+        role={cacheUserRole}
       />
     </View>
   );
