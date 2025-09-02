@@ -72,6 +72,15 @@ const AppNavigator = () => (
     />
 
     <Stack.Screen 
+      name="ManageUsers" 
+      component={CreateUserScreen} 
+      options={{
+        headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
+      }}
+    />
+
+    <Stack.Screen 
       name="Prices" 
       component={ManagePricesScreen} 
       options={{
