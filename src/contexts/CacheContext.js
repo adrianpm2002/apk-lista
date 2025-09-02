@@ -97,36 +97,25 @@ export const CacheProvider = ({ children }) => {
 
   // Función para obtener resultados del día
   const fetchTodayResults = useCallback(async () => {
-    console.log('[CacheContext] fetchTodayResults - INICIO');
     try {
       // Siempre usar la referencia actual primero
       const bankId = currentBankIdRef.current || currentBankId;
-      console.log('[CacheContext] bankId para fetch:', bankId);
       
       if (!bankId) {
-        console.log('[CacheContext] ❌ No bankId disponible');
         return [];
       }
       
       // Obtener fecha actual en zona horaria de La Habana, Cuba
       const now = new Date();
-      const todayUTC = now.toISOString().split('T')[0];
       
       // Crear fecha en zona horaria de La Habana (CDT = UTC-4 o CST = UTC-5)
       // Cuba está en CDT (UTC-4) en septiembre
       const havanaTime = new Date(now.getTime() - (4 * 60 * 60 * 1000)); // Restar 4 horas
       const todayHavana = havanaTime.toISOString().split('T')[0];
       
-      console.log('[CacheContext] Fecha UTC:', todayUTC);
-      console.log('[CacheContext] Fecha La Habana:', todayHavana);
-      console.log('[CacheContext] Hora actual UTC:', now.toISOString());
-      console.log('[CacheContext] Hora La Habana calculada:', havanaTime.toISOString());
-      
       const today = todayHavana;
-      console.log('[CacheContext] Fecha de hoy (usada):', today);
       
       // Primero obtener IDs de horarios válidos para el banco
-      console.log('[CacheContext] 🔄 Buscando horarios válidos...');
       const { data: validSchedules, error: schedulesError } = await supabase
         .from('horario')
         .select('id, loteria!inner(id_banco)')

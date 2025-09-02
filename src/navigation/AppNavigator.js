@@ -1,5 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Platform } from 'react-native';
 import LoginScreen from '../screens/LoginScreen';
 import MainAppScreen from '../screens/MainAppScreen';
 import CreateUserScreen from '../screens/CreateUserScreen';
@@ -41,6 +42,7 @@ const AppNavigator = () => (
       options={{
         headerShown: false,
         headerBackVisible: false,
+        gestureEnabled: Platform.OS === 'ios',
       }}
     />
     <Stack.Screen 
@@ -48,6 +50,7 @@ const AppNavigator = () => (
       component={InsertResultsScreen}
       options={{
         headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
       }}
     />
     <Stack.Screen 
@@ -55,6 +58,7 @@ const AppNavigator = () => (
       component={ManageLotteriesScreen}
       options={{
         headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
       }}
     />
 
@@ -63,6 +67,7 @@ const AppNavigator = () => (
       component={CreateUserScreen} 
       options={{
         headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
       }}
     />
 
@@ -71,6 +76,7 @@ const AppNavigator = () => (
       component={ManagePricesScreen} 
       options={{
         headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
       }}
     />
 
@@ -79,6 +85,7 @@ const AppNavigator = () => (
       component={JugadasScreen} 
       options={{
         headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
       }}
     />
 
@@ -87,6 +94,7 @@ const AppNavigator = () => (
       component={LotteryLimitsScreen} 
       options={{
         headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
       }}
     />
 
@@ -95,6 +103,7 @@ const AppNavigator = () => (
       component={LimitNumero} 
       options={{
         headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
       }}
     />
 
@@ -103,6 +112,7 @@ const AppNavigator = () => (
       component={StatisticsScreen} 
       options={{
         headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
       }}
     />
     <Stack.Screen 
@@ -110,6 +120,7 @@ const AppNavigator = () => (
       component={SavedPlaysScreen} 
       options={{
         headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
       }}
     />
 
@@ -118,6 +129,7 @@ const AppNavigator = () => (
       component={CollectorStatisticsScreen} 
       options={{
         headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
       }}
     />
 

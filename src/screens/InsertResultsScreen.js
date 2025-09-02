@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Alert, StyleSheet, Pressable, TextInput, Platform, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Alert, StyleSheet, Pressable, TextInput, Platform, RefreshControl, BackHandler } from 'react-native';
 import DropdownPicker from '../components/DropdownPicker';
 import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
@@ -109,6 +109,25 @@ const InsertResultsContent = ({ navigation, isDarkMode, onToggleDarkMode, onMode
     horario: false,
     result: false
   });
+
+  // ========== ANDROID BACK HANDLER ==========
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        Alert.alert(
+          'Cerrar Aplicación',
+          '¿Estás seguro de que quieres salir?',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Salir', onPress: () => BackHandler.exitApp() }
+          ]
+        );
+        return true; // Prevenir navegación hacia atrás
+      });
+
+      return () => backHandler.remove();
+    }
+  }, []);
 
   // ========== INITIAL DATA LOADING ==========
   useEffect(() => {

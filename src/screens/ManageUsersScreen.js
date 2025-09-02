@@ -52,6 +52,7 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(!(cache.users && cache.users.length > 0));
+  const [expandedCollectors, setExpandedCollectors] = useState(new Set()); // Para controlar expansión
   
   // Estados para formulario
   const [newUser, setNewUser] = useState({
@@ -375,6 +376,24 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
     );
   };
 
+  // Función para alternar expansión de collector
+  const toggleCollectorExpansion = (collectorId) => {
+    setExpandedCollectors(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(collectorId)) {
+        newSet.delete(collectorId);
+      } else {
+        newSet.add(collectorId);
+      }
+      return newSet;
+    });
+  };
+
+  // Función para obtener listeros asociados a un collector
+  const getAssociatedListeros = (collectorId) => {
+    return users.filter(user => user.role === 'listero' && user.id_collector === collectorId);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#F8FDF5' }]}>
       {/* Header personalizado */}
@@ -422,65 +441,255 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
             </Text>
           </View>
         ) : (
-          users.map((user) => (
-            <View key={user.id} style={[styles.userCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
-              {/* Nombre de usuario y rol en línea completa */}
-              <View style={styles.userNameContainer}>
-                <Text 
-                  style={[styles.username, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}
-                  numberOfLines={2}
-                  ellipsizeMode="tail"
-                >
-                  {user.usuario}
-                </Text>
-                <Text style={[styles.userRole, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
-                  {user.role === 'admin' ? 'Administrador' : 'Colector'} • {user.activo ? 'Habilitado' : 'Deshabilitado'}
-                </Text>
-              </View>
-              
-              {/* Botones de acción organizados en filas */}
-              {cacheUserRole === 'admin' && (
-                <View style={styles.userActions}>
-                  <View style={styles.actionRow}>
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.editButton]}
-                      onPress={() => handleEditUser(user)}
-                    >
-                      <Text style={styles.actionButtonText}>✏️ Editar</Text>
-                    </TouchableOpacity>
+          <>
+            {/* Mostrar Administradores primero */}
+            {users.filter(user => user.role === 'admin').map((admin) => (
+              <View key={admin.id} style={[styles.userCard, { backgroundColor: isDarkMode ? '#34495e' : '#fff' }]}>
+                <View style={styles.userNameContainer}>
+                  <Text 
+                    style={[styles.username, { color: isDarkMode ? '#ecf0f1' : '#2c3e50', fontWeight: 'bold' }]}
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
+                  >
+                    👑 {admin.usuario}
+                  </Text>
+                  <Text style={[styles.userRole, { color: isDarkMode ? '#e74c3c' : '#e74c3c' }]}>
+                    Administrador • {admin.activo ? 'Habilitado' : 'Deshabilitado'}
+                  </Text>
+                </View>
+                
+                {cacheUserRole === 'admin' && (
+                  <View style={styles.userActions}>
+                    <View style={styles.actionRow}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.editButton]}
+                        onPress={() => handleEditUser(admin)}
+                      >
+                        <Text style={styles.actionButtonText}>✏️ Editar</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={[
+                          styles.actionButton, 
+                          admin.activo ? styles.deactivateButton : styles.activateButton
+                        ]}
+                        onPress={() => handleToggleUserStatus(admin)}
+                      >
+                        <Text style={styles.actionButtonText}>
+                          {admin.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                     
-                    <TouchableOpacity
-                      style={[
-                        styles.actionButton, 
-                        user.activo ? styles.deactivateButton : styles.activateButton
-                      ]}
-                      onPress={() => handleToggleUserStatus(user)}
+                    <View style={styles.actionRow}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.deleteButton]}
+                        onPress={() => handleDeleteUser(admin.id, admin.usuario)}
+                      >
+                        <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.passwordButton]}
+                        onPress={() => handleChangePassword(admin)}
+                      >
+                        <Text style={styles.actionButtonText}>🔑 Contraseña</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </View>
+            ))}
+
+            {/* Mostrar Colectores con estructura expandible */}
+            {users.filter(user => user.role === 'colector').map((collector) => {
+              const associatedListeros = getAssociatedListeros(collector.id);
+              const isExpanded = expandedCollectors.has(collector.id);
+              
+              return (
+                <View key={collector.id}>
+                  {/* Card del Colector */}
+                  <View style={[styles.collectorCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
+                    <TouchableOpacity 
+                      style={styles.collectorHeader}
+                      onPress={() => toggleCollectorExpansion(collector.id)}
                     >
-                      <Text style={styles.actionButtonText}>
-                        {user.activo ? '🔒 Deshabilitar' : '� Habilitar'}
+                      <View style={styles.userNameContainer}>
+                        <Text 
+                          style={[styles.username, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}
+                          numberOfLines={2}
+                          ellipsizeMode="tail"
+                        >
+                          📊 {collector.usuario}
+                        </Text>
+                        <Text style={[styles.userRole, { color: isDarkMode ? '#3498db' : '#3498db' }]}>
+                          Colector • {collector.activo ? 'Habilitado' : 'Deshabilitado'} • {associatedListeros.length} listeros
+                        </Text>
+                      </View>
+                      <Text style={[styles.expandIcon, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+                        {isExpanded ? '▼' : '▶'}
                       </Text>
                     </TouchableOpacity>
-                  </View>
-                  
-                  <View style={styles.actionRow}>
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.deleteButton]}
-                      onPress={() => handleDeleteUser(user.id, user.usuario)}
-                    >
-                      <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
-                    </TouchableOpacity>
                     
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.passwordButton]}
-                      onPress={() => handleChangePassword(user)}
-                    >
-                      <Text style={styles.actionButtonText}>🔑 Contraseña</Text>
-                    </TouchableOpacity>
+                    {cacheUserRole === 'admin' && (
+                      <View style={styles.userActions}>
+                        <View style={styles.actionRow}>
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.editButton]}
+                            onPress={() => handleEditUser(collector)}
+                          >
+                            <Text style={styles.actionButtonText}>✏️ Editar</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            style={[
+                              styles.actionButton, 
+                              collector.activo ? styles.deactivateButton : styles.activateButton
+                            ]}
+                            onPress={() => handleToggleUserStatus(collector)}
+                          >
+                            <Text style={styles.actionButtonText}>
+                              {collector.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                        
+                        <View style={styles.actionRow}>
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.deleteButton]}
+                            onPress={() => handleDeleteUser(collector.id, collector.usuario)}
+                          >
+                            <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.passwordButton]}
+                            onPress={() => handleChangePassword(collector)}
+                          >
+                            <Text style={styles.actionButtonText}>🔑 Contraseña</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
                   </View>
+
+                  {/* Listeros asociados (si está expandido) */}
+                  {isExpanded && associatedListeros.map((listero) => (
+                    <View key={listero.id} style={[styles.listeroCard, { backgroundColor: isDarkMode ? '#34495e' : '#f8f9fa' }]}>
+                      <View style={styles.userNameContainer}>
+                        <Text 
+                          style={[styles.listeroName, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}
+                          numberOfLines={2}
+                          ellipsizeMode="tail"
+                        >
+                          └── 📝 {listero.usuario}
+                        </Text>
+                        <Text style={[styles.userRole, { color: isDarkMode ? '#95a5a6' : '#6c757d' }]}>
+                          Listero • {listero.activo ? 'Habilitado' : 'Deshabilitado'}
+                        </Text>
+                      </View>
+                      
+                      {cacheUserRole === 'admin' && (
+                        <View style={styles.listeroActions}>
+                          <TouchableOpacity
+                            style={[styles.smallActionButton, styles.editButton]}
+                            onPress={() => handleEditUser(listero)}
+                          >
+                            <Text style={styles.smallActionButtonText}>✏️</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            style={[
+                              styles.smallActionButton, 
+                              listero.activo ? styles.deactivateButton : styles.activateButton
+                            ]}
+                            onPress={() => handleToggleUserStatus(listero)}
+                          >
+                            <Text style={styles.smallActionButtonText}>
+                              {listero.activo ? '🔒' : '🔓'}
+                            </Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            style={[styles.smallActionButton, styles.deleteButton]}
+                            onPress={() => handleDeleteUser(listero.id, listero.usuario)}
+                          >
+                            <Text style={styles.smallActionButtonText}>🗑️</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            style={[styles.smallActionButton, styles.passwordButton]}
+                            onPress={() => handleChangePassword(listero)}
+                          >
+                            <Text style={styles.smallActionButtonText}>🔑</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  ))}
                 </View>
-              )}
-            </View>
-          ))
+              );
+            })}
+
+            {/* Mostrar Listeros sin colector asignado */}
+            {users.filter(user => user.role === 'listero' && !user.id_collector).map((listero) => (
+              <View key={listero.id} style={[styles.orphanListeroCard, { backgroundColor: isDarkMode ? '#7f8c8d' : '#e9ecef' }]}>
+                <View style={styles.userNameContainer}>
+                  <Text 
+                    style={[styles.username, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
+                  >
+                    🔗 {listero.usuario}
+                  </Text>
+                  <Text style={[styles.userRole, { color: isDarkMode ? '#f39c12' : '#f39c12' }]}>
+                    Listero sin asignar • {listero.activo ? 'Habilitado' : 'Deshabilitado'}
+                  </Text>
+                </View>
+                
+                {cacheUserRole === 'admin' && (
+                  <View style={styles.userActions}>
+                    <View style={styles.actionRow}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.editButton]}
+                        onPress={() => handleEditUser(listero)}
+                      >
+                        <Text style={styles.actionButtonText}>✏️ Editar</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={[
+                          styles.actionButton, 
+                          listero.activo ? styles.deactivateButton : styles.activateButton
+                        ]}
+                        onPress={() => handleToggleUserStatus(listero)}
+                      >
+                        <Text style={styles.actionButtonText}>
+                          {listero.activo ? '🔒 Deshabilitar' : '🔓 Habilitar'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    
+                    <View style={styles.actionRow}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.deleteButton]}
+                        onPress={() => handleDeleteUser(listero.id, listero.usuario)}
+                      >
+                        <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.passwordButton]}
+                        onPress={() => handleChangePassword(listero)}
+                      >
+                        <Text style={styles.actionButtonText}>🔑 Contraseña</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </View>
+            ))}
+          </>
         )}
       </ScrollView>
 
@@ -490,6 +699,8 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
         transparent
         animationType="slide"
         onRequestClose={() => setModalVisible(false)}
+        supportedOrientations={['portrait']}
+        statusBarTranslucent={Platform.OS === 'android'}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
@@ -588,6 +799,8 @@ const ManageUsersContent = ({ navigation, isDarkMode, onToggleDarkMode, onModeVi
         transparent
         animationType="slide"
         onRequestClose={() => setEditModalVisible(false)}
+        supportedOrientations={['portrait']}
+        statusBarTranslucent={Platform.OS === 'android'}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
@@ -856,8 +1069,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 15,
     padding: 0,
-    maxHeight: Platform.OS === 'android' ? '85%' : '80%', // Más altura en Android
+    maxHeight: Platform.OS === 'android' ? '90%' : '80%', // Más altura en Android
     flexDirection: 'column',
+    ...Platform.select({
+      android: {
+        marginTop: 20,
+        marginBottom: 20,
+      },
+    }),
   },
   modalHeader: {
     flexDirection: 'row',
@@ -927,6 +1146,75 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+
+  // Nuevos estilos para layout expandible
+  collectorCard: {
+    backgroundColor: '#fff',
+    marginBottom: 10,
+    marginHorizontal: Platform.OS === 'android' ? 2 : 0,
+    borderRadius: 12,
+    ...createShadowStyle(2),
+  },
+  collectorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Platform.OS === 'android' ? 16 : 15,
+  },
+  expandIcon: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 10,
+    minWidth: 20,
+    textAlign: 'center',
+  },
+  listeroCard: {
+    backgroundColor: '#f8f9fa',
+    marginLeft: 20,
+    marginRight: 5,
+    marginBottom: 5,
+    borderRadius: 8,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#3498db',
+    ...createShadowStyle(1),
+  },
+  listeroName: {
+    fontSize: Platform.OS === 'android' ? 16 : 16,
+    fontWeight: '600',
+    lineHeight: Platform.OS === 'android' ? 22 : 24,
+    marginBottom: 2,
+  },
+  listeroActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 6,
+    marginTop: 8,
+  },
+  smallActionButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 32,
+    minHeight: 32,
+  },
+  smallActionButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  orphanListeroCard: {
+    backgroundColor: '#e9ecef',
+    padding: Platform.OS === 'android' ? 16 : 15,
+    marginBottom: 10,
+    marginHorizontal: Platform.OS === 'android' ? 2 : 0,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f39c12',
+    ...createShadowStyle(2),
   },
 });
 

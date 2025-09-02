@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, TextInput, RefreshControl, Modal } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, TextInput, RefreshControl, Modal, Platform, BackHandler, Alert } from 'react-native';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -280,6 +280,25 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       }
     }, [bankId, loadActives])
   );
+
+  // ========== ANDROID BACK HANDLER ==========
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        Alert.alert(
+          'Cerrar Aplicación',
+          '¿Estás seguro de que quieres salir?',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Salir', onPress: () => BackHandler.exitApp() }
+          ]
+        );
+        return true; // Prevenir navegación hacia atrás
+      });
+
+      return () => backHandler.remove();
+    }
+  }, []);
 
   const creatingDisabled = !selectedLottery || !selectedSchedule || !selectedJugada || tempNumber.length === 0;
 
@@ -883,11 +902,30 @@ const styles = StyleSheet.create({
     }),
   },
   panelDark: { backgroundColor: '#2c3e50' },
-  panelHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  panelHeaderRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: Platform.OS === 'android' ? 16 : 12,
+    paddingHorizontal: Platform.OS === 'android' ? 4 : 0,
+  },
   panelTitle: { fontSize: 18, fontWeight: '600', color: '#2C3E50' },
   panelTitleDark: { color: '#ecf0f1' },
-  addBtn: { backgroundColor: '#27ae60', width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  addBtnText: { color: '#fff', fontSize: 26, fontWeight: '700', marginTop: -3 },
+  addBtn: { 
+    backgroundColor: '#27ae60', 
+    width: Platform.OS === 'android' ? 48 : 42, 
+    height: Platform.OS === 'android' ? 48 : 42, 
+    borderRadius: Platform.OS === 'android' ? 16 : 14, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    ...createShadowStyle(2),
+  },
+  addBtnText: { 
+    color: '#fff', 
+    fontSize: Platform.OS === 'android' ? 28 : 26, 
+    fontWeight: '700', 
+    marginTop: -3 
+  },
   inlineForm: { flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' },
   input: { flex: 1, backgroundColor: '#f4f6f7', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, fontSize: 14, color: '#2c3e50' },
   inputDark: { backgroundColor: '#34495e', color: '#ecf0f1' },

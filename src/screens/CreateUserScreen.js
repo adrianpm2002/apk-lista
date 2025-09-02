@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, Alert, Modal, StyleSheet, TextInput, FlatList, TouchableOpacity, Switch, Platform, ScrollView } from 'react-native';
+import { View, Text, Alert, Modal, StyleSheet, TextInput, FlatList, TouchableOpacity, Switch, Platform, ScrollView, BackHandler } from 'react-native';
 import { Picker } from '../components/PickerWrapper';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
@@ -276,6 +276,25 @@ const CreateUserScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisi
       createHierarchicalStructure(users);
     }
   }, [users, createHierarchicalStructure, userRole]);
+
+  // ========== ANDROID BACK HANDLER ==========
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        Alert.alert(
+          'Cerrar Aplicación',
+          '¿Estás seguro de que quieres salir?',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Salir', onPress: () => BackHandler.exitApp() }
+          ]
+        );
+        return true; // Prevenir navegación hacia atrás
+      });
+
+      return () => backHandler.remove();
+    }
+  }, []);
 
   const handleCreateOrUpdate = async () => {
     try {
