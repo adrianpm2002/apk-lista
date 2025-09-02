@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Pressable,
   Animated,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../supabaseClient';
@@ -1136,7 +1137,7 @@ const styles = StyleSheet.create({
   },
   headerFloating: {
     position: 'absolute',
-    top: 0,
+    top: Platform.OS === 'android' ? 16 : 0,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -1180,7 +1181,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 120,
+    paddingTop: Platform.OS === 'android' ? 140 : 120,
   },
   row: {
     flexDirection: 'row',

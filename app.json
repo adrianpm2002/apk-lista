@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "APK Lista Clean",
-    "slug": "apk-lista-clean",
+    "slug": "apk-lista-clean-new",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -29,7 +29,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "4c3be186-f152-408c-a90b-3ddf77840c5c"
+        "projectId": "add1f3af-3653-4f39-9c61-237c2b07b6ab"
       }
     }
   }
