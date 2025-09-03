@@ -1,5 +1,4 @@
 import { supabase } from '../supabaseClient';
-import { calculatePrize } from '../utils/prizeCalculator';
 
 export async function getDailyStatsForCollector(collectorId, startDate, endDate) {
   // Obtener banco del colector primero
@@ -44,10 +43,8 @@ export async function getDailyStatsForCollector(collectorId, startDate, endDate)
     const monto = jugada.monto_total || (jugada.monto_unitario * getQuantityFromNumbers(jugada.numeros));
     dailyStats[date].totalRecogido += monto;
 
-    if (jugada.resultado?.numero_ganador) {
-      const pago = calculatePrize(jugada, jugada.resultado.numero_ganador, jugada.numero_limitado);
-      dailyStats[date].totalPagado += pago;
-    }
+    // Los collectors no calculan premios - solo registran jugadas
+    // El cálculo de premios se hace en el sistema del banco/listero
   });
 
   return Object.entries(dailyStats).map(([date, stats]) => ({
@@ -107,12 +104,11 @@ export async function getPlaysDetailsForCollector(collectorId, startDate, endDat
     }
 
     const monto = jugada.monto_total || (jugada.monto_unitario * getQuantityFromNumbers(jugada.numeros));
-    let pago = 0;
-    let estado = 'no cogió premio';
+    let pago = 0; // Los collectors no calculan premios
+    let estado = 'resultado pendiente';
 
     if (jugada.resultado?.numero_ganador) {
-      pago = calculatePrize(jugada, jugada.resultado.numero_ganador, jugada.numero_limitado);
-      estado = pago > 0 ? 'bingo' : 'no cogió premio';
+      estado = 'resultado disponible'; // Solo indica que hay resultado
     }
 
     groupedByListero[listeroId].plays.push({
@@ -169,10 +165,8 @@ export async function getTotalPagadoHistoricoCollector(collectorId) {
   if (error) throw error;
 
   return data.reduce((total, jugada) => {
-    if (jugada.resultado?.numero_ganador) {
-      const pago = calculatePrize(jugada, jugada.resultado.numero_ganador, jugada.numero_limitado);
-      return total + pago;
-    }
-    return total;
+    // Los collectors no calculan premios - solo reportan al banco
+    // El cálculo de premios se hace en el sistema del banco
+    return total; // Siempre 0 para collectors
   }, 0);
 }
