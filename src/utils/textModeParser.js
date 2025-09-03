@@ -116,6 +116,41 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
       return;
     }
 
+    // Manejo de sintaxis x(...) para parle: ej. 35x(20 41 42 54) con 10p
+    const xParenMatch = line.match(/^(\d{1,2})x\(([^)]+)\)\s*-\s*(\d+(?:\.\d+)?)p$/i);
+    if (xParenMatch) {
+      const baseNum = xParenMatch[1].padStart(2, '0');
+      const innerNumbersStr = xParenMatch[2];
+      const amountTotal = toFloat(xParenMatch[3]);
+      
+      if (amountTotal <= 0) { errors.push({ line: idx + 1, message: 'Monto parle debe ser >0' }); return; }
+      
+      // Extraer números del paréntesis
+      const innerNums = innerNumbersStr.split(numberSepRegex)
+        .map(n => n.replace(/[^0-9]/g, ''))
+        .filter(Boolean)
+        .map(n => n.padStart(2, '0'))
+        .filter(n => n.length === 2);
+      
+      if (innerNums.length === 0) { errors.push({ line: idx + 1, message: 'Sin números válidos en paréntesis' }); return; }
+      
+      // Combinar baseNum con cada número interno para formar parle de 4 dígitos (incluyendo duplicados)
+      const parlePairs = innerNums.map(innerNum => baseNum + innerNum);
+      
+      let amountEach, totalPerLottery;
+      if (isLocked) {
+        amountEach = Math.floor(amountTotal / parlePairs.length) || 0;
+        if (amountEach === 0) { errors.push({ line: idx + 1, message: 'Monto insuficiente para repartir entre parle x(...)' }); return; }
+        totalPerLottery = amountTotal;
+      } else {
+        amountEach = amountTotal;
+        totalPerLottery = amountTotal * parlePairs.length;
+      }
+      
+      instructions.push({ playType: 'parle', numbers: parlePairs, amountEach, totalPerLottery, meta: { mode: 'cross' }, line: idx+1 });
+      return;
+    }
+
     const parts = line.split('-').map(p => p.trim()).filter(p => p.length > 0 || p === '0' || p === '00');
     if (parts.length < 2) { errors.push({ line: idx + 1, message: 'Falta monto (guion)' }); return; }
     const numbersPart = parts[0];

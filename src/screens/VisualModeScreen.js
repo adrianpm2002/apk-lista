@@ -648,10 +648,23 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       // Mantener las primeras tres (orden de selección); asumimos values ya está en orden agregado
       next = values.slice(0,3);
     }
+    
+    // Obtener loterías nuevas seleccionadas
+    const newlyAdded = next.filter(lotteryId => !selectedLotteries.includes(lotteryId));
+    
     // Podar horarios de loterías deseleccionadas
     setSelectedSchedules(prev => {
       const updated = { ...prev };
       Object.keys(updated).forEach(k => { if (!next.includes(k)) delete updated[k]; });
+      
+      // Para cada lotería nueva, seleccionar automáticamente el primer horario disponible
+      newlyAdded.forEach(lotteryId => {
+        const availableSchedules = scheduleOptionsMap[lotteryId] || [];
+        if (availableSchedules.length > 0) {
+          updated[lotteryId] = availableSchedules[0].value;
+        }
+      });
+      
       return updated;
     });
     setSelectedLotteries(next);

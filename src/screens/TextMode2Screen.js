@@ -563,6 +563,30 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
           onSelect={(vals)=>{
             // Limitar a 3 como en modo visual
             let next = vals.length>3 ? vals.slice(0,3) : vals;
+            
+            // Obtener loterías nuevas seleccionadas
+            const newlyAdded = next.filter(lotteryId => !selectedLotteries.includes(lotteryId));
+            
+            // Para cada lotería nueva, seleccionar automáticamente el primer horario disponible
+            newlyAdded.forEach(lotteryId => {
+              const availableSchedules = scheduleOptionsMap[lotteryId] || [];
+              if (availableSchedules.length > 0) {
+                setSelectedSchedules(prev => ({
+                  ...prev,
+                  [lotteryId]: availableSchedules[0].value
+                }));
+              }
+            });
+            
+            // Limpiar horarios de loterías deseleccionadas
+            setSelectedSchedules(prev => {
+              const updated = { ...prev };
+              Object.keys(updated).forEach(k => { 
+                if (!next.includes(k)) delete updated[k]; 
+              });
+              return updated;
+            });
+            
             setSelectedLotteries(next);
           }}
           options={lotteries}
