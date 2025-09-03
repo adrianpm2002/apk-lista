@@ -15,6 +15,85 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
   const comb2 = (arr) => { const out = []; for (let i = 0; i < arr.length; i++) { for (let j = i + 1; j < arr.length; j++) { out.push([arr[i], arr[j]]); } } return out; };
 
   lines.forEach((line, idx) => {
+    // Verificar comandos especiales P y T#
+    if (line.match(/^P\s+con\s+/i)) {
+      // P con 10f 10c 2p -> todos los números AA (00,11,22...99)
+      const match = line.match(/^P\s+con\s+(\d+(?:\.\d+)?)f(?:\s+(\d+(?:\.\d+)?)c)?(?:\s+(\d+(?:\.\d+)?)p)?/i);
+      if (!match) { errors.push({ line: idx + 1, message: 'Formato P inválido. Usar: P con XfYcZp' }); return; }
+      
+      const fixedAmount = toFloat(match[1]);
+      const corridoAmount = match[2] ? toFloat(match[2]) : 0;
+      const parleAmount = match[3] ? toFloat(match[3]) : 0;
+      
+      // Generar números AA (00, 11, 22, ..., 99)
+      const aaNumbers = [];
+      for (let i = 0; i <= 9; i++) {
+        const num = i.toString() + i.toString();
+        aaNumbers.push(num);
+      }
+      
+      if (fixedAmount > 0) {
+        instructions.push({ playType: 'fijo', numbers: aaNumbers, amountEach: fixedAmount, totalPerLottery: fixedAmount * aaNumbers.length, line: idx+1 });
+      }
+      if (corridoAmount > 0) {
+        instructions.push({ playType: 'corrido', numbers: aaNumbers, amountEach: corridoAmount, totalPerLottery: corridoAmount * aaNumbers.length, line: idx+1 });
+      }
+      if (parleAmount > 0) {
+        const pairs = comb2(aaNumbers).map(p => p[0] + p[1]);
+        let amountEach, totalPerLottery;
+        if (isLocked) {
+          amountEach = Math.floor(parleAmount / pairs.length) || 0;
+          if (amountEach === 0) { errors.push({ line: idx + 1, message: 'Monto insuficiente para repartir entre parles P' }); return; }
+          totalPerLottery = parleAmount;
+        } else {
+          amountEach = parleAmount;
+          totalPerLottery = parleAmount * pairs.length;
+        }
+        instructions.push({ playType: 'parle', numbers: pairs, amountEach, totalPerLottery, meta: { mode: 'pairs' }, line: idx+1 });
+      }
+      return;
+    }
+    
+    // Verificar comando T# (terminal)
+    if (line.match(/^T\d+\s+con\s+/i)) {
+      // T7 con 100f 5p -> todos los números que terminan en 7
+      const match = line.match(/^T(\d)\s+con\s+(\d+(?:\.\d+)?)f(?:\s+(\d+(?:\.\d+)?)c)?(?:\s+(\d+(?:\.\d+)?)p)?/i);
+      if (!match) { errors.push({ line: idx + 1, message: 'Formato T# inválido. Usar: T# con XfYcZp' }); return; }
+      
+      const terminal = match[1];
+      const fixedAmount = toFloat(match[2]);
+      const corridoAmount = match[3] ? toFloat(match[3]) : 0;
+      const parleAmount = match[4] ? toFloat(match[4]) : 0;
+      
+      // Generar números con terminal específico (07, 17, 27, ..., 97)
+      const terminalNumbers = [];
+      for (let i = 0; i <= 9; i++) {
+        const num = i.toString() + terminal;
+        terminalNumbers.push(num);
+      }
+      
+      if (fixedAmount > 0) {
+        instructions.push({ playType: 'fijo', numbers: terminalNumbers, amountEach: fixedAmount, totalPerLottery: fixedAmount * terminalNumbers.length, line: idx+1 });
+      }
+      if (corridoAmount > 0) {
+        instructions.push({ playType: 'corrido', numbers: terminalNumbers, amountEach: corridoAmount, totalPerLottery: corridoAmount * terminalNumbers.length, line: idx+1 });
+      }
+      if (parleAmount > 0) {
+        const pairs = comb2(terminalNumbers).map(p => p[0] + p[1]);
+        let amountEach, totalPerLottery;
+        if (isLocked) {
+          amountEach = Math.floor(parleAmount / pairs.length) || 0;
+          if (amountEach === 0) { errors.push({ line: idx + 1, message: `Monto insuficiente para repartir entre parles T${terminal}` }); return; }
+          totalPerLottery = parleAmount;
+        } else {
+          amountEach = parleAmount;
+          totalPerLottery = parleAmount * pairs.length;
+        }
+        instructions.push({ playType: 'parle', numbers: pairs, amountEach, totalPerLottery, meta: { mode: 'pairs' }, line: idx+1 });
+      }
+      return;
+    }
+
     if (line.includes('*')) {
       const [numsPart, amountPartRaw] = line.split(/-/); // un solo monto esperado
       if (!amountPartRaw) { errors.push({ line: idx + 1, message: 'Falta monto parle' }); return; }
