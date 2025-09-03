@@ -72,8 +72,10 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
   // Estados para gestión de horarios
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
   const [selectedLottery, setSelectedLottery] = useState(null);
-  // Inicializar schedules
+  // Horarios para la vista principal (todas las loterías)
   const [schedules, setSchedules] = useState([]);
+  // Horarios para el modal (solo la lotería seleccionada)
+  const [modalSchedules, setModalSchedules] = useState([]);
   const [newSchedule, setNewSchedule] = useState({
     name: '',
     startTime: '12:00',
@@ -354,7 +356,7 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
   const closeScheduleModal = () => {
     setScheduleModalVisible(false);
     setSelectedLottery(null);
-    setSchedules([]);
+    setModalSchedules([]); // Limpiar solo el estado del modal
     setNewSchedule({ name: '', startTime: '12:00', endTime: '13:00' });
     setEditingSchedule(null);
     
@@ -375,7 +377,7 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
         return;
       }
 
-      setSchedules(data || []);
+      setModalSchedules(data || []); // Usar el estado del modal
     } catch (error) {
       console.error('Error general fetching schedules for lottery:', error);
     }
@@ -440,7 +442,7 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
       // Actualizar horarios del modal
       await fetchSchedulesForLottery(selectedLottery.id);
       
-      // Actualizar vista previa de horarios
+      // Actualizar vista previa de horarios para el listado principal
       await fetchSchedulesData();
     } catch (error) {
       console.error('Error general with schedule:', error);
@@ -481,7 +483,7 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
           // Actualizar horarios del modal
           await fetchSchedulesForLottery(selectedLottery.id);
           
-          // Actualizar vista previa de horarios
+          // Actualizar vista previa de horarios para el listado principal
           await fetchSchedulesData();
           
           Alert.alert('Éxito', 'Horario eliminado correctamente');
@@ -842,12 +844,12 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
                   Horarios Existentes
                 </Text>
                 
-                {schedules.length === 0 ? (
+                {modalSchedules.length === 0 ? (
                   <Text style={[styles.emptyText, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
                     No hay horarios configurados
                   </Text>
                 ) : (
-                  schedules.map((schedule) => (
+                  modalSchedules.map((schedule) => (
                     <View key={schedule.id} style={[styles.scheduleCard, { backgroundColor: isDarkMode ? '#34495e' : '#f8f9fa' }]}>
                       <View style={styles.scheduleInfo}>
                         <Text style={[styles.scheduleName, { color: isDarkMode ? '#fff' : '#000' }]}>

@@ -236,14 +236,10 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
     // Calcular números duplicados específicos automáticamente
     const duplicateNumbersSet = new Set();
     instructions.forEach(inst=>{
-      if (inst.duplicates && inst.duplicates.length > 0) {
-        console.log('Duplicados encontrados:', inst.duplicates, 'en tipo:', inst.playType);
-      }
       inst.duplicates.forEach(d=>{ 
         duplicateNumbersSet.add(d); // Agregar número duplicado específico
       });
     });
-    console.log('Números duplicados finales:', Array.from(duplicateNumbersSet));
     setDuplicateLines(Array.from(duplicateNumbersSet)); // Reutilizar el state pero con números en lugar de líneas
   }, [plays, isLocked, selectedLotteries]);
 
@@ -657,6 +653,17 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
             />
           </View>
           <View style={styles.halfWidth}>
+            {/* Mostrar monto por lotería si hay 2 o más loterías seleccionadas */}
+            {selectedLotteries.length >= 2 && (
+              <MoneyInputField
+                label={'Monto por Lotería'}
+                value={Math.round(total / (selectedLotteries.length || 1)).toString()}
+                editable={false}
+                placeholder="$0"
+                style={styles.fieldContainer}
+                inputStyle={styles.unifiedInput}
+              />
+            )}
             <MoneyInputField
               label={t('common.total')}
               value={total.toString()}

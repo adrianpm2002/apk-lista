@@ -658,6 +658,17 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
             />
           </View>
           <View style={styles.halfWidth}>
+            {/* Mostrar monto por lotería si hay 2 o más loterías seleccionadas */}
+            {selectedLotteries.length >= 2 && (
+              <MoneyInputField
+                label={'Monto por Lotería'}
+                value={Math.round(total / (selectedLotteries.length || 1)).toString()}
+                editable={false}
+                placeholder="$0"
+                style={styles.fieldContainer}
+                inputStyle={styles.unifiedInput}
+              />
+            )}
             <MoneyInputField
               label={t('common.total')}
               value={total.toString()}
