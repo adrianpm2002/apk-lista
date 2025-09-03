@@ -104,6 +104,8 @@ export default function ListeroStatisticsScreen({ isDarkMode=false }){
     
     const loadLotteriesAndSchedules = async () => {
       try {
+        console.log('🎰 [ListeroStats] Cargando loterías para bankId:', bankId);
+        
         // Cargar loterías del banco
         const { data: lotteryData } = await supabase
           .from('loteria')
@@ -111,11 +113,14 @@ export default function ListeroStatisticsScreen({ isDarkMode=false }){
           .eq('id_banco', bankId)
           .order('nombre');
         
+        console.log('📋 [ListeroStats] Loterías cargadas:', lotteryData);
+        
         if (lotteryData) {
           const lotteryOptions = [
             { label: 'Todas las loterías', value: 'all' },
             ...lotteryData.map(l => ({ label: l.nombre, value: l.nombre })) // Usar nombre en lugar de ID
           ];
+          console.log('🎯 [ListeroStats] Opciones de lotería generadas:', lotteryOptions);
           setLotteries(lotteryOptions);
         }
 
@@ -126,17 +131,21 @@ export default function ListeroStatisticsScreen({ isDarkMode=false }){
           .in('id_loteria', lotteryData?.map(l => l.id) || [])
           .order('nombre');
         
+        console.log('⏰ [ListeroStats] Horarios cargados:', scheduleData);
+        
         if (scheduleData) {
           const scheduleOptions = [
             { label: 'Todos los horarios', value: 'all' },
             ...scheduleData.map(s => ({ label: s.nombre, value: s.nombre })) // Usar nombre en lugar de ID
           ];
+          console.log('🕐 [ListeroStats] Opciones de horario generadas:', scheduleOptions);
           setSchedules(scheduleOptions);
         }
 
         setLoading(false);
+        console.log('✅ [ListeroStats] Carga completada');
       } catch (e) {
-        console.error('Error loading lotteries and schedules:', e);
+        console.error('❌ [ListeroStats] Error loading lotteries and schedules:', e);
         setLoading(false);
       }
     };
@@ -144,20 +153,92 @@ export default function ListeroStatisticsScreen({ isDarkMode=false }){
     loadLotteriesAndSchedules();
   }, [bankId]);
 
-  // TODO: Cargar jugadas reales desde Supabase
-  // Por ahora usamos mock data, pero filtramos solo las loterías que existen en el banco
+  // Generar datos mock dinámicos basados en las loterías del banco
+  const generateMockDataForBank = useMemo(() => {
+    console.log('🎲 [ListeroStats] Generando datos mock. Loading:', loading, 'Lotteries length:', lotteries.length);
+    console.log('🎲 [ListeroStats] Lotteries disponibles:', lotteries);
+    
+    if (loading || lotteries.length <= 1) {
+      console.log('⏳ [ListeroStats] No se pueden generar datos - loading o sin loterías');
+      return [];
+    }
+    
+    const bankLotteries = lotteries.filter(l => l.value !== 'all');
+    console.log('🎯 [ListeroStats] Loterías del banco para mock:', bankLotteries);
+    
+    const scheduleNames = ['Matutino', 'Vespertino', 'Nocturno'];
+    const mockData = [];
+    let id = 1;
+    
+    // Generar jugadas para cada lotería del banco
+    bankLotteries.forEach(lottery => {
+      console.log('🎰 [ListeroStats] Generando datos para lotería:', lottery.label);
+      scheduleNames.forEach(schedule => {
+        // Generar 2-3 jugadas por combinación lotería-horario
+        for (let i = 0; i < Math.floor(Math.random() * 2) + 2; i++) {
+          const dayOffset = Math.floor(Math.random() * 7); // Últimos 7 días
+          const date = new Date();
+          date.setDate(date.getDate() - dayOffset);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          const numbers = Array.from({length: Math.floor(Math.random() * 3) + 1}, () => 
+            String(Math.floor(Math.random() * 100)).padStart(2, '0')
+          ).join(',');
+          
+          const amount = (Math.floor(Math.random() * 10) + 1) * 50; // 50-500
+          const collected = amount * (Math.random() * 2 + 1); // 1x-3x del monto
+          const paid = Math.random() > 0.8 ? collected * (Math.random() * 3 + 1) : 0; // 20% chance de ganar
+          const result = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+          
+          mockData.push({
+            id: id++,
+            date: dateStr,
+            lottery: lottery.label, // Usar el nombre real de la lotería
+            schedule,
+            numbers,
+            amount,
+            paid,
+            collected,
+            result,
+            note: paid > 0 ? 'Ganador' : ''
+          });
+        }
+      });
+    });
+    
+    const sortedData = mockData.sort((a, b) => b.date.localeCompare(a.date)); // Más recientes primero
+    console.log('📊 [ListeroStats] Datos mock generados:', sortedData.length, 'jugadas');
+    console.log('📋 [ListeroStats] Loterías en datos mock:', [...new Set(sortedData.map(d => d.lottery))]);
+    return sortedData;
+  }, [lotteries, loading]);
+
+  // Usar datos mock generados dinámicamente en lugar de datos hardcodeados
   const currentPlays = useMemo(() => {
-    if (loading || lotteries.length === 0) return [];
-    
-    // Filtrar mock data para que solo incluya loterías que existen en el banco
-    const availableLotteryNames = lotteries.filter(l => l.value !== 'all').map(l => l.value);
-    const filteredMockPlays = mockPlays.filter(play => 
-      availableLotteryNames.includes(play.lottery)
-    );
-    
-    // Si no hay loterías del banco en mock, usar datos vacíos para evitar confusión
-    return filteredMockPlays.length > 0 ? filteredMockPlays : [];
+    console.log('🎮 [ListeroStats] Calculando currentPlays. Loading:', loading, 'Lotteries length:', lotteries.length);
+    if (loading || lotteries.length === 0) {
+      console.log('⏳ [ListeroStats] currentPlays vacío - loading o sin loterías');
+      return [];
+    }
+    console.log('✅ [ListeroStats] currentPlays usando datos generados:', generateMockDataForBank.length, 'jugadas');
+    return generateMockDataForBank;
+  }, [loading, lotteries, generateMockDataForBank]);
+
+  // Validar que los dropdowns solo muestren opciones si hay datos válidos
+  const validLotteryOptions = useMemo(() => {
+    console.log('🎯 [ListeroStats] Validando opciones de lotería. Loading:', loading, 'Lotteries:', lotteries.length);
+    if (loading) return [{ label: 'Cargando...', value: 'loading' }];
+    if (lotteries.length <= 1) return [{ label: 'No hay loterías disponibles', value: 'none' }];
+    console.log('✅ [ListeroStats] Opciones válidas de lotería:', lotteries);
+    return lotteries;
   }, [loading, lotteries]);
+
+  const validScheduleOptions = useMemo(() => {
+    console.log('🕐 [ListeroStats] Validando opciones de horario. Loading:', loading, 'Schedules:', schedules.length);
+    if (loading) return [{ label: 'Cargando...', value: 'loading' }];
+    if (schedules.length <= 1) return [{ label: 'No hay horarios disponibles', value: 'none' }];
+    console.log('✅ [ListeroStats] Opciones válidas de horario:', schedules);
+    return schedules;
+  }, [loading, schedules]);
 
   const collectedVsPaidDatasets = [
     { key:'collected', label:'Recogido', color:'rgba(39,174,96,1)' },
@@ -176,10 +257,18 @@ export default function ListeroStatisticsScreen({ isDarkMode=false }){
     { key:'note', title:'Nota', flex:1 },
   ];
 
-  const filterPlays = useMemo(() => rows => rows.filter(r =>
-    (selectedLottery === 'all' || r.lottery === selectedLottery) &&
-    (selectedSchedule === 'all' || r.schedule === selectedSchedule)
-  ), [selectedLottery, selectedSchedule]);
+  const filterPlays = useMemo(() => rows => {
+    const filtered = rows.filter(r =>
+      (selectedLottery === 'all' || r.lottery === selectedLottery) &&
+      (selectedSchedule === 'all' || r.schedule === selectedSchedule)
+    );
+    console.log('🔍 [ListeroStats] Filtro aplicado. Entrada:', rows.length, 'Salida:', filtered.length);
+    console.log('🎯 [ListeroStats] Filtros activos - Lotería:', selectedLottery, 'Horario:', selectedSchedule);
+    if (filtered.length > 0) {
+      console.log('📋 [ListeroStats] Loterías en datos filtrados:', [...new Set(filtered.map(r => r.lottery))]);
+    }
+    return filtered;
+  }, [selectedLottery, selectedSchedule]);
 
   const filteredGroupsLottery = useMemo(() => {
     return groupedByLottery.map(g => ({ ...g, rows: filterPlays(g.rows) }));
@@ -189,9 +278,9 @@ export default function ListeroStatisticsScreen({ isDarkMode=false }){
     return groupedBySchedule.map(g => ({ ...g, rows: filterPlays(g.rows) }));
   }, [groupedBySchedule, selectedLottery, selectedSchedule]);
 
-  // Preparar opciones para dropdowns
-  const lotteryOptions = lotteries.length > 0 ? lotteries : [{ label: 'Cargando...', value: 'loading' }];
-  const scheduleOptions = schedules.length > 0 ? schedules : [{ label: 'Cargando...', value: 'loading' }];
+  // Preparar opciones para dropdowns - Estas líneas ya no se necesitan, usamos validLotteryOptions y validScheduleOptions
+  // const lotteryOptions = lotteries.length > 0 ? lotteries : [{ label: 'Cargando...', value: 'loading' }];
+  // const scheduleOptions = schedules.length > 0 ? schedules : [{ label: 'Cargando...', value: 'loading' }];
 
   return (
     <ScrollView style={[styles.container, isDarkMode && styles.containerDark]}>
@@ -247,25 +336,25 @@ export default function ListeroStatisticsScreen({ isDarkMode=false }){
         <View style={styles.filterContainer}>
           <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Lotería:</Text>
           <DropdownPicker
-            items={lotteryOptions}
+            items={validLotteryOptions}
             value={selectedLottery}
             onChangeValue={(value) => setSelectedLottery(value)}
             placeholder="Seleccionar lotería"
             isDarkMode={isDarkMode}
             style={styles.filterDropdown}
-            disabled={loading}
+            disabled={loading || validLotteryOptions[0]?.value === 'none'}
           />
         </View>
         <View style={styles.filterContainer}>
           <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Horario:</Text>
           <DropdownPicker
-            items={scheduleOptions}
+            items={validScheduleOptions}
             value={selectedSchedule}
             onChangeValue={(value) => setSelectedSchedule(value)}
             placeholder="Seleccionar horario"
             isDarkMode={isDarkMode}
             style={styles.filterDropdown}
-            disabled={loading}
+            disabled={loading || validScheduleOptions[0]?.value === 'none'}
           />
         </View>
       </View>

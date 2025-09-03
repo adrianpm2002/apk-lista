@@ -18,7 +18,8 @@ import { Alert } from 'react-native';
 
 const USE_MOCK_DATA = true; // ⚠️ CAMBIAR A false CUANDO LAS TABLAS ESTÉN LISTAS
 
-const useStatistics = () => {
+const useStatistics = (bankId = null) => {
+  // Hook inicializado - logs removidos para producción
   // Estados principales
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -648,21 +649,24 @@ const useStatistics = () => {
   // Obtener listas reales para filtros
   const getLotteryList = async () => {
     try {
+      if (!bankId) {
+        return [];
+      }
+
       const { data: lotteries, error } = await supabase
         .from('loteria')
         .select('id, nombre')
+        .eq('id_banco', bankId) // ⭐ FILTRO POR BANCO
         .order('nombre', { ascending: true });
 
       if (error) throw error;
+      
       // Normalizar a { id, name } para compatibilidad con el UI
       return (lotteries || []).map(l => ({ id: l.id, name: l.nombre }));
     } catch (error) {
-      console.error('Error obteniendo lista de loterías:', error);
-      return [
-        { id: 1, name: 'Lotería Nacional' },
-        { id: 2, name: 'Loteka' },
-        { id: 3, name: 'La Primera' }
-      ];
+      console.error('❌ [useStatistics] Error obteniendo lista de loterías:', error);
+      // En caso de error, devolver array vacío en lugar de datos hardcodeados
+      return [];
     }
   };
 
@@ -900,22 +904,18 @@ const useStatistics = () => {
     bySchedule: scheduleStats || []
   };
 
-  // Listas para filtros (combinando datos reales y mock)
-  const [lotteries, setLotteries] = useState([
-    { id: 1, name: 'Lotería Nacional' },
-    { id: 2, name: 'Loteka' },
-    { id: 3, name: 'La Primera' }
-  ]);
+  // Listas para filtros (vacías inicialmente, se cargan desde BD)
+  const [lotteries, setLotteries] = useState([]);
 
-  const [schedules, setSchedules] = useState([
-    { id: 1, name: 'Matutino' },
-    { id: 2, name: 'Vespertino' },
-    { id: 3, name: 'Nocturno' }
-  ]);
+  const [schedules, setSchedules] = useState([]);
 
-  // Cargar listas reales
+  // Cargar listas reales cuando cambie el bankId
   useEffect(() => {
     const loadFilterLists = async () => {
+      if (!bankId) {
+        return;
+      }
+
       const [realLotteries, realSchedules] = await Promise.all([
         getLotteryList(),
         getScheduleList()
@@ -926,7 +926,7 @@ const useStatistics = () => {
     };
 
     loadFilterLists();
-  }, []);
+  }, [bankId]); // ⭐ DEPENDENCIA CAMBIADA A bankId
 
   // ===================================================
   // RETURN DEL HOOK

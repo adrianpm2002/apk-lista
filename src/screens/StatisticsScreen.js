@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import useStatistics from '../hooks/useStatistics';
+import { supabase } from '../supabaseClient';
 import StatisticsChart from '../components/StatisticsChart';
 import DataTable from '../components/DataTable';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
@@ -42,6 +43,29 @@ const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
 const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, onModeVisibilityChange }) => {
   // Estado local para bank ID
   const [currentBankId, setCurrentBankId] = useState(null);
+  
+  // Cargar bankId del usuario
+  useEffect(() => {
+    const loadBankId = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          return;
+        }
+        
+        const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).single();
+        if (!profile) {
+          return;
+        }
+        
+        const bId = profile.role === 'admin' ? user.id : profile.id_banco;
+        setCurrentBankId(bId);
+      } catch (e) {
+        console.error('❌ [StatisticsScreen] Error loading bankId:', e);
+      }
+    };
+    loadBankId();
+  }, []);
   
   // Estados para filtros
   const [selectedPeriod, setSelectedPeriod] = useState('last7days');
@@ -88,7 +112,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
     loadAllStats,
     applyFilters,
     clearData,
-  } = useStatistics();
+  } = useStatistics(currentBankId); // ⭐ PASAR bankId al hook
 
   // Opciones de períodos
   const periodOptions = [

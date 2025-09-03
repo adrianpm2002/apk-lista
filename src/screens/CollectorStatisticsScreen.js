@@ -17,6 +17,7 @@ import CollectorDataTable from '../components/CollectorDataTable';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { getDailyStatsForCollector, getPlaysDetailsForCollector, getTotalRecogidoHistoricoCollector, getTotalPagadoHistoricoCollector } from '../services/collectorStatsService';
+import { supabase } from '../supabaseClient';
 import { useDarkMode } from '../contexts/DarkModeContext';
 import { createCommonDarkStyles, createStatisticsDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
 
@@ -54,8 +55,87 @@ const CollectorStatisticsScreen = ({ navigation, collectorId = 1, onModeVisibili
   const [totalPagadoHistorico, setTotalPagadoHistorico] = useState(0);
   const [expandedListeros, setExpandedListeros] = useState(new Set());
 
+  // Estados para datos dinámicos del banco
+  const [bankId, setBankId] = useState(null);
+  const [lotteries, setLotteries] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [loadingFilters, setLoadingFilters] = useState(true);
+
   // Estado del sidebar
   const [sidebarVisible, setSidebarVisible] = useState(false);
+
+  // Cargar bankId del usuario
+  useEffect(() => {
+    const loadBankId = async () => {
+      try {
+        console.log('🔍 [CollectorStats] Cargando bankId...');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          console.log('❌ [CollectorStats] No hay usuario autenticado');
+          return;
+        }
+        
+        console.log('👤 [CollectorStats] Usuario encontrado:', user.id);
+        const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).single();
+        if (!profile) {
+          console.log('❌ [CollectorStats] No se encontró perfil para el usuario');
+          return;
+        }
+        
+        const bId = profile.role === 'admin' ? user.id : profile.id_banco;
+        console.log('🏦 [CollectorStats] bankId cargado:', bId, 'role:', profile.role);
+        setBankId(bId);
+      } catch (e) {
+        console.error('❌ [CollectorStats] Error loading bankId:', e);
+      }
+    };
+    loadBankId();
+  }, []);
+
+  // Cargar loterías y horarios del banco
+  useEffect(() => {
+    if (!bankId) return;
+    
+    const loadLotteriesAndSchedules = async () => {
+      try {
+        console.log('🎰 [CollectorStats] Cargando loterías para bankId:', bankId);
+        
+        // Cargar loterías del banco
+        const { data: lotteryData } = await supabase
+          .from('loteria')
+          .select('id,nombre')
+          .eq('id_banco', bankId)
+          .order('nombre');
+        
+        console.log('📋 [CollectorStats] Loterías cargadas:', lotteryData);
+        
+        if (lotteryData) {
+          setLotteries(lotteryData);
+        }
+
+        // Cargar horarios únicos de las loterías del banco
+        const { data: scheduleData } = await supabase
+          .from('horario')
+          .select('id,nombre')
+          .in('id_loteria', lotteryData?.map(l => l.id) || [])
+          .order('nombre');
+        
+        console.log('⏰ [CollectorStats] Horarios cargados:', scheduleData);
+        
+        if (scheduleData) {
+          setSchedules(scheduleData);
+        }
+
+        setLoadingFilters(false);
+        console.log('✅ [CollectorStats] Filtros cargados');
+      } catch (e) {
+        console.error('❌ [CollectorStats] Error loading lotteries and schedules:', e);
+        setLoadingFilters(false);
+      }
+    };
+    
+    loadLotteriesAndSchedules();
+  }, [bankId]);
 
   useEffect(() => {
     loadData();
@@ -367,24 +447,55 @@ const CollectorStatisticsScreen = ({ navigation, collectorId = 1, onModeVisibili
             <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Lotería:</Text>
             <Picker
               selectedValue={selectedLottery}
-              onValueChange={setSelectedLottery}
+              onValueChange={(value) => {
+                console.log('🎯 [CollectorStats] Lotería seleccionada:', value);
+                setSelectedLottery(value);
+              }}
               style={[styles.picker, isDarkMode && styles.pickerDark]}
+              enabled={!loadingFilters}
             >
               <Picker.Item label="Todas" value="all" />
-              <Picker.Item label="Lotería Nacional" value="nacional" />
-              <Picker.Item label="Leidsa" value="leidsa" />
+              {loadingFilters ? (
+                <Picker.Item label="Cargando..." value="loading" />
+              ) : (
+                lotteries.map(lottery => {
+                  console.log('🎰 [CollectorStats] Renderizando opción de lotería:', lottery);
+                  return (
+                    <Picker.Item 
+                      key={lottery.id} 
+                      label={lottery.nombre} 
+                      value={lottery.nombre} 
+                    />
+                  );
+                })
+              )}
             </Picker>
 
             <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Horario:</Text>
             <Picker
               selectedValue={selectedSchedule}
-              onValueChange={setSelectedSchedule}
+              onValueChange={(value) => {
+                console.log('🕐 [CollectorStats] Horario seleccionado:', value);
+                setSelectedSchedule(value);
+              }}
               style={[styles.picker, isDarkMode && styles.pickerDark]}
+              enabled={!loadingFilters}
             >
               <Picker.Item label="Todos" value="all" />
-              <Picker.Item label="Matutino" value="matutino" />
-              <Picker.Item label="Vespertino" value="vespertino" />
-              <Picker.Item label="Nocturno" value="nocturno" />
+              {loadingFilters ? (
+                <Picker.Item label="Cargando..." value="loading" />
+              ) : (
+                schedules.map(schedule => {
+                  console.log('⏰ [CollectorStats] Renderizando opción de horario:', schedule);
+                  return (
+                    <Picker.Item 
+                      key={schedule.id} 
+                      label={schedule.nombre} 
+                      value={schedule.nombre} 
+                    />
+                  );
+                })
+              )}
             </Picker>
 
             <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Listero:</Text>
