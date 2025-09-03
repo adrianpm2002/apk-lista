@@ -24,6 +24,7 @@ import TextModeInfoButton from '../components/TextModeInfoButton';
 // Eliminamos CapacityModal directo; usaremos BatteryButton que lo incluye internamente
 import BatteryButton from '../components/BatteryButton';
 // import CapacityModal from '../components/CapacityModal';
+import { playToTextCommand } from '../utils/playToTextCommand';
 import { parseTextMode } from '../utils/textModeParser';
 import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
@@ -65,21 +66,36 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
   // Cargar payload de edición si llega (desde SavedPlays) y estamos en modo texto
   useEffect(()=>{
     const payload = route?.params?.editPayload;
-    if(payload && payload.id !== editingId){
-      setEditingId(payload.id);
-      setIsEditing(true);
-      const lot = lotteries.find(l=> l.label === payload.lottery);
-      if(lot){ setSelectedLotteries([lot.value]); }
-      const scheduleSetter = () => {
-        if(!lot) return;
-        const schs = scheduleOptionsMap[lot.value] || [];
-        const sch = schs.find(s=> s.label === payload.schedule);
-        if(sch){ setSelectedSchedules(prev=> ({ ...prev, [lot.value]: sch.value })); }
-      };
-      scheduleSetter();
-      setPlays(payload.numbers || '');
-      setNote(payload.note || '');
-      navigation?.setParams?.({ editPayload: undefined });
+    
+    // ⚠️ CRÍTICO: Esperar a que las loterías estén cargadas Y los horarios para esa lotería específica
+    if(payload && payload.id !== editingId && lotteries.length > 0){
+      const hasSchedulesForLottery = scheduleOptionsMap[payload.lotteryId] && scheduleOptionsMap[payload.lotteryId].length > 0;
+      
+      if(hasSchedulesForLottery) {
+        setEditingId(payload.id);
+        setIsEditing(true);
+        
+        // Buscar lotería por ID en lugar de label
+        const lot = lotteries.find(l=> l.value === payload.lotteryId);
+        
+        if(lot){ 
+          setSelectedLotteries([lot.value]); 
+          
+          // Buscar horario por ID en lugar de label
+          const schs = scheduleOptionsMap[lot.value] || [];
+          const sch = schs.find(s=> s.value === payload.scheduleId);
+          
+          if(sch){ 
+            setSelectedSchedules(prev=> ({ ...prev, [lot.value]: sch.value })); 
+          }
+        }
+        
+        // Convertir la jugada a comando de texto
+        const textCommand = playToTextCommand(payload);
+        setPlays(textCommand);
+        setNote(payload.note || '');
+        navigation?.setParams?.({ editPayload: undefined });
+      }
     }
   },[route?.params?.editPayload, lotteries, scheduleOptionsMap]);
   const [bankId, setBankId] = useState(null);
@@ -88,6 +104,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
   // Feedback de inserción
   const [insertFeedback, setInsertFeedback] = useState(null); // {success, fail, duplicates:[]}
   const [verifyFeedback, setVerifyFeedback] = useState(null); // { type:'success'|'error', message:string }
+  const [duplicateLines, setDuplicateLines] = useState([]); // Array de líneas con duplicados
   const verifyTimerRef = useRef(null);
   const feedbackTimerRef = useRef(null);
   const [editingMultiError, setEditingMultiError] = useState(false);
@@ -215,6 +232,19 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
     setTotal(perLotterySum * (selectedLotteries.length||1));
     setParseErrors(errors);
     setPlaysError(errors.length>0);
+    
+    // Calcular números duplicados específicos automáticamente
+    const duplicateNumbersSet = new Set();
+    instructions.forEach(inst=>{
+      if (inst.duplicates && inst.duplicates.length > 0) {
+        console.log('Duplicados encontrados:', inst.duplicates, 'en tipo:', inst.playType);
+      }
+      inst.duplicates.forEach(d=>{ 
+        duplicateNumbersSet.add(d); // Agregar número duplicado específico
+      });
+    });
+    console.log('Números duplicados finales:', Array.from(duplicateNumbersSet));
+    setDuplicateLines(Array.from(duplicateNumbersSet)); // Reutilizar el state pero con números en lugar de líneas
   }, [plays, isLocked, selectedLotteries]);
 
   const handleClear = () => {
@@ -315,12 +345,21 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
       // Resumen agregado sin listar números
       const summaryCounts = parsedInstructions.reduce((acc,i)=>{ acc[i.playType]=(acc[i.playType]||0)+i.numbers.length; return acc; },{});
       const parts = Object.keys(summaryCounts).map(pt=> `${pt}:${summaryCounts[pt]}`).join(' | ');
-      // Info duplicados con líneas
+      // Info duplicados con números específicos
       const dupDetails = (()=>{
         const linesMap = {};
+        const duplicateNumbersSet = new Set();
         parsedInstructions.forEach(inst=>{
-          inst.duplicates.forEach(d=>{ if(!linesMap[d]) linesMap[d]=new Set(); linesMap[d].add(inst.line); });
+          inst.duplicates.forEach(d=>{ 
+            if(!linesMap[d]) linesMap[d]=new Set(); 
+            linesMap[d].add(inst.line);
+            duplicateNumbersSet.add(d); // Agregar número duplicado específico
+          });
         });
+        
+        // Actualizar estado de números duplicados
+        setDuplicateLines(Array.from(duplicateNumbersSet));
+        
         const dupCount = Object.keys(linesMap).length;
         if(!dupCount) return '';
         const first = Object.entries(linesMap).slice(0,3).map(([n,set])=> `${n}(L${Array.from(set).join('/')})`).join(', ');
@@ -330,7 +369,8 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
       setShowInsertButton(true); // Mostrar botón de insertar cuando verificación sea exitosa
     } catch(err){
       setShowInsertButton(false); // Ocultar botón si hay error
-  setVerifyFeedback({ type:'error', message:t('errors.verify') });
+      setDuplicateLines([]); // Limpiar duplicados cuando hay error
+      setVerifyFeedback({ type:'error', message:t('errors.verify') });
     }
   };
 
@@ -561,10 +601,12 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
           onChangeText={(txt)=> { 
             setPlays(txt); 
             setShowInsertButton(false); // Ocultar botón cuando se cambia el texto
+            setDuplicateLines([]); // Limpiar duplicados cuando se cambia el texto
             if(showFieldErrors){ /* no quitar bordes aún */ }
           }}
           placeholder="Números / comandos"
           errorLines={parseErrors.map(e => e.line)} // Extraer números de línea con errores
+          duplicateNumbers={duplicateLines} // Números duplicados específicos en amarillo
           showPasteButton={true}
           pasteButtonOverlay={true}
           showClearButtonOverlay={true}

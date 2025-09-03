@@ -203,23 +203,36 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   // Efecto: escucha payload de edición enviado desde SavedPlaysScreen
   useEffect(()=>{
     const payload = route?.params?.editPayload;
-    if(payload && payload.id !== editingId){
-      setEditingId(payload.id);
-      setIsEditing(true);
-      setSelectedPlayTypes([payload.playType]);
-      setEditingInitialNumbers(payload.numbers || '');
-      setNote(payload.note || '');
-      const lot = lotteries.find(l=> l.label === payload.lottery);
-      if(lot){ setSelectedLotteries([lot.value]); }
-      const scheduleSetter = () => {
-        if(!lot) return;
-        const schedules = scheduleOptionsMap[lot.value] || [];
-        const sch = schedules.find(s=> s.label === payload.schedule);
-        if(sch){ setSelectedSchedules(prev=> ({ ...prev, [lot.value]: sch.value })); }
-      };
-      scheduleSetter();
-      setAmounts(a=> ({ ...a, [payload.playType]: String(payload.amount || payload.monto_unitario || '') }));
-      navigation?.setParams?.({ editPayload: undefined });
+    
+    // ⚠️ CRÍTICO: Esperar a que las loterías estén cargadas Y los horarios para esa lotería específica
+    if(payload && payload.id !== editingId && lotteries.length > 0){
+      const hasSchedulesForLottery = scheduleOptionsMap[payload.lotteryId] && scheduleOptionsMap[payload.lotteryId].length > 0;
+      
+      if(hasSchedulesForLottery) {
+        setEditingId(payload.id);
+        setIsEditing(true);
+        setSelectedPlayTypes([payload.playType]);
+        setEditingInitialNumbers(payload.numbers || '');
+        setNote(payload.note || '');
+        
+        // Buscar lotería por ID en lugar de label
+        const lot = lotteries.find(l=> l.value === payload.lotteryId);
+        
+        if(lot){ 
+          setSelectedLotteries([lot.value]); 
+          
+          // Buscar horario por ID en lugar de label
+          const schedules = scheduleOptionsMap[lot.value] || [];
+          const sch = schedules.find(s=> s.value === payload.scheduleId);
+          
+          if(sch){ 
+            setSelectedSchedules(prev=> ({ ...prev, [lot.value]: sch.value })); 
+          }
+        }
+        
+        setAmounts(a=> ({ ...a, [payload.playType]: String(payload.amount || payload.monto_unitario || '') }));
+        navigation?.setParams?.({ editPayload: undefined });
+      }
     }
   },[route?.params?.editPayload, lotteries, scheduleOptionsMap]);
 
@@ -234,7 +247,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   useEffect(()=> {
     if(isEditing){
       editBannerOpacity.setValue(0);
-      Animated.timing(editBannerOpacity,{ toValue:1, duration:250, useNativeDriver:true }).start();
+      Animated.timing(editBannerOpacity,{ toValue:1, duration:250, useNativeDriver:false }).start();
     }
   }, [isEditing]);
 

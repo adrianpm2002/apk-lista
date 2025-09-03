@@ -515,9 +515,9 @@ const SavedPlaysScreen = ({ navigation, route }) => {
           </Pressable>
         )}
         <View style={styles.totalsFlexGroup}>
-          <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Recogido: ${totalRecogido}</Text>
-          <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Pagado: ${totalPagadoDia}</Text>
-          <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Pendiente: ${pendientePago}</Text>
+          <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Recogido: ${totalRecogido.toFixed(1)}</Text>
+          <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Pagado: ${totalPagadoDia.toFixed(1)}</Text>
+          <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Pendiente: ${pendientePago.toFixed(1)}</Text>
         </View>
         <Pressable style={[styles.prizeFilterButton, showOnlyWinners && styles.prizeFilterButtonActive]} onPress={()=> setShowOnlyWinners(p=>!p)}>
           <Text style={styles.prizeFilterText}>{showOnlyWinners? '🏆 Ganadores':'🎯 Todos'}</Text>

@@ -10,6 +10,7 @@ export function parseTextMode2(rawText, { isLocked = false } = {}) {
   const errors = [];
 
   const toInt = (s) => parseInt(String(s).replace(/[^0-9]/g, ''), 10) || 0;
+  const toFloat = (s) => parseFloat(String(s).replace(/[^0-9.]/g, '')) || 0;
   const pad = (n, len) => String(n).replace(/[^0-9]/g, '').padStart(len, '0');
   const splitNums = (s) => s.split(/[^0-9]+/).map(x => x.trim()).filter(Boolean);
   const comb2 = (arr) => { const out = []; for(let i=0;i<arr.length;i++){ for(let j=i+1;j<arr.length;j++){ out.push([arr[i],arr[j]]);} } return out; };
@@ -91,9 +92,9 @@ export function parseTextMode2(rawText, { isLocked = false } = {}) {
     };
 
     const parseCmd = (tok) => {
-      const m = tok.match(/^(\d+)([a-zA-Z]+)?$/);
+      const m = tok.match(/^(\d+(?:\.\d+)?)([a-zA-Z]+)?$/);
       if(!m) return null;
-      const amount = toInt(m[1]);
+      const amount = toFloat(m[1]);
       const suf = (m[2]||'').toLowerCase();
       return { amount, suf };
     };
