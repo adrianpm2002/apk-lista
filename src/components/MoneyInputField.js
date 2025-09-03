@@ -35,32 +35,43 @@ const MoneyInputField = ({
   const formatMoney = (amount) => {
     if (!amount || amount === '0' || amount === 0) return '';
     
-    // Convertir a número entero y formatear (sin decimales)
-    const num = parseInt(amount.toString().replace(/[^0-9]/g, ''));
+    // Permitir decimales: convertir a número flotante y formatear
+    const num = parseFloat(amount.toString().replace(/[^0-9.]/g, ''));
     if (isNaN(num)) return '';
     
-    // Formatear con separadores de miles y símbolo de dinero (sin decimales)
-    return `$${num.toLocaleString('en-US')}`;
+    // Formatear con separadores de miles y símbolo de dinero (con decimales si es necesario)
+    const formatted = num.toLocaleString('en-US', { 
+      minimumFractionDigits: 0, 
+      maximumFractionDigits: 2 
+    });
+    return `$${formatted}`;
   };  const handleChange = (text) => {
-    // Permitir solo números (sin punto decimal)
-    const cleaned = text.replace(/[^0-9]/g, '');
+    // Permitir números y un punto decimal
+    const cleaned = text.replace(/[^0-9.]/g, '');
+    
+    // Permitir solo un punto decimal
+    const parts = cleaned.split('.');
+    let finalValue = parts[0];
+    if (parts.length > 1) {
+      finalValue += '.' + parts[1].substring(0, 2); // Máximo 2 decimales
+    }
     
     // Si está vacío, limpiar todo
-    if (!cleaned) {
+    if (!finalValue) {
       setDisplayValue('');
       onChangeText && onChangeText('');
       return;
     }
 
     // Actualizar display sin formatear mientras se escribe
-    setDisplayValue(text);
+    setDisplayValue(finalValue);
     
-    // Enviar el valor limpio al padre
-    onChangeText && onChangeText(cleaned);
+    // Enviar el valor con decimales al padre
+    onChangeText && onChangeText(finalValue);
   };  const handleFocus = () => {
     // Al hacer focus, mostrar solo el valor numérico para facilitar edición
     if (displayValue) {
-      const cleaned = displayValue.replace(/[^0-9]/g, '');
+      const cleaned = displayValue.replace(/[^0-9.]/g, '');
       setDisplayValue(cleaned);
     }
   };
@@ -93,7 +104,7 @@ const MoneyInputField = ({
         onFocus={handleFocus}
         onBlur={handleBlur}        placeholder={placeholder}
         placeholderTextColor={isDarkMode ? '#7F8C8D' : '#95A5A6'}
-        keyboardType="number-pad"
+        keyboardType="numeric"
         editable={editable !== false}
       />
     </View>

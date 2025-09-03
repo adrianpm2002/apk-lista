@@ -140,8 +140,8 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
   // agregar entradas
   const addFc = () => {
     const d2 = padLen(fcNumber,2);
-    const fAmt = parseInt(fijoAmount||'0',10) || 0;
-    const cAmt = parseInt(corridoAmount||'0',10) || 0;
+    const fAmt = parseFloat(fijoAmount||'0') || 0;
+    const cAmt = parseFloat(corridoAmount||'0') || 0;
     if(!/\d{2}/.test(d2) || (fAmt<=0 && cAmt<=0)) return;
     setFcEntries(prev => {
       const idx = prev.findIndex(e => e.num === d2);
@@ -158,7 +158,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
 
   const addParle = () => {
     const d4 = padLen(parleNumber,4);
-    const amt = parseInt(parleAmount||'0',10) || 0;
+    const amt = parseFloat(parleAmount||'0') || 0;
     if(!/\d{4}/.test(d4) || amt<=0) return;
     setParleEntries(prev=> [...prev, { num:d4, amount:amt }]);
     setParleNumber('');
@@ -173,7 +173,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
   };
   const saveEdit = () => {
     if(!editTarget) return;
-    const amt = parseInt(editAmount||'0',10) || 0;
+    const amt = parseFloat(editAmount||'0') || 0;
     setFcEntries(prev => {
       const copy = [...prev];
       const e = copy[editTarget.idx];
@@ -245,7 +245,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
   };
   const addCentena = () => {
     const d3 = padLen(centenaNumber,3);
-    const amt = parseInt(centenaAmount||'0',10) || 0;
+    const amt = parseFloat(centenaAmount||'0') || 0;
     if(!/\d{3}/.test(d3) || amt<=0) return;
     setCentenaEntries(prev=> [...prev, { num:d3, amount:amt }]);
     setCentenaNumber('');
@@ -258,7 +258,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
   };
   const saveEditParleAmt = () => {
     if(editParleIdx==null) { setEditParleAmtVisible(false); return; }
-    const amt = parseInt(editParleAmount||'0',10) || 0;
+    const amt = parseFloat(editParleAmount||'0') || 0;
     setParleEntries(prev=>{
       const copy=[...prev]; const e = copy[editParleIdx]; if(!e) return prev;
       if(amt>0) copy[editParleIdx] = { ...e, amount: amt };
@@ -293,7 +293,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
   };
   const saveEditCentenaAmt = () => {
     if(editCentenaIdx==null) { setEditCentenaAmtVisible(false); return; }
-    const amt = parseInt(editCentenaAmount||'0',10) || 0;
+    const amt = parseFloat(editCentenaAmount||'0') || 0;
     setCentenaEntries(prev=>{
       const copy=[...prev]; const e = copy[editCentenaIdx]; if(!e) return prev;
       if(amt>0) copy[editCentenaIdx] = { ...e, amount: amt };
@@ -328,10 +328,10 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
     const fijoEntries = fcEntries.filter(e=> (e.fijo||0) > 0).map(e=> ({ num:e.num, amount:e.fijo }));
     const corridoEntries = fcEntries.filter(e=> (e.corrido||0) > 0).map(e=> ({ num:e.num, amount:e.corrido }));
     const byAmt = (entries) => entries.reduce((m,e)=>{ const k=String(e.amount); if(!m[k]) m[k]=[]; m[k].push(e.num); return m; },{});
-    const fijoMap = byAmt(fijoEntries); Object.keys(fijoMap).forEach(k=> out.push({ playType:'fijo', numbers:fijoMap[k], amountEach:parseInt(k,10), totalPerLottery: parseInt(k,10)*fijoMap[k].length }));
-    const corrMap = byAmt(corridoEntries); Object.keys(corrMap).forEach(k=> out.push({ playType:'corrido', numbers:corrMap[k], amountEach:parseInt(k,10), totalPerLottery: parseInt(k,10)*corrMap[k].length }));
-    const parleMap = byAmt(parleEntries); Object.keys(parleMap).forEach(k=> out.push({ playType:'parle', numbers:parleMap[k], amountEach:parseInt(k,10), totalPerLottery: parseInt(k,10)*parleMap[k].length }));
-    const centMap = byAmt(centenaEntries); Object.keys(centMap).forEach(k=> out.push({ playType:'centena', numbers:centMap[k], amountEach:parseInt(k,10), totalPerLottery: parseInt(k,10)*centMap[k].length }));
+    const fijoMap = byAmt(fijoEntries); Object.keys(fijoMap).forEach(k=> out.push({ playType:'fijo', numbers:fijoMap[k], amountEach:parseFloat(k), totalPerLottery: parseFloat(k)*fijoMap[k].length }));
+    const corrMap = byAmt(corridoEntries); Object.keys(corrMap).forEach(k=> out.push({ playType:'corrido', numbers:corrMap[k], amountEach:parseFloat(k), totalPerLottery: parseFloat(k)*corrMap[k].length }));
+    const parleMap = byAmt(parleEntries); Object.keys(parleMap).forEach(k=> out.push({ playType:'parle', numbers:parleMap[k], amountEach:parseFloat(k), totalPerLottery: parseFloat(k)*parleMap[k].length }));
+    const centMap = byAmt(centenaEntries); Object.keys(centMap).forEach(k=> out.push({ playType:'centena', numbers:centMap[k], amountEach:parseFloat(k), totalPerLottery: parseFloat(k)*centMap[k].length }));
     return out;
   };
 

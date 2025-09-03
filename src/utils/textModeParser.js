@@ -11,14 +11,14 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
   const errors = [];
 
   const numberSepRegex = /[\s.,]+/;
-  const toInt = (s) => parseInt(s.replace(/[^0-9]/g, ''), 10) || 0;
+  const toFloat = (s) => parseFloat(s.replace(/[^0-9.]/g, '')) || 0;
   const comb2 = (arr) => { const out = []; for (let i = 0; i < arr.length; i++) { for (let j = i + 1; j < arr.length; j++) { out.push([arr[i], arr[j]]); } } return out; };
 
   lines.forEach((line, idx) => {
     if (line.includes('*')) {
       const [numsPart, amountPartRaw] = line.split(/-/); // un solo monto esperado
       if (!amountPartRaw) { errors.push({ line: idx + 1, message: 'Falta monto parle' }); return; }
-      const amountTotal = toInt(amountPartRaw.trim());
+      const amountTotal = toFloat(amountPartRaw.trim());
       const baseNums = numsPart.split('*').map(n => n.replace(/[^0-9]/g, '').padStart(2, '0')).filter(n => n.length === 2);
       if (baseNums.length < 2) { errors.push({ line: idx + 1, message: 'Parle requiere >=2 números de 2 dígitos' }); return; }
       if (amountTotal <= 0) { errors.push({ line: idx + 1, message: 'Monto parle debe ser >0' }); return; }
@@ -40,8 +40,8 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
     const parts = line.split('-').map(p => p.trim()).filter(p => p.length > 0 || p === '0' || p === '00');
     if (parts.length < 2) { errors.push({ line: idx + 1, message: 'Falta monto (guion)' }); return; }
     const numbersPart = parts[0];
-    const amount1 = toInt(parts[1]);
-    const amount2 = parts.length > 2 ? toInt(parts[2]) : 0;
+    const amount1 = toFloat(parts[1]);
+    const amount2 = parts.length > 2 ? toFloat(parts[2]) : 0;
   const rawNums = numbersPart.split(numberSepRegex).map(n => n.replace(/[^0-9]/g, '')).filter(Boolean);
   if(rawNums.some(n=> n.length===1 || n.length===5 || n.length>=7)) { errors.push({ line: idx+1, message:'Números con formatos inválidos' }); return; }
     if (!rawNums.length) { errors.push({ line: idx + 1, message: 'Sin números' }); return; }

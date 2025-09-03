@@ -66,7 +66,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     let perLottery = 0;
     selectedPlayTypes.forEach(pt => {
       const raw = amounts[pt] || '0';
-      const amt = parseInt(raw.toString().replace(/[^0-9]/g,''),10) || 0;
+      const amt = parseFloat(raw.toString().replace(/[^0-9.]/g,'')) || 0;
       if (!amt) return; // si monto cero, ignorar jugada
       if (pt === 'parle' && isLocked) {
         perLottery += amt; // parle bloqueada: monto total directo
@@ -82,7 +82,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     if (!selectedPlayTypes.length) { setAmountError(false); return; }
     const invalid = selectedPlayTypes.some(pt => {
       const raw = amounts[pt];
-      const val = parseInt((raw||'').toString().replace(/[^0-9]/g,''),10) || 0;
+      const val = parseFloat((raw||'').toString().replace(/[^0-9.]/g,'')) || 0;
       return !raw || val <= 0;
     });
     setAmountError(invalid);
@@ -247,7 +247,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       try {
         const primaryType = selectedPlayTypes[0];
         const raw = amounts[primaryType];
-        const unit = parseInt((raw||'').toString().replace(/[^0-9]/g,''),10) || 0;
+        const unit = parseFloat((raw||'').toString().replace(/[^0-9.]/g,'')) || 0;
         const numsCount = (plays.match(/\d+/g)||[]).length;
         const totalCalc = primaryType==='parle' && isLocked ? unit : unit * numsCount;
         // Validación de límites para edición (similar a inserción)
@@ -460,12 +460,12 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       const id_horario = selectedSchedules[lv];
       selectedPlayTypes.forEach(pt => {
         const raw = amounts[pt] || '0';
-        let unit = parseInt(raw.toString().replace(/[^0-9]/g,'')) || 0;
+        let unit = parseFloat(raw.toString().replace(/[^0-9.]/g,'')) || 0;
         let rowTotal;
         if (pt === 'parle' && isLocked) {
           rowTotal = unit; // total igual al monto directo
-          // Ajustar unitario dividiendo entre números
-          if (numsCount>0) unit = Math.floor(rowTotal / numsCount) || 0;
+          // Ajustar unitario dividiendo entre números (mantener decimales)
+          if (numsCount>0) unit = parseFloat((rowTotal / numsCount).toFixed(2)) || 0;
         } else {
           rowTotal = unit * numsCount;
         }
@@ -501,13 +501,16 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       // 7. Insertar (sin violaciones)
       setIsInserting(true);
       const successes=[]; const failures=[];
+      
       for(const p of payloads){
         const { data, error } = await supabase.from('jugada').insert(p).select('id').single();
         if(error){
           const msg = (error.message||'').toLowerCase();
           const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || error.code==='23505';
           failures.push({ p, error, isDuplicate });
-        } else successes.push(data.id);
+        } else {
+          successes.push(data.id);
+        }
       }
       if(failures.length===0){
         setPlays('');
@@ -543,13 +546,11 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   };
 
   const handleTopBarOption = (option) => {
-    console.log('Sidebar option selected:', option);
+    // Manejar opciones del sidebar si es necesario
   };
 
   const toggleSidebar = () => {
-    console.log('toggleSidebar called, current state:', sidebarVisible);
     setSidebarVisible(!sidebarVisible);
-    console.log('toggleSidebar new state will be:', !sidebarVisible);
   };
 
   const closeSidebar = () => {
@@ -585,7 +586,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     if(!selectedPlayTypes.length){ setPlayTypeError(true); hasErrors = true; }
     if(!plays.trim()){ setPlaysError(true); hasErrors = true; }
     // Quitar validación de nota obligatoria
-    if(selectedPlayTypes.some(pt => { const raw = amounts[pt]; const val = parseInt((raw||'').toString().replace(/[^0-9]/g,''),10)||0; return !raw || val<=0; })){ setAmountError(true); hasErrors = true; }
+    if(selectedPlayTypes.some(pt => { const raw = amounts[pt]; const val = parseFloat((raw||'').toString().replace(/[^0-9.]/g,''))||0; return !raw || val<=0; })){ setAmountError(true); hasErrors = true; }
     if(!hasErrors){
       const primary = selectedPlayTypes[0];
       const comboCF = selectedPlayTypes.includes('centena') && selectedPlayTypes.includes('fijo');

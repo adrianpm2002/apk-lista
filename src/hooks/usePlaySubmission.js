@@ -139,11 +139,13 @@ export const usePlaySubmission = () => {
         nota: (formData.note && formData.note.trim()) || 'Sin nombre',
         id_listero: user?.id || null
       };
+      
       const { error: insertError } = await supabase.from('jugada').insert(insertPayload);
       if (insertError) {
         console.error('Error insertando jugada:', insertError);
         return { success:false, error:'Error insertando jugada', message: insertError.message };
       }
+      
       return { success:true, play: insertPayload, message:'Jugada insertada' };
     } catch (error) {
       console.error('Error guardando jugada y registrando apuestas:', error);

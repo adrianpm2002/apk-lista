@@ -10,6 +10,7 @@ import {
 import DropdownPicker from '../components/DropdownPicker';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import InputField from '../components/InputField';
+import TextInputWithErrorHighlight from '../components/TextInputWithErrorHighlight';
 // PlaysInputField removido para modo texto avanzado (acepta letras/comandos)
 import MoneyInputField from '../components/MoneyInputField';
 import ActionButton from '../components/ActionButton';
@@ -53,6 +54,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
   const [noteError, setNoteError] = useState(false);
   const [limitViolations, setLimitViolations] = useState([]); // [{numero, jugada, permitido, usado}]
   const [showFieldErrors, setShowFieldErrors] = useState(false);
+  const [showInsertButton, setShowInsertButton] = useState(false); // Controla visibilidad del botón insertar
   // Capacidades ahora manejadas por BatteryButton (se eliminan estados locales duplicados)
 
   // Lógica de capacidad eliminada (delegada a BatteryButton)
@@ -244,6 +246,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
 
   const handleVerify = async () => {
     setVerifyFeedback(null);
+    setShowInsertButton(false); // Ocultar botón al iniciar verificación
     // Reusar validación base sin requerir nota
     const valid = validateForm(false);
     if(!valid){
@@ -304,6 +307,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
       }
       if(violations.length){
         setLimitViolations(violations);
+        setShowInsertButton(false); // Ocultar botón si hay violaciones
         const first = violations.slice(0,3).map(v=> `${v.numero}(${v.jugada})`).join(', ');
         setVerifyFeedback({ type:'error', message:`${t('verify.limitViolations')}: ${violations.length}${violations.length? ' - '+first+(violations.length>3?'...':''):''}` });
         return;
@@ -323,7 +327,9 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         return ` | Duplicados: ${dupCount}${dupCount>3? ' ('+first+'...)':' ('+first+')'}`;
       })();
   setVerifyFeedback({ type:'success', message:`${t('verify.summaryPrefix')}: ${parts}. Total: ${total}${dupDetails}` });
+      setShowInsertButton(true); // Mostrar botón de insertar cuando verificación sea exitosa
     } catch(err){
+      setShowInsertButton(false); // Ocultar botón si hay error
   setVerifyFeedback({ type:'error', message:t('errors.verify') });
     }
   };
@@ -464,13 +470,11 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
   };
 
   const handleTopBarOption = (option) => {
-    console.log('Sidebar option selected:', option);
+    // Manejar opciones del sidebar si es necesario
   };
 
   const toggleSidebar = () => {
-    console.log('toggleSidebar called, current state:', sidebarVisible);
     setSidebarVisible(!sidebarVisible);
-    console.log('toggleSidebar new state will be:', !sidebarVisible);
   };
 
   const closeSidebar = () => {
@@ -551,12 +555,16 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         )}
 
   {/* Input crudo de comandos (acepta letras y números) */}
-        <InputField
+        <TextInputWithErrorHighlight
           label={t('common.numbers')}
           value={plays}
-          onChangeText={(txt)=> { setPlays(txt); if(showFieldErrors){ /* no quitar bordes aún */ }}}
+          onChangeText={(txt)=> { 
+            setPlays(txt); 
+            setShowInsertButton(false); // Ocultar botón cuando se cambia el texto
+            if(showFieldErrors){ /* no quitar bordes aún */ }
+          }}
           placeholder="Números / comandos"
-          multiline={true}
+          errorLines={parseErrors.map(e => e.line)} // Extraer números de línea con errores
           showPasteButton={true}
           pasteButtonOverlay={true}
           showClearButtonOverlay={true}
@@ -653,7 +661,9 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         <View style={[styles.actionRow,{ justifyContent:'center' }]}>
           <View style={styles.actionButton}><ActionButton title={t('actions.clear')} onPress={handleClear} variant="danger" size="small" /></View>
           <View style={styles.actionButton}><ActionButton title={t('actions.verify')} onPress={handleVerify} variant="warning" size="small" /></View>
-          <View style={styles.actionButton}><ActionButton title={t('actions.insert')} onPress={handleInsert} variant="success" size="small" /></View>
+          {showInsertButton && (
+            <View style={styles.actionButton}><ActionButton title={t('actions.insert')} onPress={handleInsert} variant="success" size="small" /></View>
+          )}
         </View>
       </ScrollView>
       
