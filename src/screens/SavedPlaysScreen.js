@@ -169,7 +169,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
       });
 
       setSavedPlays(enhanced);
-    } catch(e){ console.error('Error cargando jugadas del día:', e.message); }
+    } catch(e){ }
     finally { setIsLoading(false); }
   };
 
@@ -333,6 +333,27 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         {(() => {
           const parts = item.numbers.split(',').map(n=> n.trim()).filter(Boolean);
           const counts = parts.reduce((acc,n)=> (acc[n]=(acc[n]||0)+1, acc), {});
+          
+          // Para parles, también contar duplicados canónicos (1049 == 4910)
+          if (item.playType === 'parle') {
+            const canonicalCounts = {};
+            parts.forEach(n => {
+              if (n.length === 4) {
+                const canonical = canonicalParle(n);
+                canonicalCounts[canonical] = (canonicalCounts[canonical] || 0) + 1;
+              }
+            });
+            // Marcar números duplicados canónicos
+            parts.forEach(n => {
+              if (n.length === 4) {
+                const canonical = canonicalParle(n);
+                if (canonicalCounts[canonical] > 1) {
+                  counts[n] = Math.max(counts[n] || 1, 2); // Marcar como duplicado
+                }
+              }
+            });
+          }
+          
           const winningSet = item.winningTokens || new Set();
           return (
             <Text style={[styles.numbers, isDarkMode && styles.numbersDark]}>
@@ -437,7 +458,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         setSavedPlays(prev=> prev.filter(p=> !selectedIds.has(p.id)));
         setSelectedIds(new Set());
         setSelectionMode(false);
-      } catch(e){ console.error('Error eliminando jugadas', e.message); }
+      } catch(e){ }
     };
     if(Platform.OS === 'web'){
       if(window.confirm(`Eliminar ${selectedIds.size} jugada(s)?`)) proceed();
@@ -636,7 +657,7 @@ const styles = StyleSheet.create({
   playTypeDark:{ color:'#BB8FCE', backgroundColor:'#5D6D7E' },
   numbers:{ fontSize:14, fontWeight:'700', color:'#2D5016', flex:1, lineHeight:16 },
   numbersDark:{ color:'#ECF0F1' },
-  dupNumber:{ backgroundColor:'#FFE878', borderRadius:4, paddingHorizontal:3, paddingVertical:1, fontWeight:'700', color:'#5C4B00' },
+  dupNumber:{ backgroundColor:'#FFE878', borderRadius:3, paddingHorizontal:2, paddingVertical:0.5, fontWeight:'600', color:'#5C4B00', fontSize:12 },
   winningNumber:{ color:'#1E8449', fontWeight:'800' },
   amount:{ fontSize:11, fontWeight:'600', color:'#27AE60' },
   amountDark:{ color:'#58D68D' },

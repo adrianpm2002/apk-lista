@@ -79,7 +79,6 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
     const a = n.slice(0,2); const b = n.slice(2);
     // ordenar par lexicográficamente para canónico
     const canonical = [a,b].sort().join('');
-    console.log(`parleCanonical: ${n} (${a}+${b}) → ${canonical}`);
     return canonical;
   };
   instructions.forEach(inst => {
@@ -88,7 +87,6 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
       if(inst.playType==='parle') keyNumber = parleCanonical(n);
       const key = inst.playType + '|' + keyNumber;
       duplicateMap[key] = (duplicateMap[key] || 0) + 1;
-      console.log(`Mapeando: ${n} → ${key} (count: ${duplicateMap[key]})`);
     });
   });
   const duplicateSet = new Set();
