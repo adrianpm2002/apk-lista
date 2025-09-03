@@ -66,6 +66,37 @@ const TextInputWithErrorHighlight = ({
     );
   };
 
+  // Renderizar overlay de líneas con errores
+  const renderErrorHighlight = () => {
+    if (!errorLines.length || !value) return null;
+    
+    const lines = value.split('\n');
+    const lineHeight = 24; // Altura de línea más precisa
+    const topPadding = 14; // Padding top del TextInput
+    
+    return (
+      <View style={styles.errorOverlay} pointerEvents="none">
+        {errorLines.map((lineNum) => {
+          const lineIndex = lineNum - 1; // Convertir de 1-indexed a 0-indexed
+          if (lineIndex < 0 || lineIndex >= lines.length) return null;
+          
+          return (
+            <View
+              key={lineNum}
+              style={[
+                styles.errorHighlight,
+                {
+                  top: lineIndex * lineHeight + topPadding,
+                  height: lineHeight,
+                }
+              ]}
+            />
+          );
+        })}
+      </View>
+    );
+  };
+
   // Crear array de botones overlay
   const overlayButtons = [];
   if (showPasteButton && pasteButtonOverlay) {
@@ -103,7 +134,6 @@ const TextInputWithErrorHighlight = ({
             styles.input,
             isFocused && styles.inputFocused,
             hasError && styles.inputError,
-            errorLines.length > 0 && styles.inputWithErrors,
             inputStyle,
           ]}
           value={value}
@@ -116,6 +146,9 @@ const TextInputWithErrorHighlight = ({
           textAlignVertical="top"
           {...otherProps}
         />
+
+        {/* Overlay para resaltar líneas con errores */}
+        {renderErrorHighlight()}
 
         {/* Mostrar badges de duplicados */}
         {renderDuplicateBadges()}
@@ -136,14 +169,6 @@ const TextInputWithErrorHighlight = ({
         )}
       </View>
 
-      {/* Mostrar errores de línea debajo del input */}
-      {errorLines.length > 0 && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>
-            ❌ Errores en líneas: {errorLines.join(', ')}
-          </Text>
-        </View>
-      )}
     </View>
   );
 };
@@ -187,10 +212,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     backgroundColor: '#FDEDEC',
   },
-  inputWithErrors: {
-    borderColor: '#E74C3C',
-    backgroundColor: '#FEF2F2',
-  },
   badgeContainer: {
     position: 'absolute',
     top: -8,
@@ -226,6 +247,22 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     fontStyle: 'italic',
     marginLeft: 4,
+  },
+  errorOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  errorHighlight: {
+    position: 'absolute',
+    left: 12, // Coincide con paddingHorizontal del input
+    right: 12, // Coincide con paddingHorizontal del input
+    backgroundColor: 'rgba(231, 76, 60, 0.15)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#E74C3C',
+    borderRadius: 2,
   },
   errorContainer: {
     marginTop: 4,
