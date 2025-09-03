@@ -378,14 +378,10 @@ const SavedPlaysScreen = ({ navigation, route }) => {
             style={styles.copyUnderPendingBtn}
             onPress={async ()=>{
               try {
-                const name = (item.note || '').trim();
-                const line2 = `${item.lottery} + ${item.schedule}`;
-                const playType = getPlayTypeLabel(item.playType).toUpperCase();
+                // Formato simplificado como modo texto 2.0: "números con monto"
                 const numbers = item.numbers;
-                const count = numbers.split(',').map(s=>s.trim()).filter(Boolean).length;
                 const amount = item.amount;
-                const total = item.total;
-                const text = `${name}\n${line2}\n${playType}\n${numbers}\n${amount} x ${count} = ${total}`;
+                const text = `${numbers} con ${amount}`;
                 if(Platform.OS==='web' && navigator.clipboard?.writeText){
                   await navigator.clipboard.writeText(text);
                 } else {

@@ -32,7 +32,24 @@ export function useCapacityData(bankId, options = {}) {
       const lotIds = (lots||[]).map(l=> l.id);
       if(!lotIds.length){ setCapacityData([]); setLoading(false); return; }
 
-      // 3. Horarios de esas loterías
+      // 3. Límites específicos de lotería
+      let lotteryLimits = {};
+      try {
+        const { data: lotteryLimitsData } = await supabase
+          .from('limite_loteria')
+          .select('id_loteria, limites')
+          .in('id_loteria', lotIds);
+        if (lotteryLimitsData) {
+          lotteryLimitsData.forEach(item => {
+            lotteryLimits[item.id_loteria] = item.limites || {};
+          });
+        }
+      } catch (e) {
+        console.warn('Error loading lottery limits, continuing without them:', e.message);
+        lotteryLimits = {};
+      }
+
+      // 4. Horarios de esas loterías
       const { data: horariosRows, error: horErr } = await supabase
         .from('horario')
         .select('id,nombre,id_loteria,hora_inicio,hora_fin')
@@ -98,6 +115,16 @@ export function useCapacityData(bankId, options = {}) {
       // 8. Construir filas finales. Si hay límite específico para 'fijo' (u otras jugadas) pero sin límite_numero individual
       // y no hay uso todavía, aun así se deben mostrar todos los números posibles con usado=0.
       const rows = [];
+
+      // Función auxiliar para calcular el límite efectivo (mínimo entre los 3 tipos de límites)
+      const calculateEffectiveLimit = (perNumber, lotteryLimit, specLimit) => {
+        const limits = [];
+        if (perNumber !== undefined && perNumber !== null) limits.push(perNumber);
+        if (lotteryLimit !== undefined && lotteryLimit !== null) limits.push(lotteryLimit);
+        if (specLimit !== undefined && specLimit !== null) limits.push(specLimit);
+        return limits.length > 0 ? Math.min(...limits) : null;
+      };
+
       const pushRow = (h, jug, numero, used, effective, hor, lotName, lotId) => {
         const pct = Math.min(100, effective ? (used / effective) * 100 : 0);
         rows.push({
@@ -121,11 +148,9 @@ export function useCapacityData(bankId, options = {}) {
         const hor = horarioMeta[h]; if(!hor) return;
         const lotId = hor.id_loteria; const lotName = (lots||[]).find(l=>l.id===lotId)?.nombre || lotId;
         const perNumber = limitNumberMap.get(`${h}|${jug}|${numero}`);
+        const lotteryLimit = lotteryLimits[lotId] && lotteryLimits[lotId][jug];
         const specLimit = specificLimits && specificLimits[jug];
-        let effective;
-        if(perNumber!==undefined && specLimit!==undefined) effective = Math.min(perNumber, specLimit);
-        else if(perNumber!==undefined) effective = perNumber;
-        else if(specLimit!==undefined) effective = specLimit;
+        const effective = calculateEffectiveLimit(perNumber, lotteryLimit, specLimit);
         if(!effective) return;
         const padLen = expectedLenFor(jug);
         pushRow(h, jug, String(numero).padStart(padLen,'0'), used, effective, hor, lotName, lotId);
@@ -145,7 +170,9 @@ export function useCapacityData(bankId, options = {}) {
                 const keyUsage = `${hor.id}|${jug}|${num}`;
                 if(usageMap.has(keyUsage)) continue;
                 const perNumber = limitNumberMap.get(`${hor.id}|${jug}|${num}`);
-                let effective = perNumber!==undefined ? perNumber : limVal;
+                const lotteryLimit = lotteryLimits[lotId] && lotteryLimits[lotId][jug];
+                const effective = calculateEffectiveLimit(perNumber, lotteryLimit, limVal);
+                if(!effective) continue;
                 pushRow(hor.id, jug, num, 0, effective, hor, lotName, lotId);
               }
             });
@@ -166,11 +193,9 @@ export function useCapacityData(bankId, options = {}) {
         if(presentSet.has(key)) return; // ya agregado por uso o enumeración de específico
         const lotId = hor.id_loteria; const lotName = (lots||[]).find(l=>l.id===lotId)?.nombre || lotId;
         const perNumber = r.limite;
+        const lotteryLimit = lotteryLimits[lotId] && lotteryLimits[lotId][jug];
         const specLimit = specificLimits && specificLimits[jug];
-        let effective;
-        if(perNumber!==undefined && specLimit!==undefined) effective = Math.min(perNumber, specLimit);
-        else if(perNumber!==undefined) effective = perNumber;
-        else if(specLimit!==undefined) effective = specLimit;
+        const effective = calculateEffectiveLimit(perNumber, lotteryLimit, specLimit);
         if(!effective) return;
         const padLen = expectedLenFor(jug);
         pushRow(h, jug, String(numero).padStart(padLen,'0'), 0, effective, hor, lotName, lotId);
