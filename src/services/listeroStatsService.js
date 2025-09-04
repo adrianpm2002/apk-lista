@@ -413,6 +413,10 @@ export async function getPlaysDetails(listeroId, { from, to, lotteryId=null, sch
     const day = toLocalDateStr(j.created_at);
     const resNums = resMap.get(`${j.scheduleId}|${day}`);
     const { pago, estado, resultado } = await computePagoForJugadaWithLottery(listeroId, j, resNums, limitedMap.get(j.scheduleId));
+    
+    // Calcular ganancia del listero para esta jugada
+    const listeroEarning = await calculateListeroEarnings(listeroId, [j]);
+    
     result.push({
       id: j.id,
       created_at: j.created_at,
@@ -426,6 +430,8 @@ export async function getPlaysDetails(listeroId, { from, to, lotteryId=null, sch
       pago_calculado: Number(Number(pago).toFixed(2)),
       lottery_name: j.lotteryName,
       schedule_name: j.scheduleName,
+      id_loteria: j.lotteryId,
+      listero_earning: Number(listeroEarning.toFixed(2)), // Ganancia del listero
     });
   }
   
@@ -474,4 +480,78 @@ export async function getPlaysDetailsEndpoint(listeroId, from, to){
 
 export async function getByLotteryEndpoint(listeroId, from, to){
   return await getByLotteryStats(listeroId, { from, to });
+}
+
+// Nueva función para calcular las ganancias del listero específicas por lotería
+export async function calculateListeroEarnings(listeroId, plays) {
+  try {
+    // Obtener configuración de ganancias del listero
+    const { data: profile } = await supabase.from('profiles').select('id_precio').eq('id', listeroId).maybeSingle();
+    const gainsData = profile?.id_precio;
+    
+    if (!gainsData || typeof gainsData !== 'object') {
+      return 0; // Sin ganancias configuradas
+    }
+    
+    let totalEarnings = 0;
+    
+    // Agrupar jugadas por lotería y tipo de jugada
+    const playsByLotteryAndType = new Map();
+    
+    for (const play of plays) {
+      const lotteryId = play.id_loteria || play.lotteryId;
+      const playType = play.jugada || play.playType || 'posicion';
+      
+      if (!lotteryId) continue;
+      
+      const key = `${lotteryId}_${playType}`;
+      if (!playsByLotteryAndType.has(key)) {
+        playsByLotteryAndType.set(key, {
+          lotteryId,
+          playType,
+          totalAmount: 0,
+          plays: []
+        });
+      }
+      
+      const group = playsByLotteryAndType.get(key);
+      const amount = play.monto_total != null ? Number(play.monto_total) : 
+                   ((play.monto_unitario || 0) * (play.numeros?.split(',').length || 1));
+      
+      group.totalAmount += amount;
+      group.plays.push(play);
+    }
+    
+    // Calcular ganancias por cada grupo
+    for (const [key, group] of playsByLotteryAndType) {
+      const gainId = gainsData[`${group.lotteryId}_id`];
+      
+      if (!gainId) continue; // Sin ganancia configurada para esta lotería
+      
+      try {
+        // Obtener configuración de precios/porcentajes
+        const { data: priceConfig } = await supabase
+          .from('precio')
+          .select('precios')
+          .eq('id', gainId)
+          .maybeSingle();
+        
+        if (priceConfig?.precios) {
+          const playTypeConfig = priceConfig.precios[group.playType];
+          const listeroPercentage = playTypeConfig?.listeroPct || 0;
+          
+          // Calcular ganancia: monto total * porcentaje del listero / 100
+          const earnings = (group.totalAmount * listeroPercentage) / 100;
+          totalEarnings += earnings;
+        }
+      } catch (err) {
+        console.error(`Error obteniendo configuración para ganancia ${gainId}:`, err);
+      }
+    }
+    
+    return Number(totalEarnings.toFixed(2));
+  } catch (error) {
+    console.error('Error calculando ganancias del listero:', error);
+    return 0;
+  }
 }

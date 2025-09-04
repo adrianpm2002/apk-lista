@@ -747,11 +747,12 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
           const lot = r.lottery_name || 'Lotería';
           const sch = r.schedule_name || 'Horario';
           const key = `${dayKey}|${lot}|${sch}`;
-          if(!map.has(key)) map.set(key, { key, dayKey, dayLabel, lottery: lot, schedule: sch, plays: [], totalRecogido:0, totalPagado:0, resultado: undefined });
+          if(!map.has(key)) map.set(key, { key, dayKey, dayLabel, lottery: lot, schedule: sch, plays: [], totalRecogido:0, totalPagado:0, totalListeroEarnings:0, resultado: undefined });
           const g = map.get(key);
           const collected = inferCollected(r);
           g.totalRecogido += collected;
           g.totalPagado += Number(r.pago_calculado||0);
+          g.totalListeroEarnings += Number(r.listero_earning||0); // Sumar ganancias del listero
           if (!g.resultado && r.resultado) {
             g.resultado = r.resultado;
           }
@@ -763,6 +764,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
             numeros: r.numeros,
             total: collected,
             pagado: Number(r.pago_calculado||0),
+            listeroEarning: Number(r.listero_earning||0), // Ganancia del listero para esta jugada
           });
         }
         let groups = Array.from(map.values())
@@ -777,7 +779,13 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
       (p.nota && String(p.nota).toLowerCase().includes(q)) ||
       (p.jugada && String(p.jugada).toLowerCase().includes(q))
             ).sort((a,b)=> b.ts - a.ts);
-            return { ...g, plays, totalRecogido: plays.reduce((s,x)=>s+x.total,0), totalPagado: plays.reduce((s,x)=>s+x.pagado,0) };
+            return { 
+              ...g, 
+              plays, 
+              totalRecogido: plays.reduce((s,x)=>s+x.total,0), 
+              totalPagado: plays.reduce((s,x)=>s+x.pagado,0),
+              totalListeroEarnings: plays.reduce((s,x)=>s+x.listeroEarning,0)
+            };
           }).filter(g => g.plays.length > 0);
         }
 
@@ -809,7 +817,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
                         </Text>
                       </View>
                       <View style={styles.compactStatsRow}>
-                        <Text style={styles.compactStatChip}>📊 {g.plays.length}</Text>
+                        <Text style={[styles.compactStatChip, styles.compactEarningsChip]}>� {fmt(g.totalListeroEarnings)}</Text>
                         <Text style={[styles.compactStatChip, styles.compactCollectedChip]}>💰 {fmt(g.totalRecogido)}</Text>
                         <Text style={[styles.compactStatChip, balance>=0? styles.compactBalancePosChip: styles.compactBalanceNegChip]}>
                           {balance>=0? '📈':'📉'} {fmt(balance)}
@@ -827,6 +835,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
                           <Text style={[styles.excelHeaderCell, { width: 90 }]}>Jugada</Text>
                           <Text style={[styles.excelHeaderCell, { width: 160 }]}>Números</Text>
                           <Text style={[styles.excelHeaderCell, { width: 80 }]}>Total</Text>
+                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Ganancia</Text>
                           <Text style={[styles.excelHeaderCell, { width: 80 }]}>Pagado</Text>
                         </View>
                         {/* Filas de datos estilo Excel */}
@@ -852,6 +861,9 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
                             </View>
                             <View style={[styles.excelCellContainer, { width: 80 }]}>
                               <Text style={styles.excelCell} numberOfLines={1}>{fmt(p.total)}</Text>
+                            </View>
+                            <View style={[styles.excelCellContainer, { width: 80 }]}>
+                              <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(p.listeroEarning)}</Text>
                             </View>
                             <View style={[styles.excelCellContainer, { width: 80 }]}>
                               <Text style={styles.excelCell} numberOfLines={2}>
@@ -1573,6 +1585,16 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     textAlign: 'center',
     minWidth: '100%',
+  },
+  // Estilos para ganancias del listero
+  compactEarningsChip: {
+    backgroundColor: '#E3F2FD',
+    borderColor: '#1976D2',
+    color: '#1976D2',
+  },
+  earningsCell: {
+    color: '#1976D2',
+    fontWeight: '600',
   },
 });
 
