@@ -817,7 +817,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
                         </Text>
                       </View>
                       <View style={styles.compactStatsRow}>
-                        <Text style={[styles.compactStatChip, styles.compactEarningsChip]}>� {fmt(g.totalListeroEarnings)}</Text>
+                        <Text style={[styles.compactStatChip, styles.compactEarningsChip]}>💼 {fmt(g.totalListeroEarnings)}</Text>
                         <Text style={[styles.compactStatChip, styles.compactCollectedChip]}>💰 {fmt(g.totalRecogido)}</Text>
                         <Text style={[styles.compactStatChip, balance>=0? styles.compactBalancePosChip: styles.compactBalanceNegChip]}>
                           {balance>=0? '📈':'📉'} {fmt(balance)}
@@ -1599,3 +1599,4 @@ const styles = StyleSheet.create({
 });
 
 export default StatisticsScreen;
+
