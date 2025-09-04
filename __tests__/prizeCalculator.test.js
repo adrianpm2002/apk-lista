@@ -39,6 +39,15 @@ describe('prizeCalculator', () => {
     expect(r.pay).toBe(2 * prices.corrido.regular);
   });
 
+  test('evaluate corrido incluye fijo', () => {
+    const play = { playType:'corrido', numbers:'34,59,00', amount:1 };
+    const limitedSet = new Set();
+    const r = evaluatePlay(play, parsed, limitedSet, prices);
+    // 34 (fijo) y 59 ganan como corridos
+    expect(r.hasPrize).toBe(true);
+    expect(r.pay).toBe(2 * prices.corrido.regular);
+  });
+
   test('evaluate centena pierde', () => {
     const play = { playType:'centena', numbers:'999', amount:5 };
     const r = evaluatePlay(play, parsed, new Set(), prices);

@@ -50,7 +50,8 @@ export const winnersByType = (parsed, playType) => {
     case 'fijo':
       return new Set([parsed.fijo]);
     case 'corrido':
-      return new Set(parsed.corridos);
+      // El fijo también es un corrido ganador
+      return new Set([...parsed.corridos, parsed.fijo]);
     case 'centena':
       return new Set([parsed.centena]);
     case 'parle':

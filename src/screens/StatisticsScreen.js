@@ -119,8 +119,6 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
 
   // Opciones de períodos
   const periodOptions = [
-    { label: 'Hoy', value: 'today' },
-    { label: 'Ayer', value: 'yesterday' },
     { label: 'Esta semana', value: 'week' },
     { label: 'Este mes', value: 'month' },
     { label: 'Mes pasado', value: 'lastMonth' },
@@ -605,6 +603,19 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
     );
   };
 
+  // Función para generar título dinámico del gráfico
+  const getChartTitle = () => {
+    const titleMap = {
+      'week': 'Ganancias vs Pérdidas (Esta semana)',
+      'month': 'Ganancias vs Pérdidas (Este mes)',
+      'lastMonth': 'Ganancias vs Pérdidas (Mes pasado)',
+      'last7days': 'Ganancias vs Pérdidas (Últimos 7 días)',
+      'last30days': 'Ganancias vs Pérdidas (Últimos 30 días)',
+      'custom': 'Ganancias vs Pérdidas (Período personalizado)',
+    };
+    return titleMap[selectedPeriod] || 'Ganancias vs Pérdidas';
+  };
+
   // Renderizar contenido del tab de gráficos
   const renderChartsTab = () => (
     <ScrollView style={styles.tabContent}>
@@ -630,7 +641,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
             <View>
               <StatisticsChart
                 type="profitLoss"
-                title="Ganancias vs Pérdidas (día a día)"
+                title={getChartTitle()}
                 data={series}
                 isDarkMode={isDarkMode}
                 height={260}
@@ -673,7 +684,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
           <View>
             <StatisticsChart
               type="profitLoss"
-              title="Ganancias vs Pérdidas (día a día)"
+              title={getChartTitle()}
               data={series}
               isDarkMode={isDarkMode}
               height={260}
