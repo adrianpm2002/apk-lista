@@ -7,6 +7,8 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
+  Alert,
+  Clipboard,
 } from 'react-native';
 import DropdownPicker from '../components/DropdownPicker';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
@@ -28,6 +30,7 @@ import { parseTextMode2 } from '../utils/textModeParser2';
 import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import FeedbackBanner from '../components/FeedbackBanner';
+import { generateTextModeCopyText } from '../utils/copyUtils';
 import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { supabase } from '../supabaseClient';
@@ -99,6 +102,7 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
   },[route?.params?.editPayload, lotteries, scheduleOptionsMap]);
   const [bankId, setBankId] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [userProfile, setUserProfile] = useState(null); // Para el nombre de usuario al copiar
   const loadingRef = useRef(false);
   // Feedback de inserción
   const [insertFeedback, setInsertFeedback] = useState(null); // {success, fail, duplicates:[]}
@@ -117,8 +121,9 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         const { data: { user } } = await supabase.auth.getUser();
         if(!user) return;
         setUserId(user.id);
-        const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).maybeSingle();
+        const { data: profile } = await supabase.from('profiles').select('role,id_banco,username').eq('id', user.id).maybeSingle();
         if(!profile) return;
+        setUserProfile(profile); // Guardar el perfil completo para tener acceso al username
         const bId = profile.role === 'admin' ? user.id : profile.id_banco;
         setBankId(bId);
       } catch(e){ /* ignore */ }
@@ -252,6 +257,68 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
     setShowFieldErrors(false);
     setLotteryError(false); setScheduleError(false); setPlaysError(false); setNoteError(false); setLotteryErrorMessage('');
     setInsertFeedback(null);
+  };
+
+  const handleCopy = async () => {
+    try {
+      // Validar que hay datos para copiar
+      if (selectedLotteries.length === 0) {
+        Alert.alert('Error', 'Selecciona al menos una lotería para copiar.');
+        return;
+      }
+      
+      if (!plays.trim()) {
+        Alert.alert('Error', 'Ingresa al menos una jugada para copiar.');
+        return;
+      }
+      
+      // Verificar que las instrucciones fueron parseadas correctamente
+      if (parsedInstructions.length === 0) {
+        Alert.alert('Error', 'No se pudieron interpretar las jugadas. Verifica el formato.');
+        return;
+      }
+      
+      // Convertir parsedInstructions a formato compatible con generateTextModeCopyText
+      const amounts = {};
+      parsedInstructions.forEach(instruction => {
+        if (instruction.playType && instruction.amountEach) {
+          amounts[instruction.playType] = instruction.amountEach.toString();
+        }
+      });
+      
+      // Para modo texto, solo trabajamos con una lotería y horario a la vez
+      const selectedLottery = selectedLotteries[0];
+      const selectedSchedule = selectedSchedules[selectedLottery];
+      
+      // Extraer solo los números de las jugadas (sin comandos)
+      const numbers = [];
+      parsedInstructions.forEach(instruction => {
+        if (instruction.numbers && Array.isArray(instruction.numbers)) {
+          numbers.push(...instruction.numbers);
+        }
+      });
+      const playsText = numbers.join(' ');
+      
+      // Generar texto para copiar
+      const copyText = await generateTextModeCopyText(
+        selectedLottery,
+        selectedSchedule,
+        playsText,
+        amounts,
+        userProfile,
+        note
+      );
+      
+      // Copiar al portapapeles
+      await Clipboard.setString(copyText);
+      
+      // Mostrar confirmación
+      Alert.alert('Éxito', 'Las jugadas se han copiado al portapapeles.');
+      
+    } catch (error) {
+      console.error('Error al copiar:', error);
+      Alert.alert('Error', 'No se pudieron copiar las jugadas.');
+    }
   };
 
   // Validación unificada similar al modo visual (simplificada)
@@ -726,6 +793,17 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
               return prev + (prev.endsWith('\n') ? '' : '\n') + formatted; // agrega con salto
             });
           }} />
+          
+          {/* Botón de Copiar */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.copyButton,
+              pressed && styles.copyButtonPressed
+            ]}
+            onPress={handleCopy}
+          >
+            <Text style={styles.copyText}>Copiar</Text>
+          </Pressable>
         </View>
 
         {/* Row 5: Botones de acción */}
@@ -967,6 +1045,34 @@ const styles = StyleSheet.create({
   },
   inlineToolBtnActive:{ backgroundColor:'#FFE4B5', borderColor:'#D4AF37' },
   inlineToolBtnTxt:{ fontSize:14, fontWeight:'600', color:'#2D5016' },
+  copyButton: {
+    backgroundColor: '#E6F3FF',
+    borderWidth: 1,
+    borderColor: '#87CEEB',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#87CEEB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  copyButtonPressed: {
+    backgroundColor: '#D0E8FF',
+    borderColor: '#5A9FDA',
+    transform: [{ scale: 0.95 }],
+  },
+  copyIcon: {
+    fontSize: 18,
+  },
+  copyText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2B5F8A',
+  },
 });
 
 export default TextMode2Screen;

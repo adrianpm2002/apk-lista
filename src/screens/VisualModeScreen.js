@@ -6,6 +6,8 @@ import {
   StyleSheet,
   Pressable,
   Animated,
+  Alert,
+  Clipboard,
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import DropdownPicker from '../components/DropdownPicker';
@@ -26,6 +28,7 @@ import { t, translatePlayTypeLabel } from '../utils/i18n';
 import { applyPlayTypeSelection } from '../utils/playTypeCombinations';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
+import { generateVisualModeCopyText } from '../utils/copyUtils';
 
 const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   
@@ -92,6 +95,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const [lotteries, setLotteries] = useState([]); // desde BD
   const [bankId, setBankId] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [userProfile, setUserProfile] = useState(null); // Para el nombre de usuario al copiar
   const [isInserting, setIsInserting] = useState(false);
   const [playTypes, setPlayTypes] = useState([]); // jugadas activas dinámicas
   // Edición
@@ -117,8 +121,9 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         const { data: { user } } = await supabase.auth.getUser();
         if(!user) return;
     setUserId(user.id);
-        const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).single();
+        const { data: profile } = await supabase.from('profiles').select('role,id_banco,username').eq('id', user.id).single();
         if(!profile) return;
+        setUserProfile(profile); // Guardar el perfil completo para tener acceso al username
         const bId = profile.role === 'admin' ? user.id : profile.id_banco;
         setBankId(bId);
       } catch(e) { /* silencioso */ }
@@ -558,6 +563,59 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   setInputInstanceKey(k=>k+1); // remount del input para asegurar limpieza visual
   };
 
+  const handleCopy = async () => {
+    try {
+      // Validar que hay datos para copiar
+      if (selectedLotteries.length === 0) {
+        Alert.alert('Error', 'Selecciona al menos una lotería para copiar.');
+        return;
+      }
+      
+      if (selectedPlayTypes.length === 0) {
+        Alert.alert('Error', 'Selecciona al menos un tipo de jugada para copiar.');
+        return;
+      }
+      
+      if (!plays.trim()) {
+        Alert.alert('Error', 'Ingresa al menos un número para copiar.');
+        return;
+      }
+      
+      // Verificar que hay al menos un monto válido
+      const hasValidAmount = selectedPlayTypes.some(pt => {
+        const amount = amounts[pt];
+        return amount && parseFloat(amount.toString().replace(/[^0-9.]/g, '')) > 0;
+      });
+      
+      if (!hasValidAmount) {
+        Alert.alert('Error', 'Ingresa al menos un monto válido para copiar.');
+        return;
+      }
+      
+      // Generar texto para copiar
+      const copyText = await generateVisualModeCopyText(
+        selectedLotteries,
+        selectedSchedules,
+        selectedPlayTypes,
+        plays,
+        amounts,
+        isLocked,
+        userProfile,
+        note
+      );
+      
+      // Copiar al portapapeles
+      await Clipboard.setString(copyText);
+      
+      // Mostrar confirmación
+      Alert.alert('Éxito', 'Las jugadas se han copiado al portapapeles.');
+      
+    } catch (error) {
+      console.error('Error al copiar:', error);
+      Alert.alert('Error', 'No se pudieron copiar las jugadas.');
+    }
+  };
+
   const handleTopBarOption = (option) => {
     // Manejar opciones del sidebar si es necesario
   };
@@ -910,6 +968,17 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             onOptionSelect={(option) => console.log('List option:', option)}
             isDarkMode={isDarkMode}
           />
+          
+          {/* Botón de Copiar */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.copyButton,
+              pressed && styles.copyButtonPressed
+            ]}
+            onPress={handleCopy}
+          >
+            <Text style={styles.copyText}>Copiar</Text>
+          </Pressable>
         </View>
 
         {/* Row 6: Botones de acción */}
@@ -1065,6 +1134,37 @@ const styles = StyleSheet.create({
   },
   lockIcon: {
     fontSize: 18,
+  },
+  copyButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E6F3FF', // Azul claro
+    borderWidth: 1.5,
+    borderColor: '#87CEEB', // Azul cielo
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#4169E1',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  copyButtonPressed: {
+    backgroundColor: '#B0E0E6', // Azul más oscuro al presionar
+    borderColor: '#4169E1',
+    transform: [{ scale: 0.95 }],
+  },
+  copyIcon: {
+    fontSize: 18,
+  },
+  copyText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2B5F8A',
   },
   actionRow: {
     flexDirection: 'row',
