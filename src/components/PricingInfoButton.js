@@ -10,7 +10,7 @@ const PricingInfoButton = () => {
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [precioRow, setPrecioRow] = useState(null); // { nombre, precios }
+  const [lotteryPrices, setLotteryPrices] = useState({}); // { lotteryId: { nombre: 'Lotería', precios: {...}, gainName: 'Ganancia' } }
   const [limits, setLimits] = useState(null); // limite_especifico
   const [numberLimits, setNumberLimits] = useState([]); // filas limite_numero
   const [bankId, setBankId] = useState(null);
@@ -33,13 +33,44 @@ const PricingInfoButton = () => {
       // Determinar bankId efectivo
       const effectiveBankId = profile ? (profile.role === 'admin' ? user.id : profile.id_banco) : null;
       setBankId(effectiveBankId);
-      if (profile?.id_precio) {
-        const { data: row, error: rErr } = await supabase.from('precio').select('nombre,precios').eq('id', profile.id_precio).maybeSingle();
-        if (rErr) throw rErr;
-        setPrecioRow(row || null);
-      } else {
-        setPrecioRow(null);
+      
+      // Cargar precios específicos por lotería desde JSONB id_precio
+      const lotteryPricesData = {};
+      if (profile?.id_precio && typeof profile.id_precio === 'object') {
+        const gainsData = profile.id_precio;
+        
+        // Obtener todas las entradas de ganancias por lotería
+        const lotteryEntries = Object.entries(gainsData).filter(([key]) => key.endsWith('_id'));
+        
+        for (const [key, gainId] of lotteryEntries) {
+          const lotteryId = key.replace('_id', '');
+          const lotteryName = gainsData[`${lotteryId}_nombre`] || `Lotería ${lotteryId}`;
+          
+          try {
+            // Obtener configuración de precios para esta ganancia
+            const { data: priceRow, error: priceErr } = await supabase
+              .from('precio')
+              .select('nombre, precios')
+              .eq('id', gainId)
+              .maybeSingle();
+            
+            if (priceErr) throw priceErr;
+            
+            if (priceRow) {
+              lotteryPricesData[lotteryId] = {
+                nombre: lotteryName,
+                precios: priceRow.precios || {},
+                gainName: priceRow.nombre || 'Sin nombre',
+                gainId: gainId
+              };
+            }
+          } catch (err) {
+            console.error(`Error cargando precios para lotería ${lotteryId}:`, err);
+          }
+        }
       }
+      
+      setLotteryPrices(lotteryPricesData);
   // Cargar límites por número y números limitados si hay bankId
       if (effectiveBankId) {
         const { data: rows, error: nlErr } = await supabase
@@ -205,13 +236,14 @@ const PricingInfoButton = () => {
   const renderContent = () => {
     if (loading) return <ActivityIndicator size="large" color="#2D5016" style={{ marginVertical: 20 }} />;
     if (error) return <Text style={styles.errorText}>{error}</Text>;
-  if (!precioRow) return <Text style={styles.infoText}>{t('pricing.noConfig')}</Text>;
-  const precios = precioRow.precios || {};
-    const entries = Object.entries(precios);
-  if (!entries.length) return <Text style={styles.infoText}>{t('pricing.emptyConfig')}</Text>;
-    // Orden canónico
+    
+    if (!Object.keys(lotteryPrices).length) {
+      return <Text style={styles.infoText}>{t('pricing.noConfig')}</Text>;
+    }
+    
+    // Orden canónico para los tipos de jugada
     const ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
-    const orderedEntries = ORDER.filter(k=> precios[k]).map(k=> [k, precios[k]]);
+    
     return (
       <View>
         {/* Loterías y Horarios */}
@@ -229,23 +261,42 @@ const PricingInfoButton = () => {
             </View>
           ))}
         </View>
-        {/* Ganancias por Jugada */}
-        <Text style={styles.configName}>Ganancias por Jugada</Text>
-        <View style={styles.grid}>
-          {orderedEntries.map(([tipo, obj]) => {
-            const limited = obj?.limited ?? '-';
-            const regular = obj?.regular ?? '-';
-            const lPct = obj?.listeroPct ?? '-';
-            return (
-              <View key={tipo} style={styles.playCard}>
-                <Text style={styles.playType}>{tipo.charAt(0).toUpperCase()+tipo.slice(1)}</Text>
-                <Text style={styles.inlineDetail}><Text style={styles.inlineLabel}>Precio regular:</Text> {regular}</Text>
-                <Text style={styles.inlineDetail}><Text style={styles.inlineLabel}>Precio limitado:</Text> {limited}</Text>
-                <Text style={styles.inlineDetail}><Text style={styles.inlineLabel}>Porciento listero:</Text> {lPct}%</Text>
+        
+        {/* Ganancias por Lotería */}
+        <Text style={styles.configName}>Ganancias por Lotería</Text>
+        {Object.entries(lotteryPrices).map(([lotteryId, lotteryData]) => {
+          const precios = lotteryData.precios || {};
+          const orderedEntries = ORDER.filter(k => precios[k]).map(k => [k, precios[k]]);
+          
+          return (
+            <View key={lotteryId} style={styles.lotteryPriceSection}>
+              <View style={styles.lotteryHeader}>
+                <Text style={styles.lotteryName}>{lotteryData.nombre}</Text>
+                <Text style={styles.gainName}>({lotteryData.gainName})</Text>
               </View>
-            );
-          })}
-        </View>
+              
+              {orderedEntries.length === 0 ? (
+                <Text style={styles.noLimits}>Sin precios configurados</Text>
+              ) : (
+                <View style={styles.grid}>
+                  {orderedEntries.map(([tipo, obj]) => {
+                    const limited = obj?.limited ?? '-';
+                    const regular = obj?.regular ?? '-';
+                    const lPct = obj?.listeroPct ?? '-';
+                    return (
+                      <View key={tipo} style={styles.playCard}>
+                        <Text style={styles.playType}>{tipo.charAt(0).toUpperCase()+tipo.slice(1)}</Text>
+                        <Text style={styles.inlineDetail}><Text style={styles.inlineLabel}>Precio regular:</Text> {regular}</Text>
+                        <Text style={styles.inlineDetail}><Text style={styles.inlineLabel}>Precio limitado:</Text> {limited}</Text>
+                        <Text style={styles.inlineDetail}><Text style={styles.inlineLabel}>Porciento listero:</Text> {lPct}%</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          );
+        })}
         
         {/* Límites por Lotería */}
         <View style={styles.limitsBlock}>
@@ -458,6 +509,10 @@ const styles = StyleSheet.create({
   lotteryLimitCard: { width:'33.33%', padding:6, backgroundColor:'#F2EEFF', borderRadius:8, borderWidth:1, borderColor:'#D6C8FA', marginBottom:8, paddingHorizontal:8 },
   lotteryLimitPlay: { fontSize:11, fontWeight:'700', color:'#4A3D8A', marginBottom:2 },
   lotteryLimitValue: { fontSize:12, fontWeight:'600', color:'#4A3D8A' },
+  // Estilos para precios específicos por lotería
+  lotteryPriceSection: { marginBottom:16, backgroundColor:'#F8FBF6', borderWidth:1, borderColor:'#D5E8C8', borderRadius:12, padding:12 },
+  lotteryHeader: { flexDirection:'row', alignItems:'center', justifyContent:'center', marginBottom:8 },
+  gainName: { fontSize:12, color:'#5A6B5D', fontStyle:'italic', marginLeft:6 },
 });
 
 export default PricingInfoButton;
