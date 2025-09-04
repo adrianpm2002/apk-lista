@@ -23,6 +23,9 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { useDarkMode } from '../contexts/DarkModeContext';
 
+// Configuración para desarrollo - debe coincidir con useStatistics.js
+const USE_MOCK_DATA = true; // ⚠️ CAMBIAR A false PARA USAR DATOS REALES
+
 const { width: screenWidth } = Dimensions.get('window');
 
 const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
@@ -209,6 +212,48 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   const loadInitialData = async () => {
     try {
       await loadAllStats();
+      
+      // Si estamos en modo mock, cargar datos mock para dailySeries también
+      if (USE_MOCK_DATA) {
+        const mockDailyData = [];
+        const today = new Date();
+        
+        // Generar 7 días de datos mock
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(today);
+          date.setDate(date.getDate() - i);
+          
+          mockDailyData.push({
+            date: date.toISOString().split('T')[0],
+            total_recogido: 20000 + Math.random() * 15000,
+            total_pagado: 15000 + Math.random() * 8000,
+            total_listero_earning: 2000 + Math.random() * 1500,
+            profit: 3000 + Math.random() * 3000
+          });
+        }
+        
+        setDailySeries(mockDailyData);
+        
+        // También setear datos mock para detalles
+        setDetailRows([
+          { 
+            id: 1, 
+            numeros: '123,456,789', 
+            monto_total: 500, 
+            created_at: new Date().toISOString(),
+            horario: { nombre: 'Matutino' },
+            loteria: { nombre: 'Lotería Nacional' }
+          },
+          { 
+            id: 2, 
+            numeros: '987,654,321', 
+            monto_total: 750, 
+            created_at: new Date().toISOString(),
+            horario: { nombre: 'Vespertino' },
+            loteria: { nombre: 'Loteka' }
+          }
+        ]);
+      }
     } catch (error) {
       Alert.alert('Error', 'No se pudieron cargar las estadísticas iniciales');
     }
@@ -264,8 +309,11 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
       lotteryId: selectedLottery === 'all' ? null : selectedLottery,
       scheduleId: selectedSchedule === 'all' ? null : selectedSchedule,
     });
-    // Cargar nuevas series desde servicio real
-    void loadServiceData(start, end);
+    
+    // Solo cargar desde servicio real si no estamos en modo mock
+    if (!USE_MOCK_DATA) {
+      void loadServiceData(start, end);
+    }
   };
 
   // Aplicar filtros personalizados
@@ -277,7 +325,11 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
       lotteryId: selectedLottery === 'all' ? null : selectedLottery,
       scheduleId: selectedSchedule === 'all' ? null : selectedSchedule,
     });
-    void loadServiceData(startDate, endDate);
+    
+    // Solo cargar desde servicio real si no estamos en modo mock
+    if (!USE_MOCK_DATA) {
+      void loadServiceData(startDate, endDate);
+    }
   // noop: modal eliminado
   };
 
@@ -286,7 +338,14 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
     setRefreshing(true);
     try {
       await loadAllStats();
-      await loadServiceData(startDate, endDate);
+      
+      // Solo cargar desde servicio real si no estamos en modo mock
+      if (!USE_MOCK_DATA) {
+        await loadServiceData(startDate, endDate);
+      } else {
+        // Recargar datos mock
+        await loadInitialData();
+      }
     } catch (error) {
       Alert.alert('Error', 'No se pudieron actualizar las estadísticas');
     } finally {
@@ -626,7 +685,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
           return `${y}-${m}-${d}`;
         };
         const fmtShort = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
-        const plMap = new Map(dailySeries.map(x=> [x.day, Number(x.total_recogido) - Number(x.total_pagado)]));
+        const plMap = new Map(dailySeries.map(x=> [x.day, Number(x.total_recogido) - Number(x.total_pagado) - Number(x.total_listero_earning || 0)]));
         const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
         const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
         const days=[]; const cur=new Date(start);
@@ -651,11 +710,12 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
                 const sum = (arr, key) => arr.reduce((acc, it) => acc + (Number(it[key]) || 0), 0);
                 const collected = sum(dailySeries, 'total_recogido');
                 const paid = sum(dailySeries, 'total_pagado');
-                const net = collected - paid;
+                const listeroEarnings = sum(dailySeries, 'total_listero_earning');
+                const net = collected - paid - listeroEarnings;
                 return (
                   <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
                     <View style={{ flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                      <Text style={{ color:'#6c757d' }}>Recogido (período)</Text>
+                      <Text style={{ color:'#6c757d' }}>Bruto (período)</Text>
                       <Text style={{ fontSize:18, fontWeight:'800', color:'#27AE60' }}>${Math.round(collected).toLocaleString('es-DO')}</Text>
                     </View>
                     <View style={{ flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
@@ -694,11 +754,12 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
               const sum = (arr, key) => arr.reduce((acc, it) => acc + (Number(it[key]) || 0), 0);
               const collected = sum(dailySeries, 'total_recogido');
               const paid = sum(dailySeries, 'total_pagado');
-              const net = collected - paid;
+              const listeroEarnings = sum(dailySeries, 'total_listero_earning');
+              const net = collected - paid - listeroEarnings;
               return (
                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
                   <View style={{ flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                    <Text style={{ color:'#6c757d' }}>Recogido (período)</Text>
+                    <Text style={{ color:'#6c757d' }}>Bruto (período)</Text>
                     <Text style={{ fontSize:18, fontWeight:'800', color:'#27AE60' }}>${Math.round(collected).toLocaleString('es-DO')}</Text>
                   </View>
                   <View style={{ flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
@@ -802,7 +863,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
           <View style={{ paddingHorizontal:8 }}>
             {groups.map(g=>{
               const open = expanded.has(g.key);
-              const balance = Math.round(g.totalRecogido - g.totalPagado);
+              const balance = Math.round(g.totalRecogido - g.totalPagado - g.totalListeroEarnings);
               return (
                 <View key={g.key} style={[styles.compactGroupCard, isDarkMode && styles.compactGroupCardDark]}>
                   <TouchableOpacity style={styles.compactGroupHeader} onPress={()=> toggle(g.key)}>
@@ -817,10 +878,10 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
                         </Text>
                       </View>
                       <View style={styles.compactStatsRow}>
-                        <Text style={[styles.compactStatChip, styles.compactEarningsChip]}>💼 {fmt(g.totalListeroEarnings)}</Text>
-                        <Text style={[styles.compactStatChip, styles.compactCollectedChip]}>💰 {fmt(g.totalRecogido)}</Text>
+                        <Text style={[styles.compactStatChip, styles.compactEarningsChip]}>Listero: {fmt(g.totalListeroEarnings)}</Text>
+                        <Text style={[styles.compactStatChip, styles.compactCollectedChip]}>Bruto: {fmt(g.totalRecogido)}</Text>
                         <Text style={[styles.compactStatChip, balance>=0? styles.compactBalancePosChip: styles.compactBalanceNegChip]}>
-                          {balance>=0? '📈':'📉'} {fmt(balance)}
+                          Balance: {fmt(balance)}
                         </Text>
                       </View>
                     </View>
@@ -834,8 +895,9 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
                           <Text style={[styles.excelHeaderCell, { width: 100 }]}>Nota</Text>
                           <Text style={[styles.excelHeaderCell, { width: 90 }]}>Jugada</Text>
                           <Text style={[styles.excelHeaderCell, { width: 160 }]}>Números</Text>
-                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Total</Text>
-                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Ganancia</Text>
+                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Bruto</Text>
+                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Balance</Text>
+                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Listero</Text>
                           <Text style={[styles.excelHeaderCell, { width: 80 }]}>Pagado</Text>
                         </View>
                         {/* Filas de datos estilo Excel */}
@@ -863,6 +925,11 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
                               <Text style={styles.excelCell} numberOfLines={1}>{fmt(p.total)}</Text>
                             </View>
                             <View style={[styles.excelCellContainer, { width: 80 }]}>
+                              <Text style={[styles.excelCell, styles.balanceCell]} numberOfLines={1}>
+                                {fmt(p.total - p.listeroEarning - (p.pagado || 0))}
+                              </Text>
+                            </View>
+                            <View style={[styles.excelCellContainer, { width: 80 }]}>
                               <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(p.listeroEarning)}</Text>
                             </View>
                             <View style={[styles.excelCellContainer, { width: 80 }]}>
@@ -872,6 +939,45 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
                             </View>
                           </View>
                         ))}
+                        
+                        {/* Fila de totales */}
+                        {(() => {
+                          const totalBruto = g.plays.reduce((sum, p) => sum + (p.total || 0), 0);
+                          const totalListero = g.plays.reduce((sum, p) => sum + (p.listeroEarning || 0), 0);
+                          const totalPagado = g.plays.reduce((sum, p) => sum + (p.pagado || 0), 0);
+                          const totalBalance = totalBruto - totalListero - totalPagado;
+                          
+                          return (
+                            <View style={[styles.excelDataRow, styles.totalRow]}>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={[styles.excelCell, styles.totalCell]}>TOTAL</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 100 }]}>
+                                <Text style={[styles.excelCell, styles.totalCell]}></Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 90 }]}>
+                                <Text style={[styles.excelCell, styles.totalCell]}></Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 160 }]}>
+                                <Text style={[styles.excelCell, styles.totalCell]}></Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={[styles.excelCell, styles.totalCell]} numberOfLines={1}>{fmt(totalBruto)}</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={[styles.excelCell, styles.totalCell, styles.balanceCell]} numberOfLines={1}>
+                                  {fmt(totalBalance)}
+                                </Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={[styles.excelCell, styles.totalCell, styles.earningsCell]} numberOfLines={1}>{fmt(totalListero)}</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={[styles.excelCell, styles.totalCell]} numberOfLines={1}>{fmt(totalPagado)}</Text>
+                              </View>
+                            </View>
+                          );
+                        })()}
                       </View>
                     </ScrollView>
                   )}
@@ -1183,7 +1289,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#3a1f1d',
     borderColor: '#2f1917',
   },
-  // Chip neutral reutilizable para Recogido/Pagado al lado de Detalles
+  // Chip neutral reutilizable para Bruto/Pagado al lado de Detalles
   detailsTotalChipNeutral: {
     backgroundColor: '#ECF0F1',
     borderWidth: 1,
@@ -1595,6 +1701,19 @@ const styles = StyleSheet.create({
   earningsCell: {
     color: '#1976D2',
     fontWeight: '600',
+  },
+  balanceCell: {
+    color: '#27AE60',
+    fontWeight: '600',
+  },
+  totalRow: {
+    backgroundColor: '#F5F5F5',
+    borderTopWidth: 2,
+    borderTopColor: '#CCCCCC',
+  },
+  totalCell: {
+    fontWeight: 'bold',
+    color: '#333333',
   },
 });
 

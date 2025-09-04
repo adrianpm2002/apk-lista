@@ -928,6 +928,41 @@ const useStatistics = (bankId = null) => {
     loadFilterLists();
   }, [bankId]); // ⭐ DEPENDENCIA CAMBIADA A bankId
 
+  // Auto-cargar datos mock al inicializar
+  useEffect(() => {
+    if (USE_MOCK_DATA) {
+      // Cargar datos mock automáticamente
+      const autoLoadMockData = async () => {
+        try {
+          await Promise.all([
+            loadMockDailyStats(),
+            loadMockTrendData(),
+            loadMockLotteryStats(),
+            loadMockScheduleStats()
+          ]);
+          
+          // También cargar las listas mock de loterías y horarios
+          setLotteries([
+            { id: 1, name: 'Lotería Nacional' },
+            { id: 2, name: 'Loteka' },
+            { id: 3, name: 'La Primera' }
+          ]);
+          
+          setSchedules([
+            { id: 1, name: 'Matutino - 10:00 AM' },
+            { id: 2, name: 'Vespertino - 3:00 PM' },
+            { id: 3, name: 'Nocturno - 7:00 PM' }
+          ]);
+          
+        } catch (error) {
+          console.error('❌ Error cargando datos mock:', error);
+        }
+      };
+      
+      autoLoadMockData();
+    }
+  }, []); // Solo ejecutar una vez al montar
+
   // ===================================================
   // RETURN DEL HOOK
   // ===================================================

@@ -307,7 +307,8 @@ export async function getDailyStats(listeroId, { from, to, lotteryId=null, sched
     const resNums = resMap.get(`${j.scheduleId}|${day}`);
     const { pago } = await computePagoForJugadaWithLottery(listeroId, j, resNums, limitedMap.get(j.scheduleId));
     const recogido = inferMontoRecogido(j);
-    rows.push({ day, recogido, pagado: pago });
+    const listeroEarning = await calculateListeroEarnings(listeroId, [j]);
+    rows.push({ day, recogido, pagado: pago, listeroEarning });
   }
   
   const filteredRows = rows.filter(r=> {
@@ -322,15 +323,22 @@ export async function getDailyStats(listeroId, { from, to, lotteryId=null, sched
   });
 
   const agg = filteredRows.reduce((acc, r)=>{
-    if(!acc[r.day]) acc[r.day] = { day:r.day, total_recogido:0, total_pagado:0 };
+    if(!acc[r.day]) acc[r.day] = { day:r.day, total_recogido:0, total_pagado:0, total_listero_earning:0 };
     acc[r.day].total_recogido += r.recogido;
     acc[r.day].total_pagado += r.pagado;
+    acc[r.day].total_listero_earning += r.listeroEarning;
     return acc;
   }, {});
 
   let result = Object.values(agg)
     .sort((a,b)=> a.day.localeCompare(b.day))
-  .map(x=> ({ ...x, total_recogido: Number(x.total_recogido.toFixed(2)), total_pagado: Number(x.total_pagado.toFixed(2)), balance: Number((x.total_recogido - x.total_pagado).toFixed(2)) }));
+  .map(x=> ({ 
+    ...x, 
+    total_recogido: Number(x.total_recogido.toFixed(2)), 
+    total_pagado: Number(x.total_pagado.toFixed(2)), 
+    total_listero_earning: Number(x.total_listero_earning.toFixed(2)),
+    balance: Number((x.total_recogido - x.total_pagado - x.total_listero_earning).toFixed(2)) 
+  }));
 
   if(includeToday && onlyClosedToday){
     // Filtrar el día de hoy si no hay ningún resultado registrado para ese día

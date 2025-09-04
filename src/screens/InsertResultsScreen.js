@@ -721,7 +721,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FDF5',
   },
   customHeader: {
-    height: 100,
+    height: Platform.OS === 'android' ? 70 : 100,
     backgroundColor: '#F8F9FA',
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -759,7 +759,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    marginTop: Platform.OS === 'android' ? 80 : 50, // Más espacio en Android para evitar superposición
+    marginTop: Platform.OS === 'android' ? 75 : 105, // Ajustado para coincidir con altura del header más un pequeño espacio
   },
   submitButton: {
     marginTop: 10,
