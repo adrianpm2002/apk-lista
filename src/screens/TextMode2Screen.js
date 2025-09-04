@@ -35,6 +35,7 @@ import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { supabase } from '../supabaseClient';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
+import { validateScheduleById } from '../utils/scheduleValidator';
 
 const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   // Estados para los campos
@@ -459,7 +460,23 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
     setPlaysError(false);
     setNoteError(false);
     setLotteryErrorMessage('');
-  setLimitViolations([]);
+    setLimitViolations([]);
+
+    // Validar que el horario seleccionado sigue abierto
+    const selectedLottery = selectedLotteries[0];
+    const selectedScheduleId = selectedSchedules[selectedLottery];
+    
+    if (selectedScheduleId) {
+      const isOpen = await validateScheduleById(selectedScheduleId);
+      if (!isOpen) {
+        Alert.alert(
+          'Horario Cerrado', 
+          'El horario seleccionado ya está cerrado. Por favor, selecciona un horario abierto para enviar jugadas.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
 
     // Si estamos editando una jugada existente (solo soportamos edición de UNA jugada a la vez en modo texto)
     if(isEditing && editingId){

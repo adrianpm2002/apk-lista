@@ -27,7 +27,9 @@ export function parseTextMode2(rawText, { isLocked = false } = {}) {
     const lineNo = idx+1;
     const parts = line.split(/\s+con\s+/i);
     if (parts.length < 2) { errors.push({ line: lineNo, message: "Falta 'con'" }); return; }
-    const left = parts[0].trim();
+    
+    // Limpiar comas y espacios extra de la parte izquierda
+    const left = parts[0].trim().replace(/,+$/, ''); // remover comas al final
     const right = parts.slice(1).join(' con ').trim(); // por si hay 'con' repetidos, unir y tratar como uno
 
     // 1) Resolver parte izquierda: números o comandos de centena

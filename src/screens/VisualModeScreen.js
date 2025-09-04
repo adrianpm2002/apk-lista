@@ -29,6 +29,7 @@ import { applyPlayTypeSelection } from '../utils/playTypeCombinations';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { generateVisualModeCopyText } from '../utils/copyUtils';
+import { validateScheduleById } from '../utils/scheduleValidator';
 
 const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   
@@ -259,6 +260,23 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const handleInsert = async () => {
     // Limpiar feedback previo
     setInsertFeedback(null);
+    
+    // Validar que el horario seleccionado sigue abierto
+    const selectedLottery = selectedLotteries[0];
+    const selectedScheduleId = selectedSchedules[selectedLottery];
+    
+    if (selectedScheduleId) {
+      const isOpen = await validateScheduleById(selectedScheduleId);
+      if (!isOpen) {
+        Alert.alert(
+          'Horario Cerrado', 
+          'El horario seleccionado ya está cerrado. Por favor, selecciona un horario abierto para enviar jugadas.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+    
     if(isEditing && editingId){
     const valid = validateCurrentForm();
     if(!valid) return; // resalta y aborta
@@ -502,6 +520,22 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     });
 
     if (!payloads.length) return;
+
+    // Validar que todos los horarios seleccionados siguen abiertos
+    const uniqueScheduleIds = [...new Set(payloads.map(p => p.id_horario))];
+    for (const scheduleId of uniqueScheduleIds) {
+      if (scheduleId) {
+        const isOpen = await validateScheduleById(scheduleId);
+        if (!isOpen) {
+          Alert.alert(
+            'Horario Cerrado', 
+            'Uno o más horarios seleccionados ya están cerrados. Por favor, selecciona horarios abiertos para enviar jugadas.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      }
+    }
 
     try {
   // Verificación de capacidad usando util compartido
