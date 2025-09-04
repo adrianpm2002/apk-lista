@@ -299,92 +299,61 @@ export default function ListeroStatisticsScreen({ isDarkMode=false }){
               <Text style={[styles.kpiVal, styles.kpiGreen]}>${kpis.collected.toFixed(1)}</Text>
             </View>
             <View style={[styles.kpiCard, isDarkMode && styles.kpiCardDark]}>
-              <Text style={[styles.kpiTitle, isDarkMode && styles.kpiTitleDark]}>Total pagado</Text>
-              <Text style={[styles.kpiVal, styles.kpiRed]}>${kpis.paid.toFixed(1)}</Text>
-            </View>
-            <View style={[styles.kpiCard, isDarkMode && styles.kpiCardDark]}>
               <Text style={[styles.kpiTitle, isDarkMode && styles.kpiTitleDark]}>Balance neto</Text>
               <Text style={[styles.kpiVal, (kpis.net>=0? styles.kpiGreen:styles.kpiRed)]}>${kpis.net.toFixed(1)}</Text>
             </View>
           </View>
 
-      {/* Controles */}
-      <View style={styles.controlsRow}>
-        <View style={styles.segments}>
-          {['last7','last30','custom'].map(v=> (
-            <TouchableOpacity key={v} style={[styles.segmentBtn, range===v && styles.segmentBtnActive]} onPress={()=> setRange(v)}>
-              <Text style={[styles.segmentTxt, range===v && styles.segmentTxtActive]}>{v==='last7'?'Últ. 7': v==='last30'?'Últ. 30':'Personalizado'}</Text>
-            </TouchableOpacity>
-          ))}
+      {/* Controles y Filtros Combinados */}
+      <View style={[styles.controlsAndFilters, isDarkMode && styles.controlsAndFiltersDark]}>
+        {/* Primera fila: Controles */}
+        <View style={styles.controlsRow}>
+          <View style={styles.segments}>
+            {['last7','last30','custom'].map(v=> (
+              <TouchableOpacity key={v} style={[styles.segmentBtn, range===v && styles.segmentBtnActive]} onPress={()=> setRange(v)}>
+                <Text style={[styles.segmentTxt, range===v && styles.segmentTxtActive]}>{v==='last7'?'Últ. 7': v==='last30'?'Últ. 30':'Personalizado'}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-        <View style={styles.sizeBtns}>
-          <TouchableOpacity style={styles.sizeBtn} onPress={()=> setChartHeight(h=> Math.max(160, h-40))}><Text style={styles.sizeTxt}>−</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.sizeBtn} onPress={()=> setChartHeight(h=> Math.min(480, h+40))}><Text style={styles.sizeTxt}>＋</Text></TouchableOpacity>
-        </View>
-        <View style={{ flexDirection:'row' }}>
-          <TouchableOpacity style={styles.exportBtn} onPress={async ()=>{ const { csv } = await exportCSV(filterPlays(currentPlays)); console.log(csv?.slice(0,120)+'...'); }}>
-            <Text style={styles.exportTxt}>CSV</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.exportBtn} onPress={async ()=>{ await exportPDF('Resumen listero'); }}>
-            <Text style={styles.exportTxt}>PDF</Text>
-          </TouchableOpacity>
+
+        {/* Segunda fila: Filtros */}
+        <View style={styles.filtersRow}>
+          <View style={styles.filterContainer}>
+            <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Lotería:</Text>
+            <DropdownPicker
+              items={validLotteryOptions}
+              value={selectedLottery}
+              onChangeValue={(value) => setSelectedLottery(value)}
+              placeholder="Seleccionar lotería"
+              isDarkMode={isDarkMode}
+              style={styles.filterDropdown}
+              disabled={loading || validLotteryOptions[0]?.value === 'none'}
+            />
+          </View>
+          <View style={styles.filterContainer}>
+            <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Horario:</Text>
+            <DropdownPicker
+              items={validScheduleOptions}
+              value={selectedSchedule}
+              onChangeValue={(value) => setSelectedSchedule(value)}
+              placeholder="Seleccionar horario"
+              isDarkMode={isDarkMode}
+              style={styles.filterDropdown}
+              disabled={loading || validScheduleOptions[0]?.value === 'none'}
+            />
+          </View>
         </View>
       </View>
 
-      {/* Filtros */}
-      <View style={styles.filtersRow}>
-        <View style={styles.filterContainer}>
-          <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Lotería:</Text>
-          <DropdownPicker
-            items={validLotteryOptions}
-            value={selectedLottery}
-            onChangeValue={(value) => setSelectedLottery(value)}
-            placeholder="Seleccionar lotería"
-            isDarkMode={isDarkMode}
-            style={styles.filterDropdown}
-            disabled={loading || validLotteryOptions[0]?.value === 'none'}
-          />
-        </View>
-        <View style={styles.filterContainer}>
-          <Text style={[styles.filterLabel, isDarkMode && styles.filterLabelDark]}>Horario:</Text>
-          <DropdownPicker
-            items={validScheduleOptions}
-            value={selectedSchedule}
-            onChangeValue={(value) => setSelectedSchedule(value)}
-            placeholder="Seleccionar horario"
-            isDarkMode={isDarkMode}
-            style={styles.filterDropdown}
-            disabled={loading || validScheduleOptions[0]?.value === 'none'}
-          />
-        </View>
-      </View>
-
-      {/* Gráfico: Recogido vs Pagado (últimos 7) */}
+      {/* Gráfico Principal */}
       <StatisticsChart
         type="line"
         title="Recogido vs Pagado (diario)"
         data={series7}
         datasetsOverride={collectedVsPaidDatasets}
         isDarkMode={isDarkMode}
-        height={chartHeight}
-      />
-
-      {/* Barras por Lotería */}
-      <StatisticsChart
-        type="bar"
-        title="Recogido por Lotería"
-        data={groupedByLottery.map(g=> ({ name:g.title, value:g.rows.reduce((s,r)=> s + (r.collected||0), 0) }))}
-        isDarkMode={isDarkMode}
-        height={chartHeight}
-      />
-
-      {/* Barras por Horario */}
-      <StatisticsChart
-        type="bar"
-        title="Recogido por Horario"
-        data={groupedBySchedule.map(g=> ({ name:g.title, value:g.rows.reduce((s,r)=> s + (r.collected||0), 0) }))}
-        isDarkMode={isDarkMode}
-        height={chartHeight}
+        height={280}
       />
 
       {/* Agrupados por Lotería */}
@@ -430,29 +399,26 @@ const styles = StyleSheet.create({
   container: { flex:1, backgroundColor:'#f5f6f7' },
   containerDark: { backgroundColor:'#22303c' },
   kpisRow: { flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8 },
-  kpiCard: { flexBasis:'32%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6, elevation:2 },
+  kpiCard: { flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6, elevation:2 },
   kpiCardDark: { backgroundColor:'#34495e' },
   kpiTitle: { fontSize:13, color:'#6c757d' },
   kpiTitleDark: { color:'#bdc3c7' },
   kpiVal: { fontSize:18, fontWeight:'800', marginTop:4 },
   kpiGreen: { color:'#27AE60' },
   kpiRed: { color:'#e74c3c' },
-  controlsRow: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', margin:8 },
-  segments: { flexDirection:'row', backgroundColor:'#ecf0f1', borderRadius:8, overflow:'hidden' },
-  segmentBtn: { paddingHorizontal:10, paddingVertical:6 },
+  controlsAndFilters: { marginHorizontal:8, marginVertical:6, backgroundColor:'#fff', borderRadius:8, padding:8, elevation:1 },
+  controlsAndFiltersDark: { backgroundColor:'#34495e' },
+  controlsRow: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8 },
+  segments: { flexDirection:'row', backgroundColor:'#ecf0f1', borderRadius:6, overflow:'hidden' },
+  segmentBtn: { paddingHorizontal:8, paddingVertical:4 },
   segmentBtnActive: { backgroundColor:'#27AE60' },
-  segmentTxt: { color:'#2c3e50' },
-  segmentTxtActive: { color:'#fff', fontWeight:'700' },
-  sizeBtns: { flexDirection:'row' },
-  sizeBtn: { width:36, height:36, borderRadius:8, backgroundColor:'#ecf0f1', alignItems:'center', justifyContent:'center', marginHorizontal:4 },
-  sizeTxt: { fontSize:18, fontWeight:'800', color:'#2c3e50' },
-  exportBtn: { paddingHorizontal:10, paddingVertical:8, backgroundColor:'#2c3e50', borderRadius:8, marginLeft:8 },
-  exportTxt: { color:'#fff', fontWeight:'700' },
-  filtersRow: { flexDirection:'row', justifyContent:'space-between', marginHorizontal:8, marginVertical:8 },
+  segmentTxt: { color:'#2c3e50', fontSize:12 },
+  segmentTxtActive: { color:'#fff', fontWeight:'700', fontSize:12 },
+  filtersRow: { flexDirection:'row', justifyContent:'space-between' },
   filterContainer: { flex:1, marginHorizontal:4 },
-  filterLabel: { fontSize:14, fontWeight:'600', color:'#2c3e50', marginBottom:4 },
+  filterLabel: { fontSize:12, fontWeight:'600', color:'#2c3e50', marginBottom:2 },
   filterLabelDark: { color:'#ecf0f1' },
-  filterDropdown: { minHeight:40 },
+  filterDropdown: { minHeight:32 },
   loadingContainer: { flex:1, justifyContent:'center', alignItems:'center', padding:40 },
   loadingText: { fontSize:16, color:'#6c757d' },
   loadingTextDark: { color:'#bdc3c7' },

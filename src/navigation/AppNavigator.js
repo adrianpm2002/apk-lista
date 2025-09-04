@@ -12,7 +12,6 @@ import LotteryLimitsScreen from '../screens/LotteryLimitsScreen';
 import LimitNumero from '../screens/limitNumero';
 import StatisticsScreen from '../screens/StatisticsScreen';
 import SavedPlaysScreen from '../screens/SavedPlaysScreen';
-import CollectorStatisticsScreen from '../screens/CollectorStatisticsScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -135,7 +134,7 @@ const AppNavigator = () => (
 
     <Stack.Screen 
       name="CollectorStatistics" 
-      component={CollectorStatisticsScreen} 
+      component={StatisticsScreen} 
       options={{
         headerShown: false,
         gestureEnabled: Platform.OS === 'ios',

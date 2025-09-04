@@ -44,6 +44,10 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   // Estado local para bank ID
   const [currentBankId, setCurrentBankId] = useState(null);
   
+  // TODO: Configurar qué información mostrar según el rol (colector vs listero/admin)
+  // Para colectores: mostrar solo sus propias jugadas y estadísticas
+  // Para listeros/admin: mostrar estadísticas completas del banco
+  
   // Cargar bankId del usuario
   useEffect(() => {
     const loadBankId = async () => {
@@ -93,7 +97,6 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   // Estado de expansión para grupos en Detalles (debe estar a nivel de componente para mantener el orden de hooks)
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   // Búsqueda en detalles
-  const [detailsSearchVisible, setDetailsSearchVisible] = useState(false);
   const [detailsSearchQuery, setDetailsSearchQuery] = useState('');
 
   // Estados para sidebar
@@ -444,11 +447,11 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   const contentRef = useRef(null);
   const renderHeader = () => (
     <View style={[styles.header, isDarkMode && styles.headerDark]}>
-  <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
+  {userRole !== 'colector' && <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />}
       
       <View style={styles.headerControls}>
         <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>
-          Estadísticas
+          {userRole === 'colector' ? 'Estadísticas Colector' : 'Estadísticas'}
         </Text>
         
         <TouchableOpacity
@@ -499,37 +502,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
             </TouchableOpacity>
 
             {tab.id === 'details' && (
-              <View style={styles.detailsTotalsContainer}>
-                <View style={styles.detailsTotalsLeftCol}>
-                  <View style={[styles.detailsTotalChip, styles.detailsTotalChipNeutral, isDarkMode && styles.detailsTotalChipNeutralDark]}>
-                    <Text style={[styles.detailsTotalText, isDarkMode && styles.detailsTotalTextDark]}>
-                      Recogido: ${Math.round(totalHistorico).toLocaleString('es-DO')}
-                    </Text>
-                  </View>
-                  <View style={[styles.detailsTotalChip, styles.detailsTotalChipNeutral, isDarkMode && styles.detailsTotalChipNeutralDark]}>
-                    <Text style={[styles.detailsTotalText, isDarkMode && styles.detailsTotalTextDark]}>
-                      Pagado: ${Math.round(totalPagadoHistorico).toLocaleString('es-DO')}
-                    </Text>
-                  </View>
-                </View>
-                {Number.isFinite(totalHistorico) && Number.isFinite(totalPagadoHistorico) && (
-                  (()=>{
-                    const balance = Math.round((totalHistorico || 0) - (totalPagadoHistorico || 0));
-                    const positive = balance >= 0;
-                    return (
-                      <View style={[
-                        styles.detailsTotalChip,
-                        positive ? styles.detailsTotalChipBalancePos : styles.detailsTotalChipBalanceNeg,
-                        isDarkMode && (positive ? styles.detailsTotalChipBalancePosDark : styles.detailsTotalChipBalanceNegDark),
-                      ]}>
-                        <Text style={[styles.detailsTotalTextBalance, { color: positive ? '#27AE60' : '#e74c3c' }]}>
-                          Balance: ${balance.toLocaleString('es-DO')}
-                        </Text>
-                      </View>
-                    );
-                  })()
-                )}
-              </View>
+              <View></View>
             )}
           </React.Fragment>
         ))}
@@ -610,6 +583,24 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
             </View>
           </>
         )}
+
+        {/* Búsqueda de detalles - solo visible cuando estamos en tab de detalles */}
+        {activeTab === 'details' && (
+          <>
+            <Text style={[styles.panelLabel, isDarkMode && styles.panelLabelDark]}>Búsqueda</Text>
+            <TextInput
+              placeholder="Buscar por nota o jugada"
+              placeholderTextColor={isDarkMode ? '#95A5A6' : '#6c757d'}
+              value={detailsSearchQuery}
+              onChangeText={setDetailsSearchQuery}
+              style={[
+                styles.searchInput,
+                isDarkMode && styles.searchInputDark,
+                { marginTop: 4, marginBottom: 8 }
+              ]}
+            />
+          </>
+        )}
       </View>
     );
   };
@@ -617,30 +608,6 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   // Renderizar contenido del tab de gráficos
   const renderChartsTab = () => (
     <ScrollView style={styles.tabContent}>
-      {/* KPIs del período (suma) */}
-      {dailySeries.length > 0 && (()=>{
-        const sum = (arr, key) => arr.reduce((acc, it) => acc + (Number(it[key]) || 0), 0);
-        const collected = sum(dailySeries, 'total_recogido');
-        const paid = sum(dailySeries, 'total_pagado');
-        const net = collected - paid;
-        return (
-          <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8 }}>
-            <View style={{ flexBasis:'32%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-              <Text style={{ color:'#6c757d' }}>Recogido (período)</Text>
-              <Text style={{ fontSize:18, fontWeight:'800', color:'#27AE60' }}>${Math.round(collected).toLocaleString('es-DO')}</Text>
-            </View>
-            <View style={{ flexBasis:'32%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-              <Text style={{ color:'#6c757d' }}>Pagado (período)</Text>
-              <Text style={{ fontSize:18, fontWeight:'800', color:'#e74c3c' }}>${Math.round(paid).toLocaleString('es-DO')}</Text>
-            </View>
-            <View style={{ flexBasis:'32%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-              <Text style={{ color:'#6c757d' }}>Balance (período)</Text>
-              <Text style={{ fontSize:18, fontWeight:'800', color: net>=0? '#27AE60':'#e74c3c' }}>${Math.round(net).toLocaleString('es-DO')}</Text>
-            </View>
-          </View>
-        );
-      })()}
-
   {/* Profit/Loss: línea base con barras arriba/abajo por día del período */}
       {dailySeries.length > 0 && (()=>{
         const toStr = (dt)=>{
@@ -660,13 +627,34 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
           const last7 = daily.slice(-7);
           const series = last7.map(x=> ({ date: x.date, profit: x.profit, label: fmtShort(x.d) }));
           return (
-            <StatisticsChart
-              type="profitLoss"
-              title="Ganancias vs Pérdidas (día a día)"
-              data={series}
-              isDarkMode={isDarkMode}
-              height={260}
-            />
+            <View>
+              <StatisticsChart
+                type="profitLoss"
+                title="Ganancias vs Pérdidas (día a día)"
+                data={series}
+                isDarkMode={isDarkMode}
+                height={260}
+              />
+              {/* KPIs del período debajo del gráfico */}
+              {(() => {
+                const sum = (arr, key) => arr.reduce((acc, it) => acc + (Number(it[key]) || 0), 0);
+                const collected = sum(dailySeries, 'total_recogido');
+                const paid = sum(dailySeries, 'total_pagado');
+                const net = collected - paid;
+                return (
+                  <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
+                    <View style={{ flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                      <Text style={{ color:'#6c757d' }}>Recogido (período)</Text>
+                      <Text style={{ fontSize:18, fontWeight:'800', color:'#27AE60' }}>${Math.round(collected).toLocaleString('es-DO')}</Text>
+                    </View>
+                    <View style={{ flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                      <Text style={{ color:'#6c757d' }}>Balance (período)</Text>
+                      <Text style={{ fontSize:18, fontWeight:'800', color: net>=0? '#27AE60':'#e74c3c' }}>${Math.round(net).toLocaleString('es-DO')}</Text>
+                    </View>
+                  </View>
+                );
+              })()}
+            </View>
           );
         }
         // agregar agregación por rangos para no saturar
@@ -682,13 +670,34 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
         }
         const series = buckets;
         return (
-          <StatisticsChart
-            type="profitLoss"
-            title="Ganancias vs Pérdidas (día a día)"
-            data={series}
-            isDarkMode={isDarkMode}
-            height={260}
-          />
+          <View>
+            <StatisticsChart
+              type="profitLoss"
+              title="Ganancias vs Pérdidas (día a día)"
+              data={series}
+              isDarkMode={isDarkMode}
+              height={260}
+            />
+            {/* KPIs del período debajo del gráfico */}
+            {(() => {
+              const sum = (arr, key) => arr.reduce((acc, it) => acc + (Number(it[key]) || 0), 0);
+              const collected = sum(dailySeries, 'total_recogido');
+              const paid = sum(dailySeries, 'total_pagado');
+              const net = collected - paid;
+              return (
+                <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
+                  <View style={{ flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                    <Text style={{ color:'#6c757d' }}>Recogido (período)</Text>
+                    <Text style={{ fontSize:18, fontWeight:'800', color:'#27AE60' }}>${Math.round(collected).toLocaleString('es-DO')}</Text>
+                  </View>
+                  <View style={{ flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                    <Text style={{ color:'#6c757d' }}>Balance (período)</Text>
+                    <Text style={{ fontSize:18, fontWeight:'800', color: net>=0? '#27AE60':'#e74c3c' }}>${Math.round(net).toLocaleString('es-DO')}</Text>
+                  </View>
+                </View>
+              );
+            })()}
+          </View>
         );
       })()}
   {/* Gráfico de barras por lotería */}
@@ -772,33 +781,6 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
 
         return (
           <View style={{ paddingHorizontal:8 }}>
-            <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:4, marginBottom: 6 }}>
-              {detailsSearchVisible && (
-                <TextInput
-                  placeholder="Buscar por nota o jugada"
-                  placeholderTextColor={isDarkMode ? '#95A5A6' : '#6c757d'}
-                  value={detailsSearchQuery}
-                  onChangeText={setDetailsSearchQuery}
-                  style={{
-                    flex: 1,
-                    backgroundColor: isDarkMode ? '#2C3E50' : '#FFFFFF',
-                    color: isDarkMode ? '#ECF0F1' : '#2C3E50',
-                    borderWidth: 1,
-                    borderColor: isDarkMode ? '#5D6D7E' : '#E1E8E3',
-                    borderRadius: 8,
-                    paddingHorizontal: 10,
-                    paddingVertical: 8,
-                    marginRight: 8,
-                  }}
-                />
-              )}
-              <TouchableOpacity
-                style={[styles.filterButton, { paddingVertical:6, paddingHorizontal:12 }]}
-                onPress={() => setDetailsSearchVisible(v => !v)}
-              >
-                <Text style={styles.filterButtonText}>🔎 Buscar</Text>
-              </TouchableOpacity>
-            </View>
             {groups.map(g=>{
               const open = expanded.has(g.key);
               const balance = Math.round(g.totalRecogido - g.totalPagado);
@@ -990,13 +972,13 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    padding: 16,
+    padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 100,
+    height: 70,
     position: 'absolute',
     top: 0,
     left: 0,
@@ -1069,7 +1051,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
-    marginTop: 100,
+    marginTop: 70,
   },
   tabsContainerDark: {
     backgroundColor: '#2c3e50',
@@ -1077,7 +1059,7 @@ const styles = StyleSheet.create({
   },
   tab: {
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 8,
     alignItems: 'center',
     minWidth: 80,
   },
@@ -1089,11 +1071,11 @@ const styles = StyleSheet.create({
     borderBottomColor: '#2ecc71',
   },
   tabIcon: {
-    fontSize: 20,
-    marginBottom: 4,
+    fontSize: 18,
+    marginBottom: 2,
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6c757d',
     fontWeight: '500',
   },
@@ -1400,6 +1382,21 @@ const styles = StyleSheet.create({
   playsRow:{ flexDirection:'row', alignItems:'flex-start', paddingVertical:8, borderBottomWidth:1, borderBottomColor:'#F0F3F4' },
   playsRowAlt:{ backgroundColor:'#FBFCFC' },
   playsCell:{ fontSize:11.5, color:'#2C3E50', paddingRight:6 },
+  searchInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E1E8E3',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#2C3E50',
+  },
+  searchInputDark: {
+    backgroundColor: '#34495E',
+    borderColor: '#5D6D7E',
+    color: '#ECF0F1',
+  },
 });
 
 export default StatisticsScreen;
