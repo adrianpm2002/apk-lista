@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Alert, Modal, StyleSheet, TextInput, FlatList, TouchableOpacity, Switch, Platform, ScrollView, BackHandler } from 'react-native';
 import { Picker } from '../components/PickerWrapper';
+import DropdownPicker from '../components/DropdownPicker';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { adminResetPasswordByUsername } from '../utils/adminUtils';
@@ -61,10 +62,11 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('');
   const [selectedCollector, setSelectedCollector] = useState('');
-  // Uso actualizado: se guarda id_precio (FK a tabla precio) en profiles; colector asigna configuración válida al listero
+  // Uso actualizado: se guarda id_precio como JSONB con {loteria_id: ganancia_id, loteria_nombre: nombre} en profiles
   // Ganancias disponibles (tabla precio) y selección (solo colector asigna a listeros)
   const [gainOptions, setGainOptions] = useState([]); // [{id,nombre,precios}]
-  const [selectedGainId, setSelectedGainId] = useState(null); // id_precio seleccionado
+  const [availableLotteries, setAvailableLotteries] = useState([]); // [{id, nombre}]
+  const [selectedLotteryGains, setSelectedLotteryGains] = useState({}); // {lotteryId: gainId}
   const [selectedGainDetail, setSelectedGainDetail] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
@@ -164,6 +166,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       console.error('Error fetching users:', error);
       return;
     }
+    
     if (userRole === 'collector') {
       const onlyListeros = (data || []).filter(u => (u.role === 'listero') && u.id_collector === currentUserId);
       setUsers(onlyListeros);
@@ -252,10 +255,6 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
             return true;
         });
         setGainOptions(filtered);
-        if (selectedGainId && !filtered.some(f => f.id === selectedGainId)) {
-          setSelectedGainId(null);
-          setSelectedGainDetail(null);
-        }
       } else {
         // Admin: mostrar todas para poder resolver nombres incluso si no encajan exactamente con jugadas activas actuales
         setGainOptions(data || []);
@@ -263,9 +262,32 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     } catch (e) {
       console.error('Excepción fetchValidGains:', e);
     }
-  }, [userRole, currentBankId, activePlayTypes, selectedGainId]);
+  }, [userRole, currentBankId, activePlayTypes]);
 
   useEffect(() => { fetchValidGains(); }, [fetchValidGains]);
+
+  // Cargar loterías disponibles para el banco
+  const fetchAvailableLotteries = useCallback(async () => {
+    if (!currentBankId) return;
+    try {
+      const { data, error } = await supabase
+        .from('loteria')
+        .select('id, nombre')
+        .eq('id_banco', currentBankId)
+        .order('nombre', { ascending: true });
+      
+      if (error) {
+        console.error('Error loading lotteries:', error);
+        return;
+      }
+      
+      setAvailableLotteries(data || []);
+    } catch (e) {
+      console.error('Excepción fetchAvailableLotteries:', e);
+    }
+  }, [currentBankId]);
+
+  useEffect(() => { fetchAvailableLotteries(); }, [fetchAvailableLotteries]);
 
   // Recrear estructura jerárquica cuando cambien los usuarios
   useEffect(() => {
@@ -315,9 +337,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         Alert.alert('Error', 'Debes seleccionar un colector.');
         return;
       }
-      if (userRole === 'collector' && effectiveRole === 'listero' && !selectedGainId) {
-        // Validación no obligatoria (antes era obligatoria). Se permite continuar sin ganancia.
-      }
+      // Validación de ganancias no obligatoria para listeros del colector
 
       const fakeEmail = `${username.toLowerCase()}@example.com`;
 
@@ -329,7 +349,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
             username,
             role: effectiveRole,
             id_collector: userRole === 'collector' ? currentUserId : (selectedCollector || null),
-            id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? (selectedGainId || null) : (editingUser.id_precio || null),
+            id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? buildGainsData() : (editingUser.id_precio || null),
             activo: editingUser.activo !== undefined ? editingUser.activo : true
           };
           const { error: updateError } = await supabase
@@ -424,8 +444,10 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
              role: effectiveRole,
              id_banco,
              id_collector,
-             id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? (selectedGainId || null) : null,
+             id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? buildGainsData() : null,
            }; // sin ganancia
+
+          console.log('Creating listero with data:', insertData);
 
           if (effectiveRole === 'listero' && enableSpecificLimits && userRole !== 'collector') {
             const limitsObj = {};
@@ -651,10 +673,17 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         setEnableSpecificLimits(false);
       }
       if (userRole === 'collector') {
-        const gid = user.id_precio || null;
-        setSelectedGainId(gid);
-        const detail = gainOptions.find(go => go.id === gid);
-        setSelectedGainDetail(detail ? detail.precios : null);
+        // Inicializar selecciones por lotería desde el id_precio (formato JSONB)
+        const initialSelections = {};
+        if (user.id_precio && typeof user.id_precio === 'object') {
+          Object.keys(user.id_precio).forEach(key => {
+            if (key.endsWith('_id')) {
+              const cleanLotteryId = key.replace('_id', '');
+              initialSelections[cleanLotteryId] = user.id_precio[key];
+            }
+          });
+        }
+        setSelectedLotteryGains(initialSelections);
       }
     } else {
       setEnableSpecificLimits(false);
@@ -675,10 +704,53 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   const openGainModal = (user) => {
     if (userRole !== 'collector') return;
     setGainTargetUser(user);
-    setSelectedGainId(user.id_precio);
-    const gOption = gainOptions.find(g => g.id === user.id_precio);
-    setSelectedGainDetail(gOption ? gOption.precios : null);
+    
+    // Inicializar selecciones por lotería desde el id_precio (formato JSONB)
+    const initialSelections = {};
+    if (user.id_precio && typeof user.id_precio === 'object') {
+      // Formato nuevo: {loteria_id: ganancia_id, ...}
+      Object.keys(user.id_precio).forEach(key => {
+        if (key.endsWith('_id')) {
+          const cleanLotteryId = key.replace('_id', '');
+          initialSelections[cleanLotteryId] = user.id_precio[key];
+        }
+      });
+    }
+    setSelectedLotteryGains(initialSelections);
     setGainModalVisible(true);
+  };
+
+  // Abrir modal de ganancia para nuevo usuario
+  const openGainModalForNewUser = () => {
+    setGainTargetUser(null); // No hay usuario objetivo, es para creación
+    // Las selecciones ya están en selectedLotteryGains
+    setGainModalVisible(true);
+  };
+
+  // Manejar selección de ganancia para una lotería específica
+  const handleLotteryGainSelection = (lotteryId, gainId) => {
+    setSelectedLotteryGains(prev => {
+      const newState = {
+        ...prev,
+        [lotteryId]: gainId || null
+      };
+      return newState;
+    });
+  };
+
+  // Convertir selecciones de lotería-ganancia al formato JSONB
+  const buildGainsData = () => {
+    const gainsData = {};
+    for (const [lotteryId, gainId] of Object.entries(selectedLotteryGains)) {
+      if (gainId) {
+        const lottery = availableLotteries.find(l => l.id === lotteryId);
+        if (lottery) {
+          gainsData[`${lotteryId}_id`] = gainId;
+          gainsData[`${lotteryId}_nombre`] = lottery.nombre;
+        }
+      }
+    }
+    return Object.keys(gainsData).length > 0 ? gainsData : null;
   };
 
   // Confirmar cambio de contraseña usando método directo simplificado
@@ -733,27 +805,50 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
 
   // Función para asignar ganancia a listero
   const handleAssignGain = async () => {
-    if (!gainTargetUser || !selectedGainId) {
-      Alert.alert('Error', 'Selecciona una ganancia válida');
+    // Validar que al menos una lotería tenga ganancia asignada
+    const hasAnySelection = Object.values(selectedLotteryGains).some(gainId => gainId);
+    if (!hasAnySelection) {
+      Alert.alert('Error', 'Asigna al menos una ganancia para una lotería');
+      return;
+    }
+
+    // Si no hay usuario objetivo, solo cerrar el modal (es para nuevo usuario)
+    if (!gainTargetUser) {
+      setGainModalVisible(false);
       return;
     }
 
     try {
-      const { error } = await supabase
+      // Construir el objeto JSONB con el formato: {loteria_id: ganancia_id, loteria_nombre: nombre}
+      const gainsData = {};
+      
+      for (const [lotteryId, gainId] of Object.entries(selectedLotteryGains)) {
+        if (gainId) {
+          const lottery = availableLotteries.find(l => l.id === lotteryId);
+          if (lottery) {
+            gainsData[`${lotteryId}_id`] = gainId;
+            gainsData[`${lotteryId}_nombre`] = lottery.nombre;
+          }
+        }
+      }
+
+      const { data, error } = await supabase
         .from('profiles')
-        .update({ id_precio: selectedGainId })
-        .eq('id', gainTargetUser.id);
+        .update({ id_precio: gainsData })
+        .eq('id', gainTargetUser.id)
+        .select('id_precio');
 
       if (error) {
         throw error;
       }
 
-      Alert.alert('Éxito', 'Ganancia asignada correctamente');
+      Alert.alert('Éxito', 'Ganancias asignadas correctamente');
       setGainModalVisible(false);
+      setSelectedLotteryGains({});
       fetchUsers();
     } catch (error) {
-      console.error('Error asignando ganancia:', error);
-      Alert.alert('Error', 'No se pudo asignar la ganancia');
+      console.error('Error asignando ganancias:', error);
+      Alert.alert('Error', 'No se pudieron asignar las ganancias');
     }
   };
 
@@ -768,11 +863,35 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     setPassword('');
     setRole('');
     setSelectedCollector('');
-    setSelectedGainId(null);
+    setSelectedLotteryGains({});
     setSelectedGainDetail(null);
     setIsEditing(false);
     setEditingUser(null);
     setEnableSpecificLimits(false);
+  };
+
+  // Función para obtener el texto de las ganancias seleccionadas
+  const getSelectedGainsText = () => {
+    const hasAnySelection = Object.values(selectedLotteryGains).some(gainId => gainId);
+    if (!hasAnySelection) {
+      return 'Seleccionar Ganancias por Lotería';
+    }
+
+    const selectedItems = [];
+    for (const [lotteryId, gainId] of Object.entries(selectedLotteryGains)) {
+      if (gainId) {
+        const lottery = availableLotteries.find(l => l.id === parseInt(lotteryId));
+        const gain = gainOptions.find(g => g.id === gainId);
+        if (lottery && gain) {
+          selectedItems.push(`${lottery.nombre}: ${gain.nombre}`);
+        }
+      }
+    }
+
+    if (selectedItems.length === 0) return 'Seleccionar Ganancias por Lotería';
+    if (selectedItems.length === 1) return selectedItems[0];
+    if (selectedItems.length <= 2) return selectedItems.join(', ');
+    return `${selectedItems.length} loterías configuradas`;
   };
 
   const renderUserItem = ({ item }) => {
@@ -880,11 +999,37 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
             {/* Información adicional del listero */}
             <Text style={[styles.userDetails, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
               {(() => {
-                const gid = item.id_precio;
-                if (!gid) return '💰 Sin ganancia configurada';
-                const cfg = gainOptions.find(o => o.id === gid);
-                if (!cfg) return '💰 Ganancia inválida';
-                return `💰 ${cfg.nombre}`;
+                const gainsData = item.id_precio;
+                if (!gainsData || typeof gainsData !== 'object') return '💰 Sin ganancias configuradas';
+                
+                const lotteryGainPairs = [];
+                
+                // Obtener todos los IDs de lotería únicos
+                const lotteryIds = new Set();
+                Object.keys(gainsData).forEach(key => {
+                  if (key.endsWith('_id')) {
+                    const lotteryId = key.replace('_id', '');
+                    lotteryIds.add(lotteryId);
+                  }
+                });
+                
+                // Para cada lotería, obtener su nombre y el nombre de la ganancia
+                lotteryIds.forEach(lotteryId => {
+                  const lotteryName = gainsData[`${lotteryId}_nombre`];
+                  const gainId = gainsData[`${lotteryId}_id`];
+                  
+                  if (lotteryName && gainId) {
+                    // Buscar el nombre de la ganancia en gainOptions
+                    const gain = gainOptions.find(g => g.id === gainId);
+                    const gainName = gain ? gain.nombre : gainId;
+                    lotteryGainPairs.push(`${lotteryName}: ${gainName}`);
+                  }
+                });
+                
+                if (lotteryGainPairs.length === 0) return '💰 Sin ganancias configuradas';
+                if (lotteryGainPairs.length === 1) return `💰 ${lotteryGainPairs[0]}`;
+                if (lotteryGainPairs.length <= 3) return `💰 ${lotteryGainPairs.join(' | ')}`;
+                return `💰 ${lotteryGainPairs.length} ganancias configuradas`;
               })()}
             </Text>
             
@@ -1037,6 +1182,17 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                       <Picker.Item key={col.id} label={col.username} value={col.id} />
                     ))}
                   </Picker>
+
+                  {/* Botón para seleccionar ganancias por lotería */}
+                  <TouchableOpacity
+                    style={[styles.gainSelectionButton, { backgroundColor: isDarkMode ? '#34495e' : '#3498db' }]}
+                    onPress={openGainModalForNewUser}
+                  >
+                    <Text style={[styles.gainSelectionButtonText, { color: '#fff' }]}>
+                      {getSelectedGainsText()}
+                    </Text>
+                  </TouchableOpacity>
+
                   <View style={styles.limitsToggleRow}>
                     <Text style={styles.limitsToggleLabel}>Límites específicos</Text>
                     <Switch value={enableSpecificLimits} onValueChange={setEnableSpecificLimits} />
@@ -1062,42 +1218,6 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                   )}
                 </>
               )}
-
-              {userRole === 'collector' && (role === 'listero' || isEditing) && (
-                <>
-                  <Text style={{ fontWeight:'600' }}>Ganancia:</Text>
-                  <Picker
-                    selectedValue={selectedGainId || ''}
-                     onValueChange={(val) => {
-                      setSelectedGainId(val || null);
-                      const f = gainOptions.find(g => g.id === val);
-                       setSelectedGainDetail(f ? f.precios : null);
-                     }}
-                     style={styles.picker}
-                   >
-                     <Picker.Item label="Selecciona una ganancia" value="" />
-                    {gainOptions.map(g => (
-                      <Picker.Item key={g.id} label={g.nombre} value={g.id} />
-                    ))}
-                    {selectedGainId && !gainOptions.some(g => g.id === selectedGainId) && (
-                      <Picker.Item label={`Configuración no válida`} value={selectedGainId} />
-                    )}
-                  </Picker>
-                  {selectedGainDetail && (
-                    <View style={{ borderWidth:1, borderColor:'#ccc', padding:10, borderRadius:6, backgroundColor:'#fff', marginBottom:15 }}>
-                      {activePlayTypes.map(pt => {
-                         const d = selectedGainDetail[pt];
-                         if (!d) return null;
-                         return (
-                           <Text key={pt} style={{ fontSize:12, marginBottom:4 }}>
-                             <Text style={{ fontWeight:'700', color:'#1d6fd1' }}>{pt.toUpperCase()}</Text>: regular {d.regular}, limitado {d.limited}, listero% {d.listeroPct}, colector% {d.collectorPct}
-                           </Text>
-                         );
-                       })}
-                    </View>
-                  )}
-                 </>
-               )}
 
               <CustomButton title={isEditing ? 'Guardar Cambios' : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')} onPress={handleCreateOrUpdate} />
               <CustomButton title="Cancelar" color="#666" onPress={() => setModalVisible(false)} />
@@ -1139,44 +1259,65 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         {/* Modal para asignar ganancia (solo colector) */}
         <Modal visible={gainModalVisible} animationType="fade">
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Asignar Ganancia</Text>
+            <Text style={styles.modalTitle}>Asignar Ganancias por Lotería</Text>
             <ScrollView 
               style={styles.modalScrollView}
               contentContainerStyle={styles.modalScrollContent}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={true}
             >
-              <Text style={{ marginBottom: 8 }}>Usuario: {gainTargetUser?.username}</Text>
-              <Text style={{ fontWeight:'600' }}>Ganancia:</Text>
-              <Picker
-                selectedValue={selectedGainId || ''}
-                onValueChange={(val) => {
-                  setSelectedGainId(val || null);
-                  const f = gainOptions.find(g => g.id === val);
-                  setSelectedGainDetail(f ? f.precios : null);
-                }}
-                style={styles.picker}
-              >
-                <Picker.Item label="Selecciona una ganancia" value="" />
-                {gainOptions.map(g => (
-                  <Picker.Item key={g.id} label={g.nombre} value={g.id} />
-                ))}
-              </Picker>
-              {selectedGainDetail && (
-                <View style={{ borderWidth:1, borderColor:'#ccc', padding:10, borderRadius:6, backgroundColor:'#fff', marginBottom:15 }}>
-                  {activePlayTypes.map(pt => {
-                    const d = selectedGainDetail[pt];
-                    if (!d) return null;
-                    return (
-                      <Text key={pt} style={{ fontSize:12, marginBottom:4 }}>
-                        <Text style={{ fontWeight:'700', color:'#1d6fd1' }}>{pt.toUpperCase()}</Text>: regular {d.regular}, limitado {d.limited}, listero% {d.listeroPct}, colector% {d.collectorPct}
-                      </Text>
-                    );
-                  })}
-                </View>
+              <Text style={{ marginBottom: 16, fontWeight: '600' }}>Usuario: {gainTargetUser?.username}</Text>
+              
+              {availableLotteries.length === 0 ? (
+                <Text style={{ textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
+                  No hay loterías disponibles
+                </Text>
+              ) : (
+                availableLotteries.map(lottery => (
+                  <View key={lottery.id} style={{ marginBottom: 20 }}>
+                    <Text style={{ fontWeight: '600', marginBottom: 8, fontSize: 16 }}>
+                      {lottery.nombre}
+                    </Text>
+                    <DropdownPicker
+                      label="Seleccionar Ganancia"
+                      value={(() => {
+                        const gainId = selectedLotteryGains[lottery.id];
+                        if (!gainId) return "";
+                        const selectedGain = gainOptions.find(g => g.id === gainId);
+                        return selectedGain ? selectedGain.nombre : "";
+                      })()}
+                      onSelect={(selectedItem) => {
+                        const gainId = selectedItem.value;
+                        handleLotteryGainSelection(lottery.id, gainId === "" ? null : gainId);
+                      }}
+                      options={[
+                        { id: "none", label: 'Sin ganancia', value: "" },
+                        ...gainOptions.map(gain => ({
+                          id: gain.id,
+                          label: gain.nombre,
+                          value: gain.id
+                        }))
+                      ]}
+                      placeholder="Selecciona una ganancia..."
+                    />
+                  </View>
+                ))
               )}
-              <CustomButton title="Asignar" onPress={handleAssignGain} />
-              <CustomButton title="Cancelar" color="#666" onPress={() => setGainModalVisible(false)} />
+              
+              <View style={{ marginTop: 20 }}>
+                <CustomButton 
+                  title={gainTargetUser ? "Asignar Ganancias" : "Confirmar Selección"} 
+                  onPress={handleAssignGain} 
+                />
+                <CustomButton 
+                  title="Cancelar" 
+                  color="#666" 
+                  onPress={() => {
+                    setGainModalVisible(false);
+                    setSelectedLotteryGains({});
+                  }} 
+                />
+              </View>
             </ScrollView>
           </View>
         </Modal>
@@ -1628,5 +1769,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     marginTop: 2,
+  },
+  gainSelectionButton: {
+    padding: 12,
+    borderRadius: 8,
+    marginVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gainSelectionButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

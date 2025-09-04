@@ -51,6 +51,25 @@ export async function fetchPricesForListero(listeroId){
   return DEFAULT_PRICES;
 }
 
+// Nueva función para obtener precios específicos por lotería
+export async function fetchPricesForListeroAndLottery(listeroId, lotteryId){
+  try{
+    const { data: profile } = await supabase.from('profiles').select('id_precio').eq('id', listeroId).maybeSingle();
+    const gainsData = profile?.id_precio;
+    
+    if (gainsData && typeof gainsData === 'object') {
+      // Buscar el ID de ganancia específico para esta lotería
+      const gainId = gainsData[`${lotteryId}_id`];
+      
+      if (gainId) {
+        const { data: priceRow } = await supabase.from('precio').select('precios').eq('id', gainId).maybeSingle();
+        if (priceRow?.precios) return priceRow.precios;
+      }
+    }
+  }catch{}
+  return DEFAULT_PRICES;
+}
+
 export async function fetchJugadasForListero(listeroId, from, to, includeToday=false){
   const { startStr, endStr } = buildRangeStrings(from, to);
   const { data, error } = await supabase
@@ -124,6 +143,7 @@ export async function getTotalPagadoHistorico(listeroId, { excludeToday=true } =
   const js = (jugadas||[]).map(r=> ({
     id: r.id,
     scheduleId: r.horario?.id || r.id_horario,
+    lotteryId: r.horario?.loteria?.id || null,
     playType: r.jugada || 'posicion',
     numeros: r.numeros,
     amount: r.monto_unitario,
@@ -138,17 +158,17 @@ export async function getTotalPagadoHistorico(listeroId, { excludeToday=true } =
   const to = new Date(maxDate);
   const resMap = await fetchResultadosByHorarioDay(from, to, bankId);
   const limitedMap = await fetchNumeroLimitadoByHorario(js.map(j=> j.scheduleId));
-  const prices = await fetchPricesForListero(listeroId);
 
   let total = 0;
   for (const j of js){
     const day = toLocalDateStr(j.created_at);
     const resNums = resMap.get(`${j.scheduleId}|${day}`);
-    const { pago } = computePagoForJugada({
+    const { pago } = await computePagoForJugadaWithLottery(listeroId, {
       numeros: j.numeros,
       monto_unitario: j.amount,
       playType: j.playType,
-    }, resNums, limitedMap.get(j.scheduleId), prices);
+      lotteryId: j.lotteryId,
+    }, resNums, limitedMap.get(j.scheduleId));
     total += Number(pago || 0);
   }
   return Number(total.toFixed(2));
@@ -236,6 +256,21 @@ export function computePagoForJugada(j, resultadoNumeros, limitedSet, prices){
   return { hasPrize: evalRes.hasPrize, pago: pay, estado: evalRes.hasPrize ? 'bingo' : 'no cogió premio', resultado: resultadoNumeros };
 }
 
+// Nueva función que calcula el pago usando precios específicos por lotería
+export async function computePagoForJugadaWithLottery(listeroId, j, resultadoNumeros, limitedSet){
+  if (!resultadoNumeros) {
+    return { hasPrize:false, pago:0, estado:'resultado no disponible', resultado:null };
+  }
+  
+  // Obtener precios específicos para la lotería de esta jugada
+  const prices = await fetchPricesForListeroAndLottery(listeroId, j.lotteryId);
+  
+  const parsed = parseResultado(resultadoNumeros);
+  const evalRes = evaluatePlay({ playType: j.playType || 'posicion', numbers: j.numeros, amount: j.monto_unitario }, parsed, limitedSet || new Set(), prices);
+  const pay = Number(Number(evalRes.pay || 0).toFixed(2));
+  return { hasPrize: evalRes.hasPrize, pago: pay, estado: evalRes.hasPrize ? 'bingo' : 'no cogió premio', resultado: resultadoNumeros };
+}
+
 // Heurística simple si se requiere tipo; si el proyecto guarda j.jugada, usarlo en su lugar
 function guessPlayType(numbersStr){
   // Mantener como 'posicion' por defecto; en producción, traer el campo jugada de la tabla si existe
@@ -252,9 +287,8 @@ export async function getDailyStats(listeroId, { from, to, lotteryId=null, sched
   
   const bankId = listeroProfile?.id_banco;
   
-  const [prices, jugadas, resMap] = await Promise.all([
-    fetchPricesForListero(listeroId),
-  fetchJugadasForListero(listeroId, from, to, includeToday),
+  const [jugadas, resMap] = await Promise.all([
+    fetchJugadasForListero(listeroId, from, to, includeToday),
     fetchResultadosByHorarioDay(from, to, bankId),
   ]);
 
@@ -267,13 +301,16 @@ export async function getDailyStats(listeroId, { from, to, lotteryId=null, sched
     (scheduleId? j.scheduleId===scheduleId : true)
   ));
 
-  const rows = filtered.map(j=>{
+  const rows = [];
+  for (const j of filtered) {
     const day = toLocalDateStr(j.created_at);
     const resNums = resMap.get(`${j.scheduleId}|${day}`);
-    const { pago } = computePagoForJugada(j, resNums, limitedMap.get(j.scheduleId), prices);
+    const { pago } = await computePagoForJugadaWithLottery(listeroId, j, resNums, limitedMap.get(j.scheduleId));
     const recogido = inferMontoRecogido(j);
-    return { day, recogido, pagado: pago };
-  }).filter(r=> {
+    rows.push({ day, recogido, pagado: pago });
+  }
+  
+  const filteredRows = rows.filter(r=> {
     if(includeToday && onlyClosedToday && r.day === todayStr){
       // mantener solo días de hoy que tengan resultado (cerradas)
       // Encontrar si existe resultado para cualquier horario en ese día
@@ -284,7 +321,7 @@ export async function getDailyStats(listeroId, { from, to, lotteryId=null, sched
     return true;
   });
 
-  const agg = rows.reduce((acc, r)=>{
+  const agg = filteredRows.reduce((acc, r)=>{
     if(!acc[r.day]) acc[r.day] = { day:r.day, total_recogido:0, total_pagado:0 };
     acc[r.day].total_recogido += r.recogido;
     acc[r.day].total_pagado += r.pagado;
@@ -315,20 +352,20 @@ export async function getByHorarioStats(listeroId, { from, to, includeToday=fals
   
   const bankId = listeroProfile?.id_banco;
   
-  const [prices, jugadas, resMap] = await Promise.all([
-    fetchPricesForListero(listeroId),
-  fetchJugadasForListero(listeroId, from, to, includeToday),
+  const [jugadas, resMap] = await Promise.all([
+    fetchJugadasForListero(listeroId, from, to, includeToday),
     fetchResultadosByHorarioDay(from, to, bankId),
   ]);
   const limitedMap = await fetchNumeroLimitadoByHorario(jugadas.map(j=> j.scheduleId));
 
-  const rows = jugadas.map(j=>{
+  const rows = [];
+  for (const j of jugadas) {
     const day = toLocalDateStr(j.created_at);
     const resNums = resMap.get(`${j.scheduleId}|${day}`);
-    const { pago } = computePagoForJugada(j, resNums, limitedMap.get(j.scheduleId), prices);
+    const { pago } = await computePagoForJugadaWithLottery(listeroId, j, resNums, limitedMap.get(j.scheduleId));
     const recogido = inferMontoRecogido(j);
-    return { scheduleId:j.scheduleId, scheduleName:j.scheduleName, lotteryName:j.lotteryName, total_recogido:recogido, total_pagado:pago };
-  });
+    rows.push({ scheduleId:j.scheduleId, scheduleName:j.scheduleName, lotteryName:j.lotteryName, total_recogido:recogido, total_pagado:pago });
+  }
 
   const agg = rows.reduce((acc, r)=>{
     if(!acc[r.scheduleId]) acc[r.scheduleId] = { id_horario:r.scheduleId, schedule_name:r.scheduleName, lottery_name:r.lotteryName, total_recogido:0, total_pagado:0 };
@@ -350,9 +387,8 @@ export async function getPlaysDetails(listeroId, { from, to, lotteryId=null, sch
   
   const bankId = listeroProfile?.id_banco;
   
-  const [prices, jugadas, resMap] = await Promise.all([
-    fetchPricesForListero(listeroId),
-  fetchJugadasForListero(listeroId, from, to, includeToday),
+  const [jugadas, resMap] = await Promise.all([
+    fetchJugadasForListero(listeroId, from, to, includeToday),
     fetchResultadosByHorarioDay(from, to, bankId),
   ]);
   const limitedMap = await fetchNumeroLimitadoByHorario(jugadas.map(j=> j.scheduleId));
@@ -372,42 +408,45 @@ export async function getPlaysDetails(listeroId, { from, to, lotteryId=null, sch
     return true;
   });
 
-  return filtered.map(j=>{
+  const result = [];
+  for (const j of filtered) {
     const day = toLocalDateStr(j.created_at);
     const resNums = resMap.get(`${j.scheduleId}|${day}`);
-    const { pago, estado, resultado } = computePagoForJugada(j, resNums, limitedMap.get(j.scheduleId), prices);
-    return {
+    const { pago, estado, resultado } = await computePagoForJugadaWithLottery(listeroId, j, resNums, limitedMap.get(j.scheduleId));
+    result.push({
       id: j.id,
       created_at: j.created_at,
       numeros: j.numeros,
-  jugada: j.playType,
-  nota: j.nota,
+      jugada: j.playType,
+      nota: j.nota,
       monto_unitario: j.monto_unitario,
       monto_total: j.monto_total,
-  resultado: resultado || null,
+      resultado: resultado || null,
       estado,
       pago_calculado: Number(Number(pago).toFixed(2)),
       lottery_name: j.lotteryName,
       schedule_name: j.scheduleName,
-    };
-  });
+    });
+  }
+  
+  return result;
 }
 
 export async function getByLotteryStats(listeroId, { from, to, includeToday=false }){
-  const [prices, jugadas, resMap] = await Promise.all([
-    fetchPricesForListero(listeroId),
-  fetchJugadasForListero(listeroId, from, to, includeToday),
+  const [jugadas, resMap] = await Promise.all([
+    fetchJugadasForListero(listeroId, from, to, includeToday),
     fetchResultadosByHorarioDay(from, to),
   ]);
   const limitedMap = await fetchNumeroLimitadoByHorario(jugadas.map(j=> j.scheduleId));
 
-  const rows = jugadas.map(j=>{
+  const rows = [];
+  for (const j of jugadas) {
     const day = toLocalDateStr(j.created_at);
     const resNums = resMap.get(`${j.scheduleId}|${day}`);
-    const { pago } = computePagoForJugada(j, resNums, limitedMap.get(j.scheduleId), prices);
+    const { pago } = await computePagoForJugadaWithLottery(listeroId, j, resNums, limitedMap.get(j.scheduleId));
     const recogido = inferMontoRecogido(j);
-    return { lotteryName:j.lotteryName, total_recogido:recogido, total_pagado:pago };
-  });
+    rows.push({ lotteryName:j.lotteryName, total_recogido:recogido, total_pagado:pago });
+  }
 
   const agg = rows.reduce((acc, r)=>{
     const key = r.lotteryName || 'Lotería';

@@ -120,30 +120,54 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         }, new Map());
       }
 
-      // Precios según perfil
-      let prices = DEFAULT_PRICES;
+      // Precios según perfil (específicos por lotería)
+      let userGainsData = null;
       try {
         const { data: userRes } = await supabase.auth.getUser();
         const uid = userRes?.user?.id;
         if (uid) {
           const { data: profile } = await supabase.from('profiles').select('id_precio').eq('id', uid).maybeSingle();
-          const idPrecio = profile?.id_precio;
-          if (idPrecio) {
-            const { data: priceRow } = await supabase.from('precio').select('precios').eq('id', idPrecio).maybeSingle();
-            if (priceRow?.precios) prices = priceRow.precios;
-          }
+          userGainsData = profile?.id_precio;
         }
       } catch {}
 
-      // Evaluar premios
-      const enhanced = mapped.map(m => {
+      // Función para obtener precios específicos por lotería
+      const getPricesForLottery = async (lotteryId) => {
+        if (!userGainsData || typeof userGainsData !== 'object') {
+          return DEFAULT_PRICES;
+        }
+        
+        const gainId = userGainsData[`${lotteryId}_id`];
+        if (!gainId) {
+          return DEFAULT_PRICES;
+        }
+        
+        try {
+          const { data: priceRow } = await supabase.from('precio').select('precios').eq('id', gainId).maybeSingle();
+          if (priceRow?.precios) {
+            return priceRow.precios;
+          }
+        } catch {}
+        return DEFAULT_PRICES;
+      };
+
+      // Evaluar premios (ahora usando precios específicos por lotería)
+      const enhanced = [];
+      for (const m of mapped) {
         const numerosRes = resultadosByHorario.get(m.scheduleId);
         const parsed = numerosRes ? parseResultado(numerosRes) : null;
         const limitedSet = limitedByHorario.get(m.scheduleId) || new Set();
+        
         if (!parsed) {
-          return { ...m, result: 'no disponible', hasPrize: false, prize: 'no cogió premio', payAmount: 0, winningTokens: new Set() };
+          enhanced.push({ ...m, result: 'no disponible', hasPrize: false, prize: 'no cogió premio', payAmount: 0, winningTokens: new Set() });
+          continue;
         }
+        
+        // Obtener precios específicos para la lotería de esta jugada
+        const prices = await getPricesForLottery(m.lotteryId);
+        
         const evalRes = evaluatePlay({ playType: m.playType, numbers: m.numbers, amount: m.amount }, parsed, limitedSet, prices);
+        
         // Calcular tokens ganadores específicos de la jugada para resaltar en la UI (normalizando longitudes)
         const winnersSet = winnersByType(parsed, m.playType);
         const expectedLenFor = (jug) => jug==='centena'?3 : jug==='parle'?4 : jug==='tripleta'?6 : 2;
@@ -158,15 +182,16 @@ const SavedPlaysScreen = ({ navigation, route }) => {
           .map(s=> s.trim())
           .filter(Boolean);
         const winningTokens = new Set(tokens.filter(t => winnersSet.has(normalize(m.playType, t))));
-        return {
+        
+        enhanced.push({
           ...m,
           result: numerosRes,
           hasPrize: evalRes.hasPrize,
           prize: evalRes.hasPrize ? 'bingo' : 'no cogió premio',
           payAmount: evalRes.pay,
           winningTokens,
-        };
-      });
+        });
+      }
 
       setSavedPlays(enhanced);
     } catch(e){ }
