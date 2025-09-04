@@ -104,7 +104,7 @@ const MoneyInputField = ({
         onFocus={handleFocus}
         onBlur={handleBlur}        placeholder={placeholder}
         placeholderTextColor={isDarkMode ? '#7F8C8D' : '#95A5A6'}
-        keyboardType="numeric"
+        keyboardType="decimal-pad"
         editable={editable !== false}
       />
     </View>
