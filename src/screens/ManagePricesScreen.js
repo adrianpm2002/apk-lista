@@ -13,6 +13,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
+import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import ScreenWrapper from '../components/ScreenWrapper';
@@ -80,6 +81,11 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
   const [modalFieldErrors, setModalFieldErrors] = useState({}); // { playType: { regular:true, limited:true, collectorPct:true, listeroPct:true } }
   const [editingConfigId, setEditingConfigId] = useState(null); // id de la configuración que se está editando (update), null = insert
   
+  // Estados para loterías
+  const [availableLotteries, setAvailableLotteries] = useState([]);
+  const [selectedLotteries, setSelectedLotteries] = useState([]);
+  const [loadingLotteries, setLoadingLotteries] = useState(false);
+  
   // Estado para jugadas activas del banco
   const [enabledPlayTypes, setEnabledPlayTypes] = useState({
     fijo: true,
@@ -137,6 +143,7 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
     if (currentBankId) {
       loadPriceConfigurations();
       loadActivePlayTypes();
+      loadAvailableLotteries();
     }
   }, [currentBankId]);
 
@@ -146,6 +153,7 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
       if (currentBankId) {
         loadPriceConfigurations();
         loadActivePlayTypes();
+        loadAvailableLotteries();
       }
     }, [currentBankId])
   );
@@ -173,6 +181,30 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
     }
   };
 
+  const loadAvailableLotteries = async () => {
+    if (!currentBankId) return;
+    
+    try {
+      setLoadingLotteries(true);
+      const { data, error } = await supabase
+        .from('loteria')
+        .select('id, nombre')
+        .eq('id_banco', currentBankId)
+        .order('nombre', { ascending: true });
+
+      if (error) {
+        console.error('Error loading lotteries:', error);
+        return;
+      }
+
+      setAvailableLotteries(data || []);
+    } catch (error) {
+      console.error('Error loading lotteries:', error);
+    } finally {
+      setLoadingLotteries(false);
+    }
+  };
+
   const loadPriceConfigurations = async () => {
     if (!currentBankId) return;
     
@@ -180,7 +212,13 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
       setLoadingPrices(true);
       const { data, error } = await supabase
         .from('precio')
-        .select('*')
+        .select(`
+          *,
+          loteria:id_loteria (
+            id,
+            nombre
+          )
+        `)
         .eq('id_banco', currentBankId)
         .order('id', { ascending: false });
 
@@ -192,7 +230,8 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
       // Parsear el JSON de precios para cada configuración
       const parsedConfigs = data.map(config => ({
         ...config,
-        precios: typeof config.precios === 'string' ? JSON.parse(config.precios) : config.precios
+        precios: typeof config.precios === 'string' ? JSON.parse(config.precios) : config.precios,
+        loteriaNombre: config.loteria?.nombre || 'Lotería desconocida'
       }));
 
       setPriceConfigs(parsedConfigs);
@@ -271,10 +310,27 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
     }));
   };
 
+  // Función para manejar selección múltiple de loterías
+  const handleLotterySelection = (selectedValues) => {
+    setSelectedLotteries(selectedValues);
+  };
+
   // saveConfiguration eliminado: cambios se aplican en tiempo real
 
   // CRUD local de precios (pendiente definir tabla para persistir). Cada guardado reemplaza/añade por jugada.
   const handleSavePricesBatch = async () => {
+    // Validar que se hayan seleccionado loterías (solo para nuevas configuraciones)
+    if (!editingConfigId && selectedLotteries.length === 0) {
+      setModalError('Selecciona al menos una lotería.');
+      return;
+    }
+
+    // Validar nombre
+    if (!priceConfigName.trim()) {
+      setModalError('Ingresa un nombre para la configuración.');
+      return;
+    }
+
     // Validar que al menos un campo tenga valor
     const entries = [];
     setModalFieldErrors({});
@@ -322,11 +378,6 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
       const filtered = prev.filter(p => !entries.some(e => e.jugada === p.jugada));
       return [...filtered, ...entries];
     });
-    // Validar nombre
-    if (!priceConfigName.trim()) {
-      Alert.alert('Nombre requerido', 'Ingresa un nombre para la configuración');
-      return;
-    }
 
     // Construir objeto JSON para persistir
     const preciosJSON = {};
@@ -352,48 +403,75 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
     // Persistir en tabla precio (insert o update según editingConfigId)
     if (currentBankId) {
       try {
+        setSaving(true);
+        
         if (editingConfigId) {
+          // Actualizar configuración existente (solo una lotería)
           const updatePayload = { 
             precios: preciosJSON, 
             nombre: priceConfigName.trim()
           };
-            const { data: updateData, error: updateError } = await supabase
-              .from('precio')
-              .update(updatePayload)
-              .eq('id', editingConfigId)
-              .eq('id_banco', currentBankId)
-              .select();
-            if (updateError) {
-              console.error('Error actualizando precios (updateError):', updateError);
-              Alert.alert('Error', 'No se pudo actualizar la configuración de precios');
-            } else {
-              await loadPriceConfigurations(); // Recargar configuraciones
-            }
-        } else {
-          const payload = { 
-            id_banco: currentBankId, 
-            precios: preciosJSON, 
-            nombre: priceConfigName.trim()
-          }; // created_at removido: ahora la tabla tiene DEFAULT
-          const { data: insertData, error: insertError } = await supabase
+          const { data: updateData, error: updateError } = await supabase
             .from('precio')
-            .insert(payload)
+            .update(updatePayload)
+            .eq('id', editingConfigId)
+            .eq('id_banco', currentBankId)
             .select();
-          if (insertError) {
-            console.error('Error guardando precios (insertError):', insertError);
-            Alert.alert('Error', 'No se pudo guardar la configuración de precios');
+          if (updateError) {
+            console.error('Error actualizando precios (updateError):', updateError);
+            Alert.alert('Error', 'No se pudo actualizar la configuración de precios');
           } else {
             await loadPriceConfigurations(); // Recargar configuraciones
+            Alert.alert('Éxito', 'Configuración actualizada correctamente');
+          }
+        } else {
+          // Insertar nueva configuración para cada lotería seleccionada
+          const insertPromises = selectedLotteries.map(lotteryId => {
+            const payload = { 
+              id_banco: currentBankId, 
+              id_loteria: lotteryId,
+              precios: preciosJSON, 
+              nombre: priceConfigName.trim()
+            };
+            return supabase.from('precio').insert(payload).select();
+          });
+
+          const results = await Promise.all(insertPromises);
+          const errors = results.filter(result => result.error);
+          
+          if (errors.length > 0) {
+            console.error('Error guardando precios:', errors);
+            Alert.alert('Error', `No se pudieron guardar ${errors.length} configuraciones de precios`);
+          } else {
+            await loadPriceConfigurations(); // Recargar configuraciones
+            Alert.alert('Éxito', `Se guardaron ${selectedLotteries.length} configuraciones de precios correctamente`);
           }
         }
       } catch (err) {
         console.error('Excepción durante persistencia precio:', err);
         Alert.alert('Error', 'Excepción al guardar la configuración');
+      } finally {
+        setSaving(false);
       }
     }
     setPriceModalVisible(false);
     setEditingBatch(false);
     setEditingConfigId(null);
+    // Limpiar datos del modal
+    clearModalData();
+  };
+
+  const clearModalData = () => {
+    setPriceConfigName('');
+    setSelectedLotteries([]);
+    setModalError('');
+    setModalFieldErrors({});
+    // Limpiar winningPrices
+    const clearedPrices = {};
+    availablePlayTypes.forEach(pt => {
+      clearedPrices[pt.id] = { regular: '', limited: '', collectorPct: '', listeroPct: '' };
+    });
+    setWinningPrices(clearedPrices);
   };
 
   const handleEditPrices = () => {
@@ -517,14 +595,7 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
           onPress={() => {
             setEditingBatch(false);
             setEditingConfigId(null);
-            // Limpiar campos para nueva config
-            const cleared = { ...winningPrices };
-            Object.keys(cleared).forEach(k => {
-              cleared[k] = { regular: '', limited: '', collectorPct: '', listeroPct: '' };
-            });
-            setWinningPrices(cleared);
-            setPriceConfigName('');
-            setPriceEntries([]);
+            clearModalData();
             setPriceModalVisible(true);
           }}
           variant="primary"
@@ -569,7 +640,14 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
             return (
               <View key={cfg.id} style={[styles.configItem, commonStyles.card, hasConfigError && styles.configItemError]}>
                 <TouchableOpacity onPress={toggle} style={styles.configHeaderRow}>
-                  <Text style={[styles.configName, commonStyles.textPrimary, hasConfigError && styles.configNameError]}>{cfg.nombre || 'Sin nombre'}</Text>
+                  <View style={styles.configNameContainer}>
+                    <Text style={[styles.configName, commonStyles.textPrimary, hasConfigError && styles.configNameError]}>
+                      {cfg.nombre || 'Sin nombre'}
+                    </Text>
+                    <Text style={[styles.configLotteryName, commonStyles.textSecondary]}>
+                      {cfg.loteriaNombre}
+                    </Text>
+                  </View>
                   <Text style={[styles.configArrow, commonStyles.textSecondary]}>{expanded ? '▲' : '▼'}</Text>
                 </TouchableOpacity>
                 {expanded && (
@@ -672,6 +750,24 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
                   isDarkMode={isDarkMode}
                 />
               </View>
+
+              {/* Selector de Loterías */}
+              {!editingBatch && (
+                <View style={styles.modalPriceGroup}>
+                  <Text style={[styles.modalPriceGroupTitle, commonStyles.textPrimary]}>Loterías</Text>
+                  <MultiSelectDropdown
+                    label="Seleccionar Loterías"
+                    selectedValues={selectedLotteries}
+                    onSelect={handleLotterySelection}
+                    options={availableLotteries.map(lottery => ({
+                      label: lottery.nombre,
+                      value: lottery.id
+                    }))}
+                    placeholder="Selecciona las loterías..."
+                    isDarkMode={isDarkMode}
+                  />
+                </View>
+              )}
               {availablePlayTypes.filter(pt => enabledPlayTypes[pt.id]).map(pt => (
                 <View key={pt.id} style={styles.modalPriceGroup}>
                   <Text style={[styles.modalPriceGroupTitle, commonStyles.textPrimary]}>{pt.label}</Text>
@@ -777,13 +873,13 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
   },
   customHeader: {
-    height: Platform.OS === 'android' ? 100 : 90,
+    height: Platform.OS === 'android' ? 85 : 75,
     backgroundColor: '#F8F9FA',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? 50 : 40,
-    paddingBottom: 10,
+    paddingTop: Platform.OS === 'android' ? 40 : 30,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
     ...createShadowStyle({
@@ -815,14 +911,14 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    marginTop: Platform.OS === 'android' ? 100 : 90,
+    paddingVertical: 8,
+    marginTop: Platform.OS === 'android' ? 85 : 75,
   },
   section: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    padding: 12,
+    marginBottom: 10,
     ...createShadowStyle({
       color: '#000',
       offsetY: 2,
@@ -937,17 +1033,27 @@ const styles = StyleSheet.create({
   configItem: {
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-    paddingVertical: 10
+    paddingVertical: 6
   },
   configHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center'
   },
+  configNameContainer: {
+    flex: 1,
+    marginRight: 10
+  },
   configName: {
     fontSize: 15,
     fontWeight: '600',
     color: '#2C3E50'
+  },
+  configLotteryName: {
+    fontSize: 12,
+    color: '#7F8C8D',
+    marginTop: 2,
+    fontStyle: 'italic'
   },
   configNameError: {
     color: '#e74c3c'
@@ -1091,5 +1197,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#2980B9',
     textAlign: 'center'
-  }
+  },
 });

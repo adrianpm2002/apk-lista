@@ -874,7 +874,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
               {isOrphan ? '🔗' : '└── 📝'} {item.username}
             </Text>
             <Text style={[styles.userRole, { color: isDarkMode ? (isOrphan ? '#f39c12' : '#95a5a6') : (isOrphan ? '#f39c12' : '#6c757d') }]}>
-              Listero{isOrphan ? ' sin asignar' : ''} • {item.activo ? 'Habilitado' : 'Deshabilitado'}
+              Listero • {item.activo ? 'Habilitado' : 'Deshabilitado'}
             </Text>
             
             {/* Información adicional del listero */}
