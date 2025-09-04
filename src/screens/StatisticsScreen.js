@@ -340,7 +340,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
     // Reutilizar misma agrupación base que en pantalla
     const dayKeyOf = (ts)=>{ const d=new Date(ts); d.setHours(0,0,0,0); return d.getTime(); };
     const dayLabelOf = (ts)=>{ const d=new Date(ts); return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }); };
-    const timeStr = (ts)=> new Date(ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    const timeStr = (ts)=> new Date(ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit', hour12: true});
     const inferCollected = (row)=>{
       const mt = row.monto_total;
       if(mt!=null && mt!==undefined) return Number(mt)||0;
@@ -719,7 +719,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   // Helpers
   const dayKeyOf = (ts)=>{ const d=new Date(ts); d.setHours(0,0,0,0); return d.getTime(); };
   const dayLabelOf = (ts)=>{ const d=new Date(ts); return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }); };
-        const timeStr = (ts)=> new Date(ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+        const timeStr = (ts)=> new Date(ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit', hour12: true});
         const inferCollected = (row)=>{
           const mt = row.monto_total;
           if(mt!=null && mt!==undefined) return Number(mt)||0;
@@ -785,43 +785,72 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
               const open = expanded.has(g.key);
               const balance = Math.round(g.totalRecogido - g.totalPagado);
               return (
-                <View key={g.key} style={[styles.groupCard, isDarkMode && styles.groupCardDark]}>
-                  <TouchableOpacity style={styles.groupHeader} onPress={()=> toggle(g.key)}>
-                    <Text style={styles.groupChevron}>{open? '▼':'▶'}</Text>
+                <View key={g.key} style={[styles.compactGroupCard, isDarkMode && styles.compactGroupCardDark]}>
+                  <TouchableOpacity style={styles.compactGroupHeader} onPress={()=> toggle(g.key)}>
+                    <Text style={styles.compactGroupChevron}>{open? '▼':'▶'}</Text>
                     <View style={{ flex:1 }}>
-                      <Text style={[styles.groupTitle, isDarkMode && styles.groupTitleDark]}>
-                        {g.dayLabel} · {g.lottery} · {g.schedule}
-                        {` · Resultado: ${g.resultado ? g.resultado : 'no disponible'}`}
-                      </Text>
-                      <View style={styles.groupTotalsRow}>
-                        <Text style={styles.countChip}>Jugadas: {g.plays.length}</Text>
-                        <Text style={[styles.groupChip, styles.countChip]}>Recogido: {fmt(g.totalRecogido)}</Text>
-                        <Text style={[styles.groupChip, styles.countChip]}>Pagado: {fmt(g.totalPagado)}</Text>
-                        <Text style={[styles.groupChip, balance>=0? styles.balancePosChip: styles.balanceNegChip]}>Balance: {fmt(balance)}</Text>
+                      <View style={styles.compactGroupTitleRow}>
+                        <Text style={[styles.compactGroupTitle, isDarkMode && styles.compactGroupTitleDark]}>
+                          {g.dayLabel} · {g.lottery} · {g.schedule}
+                        </Text>
+                        <Text style={[styles.compactResultChip, isDarkMode && styles.compactResultChipDark]}>
+                          {g.resultado || 'N/A'}
+                        </Text>
+                      </View>
+                      <View style={styles.compactStatsRow}>
+                        <Text style={styles.compactStatChip}>📊 {g.plays.length}</Text>
+                        <Text style={[styles.compactStatChip, styles.compactCollectedChip]}>💰 {fmt(g.totalRecogido)}</Text>
+                        <Text style={[styles.compactStatChip, balance>=0? styles.compactBalancePosChip: styles.compactBalanceNegChip]}>
+                          {balance>=0? '📈':'📉'} {fmt(balance)}
+                        </Text>
                       </View>
                     </View>
                   </TouchableOpacity>
                   {open && (
-                    <View style={styles.playsTable}>
-                      <View style={styles.playsHeaderRow}>
-                        <Text style={[styles.playsHeaderCell,{flex:0.8}]}>Hora</Text>
-                        <Text style={[styles.playsHeaderCell,{flex:1.2}]}>Nota</Text>
-                        <Text style={[styles.playsHeaderCell,{flex:1.2}]}>Jugada</Text>
-                        <Text style={[styles.playsHeaderCell,{flex:2}]}>Números</Text>
-                        <Text style={[styles.playsHeaderCell,{flex:1}]}>Total</Text>
-                        <Text style={[styles.playsHeaderCell,{flex:1}]}>Pagado</Text>
-                      </View>
-                      {g.plays.map((p,idx)=> (
-                        <View key={idx} style={[styles.playsRow, idx%2===0? styles.playsRowAlt:null]}>
-                          <Text style={[styles.playsCell,{flex:0.8}]}>{p.time}</Text>
-                          <Text style={[styles.playsCell,{flex:1.2}]} numberOfLines={1}>{p.nota}</Text>
-                          <Text style={[styles.playsCell,{flex:1.2}]} numberOfLines={1}>{p.jugada}</Text>
-                          <Text style={[styles.playsCell,{flex:2, flexWrap:'wrap', minWidth:0}]}>{p.numeros}</Text>
-                          <Text style={[styles.playsCell,{flex:1}]}>{fmt(p.total)}</Text>
-                          <Text style={[styles.playsCell,{flex:1}]}> {p.pagado > 0 ? fmt(p.pagado) : 'Sin premio'}</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
+                      <View style={styles.excelTable}>
+                        {/* Header de la tabla estilo Excel */}
+                        <View style={styles.excelHeaderRow}>
+                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Hora</Text>
+                          <Text style={[styles.excelHeaderCell, { width: 100 }]}>Nota</Text>
+                          <Text style={[styles.excelHeaderCell, { width: 90 }]}>Jugada</Text>
+                          <Text style={[styles.excelHeaderCell, { width: 160 }]}>Números</Text>
+                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Total</Text>
+                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Pagado</Text>
                         </View>
-                      ))}
-                    </View>
+                        {/* Filas de datos estilo Excel */}
+                        {g.plays.map((p, idx) => (
+                          <View key={idx} style={[styles.excelDataRow, idx % 2 === 0 && styles.excelRowEven]}>
+                            <View style={[styles.excelCellContainer, { width: 80 }]}>
+                              <Text style={styles.excelCell} numberOfLines={2}>{p.time}</Text>
+                            </View>
+                            <View style={[styles.excelCellContainer, { width: 100 }]}>
+                              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
+                                <Text style={styles.excelCell}>{p.nota}</Text>
+                              </ScrollView>
+                            </View>
+                            <View style={[styles.excelCellContainer, { width: 90 }]}>
+                              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
+                                <Text style={styles.excelCell}>{p.jugada}</Text>
+                              </ScrollView>
+                            </View>
+                            <View style={[styles.excelCellContainer, { width: 160 }]}>
+                              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
+                                <Text style={styles.excelCell}>{p.numeros}</Text>
+                              </ScrollView>
+                            </View>
+                            <View style={[styles.excelCellContainer, { width: 80 }]}>
+                              <Text style={styles.excelCell} numberOfLines={1}>{fmt(p.total)}</Text>
+                            </View>
+                            <View style={[styles.excelCellContainer, { width: 80 }]}>
+                              <Text style={styles.excelCell} numberOfLines={2}>
+                                {p.pagado > 0 ? fmt(p.pagado) : 'Sin premio'}
+                              </Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    </ScrollView>
                   )}
                 </View>
               );
@@ -1396,6 +1425,143 @@ const styles = StyleSheet.create({
     backgroundColor: '#34495E',
     borderColor: '#5D6D7E',
     color: '#ECF0F1',
+  },
+  
+  // Estilos para tarjetas compactas
+  compactGroupCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    marginBottom: 6,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  compactGroupCardDark: {
+    backgroundColor: '#34495E',
+  },
+  compactGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+  },
+  compactGroupChevron: {
+    fontSize: 12,
+    color: '#27AE60',
+    marginRight: 8,
+    width: 15,
+  },
+  compactGroupTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  compactGroupTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2C3E50',
+    flex: 1,
+  },
+  compactGroupTitleDark: {
+    color: '#ECF0F1',
+  },
+  compactResultChip: {
+    fontSize: 11,
+    fontWeight: '700',
+    backgroundColor: '#E8F5E8',
+    color: '#27AE60',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CFE9DA',
+  },
+  compactResultChipDark: {
+    backgroundColor: '#2C3E50',
+    color: '#27AE60',
+    borderColor: '#27AE60',
+  },
+  compactStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  compactStatChip: {
+    fontSize: 10,
+    fontWeight: '600',
+    backgroundColor: '#F8F9FA',
+    color: '#6C757D',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 2,
+  },
+  compactCollectedChip: {
+    backgroundColor: '#EAF7F0',
+    color: '#27AE60',
+  },
+  compactBalancePosChip: {
+    backgroundColor: '#EAF7F0',
+    color: '#27AE60',
+  },
+  compactBalanceNegChip: {
+    backgroundColor: '#FDECEA',
+    color: '#E74C3C',
+  },
+  
+  // Estilos para tabla estilo Excel
+  tableContainer: {
+    marginTop: 8,
+    marginHorizontal: 4,
+  },
+  excelTable: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  excelHeaderRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderBottomWidth: 2,
+    borderBottomColor: '#9CA3AF',
+  },
+  excelHeaderCell: {
+    padding: 8,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#374151',
+    borderRightWidth: 1,
+    borderRightColor: '#D1D5DB',
+    textAlign: 'center',
+  },
+  excelDataRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    minHeight: 36,
+  },
+  excelRowEven: {
+    backgroundColor: '#F9FAFB',
+  },
+  excelCellContainer: {
+    borderRightWidth: 1,
+    borderRightColor: '#E5E7EB',
+    justifyContent: 'center',
+    minHeight: 36,
+  },
+  cellScrollView: {
+    flex: 1,
+  },
+  excelCell: {
+    padding: 6,
+    fontSize: 10,
+    color: '#1F2937',
+    textAlign: 'center',
+    minWidth: '100%',
   },
 });
 
