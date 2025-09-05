@@ -472,7 +472,13 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   keyboardType="numeric"
                 />
               </View>
-              <View style={styles.buttonsRow}>
+              <TouchableOpacity 
+                style={[styles.addButton, isDarkMode && styles.addButtonDark]}
+                onPress={agregarParle}
+              >
+                <Text style={styles.addButtonText}>+</Text>
+              </TouchableOpacity>
+              <View style={styles.candadoSection}>
                 <TouchableOpacity 
                   style={styles.candadoButton}
                   onPress={() => setCandadoAbierto(!candadoAbierto)}
@@ -481,16 +487,10 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                     {candadoAbierto ? '🔓' : '🔒'}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.addButton, isDarkMode && styles.addButtonDark]}
-                  onPress={agregarParle}
-                >
-                  <Text style={styles.addButtonText}>+</Text>
-                </TouchableOpacity>
+                <Text style={[styles.candadoLabel, isDarkMode && styles.cellTextDark]}>
+                  {candadoAbierto ? 'Precio total' : 'Precio individual'}
+                </Text>
               </View>
-              <Text style={[styles.candadoLabel, isDarkMode && styles.cellTextDark]}>
-                {candadoAbierto ? 'Precio total' : 'Precio individual'}
-              </Text>
             </View>
           </View>
           <View style={[styles.cell, isDarkMode && styles.cellDark]}>
@@ -851,6 +851,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginTop: 8,
+  },
+  candadoSection: {
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 4,
   },
   // Estilos para centenas
   centenaContainer: {
