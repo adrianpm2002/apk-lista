@@ -63,7 +63,36 @@ export function parseTextMode2(rawText, { isLocked = false } = {}) {
       }
       tokens = out;
       inferredType = 'centena';
-    } else {
+    } 
+    // Comando decenas: D4 o d5 -> 40-49 o 50-59
+    else if (left.match(/^[Dd]\s*(\d)$/)) {
+      const decenaMatch = left.match(/^[Dd]\s*(\d)$/);
+      const digit = parseInt(decenaMatch[1], 10);
+      let out = [];
+      for(let u = 0; u <= 9; u++) {
+        out.push(`${digit}${u}`);
+      }
+      tokens = out;
+      inferredType = '2d';
+    }
+    // Comando terminales: T4 o t4 -> 04,14,24,34,44,54,64,74,84,94
+    else if (left.match(/^[Tt]\s*(\d)$/)) {
+      const terminalMatch = left.match(/^[Tt]\s*(\d)$/);
+      const digit = parseInt(terminalMatch[1], 10);
+      let out = [];
+      for(let d = 0; d <= 9; d++) {
+        out.push(`${d}${digit}`);
+      }
+      tokens = out;
+      inferredType = '2d';
+    }
+    // Comando parejas: P o p -> 00,11,22,33,44,55,66,77,88,99
+    else if (left.match(/^[Pp]$/)) {
+      const pairs = ['00','11','22','33','44','55','66','77','88','99'];
+      tokens = pairs;
+      inferredType = '2d';
+    }
+    else {
       // Números directos
       const arrRaw = splitNums(left);
       if(!arrRaw.length){ errors.push({ line: lineNo, message: 'Sin números' }); return; }
