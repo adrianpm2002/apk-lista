@@ -48,6 +48,16 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Función para mapear roles a texto legible
+  const getRoleDisplayName = (role) => {
+    switch(role) {
+      case 'admin': return 'Banco';
+      case 'collector': return 'Colector';
+      case 'listero': return 'Listero';
+      default: return role || 'Desconocido';
+    }
+  };
+
   // Sanitiza la entrada del campo de resultado respetando:
   // - Máximo 7 dígitos
   // - Permitir formato "1234567" o "123 4567"
@@ -129,7 +139,7 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
       const { data, error } = await supabase
         .from('resultado')
         .select(`
-          id, numeros, created_at, id_horario,
+          id, numeros, created_at, id_horario, rol,
           horario!inner(
             id, nombre, hora_inicio, hora_fin, id_loteria,
             loteria!inner(id, nombre, id_banco)
@@ -323,13 +333,25 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
 
 
   const startEditing = (item) => {
-    // Permisos: collector no puede editar resultados de admin
-    if (userRole === 'collector' && item.rol === 'admin') {
+    // Nueva lógica de permisos:
+    // - listero solo puede modificar a listero
+    // - collector puede modificar a listero pero no a banco (admin)
+    // - banco (admin) puede modificar a collector y a listero
+    
+    if (userRole === 'listero' && item.rol !== 'listero') {
       setDeniedEditId(item.id);
-      // Limpiar después de 5 segundos
       setTimeout(() => setDeniedEditId(prev => (prev === item.id ? null : prev)), 5000);
       return;
     }
+    
+    if (userRole === 'collector' && item.rol === 'admin') {
+      setDeniedEditId(item.id);
+      setTimeout(() => setDeniedEditId(prev => (prev === item.id ? null : prev)), 5000);
+      return;
+    }
+    
+    // El banco (admin) puede modificar cualquier resultado, así que no tiene restricciones
+    
     setEditingId(item.id);
     const raw = item.numeros.replace(/\D/g, '');
     setEditingValue(raw);
@@ -348,7 +370,8 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
       return;
     }
     const formatted = digits.substring(0,3) + ' ' + digits.substring(3,7);
-    const updatePayload = userRole === 'admin' ? { numeros: formatted, rol: 'admin' } : { numeros: formatted };
+    // Siempre actualizar el rol al usuario que está editando, mapeado al rol permitido en la tabla
+    const updatePayload = { numeros: formatted, rol: userRole || 'collector' };
     
     const { error } = await supabase
       .from('resultado')
@@ -361,7 +384,7 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
     }
     
     // Actualizar localmente para respuesta más rápida
-    setTodayResults(prev => prev.map(r => r.id === editingId ? { ...r, numeros: formatted } : r));
+    setTodayResults(prev => prev.map(r => r.id === editingId ? { ...r, numeros: formatted, rol: userRole || 'collector' } : r));
     cancelEditing();
     
     // Recargar resultados después de actualizar
@@ -369,10 +392,23 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
   };
 
   const deleteResult = async (item) => {
-    if (userRole === 'collector' && item.rol === 'admin') {
-      Alert.alert('Acceso denegado', 'Ese resultado lo subió un banco y no puede eliminarse.');
+    // Nueva lógica de permisos para eliminar:
+    // - listero solo puede eliminar resultados de listero
+    // - collector puede eliminar resultados de listero pero no de banco (admin)
+    // - banco (admin) puede eliminar resultados de collector y de listero
+    
+    if (userRole === 'listero' && item.rol !== 'listero') {
+      Alert.alert('Acceso denegado', 'Solo puedes eliminar resultados que hayas insertado tú mismo.');
       return;
     }
+    
+    if (userRole === 'collector' && item.rol === 'admin') {
+      Alert.alert('Acceso denegado', 'No puedes eliminar resultados insertados por el banco.');
+      return;
+    }
+    
+    // El banco (admin) puede eliminar cualquier resultado, así que no tiene restricciones
+    
     if (Platform.OS === 'web') {
       const confirmed = window.confirm('¿Eliminar este resultado?');
       if (!confirmed) return;
@@ -472,12 +508,12 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
     }
 
     if (existing && existing.length) {
-      // Ya existe uno hoy para este horario
+      // Banco: actualiza el existente y mantiene el rol actual del usuario
       if ((userRole || 'collector') === 'admin') {
-        // Banco: actualiza el existente y promueve rol a admin
+        // Banco: actualiza el existente y mantiene el rol del usuario
         const { error: upErr } = await supabase
           .from('resultado')
-          .update({ numeros: cleanResult, rol: 'admin' })
+          .update({ numeros: cleanResult, rol: userRole || 'admin' })
           .eq('id', existing[0].id);
         if (upErr) {
           Alert.alert('Error', upErr.message);
@@ -642,6 +678,9 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
                   <Text style={[styles.resultHorario, { color: isDarkMode ? '#bdc3c7' : '#64748B' }]}>
                     {item.horario?.nombre || 'Horario'}
                   </Text>
+                  <Text style={[styles.resultCreatedBy, { color: isDarkMode ? '#95a5a6' : '#6B7280' }]}>
+                    Editado por: {getRoleDisplayName(item.rol)} ({item.rol})
+                  </Text>
                   {isEditing ? (
                     <TextInput
                       style={[
@@ -669,7 +708,12 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
                   )}
                   {item.id === deniedEditId && (
                     <Text style={[styles.deniedText, { color: isDarkMode ? '#e74c3c' : '#B91C1C' }]}>
-                      Este resultado fue subido por el banco, no es posible editar.
+                      {userRole === 'listero' 
+                        ? 'Solo puedes editar resultados que hayas insertado tú mismo.'
+                        : userRole === 'collector'
+                        ? 'No puedes editar resultados insertados por el banco.'
+                        : 'No tienes permisos para editar este resultado.'
+                      }
                     </Text>
                   )}
                 </View>
@@ -807,6 +851,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
     marginBottom: 4
+  },
+  resultCreatedBy: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontStyle: 'italic',
+    marginBottom: 6
   },
   resultNumber: {
     fontSize: 20,

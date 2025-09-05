@@ -72,6 +72,7 @@ const roleOptionsMap = {
   listero: [
   { id: 'play', icon: '🎮', title: 'Inicio' },
   { id: 'statistics', icon: '📈', title: 'Estadísticas' },
+  { id: 'insertResults', icon: '🎯', title: 'Resultados' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ]
 };

@@ -634,7 +634,12 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         </View>
   {/* Eliminado InfoButton general flotante en favor de botón en barra inferior */}
       </View>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Row 1: Lotería */}
         <MultiSelectDropdown
           label={t('common.lottery')}
@@ -888,7 +893,7 @@ const styles = StyleSheet.create({
   },
   headerFloating: {
     position: 'absolute',
-    top: 0,
+    top: 20,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -927,9 +932,13 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
+    flexGrow: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 120,
+    paddingTop: 140,
+    paddingBottom: 40, // Espacio adicional para scroll completo
   },
   row: {
     flexDirection: 'row',
