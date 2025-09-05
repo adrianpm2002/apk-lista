@@ -84,6 +84,36 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   // Estado para modal de ganancia
   const [gainModalVisible, setGainModalVisible] = useState(false);
   const [gainTargetUser, setGainTargetUser] = useState(null);
+  
+  // Estado para banner de error de nombre duplicado
+  const [showDuplicateNameBanner, setShowDuplicateNameBanner] = useState(false);
+
+  // Función para verificar si el nombre de usuario ya existe
+  const checkUsernameExists = async (usernameToCheck, excludeUserId = null) => {
+    try {
+      let query = supabase
+        .from('profiles')
+        .select('id, username')
+        .eq('username', usernameToCheck);
+      
+      // Si estamos editando, excluir el ID del usuario actual
+      if (excludeUserId) {
+        query = query.neq('id', excludeUserId);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Error checking username:', error);
+        return false;
+      }
+      
+      return data && data.length > 0;
+    } catch (error) {
+      console.error('Exception checking username:', error);
+      return false;
+    }
+  };
 
   // Función para obtener el perfil del usuario actual
   const fetchUserProfile = async () => {
@@ -321,6 +351,9 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
 
   const handleCreateOrUpdate = async () => {
     try {
+      // Ocultar banner previo si existe
+      setShowDuplicateNameBanner(false);
+      
       // Forzar role listero si collector
       const effectiveRole = userRole === 'collector' ? 'listero' : role;
 
@@ -333,6 +366,20 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         Alert.alert('Error', 'El nombre de usuario no debe contener "@".');
         return;
       }
+      
+      // Verificar si el nombre de usuario ya existe
+      const excludeUserId = isEditing && editingUser ? editingUser.id : null;
+      const usernameExists = await checkUsernameExists(username, excludeUserId);
+      
+      if (usernameExists) {
+        setShowDuplicateNameBanner(true);
+        // Auto-ocultar el banner después de 5 segundos
+        setTimeout(() => {
+          setShowDuplicateNameBanner(false);
+        }, 5000);
+        return;
+      }
+      
       if (userRole !== 'collector' && effectiveRole === 'listero' && !selectedCollector) {
         Alert.alert('Error', 'Debes seleccionar un colector.');
         return;
@@ -399,20 +446,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         } catch {}
         Alert.alert('Éxito', 'Usuario actualizado correctamente');
       } else {
-        // Verificar si ya existe un usuario con ese username
-        const { data: existingUsers, error: checkError } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('username', username);
-
-        if (checkError) {
-          console.error('Check Error:', checkError);
-          return Alert.alert('Error', 'Error al verificar usuario existente');
-        }
-
-        if (existingUsers && existingUsers.length > 0) {
-          return Alert.alert('Error', 'Ya existe un usuario con ese nombre. Por favor elige otro nombre.');
-        }
+        const fakeEmail = `${username.toLowerCase()}@example.com`;
 
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: fakeEmail,
@@ -868,6 +902,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     setIsEditing(false);
     setEditingUser(null);
     setEnableSpecificLimits(false);
+    setShowDuplicateNameBanner(false); // Ocultar banner al limpiar formulario
   };
 
   // Función para obtener el texto de las ganancias seleccionadas
@@ -1130,6 +1165,15 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
           <View style={[styles.modalContent, commonStyles.modalContent]}>
             <Text style={[styles.modalTitle, commonStyles.textPrimary]}>{isEditing ? (userRole==='collector' ? 'Editar Listero' : 'Editar Usuario') : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')}</Text>
 
+            {/* Banner de error para nombre duplicado */}
+            {showDuplicateNameBanner && (
+              <View style={styles.duplicateNameBanner}>
+                <Text style={styles.duplicateNameText}>
+                  ⚠️ Ya existe un usuario con ese nombre. Cambie el nombre de usuario para proceder.
+                </Text>
+              </View>
+            )}
+
             <ScrollView 
               style={styles.modalScrollView}
               contentContainerStyle={styles.modalScrollContent}
@@ -1139,7 +1183,13 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
               <TextInput
                 placeholder="Nombre de usuario"
                 value={username}
-                onChangeText={setUsername}
+                onChangeText={(text) => {
+                  setUsername(text);
+                  // Ocultar banner cuando usuario empiece a cambiar el nombre
+                  if (showDuplicateNameBanner) {
+                    setShowDuplicateNameBanner(false);
+                  }
+                }}
                 style={[styles.input, formStyles.inputField]}
                 placeholderTextColor={isDarkMode ? '#7f8c8d' : '#95a5a6'}
               />
@@ -1781,5 +1831,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  
+  // Estilos para banner de nombre duplicado
+  duplicateNameBanner: {
+    backgroundColor: '#ffebee',
+    borderColor: '#f44336',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 15,
+    alignItems: 'center',
+  },
+  duplicateNameText: {
+    color: '#c62828',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
