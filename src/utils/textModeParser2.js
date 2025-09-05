@@ -25,6 +25,75 @@ export function parseTextMode2(rawText, { isLocked = false } = {}) {
 
   lines.forEach((line, idx) => {
     const lineNo = idx+1;
+
+    // Verificar sintaxis x(...) para parle cruzado: ej. 35x(20 41 42 54) con 10p
+    // Soporta también comandos P, D, T: Px(20 41) con 10p, D5x(12 34) con 15p, T7x(11 22) con 20p
+    const xParenMatch = line.match(/^([Dd]\d|[Tt]\d|[Pp]|\d{1,2})x\(([^)]+)\)\s+con\s+(\d+(?:\.\d+)?)p$/i);
+    if (xParenMatch) {
+      const baseToken = xParenMatch[1];
+      const innerNumbersStr = xParenMatch[2];
+      const amountTotal = toFloat(xParenMatch[3]);
+      
+      if (amountTotal <= 0) { errors.push({ line: lineNo, message: 'Monto parle debe ser >0' }); return; }
+      
+      // Extraer números del paréntesis
+      const innerNums = innerNumbersStr.split(/[\s.,]+/)
+        .map(n => n.replace(/[^0-9]/g, ''))
+        .filter(Boolean)
+        .map(n => pad(n, 2))
+        .filter(n => n.length === 2);
+      
+      if (innerNums.length === 0) { errors.push({ line: lineNo, message: 'Sin números válidos en paréntesis' }); return; }
+      
+      // Resolver el token base
+      let baseNumbers = [];
+      
+      // Comando decenas: D4 -> 40-49
+      if (baseToken.match(/^[Dd](\d)$/)) {
+        const digit = parseInt(baseToken.match(/^[Dd](\d)$/)[1], 10);
+        for(let u = 0; u <= 9; u++) {
+          baseNumbers.push(`${digit}${u}`);
+        }
+      }
+      // Comando terminales: T4 -> 04,14,24,34,44,54,64,74,84,94
+      else if (baseToken.match(/^[Tt](\d)$/)) {
+        const digit = parseInt(baseToken.match(/^[Tt](\d)$/)[1], 10);
+        for(let d = 0; d <= 9; d++) {
+          baseNumbers.push(`${d}${digit}`);
+        }
+      }
+      // Comando parejas: P -> 00,11,22,33,44,55,66,77,88,99
+      else if (baseToken.match(/^[Pp]$/)) {
+        const pairs = ['00','11','22','33','44','55','66','77','88','99'];
+        baseNumbers = pairs;
+      }
+      // Número directo
+      else {
+        baseNumbers = [pad(baseToken, 2)];
+      }
+      
+      // Generar combinaciones: cada baseNumber con cada innerNum
+      const parlePairs = [];
+      for (const baseNum of baseNumbers) {
+        for (const innerNum of innerNums) {
+          parlePairs.push(baseNum + innerNum);
+        }
+      }
+      
+      let amountEach, totalPerLottery;
+      if (isLocked) {
+        amountEach = Math.floor(amountTotal / parlePairs.length) || 0;
+        if (amountEach === 0) { errors.push({ line: lineNo, message: 'Monto insuficiente para repartir entre parle x(...)' }); return; }
+        totalPerLottery = amountTotal;
+      } else {
+        amountEach = amountTotal;
+        totalPerLottery = amountTotal * parlePairs.length;
+      }
+      
+      instructions.push({ playType: 'parle', numbers: parlePairs, amountEach, totalPerLottery, meta: { mode: 'cross' }, line: lineNo });
+      return;
+    }
+
     const parts = line.split(/\s+con\s+/i);
     if (parts.length < 2) { errors.push({ line: lineNo, message: "Falta 'con'" }); return; }
     

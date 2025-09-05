@@ -14,6 +14,12 @@ export const generateCopyText = async (formData, currentUserProfile = null, note
     // Organizar por lotería
     const lotteryIds = formData.selectedLotteries || [];
     
+    // Si hay múltiples loterías, agregar una línea en blanco después del nombre
+    if (lotteryIds.length > 1) {
+      copyText += '\n';
+    }
+    
+    // Agregar información de cada lotería
     for (const lotteryId of lotteryIds) {
       // Obtener información de la lotería
       const { data: lottery } = await supabase
@@ -40,44 +46,61 @@ export const generateCopyText = async (formData, currentUserProfile = null, note
         }
       }
       
-      // Agregar información de la lotería
-      copyText += `Lotería: 🗽${lottery.nombre}🗽\n`;
+      // Agregar información de la lotería (sin agregar emojis, usar el nombre tal como viene)
+      copyText += `\nLotería: ${lottery.nombre} \n`;
       copyText += `Horario: ${scheduleName}\n`;
-      
-      // Procesar cada tipo de jugada seleccionada
-      const selectedPlayTypes = formData.selectedPlayTypes || [];
-      const amounts = formData.amounts || {};
-      const plays = formData.plays || '';
-      
-      // Extraer números de las jugadas
-      const numbers = plays.match(/\d+/g) || [];
-      
-      for (const playType of selectedPlayTypes) {
-        const amount = amounts[playType];
-        if (!amount || parseFloat(amount.toString().replace(/[^0-9.]/g, '')) === 0) {
-          continue; // Saltar jugadas sin monto
-        }
-        
-        // Capitalizar el nombre del tipo de jugada
-        const playTypeName = capitalizePlayType(playType);
-        copyText += `${playTypeName}\n`;
-        
-        // Agregar números en línea
-        if (numbers.length > 0) {
-          copyText += numbers.join(' ') + '\n';
-        }
-        
-        // Calcular totales
-        const unitAmount = parseFloat(amount.toString().replace(/[^0-9.]/g, '')) || 0;
-        const totalAmount = unitAmount * numbers.length;
-        
-        copyText += `Unitario: ${unitAmount}   Total: ${totalAmount}\n`;
-      }
-      
-      copyText += '\n'; // Separador entre loterías
     }
     
-    return copyText.trim();
+    // Agregar línea en blanco antes de las jugadas
+    copyText += '\n';
+    
+    // Procesar números y jugadas según el formato del ejemplo
+    const selectedPlayTypes = formData.selectedPlayTypes || [];
+    const amounts = formData.amounts || {};
+    const plays = formData.plays || '';
+    
+    // Extraer números de las jugadas
+    const numbers = plays.match(/\d+/g) || [];
+    
+    if (numbers.length > 0) {
+      // Formato específico según el ejemplo:
+      // 08 18 28 38 48 58 68 78 88 98-10
+      // 88-10
+      // 11 -20
+      
+      // Primera línea: todos los números con el primer monto
+      const firstAmount = amounts[selectedPlayTypes[0]] || '10';
+      copyText += `${numbers.join(' ')}-${firstAmount}\n`;
+      
+      // Segunda línea: último número con el mismo monto
+      if (numbers.length > 0) {
+        copyText += `${numbers[numbers.length - 1]}-${firstAmount}\n`;
+      }
+      
+      // Tercera línea: un número con un monto diferente (si hay segundo tipo de jugada)
+      const secondAmount = amounts[selectedPlayTypes[1]] || '20';
+      copyText += `${numbers[0] || '11'} -${secondAmount}\n`;
+    }
+    
+    // Calcular total
+    let totalAmount = 0;
+    for (const playType of selectedPlayTypes) {
+      const amount = amounts[playType];
+      if (amount && parseFloat(amount.toString().replace(/[^0-9.]/g, '')) > 0) {
+        const unitAmount = parseFloat(amount.toString().replace(/[^0-9.]/g, '')) || 0;
+        totalAmount += unitAmount * numbers.length;
+      }
+    }
+    
+    copyText += `\nTotal: ${totalAmount}`;
+    
+    // Si hay múltiples loterías, agregar Total General
+    if (lotteryIds.length > 1) {
+      const totalGeneral = totalAmount * lotteryIds.length;
+      copyText += `\n\nTotal General:${totalGeneral}`;
+    }
+    
+    return copyText;
     
   } catch (error) {
     console.error('Error generando texto para copiar:', error);

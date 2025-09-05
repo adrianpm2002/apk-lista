@@ -10,6 +10,7 @@ import {
   Modal,
   Dimensions,
   TextInput,
+  Platform,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import useStatistics from '../hooks/useStatistics';
@@ -21,6 +22,14 @@ import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { useDarkMode } from '../contexts/UnifiedDarkModeContext';
+
+// Importación condicional para exportación PDF
+let exportPdfModule;
+if (Platform.OS === 'web') {
+  exportPdfModule = require('../utils/pdfExport.web');
+} else {
+  exportPdfModule = require('../utils/pdfExport.native');
+}
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -444,25 +453,8 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onModeVisibilityCha
         ${sections}
       </body></html>`;
       
-      // Función simple de export para evitar problemas de bundling
-      const exportPdf = async (html) => {
-        try {
-          const w = window.open('', '_blank');
-          if (w) {
-            w.document.open();
-            w.document.write(html);
-            w.document.close();
-            w.focus();
-            w.print();
-            return true;
-          }
-          return false;
-        } catch (e) {
-          return false;
-        }
-      };
-      
-      const ok = await exportPdf(html);
+      // Usar el módulo de exportación según la plataforma
+      const ok = await exportPdfModule.exportPdf(html);
       return !!ok;
     }catch(e){ return false; }
   };
