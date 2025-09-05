@@ -18,7 +18,6 @@ import StatisticsChart from '../components/StatisticsChart';
 import DataTable from '../components/DataTable';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
-import { getDailyStats, getPlaysDetails, getTotalRecogidoHistorico, getTotalPagadoHistorico } from '../services/listeroStatsService';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { useDarkMode } from '../contexts/DarkModeContext';
@@ -41,8 +40,9 @@ const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, onModeVisibilityChange }) => {
-  // Estado local para bank ID
+  // Estado local para bank ID y usuario
   const [currentBankId, setCurrentBankId] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
   
   // TODO: Configurar qué información mostrar según el rol (colector vs listero/admin)
   // Para colectores: mostrar solo sus propias jugadas y estadísticas
@@ -52,26 +52,38 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   useEffect(() => {
     const loadBankId = async () => {
       try {
-        console.log('🔍 [StatisticsScreen] Iniciando carga de bankId...');
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          console.log('❌ [StatisticsScreen] No hay usuario autenticado');
+          // ...
           return;
         }
         
-        console.log('👤 [StatisticsScreen] Usuario encontrado:', user.id);
-        const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).single();
+        const { data: profile } = await supabase.from('profiles').select('role,id_banco,id_collector').eq('id', user.id).single();
         if (!profile) {
-          console.log('❌ [StatisticsScreen] No se encontró perfil del usuario');
+          // ...
           return;
         }
         
-        console.log('📋 [StatisticsScreen] Perfil cargado:', profile);
-        const bId = profile.role === 'admin' ? user.id : profile.id_banco;
-        console.log('🏦 [StatisticsScreen] Bank ID determinado:', bId, 'para rol:', profile.role);
+        // Configurar userRole para la interfaz
+        setUserRole(profile.role);
+        setCurrentUserId(user.id);
+        
+        // Determinar bankId según el rol
+        let bId;
+        if (profile.role === 'admin') {
+          bId = profile.id_banco;
+        } else if (profile.role === 'collector') {
+          bId = profile.id_banco;
+        } else if (profile.role === 'listero') {
+          bId = profile.id_banco;
+        } else {
+          bId = profile.id_banco;
+        }
+        
+  // ...
         setCurrentBankId(bId);
       } catch (e) {
-        console.error('❌ [StatisticsScreen] Error loading bankId:', e);
+  // ...
       }
     };
     loadBankId();
@@ -95,11 +107,6 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('charts');
   const [chartHeight, setChartHeight] = useState(240);
-  const [dailySeries, setDailySeries] = useState([]);
-  // Eliminado: series por horario
-  const [detailRows, setDetailRows] = useState([]);
-  const [totalHistorico, setTotalHistorico] = useState(0);
-  const [totalPagadoHistorico, setTotalPagadoHistorico] = useState(0);
   // Estado de expansión para grupos en Detalles (debe estar a nivel de componente para mantener el orden de hooks)
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   // Búsqueda en detalles
@@ -108,6 +115,15 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   // Estados para sidebar
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
+
+  // Función para formatear montos con decimales
+  const formatMoney = (amount) => {
+    const num = Number(amount) || 0;
+    return `$${num.toLocaleString('es-DO', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    })}`;
+  };
 
   // Hook de estadísticas
   const {
@@ -125,20 +141,15 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
 
   // Agregar logs cuando cambien los datos del hook
   useEffect(() => {
-    console.log('🎯 [StatisticsScreen] Datos del hook actualizados:');
-    console.log('  - KPI Data:', kpiData);
-    console.log('  - Chart Data:', chartData?.length || 0, 'puntos');
-    console.log('  - Table Data:', tableData?.length || 0, 'filas');
-    console.log('  - Lotteries:', lotteries?.length || 0);
-    console.log('  - Schedules:', schedules?.length || 0);
-    console.log('  - Loading:', loading);
-    console.log('  - Error:', error);
+  // ...
+    
+    if (error) {
+  // ...
+    }
   }, [kpiData, chartData, tableData, lotteries, schedules, loading, error]);
 
   // Opciones de períodos
   const periodOptions = [
-    { label: 'Esta semana', value: 'week' },
-    { label: 'Este mes', value: 'month' },
     { label: 'Mes pasado', value: 'lastMonth' },
     { label: 'Últimos 7 días', value: 'last7days' },
     { label: 'Últimos 30 días', value: 'last30days' },
@@ -177,7 +188,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
           }
         }
       } catch (error) {
-        console.warn('Error cargando perfil de usuario:', error);
+  // ...
         // No bloquear la interfaz por este error
       }
     };
@@ -199,11 +210,9 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
     let cancelled = false;
     const loadSchedulesForLottery = async () => {
       try {
-        console.log('🕐 [StatisticsScreen] Cargando horarios para lotería:', selectedLottery);
         // Resetear selección de horario al cambiar lotería
         setSelectedSchedule('all');
         if (selectedLottery === 'all') {
-          console.log('📝 [StatisticsScreen] Lotería = "all", limpiando horarios');
           setLotterySchedules([]);
           return;
         }
@@ -215,16 +224,12 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
           .order('nombre', { ascending: true });
         if (error) throw error;
         
-        console.log('🕐 [StatisticsScreen] Horarios encontrados:', data?.length || 0);
-        console.log('🕐 [StatisticsScreen] Horarios:', data);
-        
         if (!cancelled) {
           const mapped = (data || []).map(h => ({ id: String(h.id), name: h.nombre }));
           setLotterySchedules(mapped);
-          console.log('✅ [StatisticsScreen] Horarios mapeados:', mapped);
         }
       } catch (e) {
-        console.error('❌ [StatisticsScreen] Error cargando horarios:', e);
+  // ...
         if (!cancelled) setLotterySchedules([]);
       }
     };
@@ -234,19 +239,16 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
 
   const loadInitialData = async () => {
     try {
-      console.log('🚀 [StatisticsScreen] Iniciando carga de datos iniciales...');
-      console.log('🏦 [StatisticsScreen] Current bankId:', currentBankId);
       await loadAllStats();
-      console.log('✅ [StatisticsScreen] Datos iniciales cargados exitosamente');
     } catch (error) {
-      console.error('❌ [StatisticsScreen] Error en loadInitialData:', error);
+  // ...
       Alert.alert('Error', 'No se pudieron cargar las estadísticas iniciales');
     }
   };
 
   // Aplicar filtro de período
   const applyPeriodFilter = (period) => {
-    console.log('🔍 [StatisticsScreen] Aplicando filtro de período:', period);
+  // ...
     const now = new Date();
     let start, end;
 
@@ -258,15 +260,6 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
       case 'yesterday':
         start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
         end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
-        break;
-      case 'week':
-        const startOfWeek = now.getDate() - now.getDay();
-        start = new Date(now.getFullYear(), now.getMonth(), startOfWeek);
-        end = new Date();
-        break;
-      case 'month':
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date();
         break;
       case 'lastMonth':
         start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -284,8 +277,6 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
         return;
     }
 
-    console.log('📅 [StatisticsScreen] Rango calculado:', { start, end });
-
   setStartDate(start);
   setEndDate(end);
   // Si se cambia la lotería a 'all', limpiar horario
@@ -298,10 +289,8 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
       scheduleId: selectedSchedule === 'all' ? null : selectedSchedule,
     };
     
-    console.log('🔧 [StatisticsScreen] Aplicando filtros al hook:', filterParams);
     applyFilters(filterParams);
-    // Cargar nuevas series desde servicio real
-    void loadServiceData(start, end);
+    // El hook useStatistics ya maneja toda la carga de datos
   };
 
   // Aplicar filtros personalizados
@@ -313,7 +302,6 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
       lotteryId: selectedLottery === 'all' ? null : selectedLottery,
       scheduleId: selectedSchedule === 'all' ? null : selectedSchedule,
     });
-    void loadServiceData(startDate, endDate);
   // noop: modal eliminado
   };
 
@@ -322,72 +310,12 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
     setRefreshing(true);
     try {
       await loadAllStats();
-      await loadServiceData(startDate, endDate);
     } catch (error) {
       Alert.alert('Error', 'No se pudieron actualizar las estadísticas');
     } finally {
       setRefreshing(false);
     }
-  }, [loadAllStats, startDate, endDate]);
-
-  const loadServiceData = async (start, end) => {
-    try{
-      console.log('📊 [StatisticsScreen] Iniciando loadServiceData...');
-      console.log('📅 [StatisticsScreen] Rango de fechas:', { start, end });
-      console.log('🎰 [StatisticsScreen] Filtros:', { 
-        selectedLottery, 
-        selectedSchedule, 
-        selectedPeriod 
-      });
-      
-      const { supabase } = await import('../supabaseClient');
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log('❌ [StatisticsScreen] No hay usuario para loadServiceData');
-        return;
-      }
-      
-      const listeroId = user.id;
-      console.log('👤 [StatisticsScreen] ListeroId:', listeroId);
-      
-      const lotteryId = selectedLottery === 'all' ? null : selectedLottery;
-      const scheduleId = selectedSchedule === 'all' ? null : selectedSchedule;
-      const isTodayPeriod = selectedPeriod === 'today';
-      const includeToday = isTodayPeriod; // solo incluir hoy explícitamente
-      const onlyClosedToday = isTodayPeriod; // y solo loterías cerradas
-      
-      console.log('🔧 [StatisticsScreen] Parámetros de consulta:', {
-        listeroId,
-        lotteryId,
-        scheduleId,
-        includeToday,
-        onlyClosedToday
-      });
-      
-      console.log('🔄 [StatisticsScreen] Ejecutando consultas en paralelo...');
-      const [daily, details, totalHist, totalPaidHist] = await Promise.all([
-        getDailyStats(listeroId, { from:start, to:end, lotteryId, scheduleId, includeToday, onlyClosedToday }),
-        getPlaysDetails(listeroId, { from:start, to:end, lotteryId, scheduleId, includeToday, onlyClosedToday }),
-        getTotalRecogidoHistorico(listeroId, { excludeToday: true }),
-        getTotalPagadoHistorico(listeroId, { excludeToday: true }),
-      ]);
-
-      console.log('📈 [StatisticsScreen] Resultados obtenidos:');
-      console.log('  - Daily stats:', daily?.length || 0, 'registros');
-      console.log('  - Details:', details?.length || 0, 'jugadas');
-      console.log('  - Total histórico:', totalHist);
-      console.log('  - Total pagado histórico:', totalPaidHist);
-  
-      setDailySeries(daily);
-      setDetailRows(details);
-      setTotalHistorico(totalHist);
-      setTotalPagadoHistorico(totalPaidHist);
-      
-      console.log('✅ [StatisticsScreen] loadServiceData completado exitosamente');
-    }catch(e){ 
-      console.error('❌ [StatisticsScreen] Error en loadServiceData:', e);
-    }
-  };
+  }, [loadAllStats]);
 
   // Manejar exportación
   const handleExport = async (format) => {
@@ -415,7 +343,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
       return (Number(row.monto_unitario)||0)*count;
     };
     const map = new Map();
-    for(const r of detailRows){
+    for(const r of tableData){
       const dayKey = dayKeyOf(r.created_at);
       const dayLabel = dayLabelOf(r.created_at);
       const lot = r.lottery_name || 'Lotería';
@@ -461,8 +389,8 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
             <td>${(p.nota||'')}</td>
             <td>${(p.jugada||'')}</td>
             <td>${(p.numeros||'').replace(/</g,'&lt;')}</td>
-            <td>${Math.round(p.total).toLocaleString('es-DO')}</td>
-            <td>${p.pagado>0? Math.round(p.pagado).toLocaleString('es-DO') : 'Sin premio'}</td>
+            <td>${formatMoney(p.bruto)}</td>
+            <td>${p.pagado>0? formatMoney(p.pagado) : 'Sin premio'}</td>
           </tr>`).join('');
         return `${header}
           <table>
@@ -633,21 +561,26 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
           </View>
         )}
 
-        {/* Lotería (chips) */}
-        <Text style={[styles.panelLabel, isDarkMode && styles.panelLabelDark]}>Lotería</Text>
-        <View style={styles.chipsRow}>
-          {renderChip('all', selectedLottery, setSelectedLottery, 'Todas')}
-          {lotteries.map(l => renderChip(l.id.toString(), selectedLottery, setSelectedLottery, l.name))}
-        </View>
-
-        {/* Horario (chips) - solo si hay lotería específica */}
-    {selectedLottery !== 'all' && (
+        {/* Filtro de Lotería deshabilitado - usando solo datos reales filtrados por usuario */}
+        {false && (
           <>
-            <Text style={[styles.panelLabel, isDarkMode && styles.panelLabelDark]}>Horario</Text>
+            {/* Lotería (chips) */}
+            <Text style={[styles.panelLabel, isDarkMode && styles.panelLabelDark]}>Lotería</Text>
             <View style={styles.chipsRow}>
-              {renderChip('all', selectedSchedule, setSelectedSchedule, 'Todos')}
-      {lotterySchedules.map(h => renderChip(h.id, selectedSchedule, setSelectedSchedule, h.name))}
+              {renderChip('all', selectedLottery, setSelectedLottery, 'Todas')}
+              {lotteries.map(l => renderChip(l.id.toString(), selectedLottery, setSelectedLottery, l.name))}
             </View>
+
+            {/* Horario (chips) - solo si hay lotería específica */}
+            {selectedLottery !== 'all' && (
+              <>
+                <Text style={[styles.panelLabel, isDarkMode && styles.panelLabelDark]}>Horario</Text>
+                <View style={styles.chipsRow}>
+                  {renderChip('all', selectedSchedule, setSelectedSchedule, 'Todos')}
+                  {lotterySchedules.map(h => renderChip(h.id, selectedSchedule, setSelectedSchedule, h.name))}
+                </View>
+              </>
+            )}
           </>
         )}
 
@@ -675,8 +608,6 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   // Función para generar título dinámico del gráfico
   const getChartTitle = () => {
     const titleMap = {
-      'week': 'Ganancias vs Pérdidas (Esta semana)',
-      'month': 'Ganancias vs Pérdidas (Este mes)',
       'lastMonth': 'Ganancias vs Pérdidas (Mes pasado)',
       'last7days': 'Ganancias vs Pérdidas (Últimos 7 días)',
       'last30days': 'Ganancias vs Pérdidas (Últimos 30 días)',
@@ -688,91 +619,91 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   // Renderizar contenido del tab de gráficos
   const renderChartsTab = () => (
     <ScrollView style={styles.tabContent}>
-  {/* Profit/Loss: línea base con barras arriba/abajo por día del período */}
-      {dailySeries.length > 0 && (()=>{
-        const toStr = (dt)=>{
-          const y=dt.getFullYear(); const m=String(dt.getMonth()+1).padStart(2,'0'); const d=String(dt.getDate()).padStart(2,'0');
-          return `${y}-${m}-${d}`;
-        };
+      {/* Debug: Mostrar información de chartData */}
+      {!chartData?.trends || chartData.trends.length === 0 ? (
+        <View style={[styles.kpiCard, { backgroundColor: isDarkMode ? '#2c2c2c' : '#f8f9fa' }]}>
+          <Text style={[styles.kpiTitle, { color: isDarkMode ? '#ffffff' : '#333333' }]}>
+            📊 Datos de Gráfico
+          </Text>
+          <Text style={[styles.kpiValue, { color: isDarkMode ? '#cccccc' : '#666666' }]}>
+            {chartData ? `Tendencias: ${chartData.trends?.length || 0}` : 'No hay datos de chartData'}
+          </Text>
+        </View>
+      ) : null}
+      
+      {/* Gráfico de Balance basado en datos reales */}
+      {tableData?.plays && tableData.plays.length > 0 && (()=>{
         const fmtShort = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
-        const plMap = new Map(dailySeries.map(x=> [x.day, Number(x.total_recogido) - Number(x.total_pagado)]));
-        const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-        const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-        const days=[]; const cur=new Date(start);
-        while(cur<=end){ days.push(new Date(cur)); cur.setDate(cur.getDate()+1); }
-        // construir serie diaria completa
-        const daily = days.map(d=> ({ date: toStr(d), d, profit: plMap.get(toStr(d)) ?? 0 }));
-        // si el rango es pequeño, mantener últimos 7 días máximo
-        if(daily.length > 7 && selectedPeriod === 'last7days') {
-          const last7 = daily.slice(-7);
-          const series = last7.map(x=> ({ date: x.date, profit: x.profit, label: fmtShort(x.d) }));
-          return (
-            <View>
-              <StatisticsChart
-                type="profitLoss"
-                title={getChartTitle()}
-                data={series}
-                isDarkMode={isDarkMode}
-                height={260}
-              />
-              {/* KPIs del período debajo del gráfico */}
-              {(() => {
-                const sum = (arr, key) => arr.reduce((acc, it) => acc + (Number(it[key]) || 0), 0);
-                const collected = sum(dailySeries, 'total_recogido');
-                const paid = sum(dailySeries, 'total_pagado');
-                const net = collected - paid;
-                return (
-                  <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
-                    <View style={{ flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                      <Text style={{ color:'#6c757d' }}>Recogido (período)</Text>
-                      <Text style={{ fontSize:18, fontWeight:'800', color:'#27AE60' }}>${Math.round(collected).toLocaleString('es-DO')}</Text>
-                    </View>
-                    <View style={{ flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                      <Text style={{ color:'#6c757d' }}>Balance (período)</Text>
-                      <Text style={{ fontSize:18, fontWeight:'800', color: net>=0? '#27AE60':'#e74c3c' }}>${Math.round(net).toLocaleString('es-DO')}</Text>
-                    </View>
-                  </View>
-                );
-              })()}
-            </View>
-          );
-        }
-        // agregar agregación por rangos para no saturar
-        const maxBars = 14; // objetivo: ~14 barras
-        const bucketSize = Math.max(1, Math.ceil(daily.length / maxBars));
-        const buckets = [];
-        for(let i=0; i<daily.length; i+=bucketSize){
-          const chunk = daily.slice(i, i+bucketSize);
-          const profit = chunk.reduce((s, x)=> s + (x.profit||0), 0);
-          const first = chunk[0]?.d; const last = chunk[chunk.length-1]?.d || first;
-          const label = chunk.length===1 ? fmtShort(first) : `${fmtShort(first)}-${fmtShort(last)}`;
-          buckets.push({ profit, label, date: chunk[0]?.date });
-        }
-        const series = buckets;
+        
+        // Agrupar jugadas por fecha y calcular balance diario
+        const dailyBalanceMap = new Map();
+        
+        tableData.plays.forEach(play => {
+          const playDate = new Date(play.created_at);
+          const dateKey = playDate.toISOString().split('T')[0]; // YYYY-MM-DD
+          
+          if (!dailyBalanceMap.has(dateKey)) {
+            dailyBalanceMap.set(dateKey, {
+              date: dateKey,
+              d: new Date(playDate.getFullYear(), playDate.getMonth(), playDate.getDate()),
+              bruto: 0,
+              pagado: 0,
+              balance: 0
+            });
+          }
+          
+          const dayData = dailyBalanceMap.get(dateKey);
+          dayData.bruto += Number(play.bruto || 0);
+          dayData.pagado += Number(play.premio || 0);
+          dayData.balance = dayData.bruto - dayData.pagado;
+        });
+        
+        // Convertir a array y ordenar por fecha
+        const dailyData = Array.from(dailyBalanceMap.values())
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
+        
+        // Si tenemos más de 7 días, tomar solo los últimos 7
+        const displayData = dailyData.length > 7 ? dailyData.slice(-7) : dailyData;
+        
+        // Crear serie para el gráfico (solo balance)
+        const series = displayData.map(day => ({
+          date: day.date,
+          profit: day.balance, // El gráfico usa 'profit' pero mostramos balance
+          label: fmtShort(day.d)
+        }));
+        
         return (
           <View>
             <StatisticsChart
               type="profitLoss"
-              title={getChartTitle()}
+              title="Balance Diario"
               data={series}
               isDarkMode={isDarkMode}
               height={260}
             />
             {/* KPIs del período debajo del gráfico */}
             {(() => {
-              const sum = (arr, key) => arr.reduce((acc, it) => acc + (Number(it[key]) || 0), 0);
-              const collected = sum(dailySeries, 'total_recogido');
-              const paid = sum(dailySeries, 'total_pagado');
-              const net = collected - paid;
+              // Calcular totales del período desde tableData.plays (datos reales)
+              const playsInPeriod = tableData?.plays || [];
+              
+              const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.bruto) || 0), 0);
+              const totalGananciaListero = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
+              const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.premio) || 0), 0);
+              const totalBalance = totalBruto - totalPagado;
+              
               return (
                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
-                  <View style={{ flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                    <Text style={{ color:'#6c757d' }}>Recogido (período)</Text>
-                    <Text style={{ fontSize:18, fontWeight:'800', color:'#27AE60' }}>${Math.round(collected).toLocaleString('es-DO')}</Text>
+                  <View style={{ flexBasis:'31%', backgroundColor: isDarkMode ? '#2c3e50' : '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                    <Text style={{ color: isDarkMode ? '#ecf0f1' : '#6c757d', fontSize: 12 }}>Bruto</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatMoney(totalBruto)}</Text>
                   </View>
-                  <View style={{ flexBasis:'48%', backgroundColor:'#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                    <Text style={{ color:'#6c757d' }}>Balance (período)</Text>
-                    <Text style={{ fontSize:18, fontWeight:'800', color: net>=0? '#27AE60':'#e74c3c' }}>${Math.round(net).toLocaleString('es-DO')}</Text>
+                  <View style={{ flexBasis:'31%', backgroundColor: isDarkMode ? '#2c3e50' : '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                    <Text style={{ color: isDarkMode ? '#ecf0f1' : '#6c757d', fontSize: 12 }}>Ganancia</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatMoney(totalGananciaListero)}</Text>
+                  </View>
+                  <View style={{ flexBasis:'31%', backgroundColor: isDarkMode ? '#2c3e50' : '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                    <Text style={{ color: isDarkMode ? '#ecf0f1' : '#6c757d', fontSize: 12 }}>Balance</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color: totalBalance>=0? '#27AE60':'#e74c3c' }}>{formatMoney(totalBalance)}</Text>
                   </View>
                 </View>
               );
@@ -790,88 +721,126 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   const renderDetailsTab = () => (
     <ScrollView style={styles.tabContent}>
       {(()=>{
-        if(!detailRows || detailRows.length===0) return (
+        if(!tableData?.plays || tableData.plays.length === 0) return (
           <Text style={[styles.empty, { marginTop: 16 }]}>
             Sin jugadas en el período seleccionado
           </Text>
         );
 
-  // Helpers
-  const dayKeyOf = (ts)=>{ const d=new Date(ts); d.setHours(0,0,0,0); return d.getTime(); };
-  const dayLabelOf = (ts)=>{ const d=new Date(ts); return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }); };
-        const timeStr = (ts)=> new Date(ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit', hour12: true});
-        const inferCollected = (row)=>{
-          const mt = row.monto_total;
-          if(mt!=null && mt!==undefined) return Number(mt)||0;
-          const count = String(row.numeros||'').split(',').map(s=>s.trim()).filter(Boolean).length;
-          return (Number(row.monto_unitario)||0)*count;
+        // Helpers para formateo
+        const dayKeyOf = (ts) => { 
+          const d = new Date(ts); 
+          d.setHours(0,0,0,0); 
+          return d.getTime(); 
         };
-        const fmt = (n)=> `$${Math.round(Number(n)||0).toLocaleString('es-DO')}`;
+        
+        const dayLabelOf = (ts) => { 
+          const d = new Date(ts); 
+          return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }); 
+        };
+        
+        const timeStr = (ts) => new Date(ts).toLocaleTimeString('es-ES', {
+          hour:'2-digit', 
+          minute:'2-digit', 
+          hour12: true
+        });
+        
+        const fmt = (n) => {
+          const num = Number(n) || 0;
+          return `$${num.toLocaleString('es-DO', { 
+            minimumFractionDigits: 2, 
+            maximumFractionDigits: 2 
+          })}`;
+        };
 
-        // Agrupar por día + lotería + horario
+        // Agrupar por fecha + lotería + horario + resultado
         const map = new Map();
-        for(const r of detailRows){
+        
+        for(const r of tableData.plays) {
           const dayKey = dayKeyOf(r.created_at);
           const dayLabel = dayLabelOf(r.created_at);
-          const lot = r.lottery_name || 'Lotería';
-          const sch = r.schedule_name || 'Horario';
-          const key = `${dayKey}|${lot}|${sch}`;
-          if(!map.has(key)) map.set(key, { key, dayKey, dayLabel, lottery: lot, schedule: sch, plays: [], totalRecogido:0, totalPagado:0, totalListeroEarnings:0, resultado: undefined });
-          const g = map.get(key);
-          const collected = inferCollected(r);
-          g.totalRecogido += collected;
-          g.totalPagado += Number(r.pago_calculado||0);
-          g.totalListeroEarnings += Number(r.listero_earning||0); // Sumar ganancias del listero
-          if (!g.resultado && r.resultado) {
-            g.resultado = r.resultado;
+          const lottery = r.loteria_nombre || 'Lotería';
+          const schedule = r.horario_nombre || 'Horario';
+          const resultado = r.resultado || null;
+          
+          const key = `${dayKey}|${lottery}|${schedule}|${resultado || 'sin_resultado'}`;
+          
+          if(!map.has(key)) {
+            map.set(key, { 
+              key, 
+              dayKey, 
+              dayLabel, 
+              lottery, 
+              schedule, 
+              resultado,
+              plays: [], 
+              totalGananciaListero: 0,  // Suma de ganancia_listero
+              totalRecogido: 0,         // Suma de bruto
+              totalBalance: 0,          // Suma de balance_listero
+              totalPagado: 0            // Suma de premios pagados
+            });
           }
-          g.plays.push({
+          
+          const group = map.get(key);
+          
+          // Acumular totales
+          group.totalGananciaListero += Number(r.ganancia_listero || 0);
+          group.totalRecogido += Number(r.bruto || 0);
+          group.totalBalance += Number(r.balance_listero || 0);
+          group.totalPagado += Number(r.premio || 0);
+          
+          // Agregar jugada individual
+          group.plays.push({
             time: timeStr(r.created_at),
             ts: new Date(r.created_at).getTime(),
-            nota: r.nota,
-            jugada: r.jugada,
-            numeros: r.numeros,
-            total: collected,
-            pagado: Number(r.pago_calculado||0),
-            listeroEarning: Number(r.listero_earning||0), // Ganancia del listero para esta jugada
+            nota: r.nota || '',
+            jugada: r.play_type || '',
+            numeros: r.numeros || '',
+            bruto: Number(r.bruto || 0),
+            ganancia: Number(r.ganancia_listero || 0),
+            pagado: Number(r.premio || 0),
+            balance: Number(r.balance_listero || 0)
           });
         }
+        
+        // Ordenar grupos: fecha descendente, luego lotería y horario ascendente
         let groups = Array.from(map.values())
-          // Orden: fecha descendente (más nueva primero), luego lotería y horario asc
-          .sort((a,b)=> (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
+          .sort((a,b) => (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
 
-    // Filtro por búsqueda (solo nota o jugada)
+        // Filtro por búsqueda (nota o jugada)
         if (detailsSearchQuery && detailsSearchQuery.trim().length > 0) {
           const q = detailsSearchQuery.trim().toLowerCase();
           groups = groups.map(g => {
-            const plays = g.plays.filter(p =>
-      (p.nota && String(p.nota).toLowerCase().includes(q)) ||
-      (p.jugada && String(p.jugada).toLowerCase().includes(q))
-            ).sort((a,b)=> b.ts - a.ts);
+            const filteredPlays = g.plays.filter(p =>
+              (p.nota && String(p.nota).toLowerCase().includes(q)) ||
+              (p.jugada && String(p.jugada).toLowerCase().includes(q))
+            ).sort((a,b) => b.ts - a.ts);
+            
             return { 
               ...g, 
-              plays, 
-              totalRecogido: plays.reduce((s,x)=>s+x.total,0), 
-              totalPagado: plays.reduce((s,x)=>s+x.pagado,0),
-              totalListeroEarnings: plays.reduce((s,x)=>s+x.listeroEarning,0)
+              plays: filteredPlays, 
+              totalRecogido: filteredPlays.reduce((s,x) => s + x.bruto, 0), 
+              totalGananciaListero: filteredPlays.reduce((s,x) => s + x.ganancia, 0),
+              totalBalance: filteredPlays.reduce((s,x) => s + x.balance, 0),
+              totalPagado: filteredPlays.reduce((s,x) => s + x.pagado, 0)
             };
           }).filter(g => g.plays.length > 0);
+        } else {
+          // Ordenar jugadas dentro de cada grupo por hora
+          groups.forEach(g => {
+            g.plays.sort((a,b) => b.ts - a.ts);
+          });
         }
 
-        // Asegurar orden de jugadas dentro de cada grupo cuando no hay filtro
-        if (!detailsSearchQuery || detailsSearchQuery.trim().length === 0) {
-          groups.forEach(g => { g.plays.sort((a,b)=> b.ts - a.ts); });
-        }
-
-  // Usar estado top-level para expandir/colapsar grupos
-  const expanded = expandedGroups;
-  const toggle = (key)=> setExpandedGroups(prev=>{ const next=new Set(prev); if(next.has(key)) next.delete(key); else next.add(key); return next; });
+        // Usar estado top-level para expandir/colapsar grupos
+        const expanded = expandedGroups;
+        const toggle = (key)=> setExpandedGroups(prev=>{ const next=new Set(prev); if(next.has(key)) next.delete(key); else next.add(key); return next; });
 
         return (
           <View style={{ paddingHorizontal:8 }}>
             {groups.map(g=>{
               const open = expanded.has(g.key);
-              const balance = Math.round(g.totalRecogido - g.totalPagado);
+              const balance = g.totalRecogido - g.totalPagado;
               return (
                 <View key={g.key} style={[styles.compactGroupCard, isDarkMode && styles.compactGroupCardDark]}>
                   <TouchableOpacity style={styles.compactGroupHeader} onPress={()=> toggle(g.key)}>
@@ -886,10 +855,10 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
                         </Text>
                       </View>
                       <View style={styles.compactStatsRow}>
-                        <Text style={[styles.compactStatChip, styles.compactEarningsChip]}>💼 {fmt(g.totalListeroEarnings)}</Text>
-                        <Text style={[styles.compactStatChip, styles.compactCollectedChip]}>💰 {fmt(g.totalRecogido)}</Text>
+                        <Text style={[styles.compactStatChip, styles.compactEarningsChip]}>Listero: {fmt(g.totalGananciaListero)}</Text>
+                        <Text style={[styles.compactStatChip, styles.compactCollectedChip]}>Bruto: {fmt(g.totalRecogido)}</Text>
                         <Text style={[styles.compactStatChip, balance>=0? styles.compactBalancePosChip: styles.compactBalanceNegChip]}>
-                          {balance>=0? '📈':'📉'} {fmt(balance)}
+                          Balance: {fmt(balance)}
                         </Text>
                       </View>
                     </View>
@@ -906,6 +875,7 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
                           <Text style={[styles.excelHeaderCell, { width: 80 }]}>Total</Text>
                           <Text style={[styles.excelHeaderCell, { width: 80 }]}>Ganancia</Text>
                           <Text style={[styles.excelHeaderCell, { width: 80 }]}>Pagado</Text>
+                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Balance</Text>
                         </View>
                         {/* Filas de datos estilo Excel */}
                         {g.plays.map((p, idx) => (
@@ -929,14 +899,19 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
                               </ScrollView>
                             </View>
                             <View style={[styles.excelCellContainer, { width: 80 }]}>
-                              <Text style={styles.excelCell} numberOfLines={1}>{fmt(p.total)}</Text>
+                              <Text style={styles.excelCell} numberOfLines={1}>{fmt(p.bruto)}</Text>
                             </View>
                             <View style={[styles.excelCellContainer, { width: 80 }]}>
-                              <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(p.listeroEarning)}</Text>
+                              <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(p.ganancia)}</Text>
                             </View>
                             <View style={[styles.excelCellContainer, { width: 80 }]}>
                               <Text style={styles.excelCell} numberOfLines={2}>
                                 {p.pagado > 0 ? fmt(p.pagado) : 'Sin premio'}
+                              </Text>
+                            </View>
+                            <View style={[styles.excelCellContainer, { width: 80 }]}>
+                              <Text style={[styles.excelCell, p.balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                                {fmt(p.balance)}
                               </Text>
                             </View>
                           </View>

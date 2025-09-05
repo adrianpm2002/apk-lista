@@ -278,6 +278,80 @@ function guessPlayType(numbersStr){
 }
 
 export async function getDailyStats(listeroId, { from, to, lotteryId=null, scheduleId=null, includeToday=false, onlyClosedToday=false }){
+  try {
+    // Construir query para v_statistics_complete
+    const { startStr, endStr } = buildRangeStrings(from, to);
+    
+    let query = supabase
+      .from('v_statistics_complete')
+      .select('*')
+      .eq('id_listero', listeroId)
+      .gte('created_at', startStr)
+      .lte('created_at', endStr);
+
+    // Aplicar filtros opcionales
+    if (lotteryId) {
+      query = query.eq('loteria_id', lotteryId);
+    }
+    if (scheduleId) {
+      query = query.eq('horario_id', scheduleId);
+    }
+
+    const { data: statsData, error } = await query;
+
+    if (error) {
+      console.error('Error consultando v_statistics_complete:', error);
+      throw error;
+    }
+
+    // Agrupar por día y calcular totales
+    const groupedByDay = (statsData || []).reduce((acc, row) => {
+      const day = row.fecha_dia || new Date().toISOString().split('T')[0];
+      
+      // Aplicar filtros de hoy si es necesario
+      const todayStr = toLocalDateStr(new Date());
+      if (day === todayStr && onlyClosedToday && includeToday) {
+        // Solo incluir si el estado de la lotería es cerrado
+        if (row.estado_loteria !== 'cerrado') {
+          return acc;
+        }
+      }
+      
+      if (!acc[day]) {
+        acc[day] = {
+          day,
+          total_recogido: 0,
+          total_pagado: 0,
+          listeroEarning: 0
+        };
+      }
+      
+      acc[day].total_recogido += Number(row.bruto) || 0;
+      acc[day].total_pagado += Number(row.premio) || 0;
+      acc[day].listeroEarning += Number(row.ganancia_listero) || 0;
+      
+      return acc;
+    }, {});
+
+    // Convertir a array y ordenar por día
+    const dailyStats = Object.values(groupedByDay).sort((a, b) => a.day.localeCompare(b.day));
+    
+    console.log('📊 getDailyStats desde v_statistics_complete:', {
+      input: { listeroId, from: startStr, to: endStr, lotteryId, scheduleId },
+      output: dailyStats
+    });
+    
+    return dailyStats;
+    
+  } catch (error) {
+    console.error('Error en getDailyStats:', error);
+    // Fallback al método original si hay error
+    return getDailyStatsOriginal(listeroId, { from, to, lotteryId, scheduleId, includeToday, onlyClosedToday });
+  }
+}
+
+// Función original como fallback
+async function getDailyStatsOriginal(listeroId, { from, to, lotteryId=null, scheduleId=null, includeToday=false, onlyClosedToday=false }){
   // Obtener banco del listero primero
   const { data: listeroProfile } = await supabase
     .from('profiles')
@@ -386,6 +460,81 @@ export async function getByHorarioStats(listeroId, { from, to, includeToday=fals
 }
 
 export async function getPlaysDetails(listeroId, { from, to, lotteryId=null, scheduleId=null, includeToday=false, onlyClosedToday=false }){
+  try {
+    // Construir query para v_statistics_complete
+    const { startStr, endStr } = buildRangeStrings(from, to);
+    
+    let query = supabase
+      .from('v_statistics_complete')
+      .select('*')
+      .eq('id_listero', listeroId)
+      .gte('created_at', startStr)
+      .lte('created_at', endStr)
+      .order('created_at', { ascending: false });
+
+    // Aplicar filtros opcionales
+    if (lotteryId) {
+      query = query.eq('loteria_id', lotteryId);
+    }
+    if (scheduleId) {
+      query = query.eq('horario_id', scheduleId);
+    }
+
+    const { data: statsData, error } = await query;
+
+    if (error) {
+      console.error('Error consultando v_statistics_complete para detalles:', error);
+      throw error;
+    }
+
+    // Filtrar por hoy si es necesario
+    const todayStr = toLocalDateStr(new Date());
+    const filteredData = (statsData || []).filter(row => {
+      const rowDay = row.fecha_dia;
+      
+      if (rowDay === todayStr && onlyClosedToday && includeToday) {
+        // Solo incluir si el estado de la lotería es cerrado
+        return row.estado_loteria === 'cerrado';
+      }
+      
+      return true;
+    });
+
+    // Mapear a formato esperado
+    const result = filteredData.map(row => ({
+      created_at: row.created_at,
+      jugada: row.play_type,
+      numeros: row.numeros,
+      monto_unitario: row.monto_unitario,
+      monto_total: row.bruto,
+      nota: row.nota || '',
+      lottery_name: row.loteria_nombre,
+      schedule_name: row.horario_nombre,
+      resultado: row.resultado,
+      pago_calculado: row.premio,
+      estado: row.premio > 0 ? 'ganada' : 'perdida',
+      ganancia_listero: row.ganancia_listero,
+      ganancia_colector: row.ganancia_colector,
+      balance_listero: row.balance_listero,
+      balance_colector: row.balance_colector
+    }));
+    
+    console.log('📋 getPlaysDetails desde v_statistics_complete:', {
+      input: { listeroId, from: startStr, to: endStr, lotteryId, scheduleId },
+      output: `${result.length} jugadas`
+    });
+    
+    return result;
+    
+  } catch (error) {
+    console.error('Error en getPlaysDetails:', error);
+    // Fallback al método original si hay error
+    return getPlaysDetailsOriginal(listeroId, { from, to, lotteryId, scheduleId, includeToday, onlyClosedToday });
+  }
+}
+
+// Función original como fallback
+async function getPlaysDetailsOriginal(listeroId, { from, to, lotteryId=null, scheduleId=null, includeToday=false, onlyClosedToday=false }){
   // Obtener banco del listero primero
   const { data: listeroProfile } = await supabase
     .from('profiles')
