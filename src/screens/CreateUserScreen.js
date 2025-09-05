@@ -235,7 +235,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     try {
       const { data, error } = await supabase
         .from('precio')
-        .select('id, nombre, precios, id_banco')
+        .select('id, nombre, precios, id_banco, id_loteria')
         .eq('id_banco', currentBankId);
       if (error) { console.error('Error precio:', error); return; }
       if (userRole === 'collector') {
@@ -880,8 +880,8 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     const selectedItems = [];
     for (const [lotteryId, gainId] of Object.entries(selectedLotteryGains)) {
       if (gainId) {
-        const lottery = availableLotteries.find(l => l.id === parseInt(lotteryId));
-        const gain = gainOptions.find(g => g.id === gainId);
+        const lottery = availableLotteries.find(l => l.id === lotteryId);
+        const gain = gainOptions.find(g => g.id === gainId && g.id_loteria === lotteryId);
         if (lottery && gain) {
           selectedItems.push(`${lottery.nombre}: ${gain.nombre}`);
         }
@@ -1021,7 +1021,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                   if (lotteryName && gainId) {
                     // Buscar el nombre de la ganancia en gainOptions
                     const gain = gainOptions.find(g => g.id === gainId);
-                    const gainName = gain ? gain.nombre : gainId;
+                    const gainName = gain ? gain.nombre : `ID: ${gainId}`;
                     lotteryGainPairs.push(`${lotteryName}: ${gainName}`);
                   }
                 });
@@ -1283,7 +1283,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                       value={(() => {
                         const gainId = selectedLotteryGains[lottery.id];
                         if (!gainId) return "";
-                        const selectedGain = gainOptions.find(g => g.id === gainId);
+                        const selectedGain = gainOptions.find(g => g.id === gainId && g.id_loteria === lottery.id);
                         return selectedGain ? selectedGain.nombre : "";
                       })()}
                       onSelect={(selectedItem) => {
@@ -1292,11 +1292,13 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                       }}
                       options={[
                         { id: "none", label: 'Sin ganancia', value: "" },
-                        ...gainOptions.map(gain => ({
-                          id: gain.id,
-                          label: gain.nombre,
-                          value: gain.id
-                        }))
+                        ...gainOptions
+                          .filter(gain => gain.id_loteria === lottery.id)
+                          .map(gain => ({
+                            id: gain.id,
+                            label: gain.nombre,
+                            value: gain.id
+                          }))
                       ]}
                       placeholder="Selecciona una ganancia..."
                     />
