@@ -25,10 +25,16 @@ import { useDarkMode } from '../contexts/UnifiedDarkModeContext';
 
 // Importación condicional para exportación PDF
 let exportPdfModule;
-if (Platform.OS === 'web') {
-  exportPdfModule = require('../utils/pdfExport.web');
-} else {
-  exportPdfModule = require('../utils/pdfExport.native');
+try {
+  if (Platform.OS === 'web') {
+    exportPdfModule = require('../utils/pdfExport.web');
+  } else {
+    exportPdfModule = require('../utils/pdfExport.native');
+  }
+  console.log('Módulo PDF cargado para plataforma:', Platform.OS);
+} catch (error) {
+  console.error('Error al cargar módulo PDF:', error);
+  exportPdfModule = null;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -371,17 +377,42 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onModeVisibilityCha
   const handleExport = async (format) => {
     try {
       setShowExportModal(false);
-      const success = await exportDetailsToPDF();
-      if (success) {
-        Alert.alert('Éxito', 'Datos exportados correctamente');
+      
+      if (format === 'pdf') {
+        console.log('Iniciando exportación PDF...');
+        const success = await exportDetailsToPDF();
+        console.log('Resultado exportación:', success);
+        
+        if (success) {
+          Alert.alert('Éxito', 'PDF exportado correctamente');
+        } else {
+          Alert.alert('Error', 'No se pudo generar el PDF');
+        }
       }
     } catch (error) {
-      Alert.alert('Error', 'No se pudieron exportar los datos');
+      console.error('Error en handleExport:', error);
+      Alert.alert('Error', `No se pudieron exportar los datos: ${error.message}`);
     }
   };
 
   // ===== Export helpers (Web) =====
   const groupDetailsForExport = () => {
+    console.log('groupDetailsForExport: Iniciando...');
+    console.log('tableData:', tableData);
+    console.log('tableData es array:', Array.isArray(tableData));
+    console.log('tableData length:', tableData ? tableData.length : 'undefined');
+    
+    // Validar que tableData sea un array
+    if (!tableData || !Array.isArray(tableData)) {
+      console.error('tableData no es un array válido:', tableData);
+      return [];
+    }
+    
+    if (tableData.length === 0) {
+      console.log('tableData está vacío');
+      return [];
+    }
+    
     // Reutilizar misma agrupación base que en pantalla
     const dayKeyOf = (ts)=>{ const d=new Date(ts); d.setHours(0,0,0,0); return d.getTime(); };
     const dayLabelOf = (ts)=>{ const d=new Date(ts); return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }); };
@@ -393,6 +424,9 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onModeVisibilityCha
       return (Number(row.monto_unitario)||0)*count;
     };
     const map = new Map();
+    
+    console.log('Procesando', tableData.length, 'registros...');
+    
     for(const r of tableData){
       const dayKey = dayKeyOf(r.created_at);
       const dayLabel = dayLabelOf(r.created_at);
@@ -417,12 +451,20 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onModeVisibilityCha
     }
     const groups = Array.from(map.values()).sort((a,b)=> (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
     groups.forEach(g=> g.plays.sort((a,b)=> b.ts - a.ts));
+    
+    console.log('Grupos generados:', groups.length);
     return groups;
   };
 
   const exportDetailsToPDF = async () => {
     try{
+      console.log('Iniciando exportDetailsToPDF...');
+      console.log('Platform:', Platform.OS);
+      console.log('exportPdfModule:', exportPdfModule);
+      
       const groups = groupDetailsForExport();
+      console.log('Grupos generados:', groups.length);
+      
       const style = `
         <style>
           body{ font-family: Arial, sans-serif; }
@@ -453,10 +495,23 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onModeVisibilityCha
         ${sections}
       </body></html>`;
       
+      console.log('HTML generado, longitud:', html.length);
+      
+      // Verificar que el módulo esté disponible
+      if (!exportPdfModule || !exportPdfModule.exportPdf) {
+        console.error('Módulo exportPdf no disponible');
+        throw new Error('Módulo de exportación no disponible');
+      }
+      
       // Usar el módulo de exportación según la plataforma
+      console.log('Llamando a exportPdf...');
       const ok = await exportPdfModule.exportPdf(html);
+      console.log('Resultado de exportPdf:', ok);
       return !!ok;
-    }catch(e){ return false; }
+    }catch(e){ 
+      console.error('Error en exportDetailsToPDF:', e);
+      return false; 
+    }
   };
 
   // Manejar selección de fecha
@@ -2148,11 +2203,10 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   cancelButton: {
-    flex: 1,
     backgroundColor: '#f8f9fa',
     padding: 12,
     borderRadius: 8,
-    marginRight: 8,
+    marginTop: 16,
     borderWidth: 1,
     borderColor: '#dee2e6',
   },
