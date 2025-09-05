@@ -1,17 +1,41 @@
 // Solo para plataformas nativas (iOS/Android)
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Platform, View, StyleSheet } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { DarkModeProvider } from './src/contexts/UnifiedDarkModeContext';
 
 export default function App() {
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      // Configuración adicional para Android si es necesaria
+      console.log('Configurando barra de estado para Android');
+    }
+  }, []);
+
   return (
     <DarkModeProvider>
-      <NavigationContainer>
-        <AppNavigator />
-      </NavigationContainer>
+      <View style={styles.container}>
+        <StatusBar 
+          style="dark"
+          backgroundColor="transparent"
+          translucent={true}
+          hidden={false}
+        />
+        <NavigationContainer>
+          <AppNavigator />
+        </NavigationContainer>
+      </View>
     </DarkModeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingTop: Platform.OS === 'android' ? 0 : 0, // Sin padding para que la app use toda la pantalla
+  },
+});

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, Modal, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Formik } from 'formik';
 import { supabase } from '../supabaseClient';
 import Svg, { Path, G } from 'react-native-svg';
@@ -17,6 +17,7 @@ const LoginScreen = ({ navigation }) => {
 
 const LoginContent = ({ navigation }) => {
   const [isPreloading, setIsPreloading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
   const validateForm = (values) => {
     const errors = {};
@@ -201,14 +202,22 @@ const LoginContent = ({ navigation }) => {
                   <Path d="M304 224c-8.832031 0-16-7.167969-16-16v-80c0-52.929688-43.070312-96-96-96s-96 43.070312-96 96v80c0 8.832031-7.167969 16-16 16s-16-7.167969-16-16v-80c0-70.59375 57.40625-128 128-128s128 57.40625 128 128v80c0 8.832031-7.167969 16-16 16zm0 0" fill="#151717"/>
                 </Svg>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { flex: 1 }]}
                   placeholder="Ingresa tu contraseña"
                   placeholderTextColor="#B8B8B8"
                   value={values.password}
                   onChangeText={handleChange('password')}
                   onBlur={handleBlur('password')}
-                  secureTextEntry
+                  secureTextEntry={!showPassword}
                 />
+                <TouchableOpacity
+                  style={styles.passwordToggleButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Text style={styles.passwordToggleText}>
+                    {showPassword ? 'Ocultar' : 'Mostrar'}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               {/* Mensaje de error */}
@@ -301,6 +310,19 @@ const styles = StyleSheet.create({
     height: '100%',
     fontSize: 16,
     color: '#2C3E50',
+  },
+  passwordToggleButton: {
+    position: 'absolute',
+    right: 15,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+  },
+  passwordToggleText: {
+    fontSize: 12,
+    color: '#27AE60',
+    fontWeight: '600',
   },
   // estilos de Recordarme y Olvidaste removidos
   buttonSubmit: {

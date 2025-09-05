@@ -1170,26 +1170,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   copyButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     backgroundColor: '#E6F3FF', // Azul claro
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: '#87CEEB', // Azul cielo
-    alignItems: 'center',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     justifyContent: 'center',
-    shadowColor: '#4169E1',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    alignItems: 'center',
+    shadowColor: '#87CEEB',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
   },
   copyButtonPressed: {
-    backgroundColor: '#B0E0E6', // Azul más oscuro al presionar
-    borderColor: '#4169E1',
+    backgroundColor: '#D0E8FF', // Azul más oscuro al presionar
+    borderColor: '#5A9FDA',
     transform: [{ scale: 0.95 }],
   },
   copyIcon: {
