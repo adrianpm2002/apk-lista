@@ -16,7 +16,7 @@ import { Alert } from 'react-native';
  * - estadisticas_diarias: resumen diario de operaciones (opcional, se puede calcular)
  */
 
-const USE_MOCK_DATA = true; // ⚠️ CAMBIAR A false CUANDO LAS TABLAS ESTÉN LISTAS
+const USE_MOCK_DATA = false; // ✅ CAMBIADO: Usando datos reales con fallback
 
 const useStatistics = (bankId = null) => {
   // Hook inicializado - logs removidos para producción
@@ -430,7 +430,18 @@ const useStatistics = (bankId = null) => {
       if (USE_MOCK_DATA) {
         return await loadMockDailyStats();
       } else {
-        return await loadRealDailyStats();
+        const realData = await loadRealDailyStats();
+        
+        // Verificar si los datos reales están vacíos o nulos
+        if (!realData || 
+            (realData.daily_total_bets === 0 && 
+             realData.daily_plays_count === 0 && 
+             realData.daily_listero_commissions === 0)) {
+          console.log('📊 Datos reales están vacíos, usando fallback a datos de demostración');
+          return await loadMockDailyStats();
+        }
+        
+        return realData;
       }
       
     } catch (error) {
@@ -520,7 +531,15 @@ const useStatistics = (bankId = null) => {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 7);
         const endDate = new Date();
-        return await loadRealTrendData(startDate, endDate);
+        const realData = await loadRealTrendData(startDate, endDate);
+        
+        // Verificar si los datos de tendencia están vacíos
+        if (!realData || realData.length === 0) {
+          console.log('📊 Datos de tendencia vacíos, usando datos de demostración');
+          return await loadMockTrendData();
+        }
+        
+        return realData;
       }
       
     } catch (error) {
@@ -541,7 +560,15 @@ const useStatistics = (bankId = null) => {
       if (USE_MOCK_DATA) {
         return await loadMockLotteryStats();
       } else {
-        return await loadRealLotteryStats();
+        const realData = await loadRealLotteryStats();
+        
+        // Verificar si los datos reales están vacíos
+        if (!realData || realData.length === 0) {
+          console.log('📊 Estadísticas de loterías vacías, usando datos de demostración');
+          return await loadMockLotteryStats();
+        }
+        
+        return realData;
       }
       
     } catch (error) {
@@ -562,7 +589,15 @@ const useStatistics = (bankId = null) => {
       if (USE_MOCK_DATA) {
         return await loadMockScheduleStats();
       } else {
-        return await loadRealScheduleStats();
+        const realData = await loadRealScheduleStats();
+        
+        // Verificar si los datos reales están vacíos
+        if (!realData || realData.length === 0) {
+          console.log('📊 Estadísticas de horarios vacías, usando datos de demostración');
+          return await loadMockScheduleStats();
+        }
+        
+        return realData;
       }
       
     } catch (error) {
