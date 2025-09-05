@@ -10,6 +10,8 @@ const KPICard = ({
   trend, 
   trendValue, 
   color = '#27AE60', 
+  format = 'auto',
+  style,
   isDarkMode = false 
 }) => {
   // Formatear valores monetarios
@@ -30,11 +32,22 @@ const KPICard = ({
     return `${percent.toFixed(1)}%`;
   };
 
-  // Determinar formato basado en el valor
+  // Determinar formato basado en el valor o la prop format
   const getFormattedValue = () => {
     if (typeof value === 'string') return value;
     
-    // Si contiene símbolo de moneda o es un monto
+    // Si se especifica formato explícito
+    if (format === 'currency') {
+      return formatCurrency(value);
+    }
+    if (format === 'number') {
+      return formatNumber(value);
+    }
+    if (format === 'percentage') {
+      return formatPercentage(value);
+    }
+    
+    // Auto-detección basada en el título (formato anterior)
     if (title.toLowerCase().includes('total') || 
         title.toLowerCase().includes('ganancia') || 
         title.toLowerCase().includes('comision') ||
@@ -85,7 +98,8 @@ const KPICard = ({
     <View style={[
       styles.container, 
       isDarkMode && styles.containerDark,
-      { borderLeftColor: color }
+      { borderLeftColor: color },
+      style
     ]}>
       {/* Header con icono y título */}
       <View style={styles.header}>
