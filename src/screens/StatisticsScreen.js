@@ -116,6 +116,10 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
 
+  // Estados para datos agrupados (collector y admin)
+  const [groupedData, setGroupedData] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState(''); // Para collector: listero seleccionado, para admin: colector seleccionado
+
   // Función para formatear montos con decimales
   const formatMoney = (amount) => {
     const num = Number(amount) || 0;
@@ -135,6 +139,9 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
     loading,
     error,
     loadAllStats,
+    loadCollectorData,
+    loadAdminData,
+    loadPlaysData,
     applyFilters,
     clearData,
   } = useStatistics(currentBankId); // ⭐ PASAR bankId al hook
@@ -166,6 +173,15 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Recargar datos agrupados cuando cambie el rol o los IDs
+  useEffect(() => {
+    if (userRole === 'collector' && currentUserId) {
+      loadGroupedDataForCollector();
+    } else if (userRole === 'admin' && currentBankId) {
+      loadGroupedDataForAdmin();
+    }
+  }, [userRole, currentUserId, currentBankId]);
 
   // Obtener rol del usuario y bank ID para la sidebar (en background)
   useEffect(() => {
@@ -240,9 +256,35 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   const loadInitialData = async () => {
     try {
       await loadAllStats();
+      
+      // Cargar datos agrupados según el rol
+      if (userRole === 'collector' && currentUserId) {
+        await loadGroupedDataForCollector();
+      } else if (userRole === 'admin' && currentBankId) {
+        await loadGroupedDataForAdmin();
+      }
     } catch (error) {
-  // ...
       Alert.alert('Error', 'No se pudieron cargar las estadísticas iniciales');
+    }
+  };
+
+  // Cargar datos agrupados para collector
+  const loadGroupedDataForCollector = async () => {
+    try {
+      const data = await loadCollectorData(currentUserId);
+      setGroupedData(data);
+    } catch (error) {
+      // Error manejado en el hook
+    }
+  };
+
+  // Cargar datos agrupados para admin
+  const loadGroupedDataForAdmin = async () => {
+    try {
+      const data = await loadAdminData(currentBankId);
+      setGroupedData(data);
+    } catch (error) {
+      // Error manejado en el hook
     }
   };
 
@@ -617,7 +659,18 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
   };
 
   // Renderizar contenido del tab de gráficos
-  const renderChartsTab = () => (
+  const renderChartsTab = () => {
+    // Para collector y admin, usar datos agrupados
+    if (userRole === 'collector' || userRole === 'admin') {
+      return renderRoleBasedChartsTab();
+    }
+    
+    // Para listero, mostrar la vista original
+    return renderListeroChartsTab();
+  };
+
+  // Vista de gráficos para listero (vista original)
+  const renderListeroChartsTab = () => (
     <ScrollView style={styles.tabContent}>
       {/* Debug: Mostrar información de chartData */}
       {!chartData?.trends || chartData.trends.length === 0 ? (
@@ -711,14 +764,152 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
           </View>
         );
       })()}
-  {/* Gráfico de barras por lotería */}
-
-  {/* Línea general y otros gráficos omitidos para evitar duplicación */}
     </ScrollView>
   );
 
+  // Vista de gráficos para collector y admin (ahora usa balance diario como listero)
+  const renderRoleBasedChartsTab = () => {
+    // Para collector y admin, obtener todas las jugadas desde groupedData
+    let allPlays = [];
+    if (groupedData && Array.isArray(groupedData)) {
+      groupedData.forEach(group => {
+        if (group.plays && Array.isArray(group.plays)) {
+          allPlays = allPlays.concat(group.plays);
+        }
+      });
+    }
+
+    return (
+      <ScrollView style={styles.tabContent}>
+        {/* Gráfico de Balance basado en datos reales por día */}
+        {allPlays && allPlays.length > 0 && (()=>{
+          const fmtShort = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+          
+          // Agrupar jugadas por fecha y calcular balance diario
+          const dailyBalanceMap = new Map();
+          
+          allPlays.forEach(play => {
+            const playDate = new Date(play.created_at);
+            const dateKey = playDate.toISOString().split('T')[0]; // YYYY-MM-DD
+            
+            if (!dailyBalanceMap.has(dateKey)) {
+              dailyBalanceMap.set(dateKey, {
+                date: dateKey,
+                d: new Date(playDate.getFullYear(), playDate.getMonth(), playDate.getDate()),
+                bruto: 0,
+                pagado: 0,
+                ganancia: 0,
+                balance: 0
+              });
+            }
+            
+            const dayData = dailyBalanceMap.get(dateKey);
+            dayData.bruto += Number(play.bruto || 0);
+            dayData.pagado += Number(play.premio || 0);
+            
+            // Agregar ganancia según el rol
+            if (userRole === 'collector') {
+              dayData.ganancia += Number(play.ganancia_colector || 0);
+              dayData.balance = dayData.bruto - dayData.pagado; // Para colector, balance = bruto - pagado
+            } else if (userRole === 'admin') {
+              dayData.balance += Number(play.balance_banco || 0); // Para admin, usar balance_banco directamente
+            }
+          });
+          
+          // Convertir a array y ordenar por fecha
+          const dailyData = Array.from(dailyBalanceMap.values())
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+          
+          // Si tenemos más de 7 días, tomar solo los últimos 7
+          const displayData = dailyData.length > 7 ? dailyData.slice(-7) : dailyData;
+          
+          // Crear serie para el gráfico (solo balance)
+          const series = displayData.map(day => ({
+            date: day.date,
+            profit: day.balance, // El gráfico usa 'profit' pero mostramos balance
+            label: fmtShort(day.d)
+          }));
+          
+          return (
+            <View>
+              <StatisticsChart
+                type="profitLoss"
+                title="Balance Diario"
+                data={series}
+                isDarkMode={isDarkMode}
+                height={260}
+              />
+              {/* KPIs del período debajo del gráfico */}
+              {(() => {
+                // Calcular totales del período desde allPlays (datos reales)
+                const playsInPeriod = allPlays || [];
+                
+                const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.bruto) || 0), 0);
+                const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.premio) || 0), 0);
+                
+                let totalGanancia = 0;
+                let totalBalance = 0;
+                
+                if (userRole === 'collector') {
+                  totalGanancia = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
+                  totalBalance = totalBruto - totalPagado;
+                } else if (userRole === 'admin') {
+                  totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_banco) || 0), 0);
+                }
+                
+                return (
+                  <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
+                    <View style={{ flexBasis:'31%', backgroundColor: isDarkMode ? '#2c3e50' : '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                      <Text style={{ color: isDarkMode ? '#ecf0f1' : '#6c757d', fontSize: 12 }}>Bruto</Text>
+                      <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatMoney(totalBruto)}</Text>
+                    </View>
+                    
+                    {userRole === 'collector' && (
+                      <View style={{ flexBasis:'31%', backgroundColor: isDarkMode ? '#2c3e50' : '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                        <Text style={{ color: isDarkMode ? '#ecf0f1' : '#6c757d', fontSize: 12 }}>Ganancia</Text>
+                        <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatMoney(totalGanancia)}</Text>
+                      </View>
+                    )}
+                    
+                    <View style={{ flexBasis:'31%', backgroundColor: isDarkMode ? '#2c3e50' : '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                      <Text style={{ color: isDarkMode ? '#ecf0f1' : '#6c757d', fontSize: 12 }}>Balance</Text>
+                      <Text style={{ fontSize:16, fontWeight:'800', color: totalBalance>=0? '#27AE60':'#e74c3c' }}>{formatMoney(totalBalance)}</Text>
+                    </View>
+                  </View>
+                );
+              })()}
+            </View>
+          );
+        })()}
+        
+        {/* Mensaje cuando no hay datos */}
+        {(!allPlays || allPlays.length === 0) && (
+          <View style={[styles.kpiCard, { backgroundColor: isDarkMode ? '#2c2c2c' : '#f8f9fa' }]}>
+            <Text style={[styles.kpiTitle, { color: isDarkMode ? '#ffffff' : '#333333' }]}>
+              📊 Sin Datos
+            </Text>
+            <Text style={[styles.kpiValue, { color: isDarkMode ? '#cccccc' : '#666666' }]}>
+              No hay datos para mostrar en el período seleccionado
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+    );
+  };
+
   // Renderizar contenido del tab de detalles
-  const renderDetailsTab = () => (
+  const renderDetailsTab = () => {
+    // Para collector y admin, mostrar desplegables de agrupación
+    if (userRole === 'collector' || userRole === 'admin') {
+      return renderRoleBasedDetailsTab();
+    }
+    
+    // Para listero, mostrar la vista original
+    return renderListeroDetailsTab();
+  };
+
+  // Vista de detalles para listero (vista original)
+  const renderListeroDetailsTab = () => (
     <ScrollView style={styles.tabContent}>
       {(()=>{
         if(!tableData?.plays || tableData.plays.length === 0) return (
@@ -838,95 +1029,685 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
 
         return (
           <View style={{ paddingHorizontal:8 }}>
-            {groups.map(g=>{
-              const open = expanded.has(g.key);
-              const balance = g.totalRecogido - g.totalPagado;
-              return (
-                <View key={g.key} style={[styles.compactGroupCard, isDarkMode && styles.compactGroupCardDark]}>
-                  <TouchableOpacity style={styles.compactGroupHeader} onPress={()=> toggle(g.key)}>
-                    <Text style={styles.compactGroupChevron}>{open? '▼':'▶'}</Text>
-                    <View style={{ flex:1 }}>
-                      <View style={styles.compactGroupTitleRow}>
-                        <Text style={[styles.compactGroupTitle, isDarkMode && styles.compactGroupTitleDark]}>
-                          {g.dayLabel} · {g.lottery} · {g.schedule}
-                        </Text>
-                        <Text style={[styles.compactResultChip, isDarkMode && styles.compactResultChipDark]}>
-                          {g.resultado || 'N/A'}
-                        </Text>
-                      </View>
-                      <View style={styles.compactStatsRow}>
-                        <Text style={[styles.compactStatChip, styles.compactEarningsChip]}>Listero: {fmt(g.totalGananciaListero)}</Text>
-                        <Text style={[styles.compactStatChip, styles.compactCollectedChip]}>Bruto: {fmt(g.totalRecogido)}</Text>
-                        <Text style={[styles.compactStatChip, balance>=0? styles.compactBalancePosChip: styles.compactBalanceNegChip]}>
-                          Balance: {fmt(balance)}
-                        </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                  {open && (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
-                      <View style={styles.excelTable}>
-                        {/* Header de la tabla estilo Excel */}
-                        <View style={styles.excelHeaderRow}>
-                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Hora</Text>
-                          <Text style={[styles.excelHeaderCell, { width: 100 }]}>Nota</Text>
-                          <Text style={[styles.excelHeaderCell, { width: 90 }]}>Jugada</Text>
-                          <Text style={[styles.excelHeaderCell, { width: 160 }]}>Números</Text>
-                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Total</Text>
-                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Ganancia</Text>
-                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Pagado</Text>
-                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Balance</Text>
-                        </View>
-                        {/* Filas de datos estilo Excel */}
-                        {g.plays.map((p, idx) => (
-                          <View key={idx} style={[styles.excelDataRow, idx % 2 === 0 && styles.excelRowEven]}>
-                            <View style={[styles.excelCellContainer, { width: 80 }]}>
-                              <Text style={styles.excelCell} numberOfLines={2}>{p.time}</Text>
-                            </View>
-                            <View style={[styles.excelCellContainer, { width: 100 }]}>
-                              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
-                                <Text style={styles.excelCell}>{p.nota}</Text>
-                              </ScrollView>
-                            </View>
-                            <View style={[styles.excelCellContainer, { width: 90 }]}>
-                              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
-                                <Text style={styles.excelCell}>{p.jugada}</Text>
-                              </ScrollView>
-                            </View>
-                            <View style={[styles.excelCellContainer, { width: 160 }]}>
-                              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
-                                <Text style={styles.excelCell}>{p.numeros}</Text>
-                              </ScrollView>
-                            </View>
-                            <View style={[styles.excelCellContainer, { width: 80 }]}>
-                              <Text style={styles.excelCell} numberOfLines={1}>{fmt(p.bruto)}</Text>
-                            </View>
-                            <View style={[styles.excelCellContainer, { width: 80 }]}>
-                              <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(p.ganancia)}</Text>
-                            </View>
-                            <View style={[styles.excelCellContainer, { width: 80 }]}>
-                              <Text style={styles.excelCell} numberOfLines={2}>
-                                {p.pagado > 0 ? fmt(p.pagado) : 'Sin premio'}
-                              </Text>
-                            </View>
-                            <View style={[styles.excelCellContainer, { width: 80 }]}>
-                              <Text style={[styles.excelCell, p.balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
-                                {fmt(p.balance)}
-                              </Text>
-                            </View>
-                          </View>
-                        ))}
-                      </View>
-                    </ScrollView>
-                  )}
+            <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
+              <View style={styles.excelTable}>
+                {/* Header de la tabla principal estilo Excel */}
+                <View style={styles.excelHeaderRow}>
+                  <Text style={[styles.excelHeaderCell, { width: 40 }]}></Text>
+                  <Text style={[styles.excelHeaderCell, { width: 100 }]}>Fecha</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 100 }]}>Lotería</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 100 }]}>Horario</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>Resultado</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>Bruto</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>Ganancia</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>Pagado</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>Balance</Text>
                 </View>
-              );
-            })}
+                
+                {/* Filas de grupos expandibles */}
+                {groups.map((g, groupIndex) => {
+                  const open = expanded.has(g.key);
+                  const balance = g.totalRecogido - g.totalPagado;
+                  
+                  return (
+                    <View key={g.key}>
+                      {/* Fila principal del grupo (clickeable) */}
+                      <TouchableOpacity 
+                        style={[styles.excelDataRow, groupIndex % 2 === 0 && styles.excelRowEven]}
+                        onPress={() => toggle(g.key)}
+                      >
+                        <View style={[styles.excelCellContainer, { width: 40 }]}>
+                          <Text style={[styles.excelCell, styles.chevronCell]}>
+                            {open ? '▼' : '▶'}
+                          </Text>
+                        </View>
+                        <View style={[styles.excelCellContainer, { width: 100 }]}>
+                          <Text style={styles.excelCell} numberOfLines={2}>{g.dayLabel}</Text>
+                        </View>
+                        <View style={[styles.excelCellContainer, { width: 100 }]}>
+                          <Text style={styles.excelCell} numberOfLines={2}>{g.lottery}</Text>
+                        </View>
+                        <View style={[styles.excelCellContainer, { width: 100 }]}>
+                          <Text style={styles.excelCell} numberOfLines={2}>{g.schedule}</Text>
+                        </View>
+                        <View style={[styles.excelCellContainer, { width: 80 }]}>
+                          <Text style={[styles.excelCell, styles.resultCell]} numberOfLines={1}>
+                            {g.resultado || 'N/A'}
+                          </Text>
+                        </View>
+                        <View style={[styles.excelCellContainer, { width: 80 }]}>
+                          <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalRecogido)}</Text>
+                        </View>
+                        <View style={[styles.excelCellContainer, { width: 80 }]}>
+                          <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(g.totalGananciaListero)}</Text>
+                        </View>
+                        <View style={[styles.excelCellContainer, { width: 80 }]}>
+                          <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalPagado)}</Text>
+                        </View>
+                        <View style={[styles.excelCellContainer, { width: 80 }]}>
+                          <Text style={[styles.excelCell, balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                            {fmt(balance)}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                      
+                      {/* Contenido expandido - detalles de jugadas */}
+                      {open && (
+                        <View style={styles.expandedContent}>
+                          {/* Sub-header para las jugadas detalladas */}
+                          <View style={[styles.excelHeaderRow, styles.subHeader]}>
+                            <Text style={[styles.excelHeaderCell, { width: 40 }]}></Text>
+                            <Text style={[styles.excelHeaderCell, { width: 80 }]}>Hora</Text>
+                            <Text style={[styles.excelHeaderCell, { width: 90 }]}>Jugada</Text>
+                            <Text style={[styles.excelHeaderCell, { width: 160 }]}>Números</Text>
+                            <Text style={[styles.excelHeaderCell, { width: 80 }]}>Total</Text>
+                            <Text style={[styles.excelHeaderCell, { width: 80 }]}>Ganancia</Text>
+                            <Text style={[styles.excelHeaderCell, { width: 80 }]}>Pagado</Text>
+                            <Text style={[styles.excelHeaderCell, { width: 80 }]}>Balance</Text>
+                          </View>
+                          
+                          {/* Filas de jugadas individuales */}
+                          {g.plays.map((p, idx) => (
+                            <View key={idx} style={[styles.excelDataRow, styles.detailRow, idx % 2 === 0 && styles.excelRowEven]}>
+                              <View style={[styles.excelCellContainer, { width: 40 }]}>
+                                <Text style={styles.excelCell}></Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={styles.excelCell} numberOfLines={2}>{p.time}</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 90 }]}>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
+                                  <Text style={styles.excelCell}>{p.jugada}</Text>
+                                </ScrollView>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 160 }]}>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
+                                  <Text style={styles.excelCell}>{p.numeros}</Text>
+                                </ScrollView>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(p.bruto)}</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(p.ganancia)}</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={styles.excelCell} numberOfLines={2}>
+                                  {p.pagado > 0 ? fmt(p.pagado) : 'Sin premio'}
+                                </Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={[styles.excelCell, p.balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                                  {fmt(p.balance)}
+                                </Text>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
           </View>
         );
       })()}
     </ScrollView>
   );
+
+  // Vista de detalles para collector y admin con desplegables
+  const renderRoleBasedDetailsTab = () => (
+    <ScrollView style={styles.tabContent}>
+      {/* Desplegable principal según el rol */}
+      {userRole === 'collector' && renderCollectorExpandableTable()}
+      {userRole === 'admin' && renderAdminExpandableTable()}
+      
+      {/* Ya no se necesita renderGroupDetails porque cada rol maneja su propia vista */}
+    </ScrollView>
+  );
+
+  // Nueva tabla expandible para collector (agrupa por listero)
+  const renderCollectorExpandableTable = () => {
+    if (!groupedData || !Array.isArray(groupedData) || groupedData.length === 0) {
+      return (
+        <Text style={[styles.empty, { marginTop: 16 }]}>
+          Sin datos de listeros para mostrar
+        </Text>
+      );
+    }
+
+    const fmt = (n) => {
+      const num = Number(n) || 0;
+      return `$${num.toLocaleString('es-DO', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+      })}`;
+    };
+
+    const expanded = expandedGroups;
+    const toggle = (key) => setExpandedGroups(prev => { 
+      const next = new Set(prev); 
+      if(next.has(key)) next.delete(key); 
+      else next.add(key); 
+      return next; 
+    });
+
+    return (
+      <View style={{ paddingHorizontal: 8, marginTop: 16 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
+          <View style={styles.excelTable}>
+            {/* Header de la tabla principal estilo Excel */}
+            <View style={styles.excelHeaderRow}>
+              <Text style={[styles.excelHeaderCell, { width: 40 }]}></Text>
+              <Text style={[styles.excelHeaderCell, { width: 120 }]}>Listero</Text>
+              <Text style={[styles.excelHeaderCell, { width: 80 }]}>Bruto</Text>
+              <Text style={[styles.excelHeaderCell, { width: 80 }]}>Ganancia</Text>
+              <Text style={[styles.excelHeaderCell, { width: 80 }]}>Balance</Text>
+            </View>
+            
+            {/* Filas de listeros expandibles */}
+            {groupedData.map((listero, listeroIndex) => {
+              const listeroKey = `listero_${listero.id_listero}`;
+              const open = expanded.has(listeroKey);
+              
+              return (
+                <View key={listeroKey}>
+                  {/* Fila principal del listero (clickeable) */}
+                  <TouchableOpacity 
+                    style={[styles.excelDataRow, listeroIndex % 2 === 0 && styles.excelRowEven]}
+                    onPress={() => toggle(listeroKey)}
+                  >
+                    <View style={[styles.excelCellContainer, { width: 40 }]}>
+                      <Text style={[styles.excelCell, styles.chevronCell]}>
+                        {open ? '▼' : '▶'}
+                      </Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 120 }]}>
+                      <Text style={styles.excelCell} numberOfLines={2}>{listero.listero_username}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 80 }]}>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.bruto_total)}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 80 }]}>
+                      <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(listero.ganancia_colector_total)}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 80 }]}>
+                      <Text style={[styles.excelCell, listero.balance_colector_total >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                        {fmt(listero.balance_colector_total)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  
+                  {/* Contenido expandido - grupos de fecha/lotería/horario */}
+                  {open && (
+                    <View style={styles.expandedContent}>
+                      {renderGroupedPlaysTable(listero.plays || [])}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  };
+
+  // Desplegable para collector (agrupa por listero)
+  const renderCollectorDropdown = () => (
+    <View style={styles.dropdownContainer}>
+      <Text style={[styles.dropdownLabel, isDarkMode && styles.dropdownLabelDark]}>
+        Listeros
+      </Text>
+      <View style={[styles.pickerContainer, isDarkMode && styles.pickerContainerDark]}>
+        <Picker
+          selectedValue={selectedGroup}
+          onValueChange={setSelectedGroup}
+          style={[styles.picker, isDarkMode && styles.pickerDark]}
+        >
+          <Picker.Item label="Seleccionar listero..." value="" />
+          {groupedData.map(item => (
+            <Picker.Item 
+              key={item.id_listero} 
+              label={`${item.listero_username} - Bruto: ${formatMoney(item.bruto_total)} - Ganancia: ${formatMoney(item.ganancia_colector_total)} - Balance: ${formatMoney(item.balance_colector_total)}`}
+              value={String(item.id_listero)}
+            />
+          ))}
+        </Picker>
+      </View>
+    </View>
+  );
+
+  // Nueva tabla expandible para admin (agrupa por colector → listero)
+  const renderAdminExpandableTable = () => {
+    if (!groupedData || !Array.isArray(groupedData) || groupedData.length === 0) {
+      return (
+        <Text style={[styles.empty, { marginTop: 16 }]}>
+          Sin datos de colectores para mostrar
+        </Text>
+      );
+    }
+
+    const fmt = (n) => {
+      const num = Number(n) || 0;
+      return `$${num.toLocaleString('es-DO', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+      })}`;
+    };
+
+    const expanded = expandedGroups;
+    const toggle = (key) => setExpandedGroups(prev => { 
+      const next = new Set(prev); 
+      if(next.has(key)) next.delete(key); 
+      else next.add(key); 
+      return next; 
+    });
+
+    // Función auxiliar para agrupar jugadas de un colector por listero
+    const groupPlaysByListero = (plays) => {
+      const groupedByListero = {};
+      (plays || []).forEach(play => {
+        const listeroKey = play.listero_username || `Listero ${play.id_listero}`;
+        if (!groupedByListero[listeroKey]) {
+          groupedByListero[listeroKey] = {
+            listero_username: listeroKey,
+            id_listero: play.id_listero,
+            bruto_total: 0,
+            balance_banco_total: 0,
+            plays: []
+          };
+        }
+        
+        groupedByListero[listeroKey].bruto_total += Number(play.bruto || 0);
+        groupedByListero[listeroKey].balance_banco_total += Number(play.balance_banco || 0);
+        groupedByListero[listeroKey].plays.push(play);
+      });
+
+      return Object.values(groupedByListero);
+    };
+
+    return (
+      <View style={{ paddingHorizontal: 8, marginTop: 16 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
+          <View style={styles.excelTable}>
+            {/* Header de la tabla principal estilo Excel */}
+            <View style={styles.excelHeaderRow}>
+              <Text style={[styles.excelHeaderCell, { width: 40 }]}></Text>
+              <Text style={[styles.excelHeaderCell, { width: 120 }]}>Colector</Text>
+              <Text style={[styles.excelHeaderCell, { width: 80 }]}>Bruto</Text>
+              <Text style={[styles.excelHeaderCell, { width: 80 }]}>Balance</Text>
+            </View>
+            
+            {/* Filas de colectores expandibles */}
+            {groupedData.map((colector, colectorIndex) => {
+              const colectorKey = `colector_${colector.id_colector}`;
+              const openColector = expanded.has(colectorKey);
+              
+              return (
+                <View key={colectorKey}>
+                  {/* Fila principal del colector (clickeable) */}
+                  <TouchableOpacity 
+                    style={[styles.excelDataRow, colectorIndex % 2 === 0 && styles.excelRowEven]}
+                    onPress={() => toggle(colectorKey)}
+                  >
+                    <View style={[styles.excelCellContainer, { width: 40 }]}>
+                      <Text style={[styles.excelCell, styles.chevronCell]}>
+                        {openColector ? '▼' : '▶'}
+                      </Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 120 }]}>
+                      <Text style={styles.excelCell} numberOfLines={2}>{colector.colector_username}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 80 }]}>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.bruto_total)}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 80 }]}>
+                      <Text style={[styles.excelCell, colector.balance_banco_total >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                        {fmt(colector.balance_banco_total)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  
+                  {/* Contenido expandido - listeros del colector */}
+                  {openColector && (
+                    <View style={styles.expandedContent}>
+                      {/* Sub-tabla de listeros */}
+                      <View style={[styles.excelHeaderRow, styles.subHeader]}>
+                        <Text style={[styles.excelHeaderCell, { width: 40 }]}></Text>
+                        <Text style={[styles.excelHeaderCell, { width: 120 }]}>Listero</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 80 }]}>Bruto</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 80 }]}>Balance</Text>
+                      </View>
+                      
+                      {/* Filas de listeros expandibles */}
+                      {groupPlaysByListero(colector.plays).map((listero, listeroIndex) => {
+                        const listeroKey = `${colectorKey}_listero_${listero.id_listero}`;
+                        const openListero = expanded.has(listeroKey);
+                        
+                        return (
+                          <View key={listeroKey}>
+                            {/* Fila del listero (clickeable) */}
+                            <TouchableOpacity 
+                              style={[styles.excelDataRow, styles.detailRow, listeroIndex % 2 === 0 && styles.excelRowEven]}
+                              onPress={() => toggle(listeroKey)}
+                            >
+                              <View style={[styles.excelCellContainer, { width: 40 }]}>
+                                <Text style={[styles.excelCell, styles.chevronCell]}>
+                                  {openListero ? '▼' : '▶'}
+                                </Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 120 }]}>
+                                <Text style={styles.excelCell} numberOfLines={2}>{listero.listero_username}</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.bruto_total)}</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={[styles.excelCell, listero.balance_banco_total >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                                  {fmt(listero.balance_banco_total)}
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+                            
+                            {/* Contenido expandido - grupos de fecha/lotería/horario */}
+                            {openListero && (
+                              <View style={[styles.expandedContent, { backgroundColor: '#F1F3F4' }]}>
+                                {renderGroupedPlaysTable(listero.plays || [])}
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  };
+
+  // Desplegables para admin (agrupa por colector)
+  const renderAdminDropdowns = () => (
+    <View style={styles.dropdownContainer}>
+      <Text style={[styles.dropdownLabel, isDarkMode && styles.dropdownLabelDark]}>
+        Colectores
+      </Text>
+      <View style={[styles.pickerContainer, isDarkMode && styles.pickerContainerDark]}>
+        <Picker
+          selectedValue={selectedGroup}
+          onValueChange={setSelectedGroup}
+          style={[styles.picker, isDarkMode && styles.pickerDark]}
+        >
+          <Picker.Item label="Seleccionar colector..." value="" />
+          {groupedData.map(item => (
+            <Picker.Item 
+              key={item.id_colector} 
+              label={`${item.colector_username} - Bruto: ${formatMoney(item.bruto_total)} - Balance: ${formatMoney(item.balance_banco_total)}`}
+              value={String(item.id_colector)}
+            />
+          ))}
+        </Picker>
+      </View>
+    </View>
+  );
+
+  // Renderizar detalles del grupo seleccionado
+  const renderGroupDetails = () => {
+    let playsData = [];
+    
+    if (userRole === 'collector') {
+      const selectedData = groupedData.find(item => String(item.id_listero) === selectedGroup);
+      playsData = selectedData?.plays || [];
+    } else if (userRole === 'admin') {
+      const selectedData = groupedData.find(item => String(item.id_colector) === selectedGroup);
+      playsData = selectedData?.plays || [];
+    }
+
+    if (!playsData.length) {
+      return (
+        <Text style={[styles.empty, { marginTop: 16 }]}>
+          Sin jugadas para mostrar
+        </Text>
+      );
+    }
+
+    // Usar la misma lógica de agrupación que para listero, pero con los datos filtrados
+    return renderGroupedPlaysTable(playsData);
+  };
+
+  // Función auxiliar para renderizar tabla de jugadas agrupadas
+  const renderGroupedPlaysTable = (plays) => {
+    // Helpers para formateo
+    const dayKeyOf = (ts) => { 
+      const d = new Date(ts); 
+      d.setHours(0,0,0,0); 
+      return d.getTime(); 
+    };
+    
+    const dayLabelOf = (ts) => { 
+      const d = new Date(ts); 
+      return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }); 
+    };
+    
+    const timeStr = (ts) => new Date(ts).toLocaleTimeString('es-ES', {
+      hour:'2-digit', 
+      minute:'2-digit', 
+      hour12: true
+    });
+    
+    const fmt = (n) => {
+      const num = Number(n) || 0;
+      return `$${num.toLocaleString('es-DO', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+      })}`;
+    };
+
+    // Agrupar por fecha + lotería + horario + resultado
+    const map = new Map();
+    
+    for(const r of plays) {
+      const dayKey = dayKeyOf(r.created_at);
+      const dayLabel = dayLabelOf(r.created_at);
+      const lottery = r.loteria_nombre || 'Lotería';
+      const schedule = r.horario_nombre || 'Horario';
+      const resultado = r.resultado || null;
+      
+      const key = `${dayKey}|${lottery}|${schedule}|${resultado || 'sin_resultado'}`;
+      
+      if(!map.has(key)) {
+        map.set(key, { 
+          key, 
+          dayKey, 
+          dayLabel, 
+          lottery, 
+          schedule, 
+          resultado,
+          plays: [], 
+          totalGanancia: 0,
+          totalRecogido: 0,
+          totalBalance: 0,
+          totalPagado: 0
+        });
+      }
+      
+      const group = map.get(key);
+      
+      // Acumular totales según el rol
+      if (userRole === 'collector') {
+        group.totalGanancia += Number(r.ganancia_colector || 0);
+        group.totalBalance += Number(r.balance_colector || 0);
+      } else if (userRole === 'admin') {
+        group.totalBalance += Number(r.balance_banco || 0);
+      }
+      
+      group.totalRecogido += Number(r.bruto || 0);
+      group.totalPagado += Number(r.premio || 0);
+      
+      // Agregar jugada individual
+      group.plays.push({
+        time: timeStr(r.created_at),
+        ts: new Date(r.created_at).getTime(),
+        jugada: r.play_type || '',
+        numeros: r.numeros || '',
+        bruto: Number(r.bruto || 0),
+        ganancia: userRole === 'collector' ? Number(r.ganancia_colector || 0) : 0,
+        pagado: Number(r.premio || 0),
+        balance: userRole === 'collector' ? Number(r.balance_colector || 0) : Number(r.balance_banco || 0)
+      });
+    }
+    
+    // Ordenar grupos
+    let groups = Array.from(map.values())
+      .sort((a,b) => (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
+
+    // Ordenar jugadas dentro de cada grupo
+    groups.forEach(g => {
+      g.plays.sort((a,b) => b.ts - a.ts);
+    });
+
+    const expanded = expandedGroups;
+    const toggle = (key)=> setExpandedGroups(prev=>{ const next=new Set(prev); if(next.has(key)) next.delete(key); else next.add(key); return next; });
+
+    return (
+      <View style={{ paddingHorizontal:8, marginTop: 16 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
+          <View style={styles.excelTable}>
+            {/* Header de la tabla principal estilo Excel */}
+            <View style={styles.excelHeaderRow}>
+              <Text style={[styles.excelHeaderCell, { width: 40 }]}></Text>
+              <Text style={[styles.excelHeaderCell, { width: 100 }]}>Fecha</Text>
+              <Text style={[styles.excelHeaderCell, { width: 100 }]}>Lotería</Text>
+              <Text style={[styles.excelHeaderCell, { width: 100 }]}>Horario</Text>
+              <Text style={[styles.excelHeaderCell, { width: 80 }]}>Resultado</Text>
+              <Text style={[styles.excelHeaderCell, { width: 80 }]}>Bruto</Text>
+              {userRole === 'collector' && (
+                <Text style={[styles.excelHeaderCell, { width: 80 }]}>Ganancia</Text>
+              )}
+              <Text style={[styles.excelHeaderCell, { width: 80 }]}>Pagado</Text>
+              <Text style={[styles.excelHeaderCell, { width: 80 }]}>Balance</Text>
+            </View>
+            
+            {/* Filas de grupos expandibles */}
+            {groups.map((g, groupIndex) => {
+              const open = expanded.has(g.key);
+              const balance = g.totalRecogido - g.totalPagado;
+              
+              return (
+                <View key={g.key}>
+                  {/* Fila principal del grupo (clickeable) */}
+                  <TouchableOpacity 
+                    style={[styles.excelDataRow, groupIndex % 2 === 0 && styles.excelRowEven]}
+                    onPress={() => toggle(g.key)}
+                  >
+                    <View style={[styles.excelCellContainer, { width: 40 }]}>
+                      <Text style={[styles.excelCell, styles.chevronCell]}>
+                        {open ? '▼' : '▶'}
+                      </Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 100 }]}>
+                      <Text style={styles.excelCell} numberOfLines={2}>{g.dayLabel}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 100 }]}>
+                      <Text style={styles.excelCell} numberOfLines={2}>{g.lottery}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 100 }]}>
+                      <Text style={styles.excelCell} numberOfLines={2}>{g.schedule}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 80 }]}>
+                      <Text style={[styles.excelCell, styles.resultCell]} numberOfLines={1}>
+                        {g.resultado || 'N/A'}
+                      </Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 80 }]}>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalRecogido)}</Text>
+                    </View>
+                    {userRole === 'collector' && (
+                      <View style={[styles.excelCellContainer, { width: 80 }]}>
+                        <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(g.totalGanancia)}</Text>
+                      </View>
+                    )}
+                    <View style={[styles.excelCellContainer, { width: 80 }]}>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalPagado)}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 80 }]}>
+                      <Text style={[styles.excelCell, balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                        {fmt(balance)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  
+                  {/* Contenido expandido - detalles de jugadas */}
+                  {open && (
+                    <View style={styles.expandedContent}>
+                      {/* Sub-header para las jugadas detalladas */}
+                      <View style={[styles.excelHeaderRow, styles.subHeader]}>
+                        <Text style={[styles.excelHeaderCell, { width: 40 }]}></Text>
+                        <Text style={[styles.excelHeaderCell, { width: 80 }]}>Hora</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 90 }]}>Jugada</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 160 }]}>Números</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 80 }]}>Total</Text>
+                        {userRole === 'collector' && (
+                          <Text style={[styles.excelHeaderCell, { width: 80 }]}>Ganancia</Text>
+                        )}
+                        <Text style={[styles.excelHeaderCell, { width: 80 }]}>Pagado</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 80 }]}>Balance</Text>
+                      </View>
+                      
+                      {/* Filas de jugadas individuales */}
+                      {g.plays.map((p, idx) => (
+                        <View key={idx} style={[styles.excelDataRow, styles.detailRow, idx % 2 === 0 && styles.excelRowEven]}>
+                          <View style={[styles.excelCellContainer, { width: 40 }]}>
+                            <Text style={styles.excelCell}></Text>
+                          </View>
+                          <View style={[styles.excelCellContainer, { width: 80 }]}>
+                            <Text style={styles.excelCell} numberOfLines={2}>{p.time}</Text>
+                          </View>
+                          <View style={[styles.excelCellContainer, { width: 90 }]}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
+                              <Text style={styles.excelCell}>{p.jugada}</Text>
+                            </ScrollView>
+                          </View>
+                          <View style={[styles.excelCellContainer, { width: 160 }]}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
+                              <Text style={styles.excelCell}>{p.numeros}</Text>
+                            </ScrollView>
+                          </View>
+                          <View style={[styles.excelCellContainer, { width: 80 }]}>
+                            <Text style={styles.excelCell} numberOfLines={1}>{fmt(p.bruto)}</Text>
+                          </View>
+                          {userRole === 'collector' && (
+                            <View style={[styles.excelCellContainer, { width: 80 }]}>
+                              <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(p.ganancia)}</Text>
+                            </View>
+                          )}
+                          <View style={[styles.excelCellContainer, { width: 80 }]}>
+                            <Text style={styles.excelCell} numberOfLines={2}>
+                              {p.pagado > 0 ? fmt(p.pagado) : 'Sin premio'}
+                            </Text>
+                          </View>
+                          <View style={[styles.excelCellContainer, { width: 80 }]}>
+                            <Text style={[styles.excelCell, p.balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                              {fmt(p.balance)}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  };
 
   // Renderizar contenido del tab de reportes
 
@@ -1620,15 +2401,46 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 36,
   },
+  excelCell: {
+    fontSize: 11,
+    color: '#374151',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    textAlign: 'center',
+  },
   cellScrollView: {
     flex: 1,
   },
-  excelCell: {
-    padding: 6,
-    fontSize: 10,
-    color: '#1F2937',
-    textAlign: 'center',
-    minWidth: '100%',
+  earningsCell: {
+    color: '#27AE60',
+    fontWeight: '600',
+  },
+  positiveBalance: {
+    color: '#27AE60',
+    fontWeight: '600',
+  },
+  negativeBalance: {
+    color: '#E74C3C',
+    fontWeight: '600',
+  },
+  // Nuevos estilos para la tabla expandible
+  chevronCell: {
+    color: '#27AE60',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  resultCell: {
+    color: '#27AE60',
+    fontWeight: '600',
+  },
+  expandedContent: {
+    backgroundColor: '#F8F9FA',
+  },
+  subHeader: {
+    backgroundColor: '#E9ECEF',
+  },
+  detailRow: {
+    backgroundColor: '#FFFFFF',
   },
   // Estilos para ganancias del listero
   compactEarningsChip: {
@@ -1636,9 +2448,27 @@ const styles = StyleSheet.create({
     borderColor: '#1976D2',
     color: '#1976D2',
   },
-  earningsCell: {
-    color: '#1976D2',
+  
+  // Estilos para dropdowns
+  dropdownContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    marginBottom: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  dropdownLabel: {
+    fontSize: 16,
     fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  dropdownLabelDark: {
+    color: '#ecf0f1',
   },
 });
 

@@ -730,18 +730,18 @@ const useStatistics = (bankId = null) => {
   // Efecto para cargar listas al montar el componente
   useEffect(() => {
     const initializeData = async () => {
-      console.log('🔄 [useStatistics] Inicializando datos...');
+  //
       
       if (!USE_MOCK_DATA) {
         // Verificar disponibilidad de datos reales
         const isRealDataAvailable = await checkRealDataAvailability();
-        console.log('🔍 [useStatistics] Datos reales disponibles:', isRealDataAvailable);
+  //
       }
       
       // Cargar datos iniciales
-      console.log('📊 [useStatistics] Cargando estadísticas iniciales...');
+  //
       await loadAllStats();
-      console.log('✅ [useStatistics] Datos iniciales cargados');
+  //
     };
 
     initializeData();
@@ -753,7 +753,7 @@ const useStatistics = (bankId = null) => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          console.log('👤 Usuario autenticado:', user.id);
+          //
           setUserId(user.id);
           
           // Cargar datos de jugadas una vez que tenemos el usuario
@@ -834,18 +834,16 @@ const useStatistics = (bankId = null) => {
   });
 
   // Función para cargar datos de jugadas
-  const loadPlaysData = async () => {
+  const loadPlaysData = async (userRole = 'listero') => {
     try {
       setIsLoading(true);
       
       let playsData = [];
       
       if (USE_MOCK_DATA || !userId) {
-        console.log('🎲 Usando datos ficticios para jugadas');
         playsData = generateMockPlaysData();
       } else {
-        console.log('📡 Cargando jugadas reales desde v_statistics_complete');
-        playsData = await loadRealPlaysData(userId);
+        playsData = await loadRealPlaysData(userId, userRole);
       }
       
       setTableData(prev => ({
@@ -856,7 +854,6 @@ const useStatistics = (bankId = null) => {
       return playsData;
       
     } catch (error) {
-      console.error('❌ Error cargando datos de jugadas:', error);
       // Fallback a datos mock
       const mockData = generateMockPlaysData();
       setTableData(prev => ({
@@ -869,32 +866,169 @@ const useStatistics = (bankId = null) => {
     }
   };
 
+  // Función para cargar datos agrupados para collector
+  const loadCollectorData = async (collectorId) => {
+    try {
+      setIsLoading(true);
+      
+      if (USE_MOCK_DATA || !collectorId) {
+        return [];
+      }
+      
+      return await loadCollectorGroupedData(collectorId);
+      
+    } catch (error) {
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Función para cargar datos agrupados para admin
+  const loadAdminData = async (bankId) => {
+    try {
+      setIsLoading(true);
+      
+      if (USE_MOCK_DATA || !bankId) {
+        return [];
+      }
+      
+      return await loadAdminGroupedData(bankId);
+      
+    } catch (error) {
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Función para generar datos reales de jugadas desde v_statistics_complete
-  async function loadRealPlaysData(userId) {
+  async function loadRealPlaysData(userId, userRole = 'listero') {
     try {
       if (!userId) {
-        console.log('⚠️ No hay userId para cargar jugadas reales');
         return generateMockPlaysData();
+      }
+
+      let query = supabase.from('v_statistics_complete').select('*');
+
+      // Filtrar según el rol del usuario
+      switch (userRole) {
+        case 'listero':
+          query = query.eq('id_listero', userId);
+          break;
+        case 'collector':
+          query = query.eq('id_colector', userId);
+          break;
+        case 'admin':
+          // Admin ve todo el banco
+          query = query.eq('id_banco', userId);
+          break;
+        default:
+          query = query.eq('id_listero', userId);
+      }
+
+      const { data: playsData, error } = await query
+        .eq('estado_loteria', 'cerrada') // Solo loterías cerradas
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return generateMockPlaysData();
+      }
+
+      return playsData || [];
+      
+    } catch (error) {
+      return generateMockPlaysData();
+    }
+  }
+
+  // Función para cargar datos agrupados por listero (para collector)
+  async function loadCollectorGroupedData(collectorId) {
+    try {
+      if (!collectorId) {
+        return [];
       }
 
       const { data: playsData, error } = await supabase
         .from('v_statistics_complete')
         .select('*')
-        .eq('id_listero', userId)
-        .eq('estado_loteria', 'cerrada') // Solo loterías cerradas
+        .eq('id_colector', collectorId)
+        .eq('estado_loteria', 'cerrada')
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Error cargando jugadas reales:', error);
-        return generateMockPlaysData();
+        return [];
       }
 
-      console.log(`📋 Jugadas reales cargadas: ${playsData?.length || 0} jugadas`);
-      return playsData || [];
+      // Agrupar por listero
+      const groupedByListero = {};
+      (playsData || []).forEach(play => {
+        const listeroKey = play.listero_username || `Listero ${play.id_listero}`;
+        if (!groupedByListero[listeroKey]) {
+          groupedByListero[listeroKey] = {
+            listero_username: listeroKey,
+            id_listero: play.id_listero,
+            bruto_total: 0,
+            ganancia_colector_total: 0,
+            balance_colector_total: 0,
+            plays: []
+          };
+        }
+        
+        groupedByListero[listeroKey].bruto_total += Number(play.bruto || 0);
+        groupedByListero[listeroKey].ganancia_colector_total += Number(play.ganancia_colector || 0);
+        groupedByListero[listeroKey].balance_colector_total += Number(play.balance_colector || 0);
+        groupedByListero[listeroKey].plays.push(play);
+      });
+
+      return Object.values(groupedByListero);
       
     } catch (error) {
-      console.error('❌ Error en loadRealPlaysData:', error);
-      return generateMockPlaysData();
+      return [];
+    }
+  }
+
+  // Función para cargar datos agrupados por colector (para admin)
+  async function loadAdminGroupedData(bankId) {
+    try {
+      if (!bankId) {
+        return [];
+      }
+
+      const { data: playsData, error } = await supabase
+        .from('v_statistics_complete')
+        .select('*')
+        .eq('id_banco', bankId)
+        .eq('estado_loteria', 'cerrada')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return [];
+      }
+
+      // Agrupar por colector
+      const groupedByColector = {};
+      (playsData || []).forEach(play => {
+        const colectorKey = play.colector_username || `Colector ${play.id_colector}`;
+        if (!groupedByColector[colectorKey]) {
+          groupedByColector[colectorKey] = {
+            colector_username: colectorKey,
+            id_colector: play.id_colector,
+            bruto_total: 0,
+            balance_banco_total: 0,
+            plays: []
+          };
+        }
+        
+        groupedByColector[colectorKey].bruto_total += Number(play.bruto || 0);
+        groupedByColector[colectorKey].balance_banco_total += Number(play.balance_banco || 0);
+        groupedByColector[colectorKey].plays.push(play);
+      });
+
+      return Object.values(groupedByColector);
+      
+    } catch (error) {
+      return [];
     }
   }
 
@@ -1030,6 +1164,8 @@ const useStatistics = (bankId = null) => {
     loadLotteryStats,
     loadScheduleStats,
     loadPlaysData, // Nueva función para cargar jugadas
+    loadCollectorData, // Nueva función para collector
+    loadAdminData, // Nueva función para admin
     
     // ===== FUNCIONES DE UTILIDAD =====
     comparePeriods,
