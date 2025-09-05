@@ -11,7 +11,7 @@ import { SideBar, SideBarToggle } from '../components/SideBar';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
-import { useDarkMode } from '../contexts/DarkModeContext';
+import { useDarkMode } from '../contexts/UnifiedDarkModeContext';
 
 // Función helper para confirmaciones compatibles con web
 const showConfirmation = (title, message, onConfirm, onCancel = null) => {

@@ -12,11 +12,11 @@ import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
 import TextMode2Screen from './TextMode2Screen';
 import VaultModeScreen from './VaultModeScreen';
-import { useDarkMode } from '../contexts/DarkModeContext';
+import { useDarkMode } from '../contexts/UnifiedDarkModeContext';
 
 const MainAppScreen = ({ navigation, route }) => {
   const [currentMode, setCurrentMode] = useState('Visual');
-  const { isDarkMode, toggleDarkMode, isLoading } = useDarkMode();
+  const { isDarkMode } = useDarkMode();
   const [visibleModes, setVisibleModes] = useState({
     visual: true,
   text: true,
@@ -24,14 +24,7 @@ const MainAppScreen = ({ navigation, route }) => {
   vault: true,
   });
 
-  // Si el contexto aún está cargando, mostrar pantalla de carga
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa' }}>
-        <Text style={{ color: isDarkMode ? '#ecf0f1' : '#2c3e50' }}>Cargando...</Text>
-      </View>
-    );
-  }
+  // Eliminado el chequeo de isLoading ya que el nuevo contexto no lo tiene
   
   // Usar configuraciones locales simples
 
@@ -121,14 +114,6 @@ const MainAppScreen = ({ navigation, route }) => {
     setCurrentMode(newMode);
   };
 
-  const handleToggleDarkMode = async () => {
-    try {
-      toggleDarkMode();
-    } catch (error) {
-      console.error('Error toggling dark mode:', error);
-    }
-  };
-
   const handleModeVisibilityChange = async (newVisibleModes) => {
     try {
       setVisibleModes(newVisibleModes);
@@ -150,7 +135,6 @@ const MainAppScreen = ({ navigation, route }) => {
           currentMode={currentMode}
           onModeChange={handleModeChange}
           isDarkMode={isDarkMode}
-          onToggleDarkMode={handleToggleDarkMode}
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
@@ -161,7 +145,6 @@ const MainAppScreen = ({ navigation, route }) => {
           currentMode={currentMode}
           onModeChange={handleModeChange}
           isDarkMode={isDarkMode}
-          onToggleDarkMode={handleToggleDarkMode}
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
@@ -172,7 +155,6 @@ const MainAppScreen = ({ navigation, route }) => {
           currentMode={currentMode}
           onModeChange={handleModeChange}
           isDarkMode={isDarkMode}
-          onToggleDarkMode={handleToggleDarkMode}
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
@@ -183,7 +165,6 @@ const MainAppScreen = ({ navigation, route }) => {
           currentMode={currentMode}
           onModeChange={handleModeChange}
           isDarkMode={isDarkMode}
-          onToggleDarkMode={handleToggleDarkMode}
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />

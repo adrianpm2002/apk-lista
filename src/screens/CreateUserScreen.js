@@ -7,7 +7,7 @@ import { supabase } from '../supabaseClient';
 import { adminResetPasswordByUsername } from '../utils/adminUtils';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
-import { useDarkMode } from '../contexts/DarkModeContext';
+import { useDarkMode } from '../contexts/UnifiedDarkModeContext';
 
 // Orden canónico unificado de jugadas en toda la app
 const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];

@@ -20,26 +20,25 @@ import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
-import { useDarkMode } from '../contexts/DarkModeContext';
+import { useDarkMode } from '../contexts/UnifiedDarkModeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
-  const { isDarkMode, toggleDarkMode } = useDarkMode();
+  const { isDarkMode } = useDarkMode();
   
   return (
     <ScreenWrapper isDarkMode={isDarkMode}>
       <StatisticsContent
         navigation={navigation}
         isDarkMode={isDarkMode}
-        onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
       />
     </ScreenWrapper>
   );
 };
 
-const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, onModeVisibilityChange }) => {
+const StatisticsContent = ({ navigation, isDarkMode = false, onModeVisibilityChange }) => {
   // Estado local para bank ID y usuario
   const [currentBankId, setCurrentBankId] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -1813,7 +1812,6 @@ const StatisticsContent = ({ navigation, isDarkMode = false, onToggleDarkMode, o
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
         isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
         role={userRole}
       />

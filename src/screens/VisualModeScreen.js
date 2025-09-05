@@ -31,7 +31,7 @@ import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils
 import { generateVisualModeCopyText } from '../utils/copyUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
 
-const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
+const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onModeVisibilityChange, visibleModes }) => {
   
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // values de loterías (máx 3)
@@ -888,6 +888,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
                     options={scheduleOptionsMap[lv] || []}
                     placeholder={scheduleOptionsMap[lv]? t('placeholders.selectSchedule'):t('placeholders.noSchedules')}
                     hasError={missingScheduleSet.has(lv)}
+                    isDarkMode={isDarkMode}
                   />
                 </View>
               );
@@ -1042,7 +1043,6 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         onClose={closeSidebar}
         onOptionSelect={handleTopBarOption}
         isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
   visibleModes={visibleModes}

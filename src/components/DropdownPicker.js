@@ -16,7 +16,8 @@ const DropdownPicker = ({
   placeholder = "Seleccionar...",
   style,
   hasError = false,
-  disabled = false
+  disabled = false,
+  isDarkMode = false
 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -29,20 +30,23 @@ const DropdownPicker = ({
     <Pressable
       style={({ pressed }) => [
         styles.option,
-        pressed && styles.optionPressed
+        isDarkMode && styles.optionDark,
+        pressed && styles.optionPressed,
+        pressed && isDarkMode && styles.optionPressedDark
       ]}
       onPress={() => handleSelect(item)}
     >
-      <Text style={styles.optionText}>{item.label}</Text>
+      <Text style={[styles.optionText, isDarkMode && styles.optionTextDark]}>{item.label}</Text>
     </Pressable>
   );
 
   return (
     <View style={[styles.container, style]}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, isDarkMode && styles.labelDark]}>{label}</Text>
       <Pressable
         style={({ pressed }) => [
           styles.dropdown,
+          isDarkMode && styles.dropdownDark,
           hasError && styles.dropdownError,
           disabled && styles.dropdownDisabled,
           pressed && !disabled && styles.dropdownPressed
@@ -51,12 +55,14 @@ const DropdownPicker = ({
       >
         <Text style={[
           styles.dropdownText,
+          isDarkMode && styles.dropdownTextDark,
           !value && styles.placeholder,
+          !value && isDarkMode && styles.placeholderDark,
           hasError && styles.dropdownTextError
         ]}>
           {value || placeholder}
         </Text>
-        <Text style={styles.arrow}>▼</Text>
+        <Text style={[styles.arrow, isDarkMode && styles.arrowDark]}>▼</Text>
       </Pressable>
 
       <Modal
@@ -69,8 +75,8 @@ const DropdownPicker = ({
           style={styles.overlay}
           onPress={() => setIsVisible(false)}
         >
-          <View style={styles.modal}>
-            <Text style={styles.modalTitle}>{label}</Text>
+          <View style={[styles.modal, isDarkMode && styles.modalDark]}>
+            <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>{label}</Text>
             <FlatList
               data={options}
               renderItem={renderOption}
@@ -192,6 +198,36 @@ const styles = StyleSheet.create({
   optionPressed: {
     backgroundColor: '#E8F5E8',
     opacity: 0.9,
+  },
+  // Dark mode styles
+  labelDark: {
+    color: '#E8F5E8',
+  },
+  dropdownDark: {
+    backgroundColor: '#2C3E50',
+    borderColor: '#34495E',
+  },
+  dropdownTextDark: {
+    color: '#E8F5E8',
+  },
+  placeholderDark: {
+    color: '#7F8C8D',
+  },
+  arrowDark: {
+    color: '#E8F5E8',
+  },
+  modalDark: {
+    backgroundColor: '#2C3E50',
+  },
+  modalTitleDark: {
+    color: '#E8F5E8',
+    borderBottomColor: '#34495E',
+  },
+  optionTextDark: {
+    color: '#E8F5E8',
+  },
+  optionPressedDark: {
+    backgroundColor: '#34495E',
   },
 });
 

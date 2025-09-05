@@ -21,7 +21,7 @@ import { getAccessibilityProps } from '../utils/accessibilityUtils';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkMode, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
+const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
 
   const sidebarWidth = screenWidth * 0.75;
   // Inicializar slideAnim con validación
@@ -208,10 +208,6 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
     setModalVisible(false);
     setModalContent(null);
     setSettingsView('root');
-  };
-
-  const toggleDarkMode = () => {
-    onToggleDarkMode && onToggleDarkMode();
   };
 
   const handleLogout = () => {
@@ -825,19 +821,6 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
 
             {/* Footer */}
             <View style={[styles.footer, isDarkMode && styles.footerDark]}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.footerButton,
-                  pressed && styles.buttonPressed
-                ]}
-                onPress={toggleDarkMode}
-              >
-                <Text style={styles.footerButtonIcon}>{isDarkMode ? '☀️' : '🌙'}</Text>
-                <Text style={[styles.footerButtonText, isDarkMode && styles.footerButtonTextDark]}>
-                  {isDarkMode ? 'Modo Claro' : 'Modo Oscuro'}
-                </Text>
-              </Pressable>
-              
               <Pressable
                 style={({ pressed }) => [
                   styles.footerButton,
