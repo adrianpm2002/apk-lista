@@ -1065,7 +1065,7 @@ const styles = StyleSheet.create({
   },
   headerFloating: {
     position: 'absolute',
-    top: 20,
+    top: 40,
     left: 0,
     right: 0,
     flexDirection: 'row',

@@ -806,7 +806,7 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
 const styles = StyleSheet.create({
   container:{ flex:1, backgroundColor:'#f0f8ff' },
   containerDark:{ backgroundColor:'#2c3e50' },
-  headerFloating:{ position:'absolute', top:0, left:0, right:0, flexDirection:'row', flexWrap:'wrap', justifyContent:'flex-start', alignItems:'flex-start', zIndex:3000, paddingTop:10, paddingBottom:10, paddingHorizontal:12, backgroundColor:'rgba(255,255,255,0.96)', borderBottomWidth:1, borderBottomColor:'#E2E6EA', shadowColor:'#000', shadowOffset:{ width:0, height:2 }, shadowOpacity:0.12, shadowRadius:4, elevation:4 },
+  headerFloating:{ position:'absolute', top:40, left:0, right:0, flexDirection:'row', flexWrap:'wrap', justifyContent:'flex-start', alignItems:'flex-start', zIndex:3000, paddingTop:10, paddingBottom:10, paddingHorizontal:12, backgroundColor:'rgba(255,255,255,0.96)', borderBottomWidth:1, borderBottomColor:'#E2E6EA', shadowColor:'#000', shadowOffset:{ width:0, height:2 }, shadowOpacity:0.12, shadowRadius:4, elevation:4 },
   inlineHeaderRow:{ flexDirection:'row', alignItems:'center', gap:6, flex:1, paddingTop:0, minHeight:44 },
   rightButtonsGroup:{ flexDirection:'row', alignItems:'center', gap:6, marginLeft:'auto', flexWrap:'wrap' },
   modeSelectorWrapper:{ marginLeft:6, flexShrink:1 },

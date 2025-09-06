@@ -865,7 +865,7 @@ const styles = StyleSheet.create({
   // Toggle Button
   toggleButton: {
     position: 'absolute',
-    top: 8,
+    top: 60,
     left: 8,
     width: 42,
     height: 42,
