@@ -161,6 +161,84 @@ export function parseTextMode2(rawText, { isLocked = false } = {}) {
       tokens = pairs;
       inferredType = '2d';
     }
+    // Detectar si hay mezcla de comandos y números directos
+    else if (left.match(/([dDtTpP]\d*|\d{2,6})/)) {
+      // Dividir por espacios y procesar cada token individualmente
+      const allTokens = left.split(/\s+/).filter(Boolean);
+      let allNumbers = []; // Usar array normal para mantener todos los números, incluyendo duplicados
+      let hasCommands = false;
+      let hasDirectNumbers = false;
+      
+      for (const token of allTokens) {
+        let tokenNumbers = [];
+        
+        // Procesar comando de decena
+        if (token.match(/^[Dd](\d)$/)) {
+          hasCommands = true;
+          const digit = parseInt(token.match(/^[Dd](\d)$/)[1], 10);
+          for(let u = 0; u <= 9; u++) {
+            tokenNumbers.push(pad(`${digit}${u}`, 2));
+          }
+        }
+        // Procesar comando de terminal
+        else if (token.match(/^[Tt](\d)$/)) {
+          hasCommands = true;
+          const digit = parseInt(token.match(/^[Tt](\d)$/)[1], 10);
+          for(let d = 0; d <= 9; d++) {
+            tokenNumbers.push(pad(`${d}${digit}`, 2));
+          }
+        }
+        // Procesar comando de parejas
+        else if (token.match(/^[Pp]$/)) {
+          hasCommands = true;
+          tokenNumbers = ['00','11','22','33','44','55','66','77','88','99'];
+        }
+        // Procesar número directo
+        else if (token.match(/^\d{2,6}$/)) {
+          hasDirectNumbers = true;
+          const num = token.replace(/[^0-9]/g, '');
+          if ([2,3,4,6].includes(num.length)) {
+            tokenNumbers.push(pad(num, num.length));
+          }
+        }
+        
+        // Agregar todos los números del token actual
+        allNumbers.push(...tokenNumbers);
+      }
+      
+      if (allNumbers.length > 0) {
+        tokens = allNumbers;
+        // Determinar el tipo basado en la longitud más común o si hay comandos
+        if (hasCommands && hasDirectNumbers) {
+          // Mezcla de comandos y números directos
+          const directNums = allNumbers.filter(n => !hasCommands || n.length === 2);
+          if (directNums.length > 0) {
+            const commonLength = directNums[0].length;
+            if (commonLength === 2) inferredType = '2d';
+            else if (commonLength === 3) inferredType = 'centena';
+            else if (commonLength === 4) inferredType = 'parle-direct';
+            else if (commonLength === 6) inferredType = 'tripleta';
+          } else {
+            inferredType = '2d'; // Default para comandos
+          }
+        } else if (hasCommands) {
+          inferredType = '2d'; // Solo comandos
+        } else {
+          // Solo números directos
+          const lens = new Set(allNumbers.map(n => n.length));
+          if (lens.size !== 1) { errors.push({ line: lineNo, message: 'Longitudes mezcladas' }); return; }
+          const L = [...lens][0];
+          if (![2,3,4,6].includes(L)) { errors.push({ line: lineNo, message: 'Longitud no soportada' }); return; }
+          if(L===2) inferredType = '2d';
+          if(L===3) inferredType = 'centena';
+          if(L===4) inferredType = 'parle-direct';
+          if(L===6) inferredType = 'tripleta';
+        }
+      } else {
+        errors.push({ line: lineNo, message: 'Sin números válidos encontrados' }); 
+        return;
+      }
+    }
     else {
       // Números directos
       const arrRaw = splitNums(left);
