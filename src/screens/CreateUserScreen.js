@@ -232,26 +232,33 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         .select('id, nombre, precios, id_banco, id_loteria')
         .eq('id_banco', currentBankId);
       if (error) { console.error('Error precio:', error); return; }
-      if (userRole === 'collector') {
-        const actSet = new Set(activePlayTypes);
-        const filtered = (data||[]).filter(cfg => {
-          if (!cfg || !cfg.precios || typeof cfg.precios !== 'object') return false;
-            const keys = Object.keys(cfg.precios);
-            if (keys.length !== actSet.size) return false;
-            for (const k of keys) {
-              if (!actSet.has(k)) return false;
-              const v = cfg.precios[k];
-              if (!v || typeof v !== 'object') return false;
-              const req = ['limited','regular','listeroPct','collectorPct'];
-              for (const r of req) { if (!(r in v)) return false; }
-            }
-            for (const a of actSet) { if (!(a in cfg.precios)) return false; }
-            return true;
-        });
-        setGainOptions(filtered);
-      } else {
-        // Admin: mostrar todas para poder resolver nombres incluso si no encajan exactamente con jugadas activas actuales
+      // Tanto collector como admin usan la misma lógica de validación
+      // para determinar correctamente qué ganancias son válidas
+      const actSet = new Set(activePlayTypes);
+      const filtered = (data||[]).filter(cfg => {
+        if (!cfg || !cfg.precios || typeof cfg.precios !== 'object') return false;
+          const keys = Object.keys(cfg.precios);
+          if (keys.length !== actSet.size) return false;
+          for (const k of keys) {
+            if (!actSet.has(k)) return false;
+            const v = cfg.precios[k];
+            if (!v || typeof v !== 'object') return false;
+            const req = ['limited','regular','listeroPct','collectorPct'];
+            for (const r of req) { if (!(r in v)) return false; }
+          }
+          for (const a of actSet) { if (!(a in cfg.precios)) return false; }
+          return true;
+      });
+      
+      // Admin también necesita acceso a todas las configuraciones para resolver nombres
+      // pero conservamos las filtradas para la validación de estado
+      if (userRole === 'admin') {
+        // Para admin: cargar todas las configuraciones para poder resolver nombres históricos
+        // pero usar la validación para determinar el estado actual
         setGainOptions(data || []);
+      } else {
+        // Para collector: solo las configuraciones válidas
+        setGainOptions(filtered);
       }
     } catch (e) {
       console.error('Excepción fetchValidGains:', e);
@@ -259,6 +266,30 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   }, [userRole, currentBankId, activePlayTypes]);
 
   useEffect(() => { fetchValidGains(); }, [fetchValidGains]);
+
+  // Función auxiliar para determinar si una ganancia es válida según las jugadas activas
+  const isGainValid = useCallback((gainId) => {
+    const gain = gainOptions.find(g => g.id === gainId);
+    if (!gain || !gain.precios || typeof gain.precios !== 'object') return false;
+    
+    const actSet = new Set(activePlayTypes);
+    const keys = Object.keys(gain.precios);
+    
+    // Verificar que la ganancia tenga exactamente las mismas jugadas que están activas
+    if (keys.length !== actSet.size) return false;
+    
+    for (const k of keys) {
+      if (!actSet.has(k)) return false;
+      const v = gain.precios[k];
+      if (!v || typeof v !== 'object') return false;
+      const req = ['limited','regular','listeroPct','collectorPct'];
+      for (const r of req) { if (!(r in v)) return false; }
+    }
+    
+    for (const a of actSet) { if (!(a in gain.precios)) return false; }
+    
+    return true;
+  }, [gainOptions, activePlayTypes]);
 
   // Cargar loterías disponibles para el banco
   const fetchAvailableLotteries = useCallback(async () => {
@@ -882,7 +913,13 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         const gain = gainOptions.find(g => g.id === gainId && g.id_loteria === lotteryId);
         
         if (lottery && gain) {
-          selectedItems.push(`${lottery.nombre}: ${gain.nombre}`);
+          // Verificar si la ganancia es válida según las jugadas activas
+          const isValid = isGainValid(gainId);
+          if (isValid) {
+            selectedItems.push(`${lottery.nombre}: ${gain.nombre}`);
+          } else {
+            invalidItems.push(`${lottery.nombre}: Ganancia inválida`);
+          }
         } else if (lottery) {
           invalidItems.push(`${lottery.nombre}: Ganancia inválida`);
         }
@@ -1024,7 +1061,16 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                   if (lotteryName && gainId) {
                     // Buscar el nombre de la ganancia en gainOptions
                     const gain = gainOptions.find(g => g.id === gainId);
-                    const gainName = gain ? gain.nombre : 'Ganancia inválida';
+                    let gainName;
+                    
+                    if (gain) {
+                      // Verificar si la ganancia es válida según las jugadas activas
+                      const isValid = isGainValid(gainId);
+                      gainName = isValid ? gain.nombre : 'Ganancia inválida';
+                    } else {
+                      gainName = 'Ganancia inválida';
+                    }
+                    
                     lotteryGainPairs.push(`${lotteryName}: ${gainName}`);
                   }
                 });
