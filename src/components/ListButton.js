@@ -3,16 +3,15 @@ import { Pressable, Text, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { createShadowStyle } from '../utils/shadowUtils';
 
-const ListButton = ({ isDarkMode = false, currentMode = 'Visual' }) => {
+const ListButton = ({ currentMode = 'Visual' }) => {
   const navigation = useNavigation();
   return (
     <Pressable
       style={({ pressed }) => [
         styles.button,
-        pressed && styles.buttonPressed,
-        isDarkMode && styles.buttonDark
+        pressed && styles.buttonPressed
       ]}
-  onPress={() => navigation.navigate('SavedPlays', { isDarkMode, originMode: currentMode })}
+  onPress={() => navigation.navigate('SavedPlays', { originMode: currentMode })}
     >
       <Text style={styles.buttonIcon}>📄</Text>
     </Pressable>
@@ -36,10 +35,6 @@ const styles = StyleSheet.create({
       radius: 3,
       elevation: 3,
     }),
-  },
-  buttonDark: {
-    backgroundColor: '#34495E',
-    borderColor: '#5D6D7E',
   },
   buttonIcon: {
     fontSize: 18,

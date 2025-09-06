@@ -11,8 +11,7 @@ const KPICard = ({
   trendValue, 
   color = '#27AE60', 
   format = 'auto',
-  style,
-  isDarkMode = false 
+  style
 }) => {
   // Formatear valores monetarios
   const formatCurrency = (amount) => {
@@ -97,7 +96,6 @@ const KPICard = ({
   return (
     <View style={[
       styles.container, 
-      isDarkMode && styles.containerDark,
       { borderLeftColor: color },
       style
     ]}>
@@ -108,14 +106,14 @@ const KPICard = ({
             <Text style={styles.icon}>{icon}</Text>
           </View>
         )}
-        <Text style={[styles.title, isDarkMode && styles.titleDark]} numberOfLines={2}>
+        <Text style={styles.title} numberOfLines={2}>
           {title}
         </Text>
       </View>
 
       {/* Valor principal */}
       <View style={styles.valueContainer}>
-        <Text style={[styles.value, isDarkMode && styles.valueDark, { color: color }]}>
+        <Text style={[styles.value, { color: color }]}>
           {getFormattedValue()}
         </Text>
       </View>
@@ -123,7 +121,7 @@ const KPICard = ({
       {/* Información adicional */}
       <View style={styles.footer}>
         {subtitle && (
-          <Text style={[styles.subtitle, isDarkMode && styles.subtitleDark]}>
+          <Text style={styles.subtitle}>
             {subtitle}
           </Text>
         )}
@@ -160,9 +158,6 @@ const styles = StyleSheet.create({
       elevation: 3,
     }),
   },
-  containerDark: {
-    backgroundColor: '#34495e',
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -186,9 +181,6 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
     lineHeight: 18,
   },
-  titleDark: {
-    color: '#ecf0f1',
-  },
   valueContainer: {
     marginBottom: 12,
     alignItems: 'flex-start',
@@ -198,9 +190,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#27AE60',
     letterSpacing: -0.5,
-  },
-  valueDark: {
-    // Color se establece dinámicamente
   },
   footer: {
     flexDirection: 'row',
@@ -212,9 +201,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#7f8c8d',
     marginRight: 8,
-  },
-  subtitleDark: {
-    color: '#bdc3c7',
   },
   trendContainer: {
     flexDirection: 'row',

@@ -21,7 +21,6 @@ import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
-import { useDarkMode } from '../contexts/UnifiedDarkModeContext';
 
 // Importación condicional para exportación PDF
 let exportPdfModule;
@@ -40,20 +39,18 @@ try {
 const { width: screenWidth } = Dimensions.get('window');
 
 const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
-  const { isDarkMode } = useDarkMode();
   
   return (
-    <ScreenWrapper isDarkMode={isDarkMode}>
+    <ScreenWrapper>
       <StatisticsContent
         navigation={navigation}
-        isDarkMode={isDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
       />
     </ScreenWrapper>
   );
 };
 
-const StatisticsContent = ({ navigation, isDarkMode = false, onModeVisibilityChange }) => {
+const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Estado local para bank ID y usuario
   const [currentBankId, setCurrentBankId] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);

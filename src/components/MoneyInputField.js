@@ -11,7 +11,6 @@ const MoneyInputField = ({
   value, 
   onChangeText, 
   placeholder = "$0",
-  isDarkMode = false,
   editable = true,
   style,
   inputStyle,
@@ -87,14 +86,13 @@ const MoneyInputField = ({
   return (
     <View style={[styles.container, style]}>
       {label && (
-        <Text style={[styles.label, isDarkMode && styles.labelDark]}>
+        <Text style={styles.label}>
           {label}
         </Text>
       )}
       <TextInput
         style={[
           styles.input,
-          isDarkMode && styles.inputDark,
           !editable && styles.inputDisabled,
           hasError && styles.inputError,
           inputStyle, // inputStyle debe ir al final para tener mayor prioridad
@@ -103,7 +101,7 @@ const MoneyInputField = ({
         onChangeText={handleChange}
         onFocus={handleFocus}
         onBlur={handleBlur}        placeholder={placeholder}
-        placeholderTextColor={isDarkMode ? '#7F8C8D' : '#95A5A6'}
+        placeholderTextColor='#95A5A6'
         keyboardType="decimal-pad"
         editable={editable !== false}
       />
@@ -121,9 +119,6 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     marginBottom: 6,
   },
-  labelDark: {
-    color: '#ECF0F1',
-  },
   input: {
     borderWidth: 1.5,
     borderColor: '#D5DBDB',
@@ -134,11 +129,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#2C3E50',
     minHeight: 50,
-  },
-  inputDark: {
-    backgroundColor: '#34495E',
-    borderColor: '#5D6D7E',
-    color: '#ECF0F1',
   },
   inputDisabled: {
     backgroundColor: '#F8F9FA',

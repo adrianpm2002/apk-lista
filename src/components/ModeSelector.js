@@ -8,7 +8,7 @@ import {
   Animated,
 } from 'react-native';
 
-const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { visual: true, text: true, text2: true, vault: true } }) => {
+const ModeSelector = ({ currentMode, onModeChange, visibleModes = { visual: true, text: true, text2: true, vault: true } }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -37,7 +37,6 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
     <Animated.View 
       style={[
         styles.container, 
-        isDarkMode && styles.containerDark,
         { transform: [{ scale: scaleAnim }] }
       ]}
     >
@@ -46,14 +45,13 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
           style={({ pressed }) => [
             styles.modeButton,
             !visibleModes.text ? styles.singleButton : styles.leftButton,
-            currentMode === 'Visual' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
+            currentMode === 'Visual' && styles.activeButton,
             pressed && styles.buttonPressed
           ]}
           onPress={() => handleModeSelect('Visual')}
         >
           <Text style={[
             styles.modeText,
-            isDarkMode && styles.modeTextDark,
             currentMode === 'Visual' && styles.activeText
           ]}>
             👁️ Visual
@@ -66,14 +64,13 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
           style={({ pressed }) => [
             styles.modeButton,
             !visibleModes.visual ? styles.singleButton : styles.rightButton,
-            currentMode === 'Texto' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
+            currentMode === 'Texto' && styles.activeButton,
             pressed && styles.buttonPressed
           ]}
           onPress={() => handleModeSelect('Texto')}
         >
           <Text style={[
             styles.modeText,
-            isDarkMode && styles.modeTextDark,
             currentMode === 'Texto' && styles.activeText
           ]}>
             📝 Texto
@@ -85,14 +82,13 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
           style={({ pressed }) => [
             styles.modeButton,
             styles.rightButton,
-            currentMode === 'Texto2' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
+            currentMode === 'Texto2' && styles.activeButton,
             pressed && styles.buttonPressed
           ]}
           onPress={() => handleModeSelect('Texto2')}
         >
           <Text style={[
             styles.modeText,
-            isDarkMode && styles.modeTextDark,
             currentMode === 'Texto2' && styles.activeText
           ]}>
             📝 Texto 2.0
@@ -104,14 +100,13 @@ const ModeSelector = ({ currentMode, onModeChange, isDarkMode, visibleModes = { 
           style={({ pressed }) => [
             styles.modeButton,
             styles.rightButton,
-            currentMode === 'Vault' && (isDarkMode ? styles.activeButtonDark : styles.activeButton),
+            currentMode === 'Vault' && styles.activeButton,
             pressed && styles.buttonPressed
           ]}
           onPress={() => handleModeSelect('Vault')}
         >
           <Text style={[
             styles.modeText,
-            isDarkMode && styles.modeTextDark,
             currentMode === 'Vault' && styles.activeText
           ]}>
             🏦 Vault
@@ -138,9 +133,6 @@ const styles = StyleSheet.create({
       radius: 3,
       elevation: 2,
     }),
-  },
-  containerDark: {
-    backgroundColor: '#34495e',
   },
   modeButton: {
     paddingHorizontal: 10,
@@ -169,23 +161,10 @@ const styles = StyleSheet.create({
       elevation: 4,
     }),
   },
-  activeButtonDark: {
-    backgroundColor: '#e74c3c',
-    ...createShadowStyle({
-      color: '#c0392b',
-      offsetY: 2,
-      opacity: 0.22,
-      radius: 3,
-      elevation: 4,
-    }),
-  },
   modeText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#556',
-  },
-  modeTextDark: {
-    color: '#bdc3c7',
   },
   activeText: {
     color: '#fff',

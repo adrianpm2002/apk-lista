@@ -8,7 +8,6 @@ export default function GroupedAccordionTable({
   title,
   groups = [],
   columns = [],
-  isDarkMode = false,
   defaultExpanded = false,
   maxHeight = 360,
   formatCurrency = true,
@@ -51,8 +50,8 @@ export default function GroupedAccordionTable({
   },[groups, columns]);
 
   return (
-    <View style={[styles.container, isDarkMode && styles.containerDark]}>
-      {title && <Text style={[styles.title, isDarkMode && styles.titleDark]}>{title}</Text>}
+    <View style={styles.container}>
+      {title && <Text style={styles.title}>{title}</Text>}
 
       <ScrollView style={{ maxHeight }}>
         {groups.map(group => {
@@ -64,14 +63,14 @@ export default function GroupedAccordionTable({
             return acc;
           }, {});
           return (
-            <View key={group.id} style={[styles.group, isDarkMode && styles.groupDark]}>
+            <View key={group.id} style={styles.group}>
               <TouchableOpacity style={styles.groupHeader} onPress={()=> toggle(group.id)}>
-                <Text style={[styles.groupTitle, isDarkMode && styles.groupTitleDark]} numberOfLines={1}>
+                <Text style={styles.groupTitle} numberOfLines={1}>
                   {isOpen ? '▾' : '▸'} {group.title}
                 </Text>
                 <View style={styles.groupSummary}>
                   {columns.map(col => (
-                    <Text key={col.key} style={[styles.groupSummaryText, isDarkMode && styles.groupSummaryTextDark]}>
+                    <Text key={col.key} style={styles.groupSummaryText}>
                       {['currency','number'].includes(col.type) ? formatValue(groupTotals[col.key], col) : ''}
                     </Text>
                   ))}
@@ -80,18 +79,18 @@ export default function GroupedAccordionTable({
 
               {isOpen && (
                 <View style={styles.table}>
-                  <View style={[styles.row, styles.headerRow, isDarkMode && styles.headerRowDark]}>
+                  <View style={[styles.row, styles.headerRow]}>
                     {columns.map(col => (
                       <View key={col.key} style={[styles.cell, { flex: col.flex || 1 }] }>
-                        <Text style={[styles.headerText, isDarkMode && styles.headerTextDark]}>{col.title}</Text>
+                        <Text style={styles.headerText}>{col.title}</Text>
                       </View>
                     ))}
                   </View>
                   {group.rows.map((r, idx) => (
-                    <TouchableOpacity key={idx} style={[styles.row, idx%2===0 && styles.evenRow, isDarkMode && styles.rowDark]} onPress={()=> onRowPress && onRowPress(r)} disabled={!onRowPress}>
+                    <TouchableOpacity key={idx} style={[styles.row, idx%2===0 && styles.evenRow]} onPress={()=> onRowPress && onRowPress(r)} disabled={!onRowPress}>
                       {columns.map(col => (
                         <View key={col.key} style={[styles.cell, { flex: col.flex || 1 }]}>
-                          <Text style={[styles.dataText, isDarkMode && styles.dataTextDark]} numberOfLines={2}>{formatValue(r[col.key], col)}</Text>
+                          <Text style={styles.dataText} numberOfLines={2}>{formatValue(r[col.key], col)}</Text>
                         </View>
                       ))}
                     </TouchableOpacity>
@@ -104,13 +103,13 @@ export default function GroupedAccordionTable({
       </ScrollView>
 
       {/* Totales globales */}
-      <View style={[styles.footer, isDarkMode && styles.footerDark]}>
-        <Text style={[styles.footerTitle, isDarkMode && styles.footerTitleDark]}>Totales</Text>
+      <View style={styles.footer}>
+        <Text style={styles.footerTitle}>Totales</Text>
         <View style={{ flexDirection:'row', flexWrap:'wrap' }}>
           {columns.map(col => (
             <View key={col.key} style={{ marginRight:12, marginBottom:6 }}>
-              <Text style={[styles.footerKey, isDarkMode && styles.footerKeyDark]}>{col.title}:</Text>
-              <Text style={[styles.footerVal, isDarkMode && styles.footerValDark]}>{totals[col.key] !== undefined ? formatValue(totals[col.key], col) : '-'}</Text>
+              <Text style={styles.footerKey}>{col.title}:</Text>
+              <Text style={styles.footerVal}>{totals[col.key] !== undefined ? formatValue(totals[col.key], col) : '-'}</Text>
             </View>
           ))}
         </View>
@@ -121,34 +120,21 @@ export default function GroupedAccordionTable({
 
 const styles = StyleSheet.create({
   container: { backgroundColor:'#fff', borderRadius:12, padding:12, margin:8, elevation:2 },
-  containerDark: { backgroundColor:'#34495e' },
   title: { fontSize:18, fontWeight:'600', color:'#2c3e50', textAlign:'center', marginBottom:8 },
-  titleDark: { color:'#ecf0f1' },
   group: { marginBottom:12, borderRadius:8, borderWidth:1, borderColor:'#e9ecef' },
-  groupDark: { borderColor:'#2c3e50' },
   groupHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:12, paddingVertical:10, backgroundColor:'#f8f9fa', borderTopLeftRadius:8, borderTopRightRadius:8 },
   groupTitle: { fontSize:15, fontWeight:'600', color:'#2c3e50', flex:1 },
-  groupTitleDark: { color:'#ecf0f1' },
   groupSummary: { flexDirection:'row', flexWrap:'wrap', justifyContent:'flex-end' },
   groupSummaryText: { marginLeft:10, color:'#495057', fontSize:12 },
-  groupSummaryTextDark: { color:'#bdc3c7' },
   table: { paddingHorizontal:8, paddingBottom:8 },
   row: { flexDirection:'row', borderBottomWidth:1, borderBottomColor:'#e9ecef' },
-  rowDark: { borderBottomColor:'#2c3e50' },
   headerRow: { backgroundColor:'#f1f3f5' },
-  headerRowDark: { backgroundColor:'#2c3e50' },
   cell: { paddingHorizontal:8, paddingVertical:6, justifyContent:'center' },
   headerText: { fontSize:12, fontWeight:'700', color:'#495057' },
-  headerTextDark: { color:'#ecf0f1' },
   dataText: { fontSize:12, color:'#212529' },
-  dataTextDark: { color:'#ecf0f1' },
   evenRow: { backgroundColor:'#fafafa' },
   footer: { marginTop:8, paddingTop:8, borderTopWidth:1, borderTopColor:'#e9ecef' },
-  footerDark: { borderTopColor:'#2c3e50' },
   footerTitle: { fontSize:14, fontWeight:'700', color:'#2c3e50', marginBottom:6 },
-  footerTitleDark: { color:'#ecf0f1' },
   footerKey: { fontSize:12, color:'#495057' },
-  footerKeyDark: { color:'#bdc3c7' },
   footerVal: { fontSize:13, fontWeight:'700', color:'#2c3e50' },
-  footerValDark: { color:'#ecf0f1' },
 });

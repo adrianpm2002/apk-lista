@@ -21,7 +21,7 @@ import { getAccessibilityProps } from '../utils/accessibilityUtils';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
+const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
 
   const sidebarWidth = screenWidth * 0.75;
   // Inicializar slideAnim con validación
@@ -533,7 +533,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
             </>
           ) : (
             <>
-              <Text style={[styles.modalSubtitle, isDarkMode && styles.modalSubtitleDark]}>
+              <Text style={styles.modalSubtitle}>
                 Selecciona qué modos quieres mostrar en la interfaz
               </Text>
 
@@ -542,9 +542,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                 <Pressable
                   style={[
                     styles.modeOption,
-                    isDarkMode && styles.modeOptionDark,
-                    visibleModes.visual && styles.modeOptionSelected,
-                    visibleModes.visual && isDarkMode && styles.modeOptionSelectedDark
+                    visibleModes.visual && styles.modeOptionSelected
                   ]}
                   onPress={() => handleModeToggle('visual')}
                 >
@@ -552,21 +550,16 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                   <View style={styles.modeTextContainer}>
                     <Text style={[
                       styles.modeTitle,
-                      isDarkMode && styles.modeTitleDark,
                       visibleModes.visual && styles.modeTitleSelected
                     ]}>
                       Modo Visual
                     </Text>
-                    <Text style={[
-                      styles.modeDescription,
-                      isDarkMode && styles.modeDescriptionDark
-                    ]}>
+                    <Text style={styles.modeDescription}>
                       Interfaz gráfica completa
                     </Text>
                   </View>
                   <View style={[
                     styles.modeCheckbox,
-                    isDarkMode && styles.modeCheckboxDark,
                     visibleModes.visual && styles.modeCheckboxSelected
                   ]}>
                     {visibleModes.visual && <Text style={styles.checkmark}>✓</Text>}
@@ -577,9 +570,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                 <Pressable
                   style={[
                     styles.modeOption,
-                    isDarkMode && styles.modeOptionDark,
-                    visibleModes.text && styles.modeOptionSelected,
-                    visibleModes.text && isDarkMode && styles.modeOptionSelectedDark
+                    visibleModes.text && styles.modeOptionSelected
                   ]}
                   onPress={() => handleModeToggle('text')}
                 >
@@ -587,21 +578,16 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                   <View style={styles.modeTextContainer}>
                     <Text style={[
                       styles.modeTitle,
-                      isDarkMode && styles.modeTitleDark,
                       visibleModes.text && styles.modeTitleSelected
                     ]}>
                       Modo Texto
                     </Text>
-                    <Text style={[
-                      styles.modeDescription,
-                      isDarkMode && styles.modeDescriptionDark
-                    ]}>
+                    <Text style={styles.modeDescription}>
                       Interfaz simplificada de texto
                     </Text>
                   </View>
                   <View style={[
                     styles.modeCheckbox,
-                    isDarkMode && styles.modeCheckboxDark,
                     visibleModes.text && styles.modeCheckboxSelected
                   ]}>
                     {visibleModes.text && <Text style={styles.checkmark}>✓</Text>}
@@ -612,9 +598,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                 <Pressable
                   style={[
                     styles.modeOption,
-                    isDarkMode && styles.modeOptionDark,
-                    visibleModes.text2 && styles.modeOptionSelected,
-                    visibleModes.text2 && isDarkMode && styles.modeOptionSelectedDark
+                    visibleModes.text2 && styles.modeOptionSelected
                   ]}
                   onPress={() => handleModeToggle('text2')}
                 >
@@ -622,21 +606,16 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                   <View style={styles.modeTextContainer}>
                     <Text style={[
                       styles.modeTitle,
-                      isDarkMode && styles.modeTitleDark,
                       visibleModes.text2 && styles.modeTitleSelected
                     ]}>
                       Modo Texto 2.0
                     </Text>
-                    <Text style={[
-                      styles.modeDescription,
-                      isDarkMode && styles.modeDescriptionDark
-                    ]}>
+                    <Text style={styles.modeDescription}>
                       Sintaxis avanzada con comandos
                     </Text>
                   </View>
                   <View style={[
                     styles.modeCheckbox,
-                    isDarkMode && styles.modeCheckboxDark,
                     visibleModes.text2 && styles.modeCheckboxSelected
                   ]}>
                     {visibleModes.text2 && <Text style={styles.checkmark}>✓</Text>}
@@ -647,9 +626,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                 <Pressable
                   style={[
                     styles.modeOption,
-                    isDarkMode && styles.modeOptionDark,
-                    visibleModes.vault && styles.modeOptionSelected,
-                    visibleModes.vault && isDarkMode && styles.modeOptionSelectedDark
+                    visibleModes.vault && styles.modeOptionSelected
                   ]}
                   onPress={() => handleModeToggle('vault')}
                 >
@@ -657,21 +634,16 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                   <View style={styles.modeTextContainer}>
                     <Text style={[
                       styles.modeTitle,
-                      isDarkMode && styles.modeTitleDark,
                       visibleModes.vault && styles.modeTitleSelected
                     ]}>
                       Modo Vault
                     </Text>
-                    <Text style={[
-                      styles.modeDescription,
-                      isDarkMode && styles.modeDescriptionDark
-                    ]}>
+                    <Text style={styles.modeDescription}>
                       Tres columnas con entradas rápidas
                     </Text>
                   </View>
                   <View style={[
                     styles.modeCheckbox,
-                    isDarkMode && styles.modeCheckboxDark,
                     visibleModes.vault && styles.modeCheckboxSelected
                   ]}>
                     {visibleModes.vault && <Text style={styles.checkmark}>✓</Text>}
@@ -681,7 +653,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
 
               <View style={styles.modeModalButtons}>
                 <Pressable
-                  style={[styles.modalCloseButton, isDarkMode && styles.modalCloseButtonDark]}
+                  style={styles.modalCloseButton}
                   onPress={() => {
                     // Persistir cambios y mostrar toast
                     onModeVisibilityChange && onModeVisibilityChange(visibleModes);
@@ -710,7 +682,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                     backToSettingsRoot();
                   }}
                 >
-                  <Text style={[styles.modalCloseButtonText, isDarkMode && styles.modalCloseButtonTextDark]}>
+                  <Text style={styles.modalCloseButtonText}>
                     Aplicar
                   </Text>
                 </Pressable>
@@ -761,7 +733,6 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
           <Animated.View
             style={[
               styles.sidebar,
-              isDarkMode && styles.sidebarDark,
               {
                 transform: [{ translateX: slideAnim }],
               },
@@ -771,10 +742,10 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
             })}
           >
             {/* Header */}
-            <View style={[styles.header, isDarkMode && styles.headerDark]}>
+            <View style={styles.header}>
               <View style={styles.appInfo}>
                 <Text style={styles.appLogo}>🎲</Text>
-                <Text style={[styles.appName, isDarkMode && styles.appNameDark]}>
+                <Text style={styles.appName}>
                   Lotería Pro
                 </Text>
               </View>
@@ -803,25 +774,24 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                   key={option.id}
                   style={({ pressed }) => [
                     styles.optionRow,
-                      isDarkMode && styles.optionRowDark,
                       pressed && styles.optionRowPressed
                     ]}
                     onPress={() => handleOptionPress(option)}
                   >
                     <Text style={styles.optionIcon}>{option.icon}</Text>
                     <View style={styles.optionTextContainer}>
-                      <Text style={[styles.optionTitle, isDarkMode && styles.optionTitleDark]}>
+                      <Text style={styles.optionTitle}>
                         {option.title}
                       </Text>
                     </View>
-                    <Text style={[styles.arrowIcon, isDarkMode && styles.arrowIconDark]}>▶</Text>
+                    <Text style={styles.arrowIcon}>▶</Text>
                   </Pressable>
                 ))
               }
             </ScrollView>
 
             {/* Footer */}
-            <View style={[styles.footer, isDarkMode && styles.footerDark]}>
+            <View style={styles.footer}>
               <Pressable
                 style={({ pressed }) => [
                   styles.footerButton,
@@ -831,7 +801,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                 onPress={handleLogout}
               >
                 <Text style={styles.footerButtonIcon}>🚪</Text>
-                <Text style={[styles.footerButtonText, isDarkMode && styles.footerButtonTextDark]}>
+                <Text style={styles.footerButtonText}>
                   Cerrar Sesión
                 </Text>
               </Pressable>
@@ -935,7 +905,6 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
       <ChangePasswordModal
         visible={changePasswordModalVisible}
         onClose={() => setChangePasswordModalVisible(false)}
-        isDarkMode={isDarkMode}
       />
     </>
   );
@@ -985,9 +954,6 @@ const styles = StyleSheet.create({
       elevation: 8,
     }),
   },
-  sidebarDark: {
-    backgroundColor: '#2c3e50',
-  },
   
   // Header
   header: {
@@ -997,9 +963,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: '#3498db',
-  },
-  headerDark: {
-    backgroundColor: '#34495e',
   },
   appInfo: {
     flexDirection: 'row',
@@ -1012,9 +975,6 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  appNameDark: {
     color: '#ffffff',
   },
   closeButton: {
@@ -1051,9 +1011,6 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     borderRadius: 8,
   },
-  optionRowDark: {
-    backgroundColor: '#34495e',
-  },
   optionRowPressed: {
     backgroundColor: '#e9ecef',
   },
@@ -1072,23 +1029,14 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
     marginBottom: 2,
   },
-  optionTitleDark: {
-    color: '#ffffff',
-  },
   optionDescription: {
     fontSize: 14,
     color: '#7f8c8d',
-  },
-  optionDescriptionDark: {
-    color: '#bdc3c7',
   },
   arrowIcon: {
     fontSize: 12,
     color: '#95a5a6',
     marginLeft: 8,
-  },
-  arrowIconDark: {
-    color: '#7f8c8d',
   },
   
   // Footer
@@ -1098,10 +1046,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     backgroundColor: '#ffffff',
-  },
-  footerDark: {
-    backgroundColor: '#2c3e50',
-    borderTopColor: '#34495e',
   },
   footerButton: {
     flexDirection: 'row',
@@ -1121,9 +1065,6 @@ const styles = StyleSheet.create({
   footerButtonText: {
     fontSize: 16,
     color: '#2c3e50',
-  },
-  footerButtonTextDark: {
-    color: '#ffffff',
   },
   
   // Modal para opciones
@@ -1300,9 +1241,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     lineHeight: 20,
   },
-  modalSubtitleDark: {
-    color: '#BDC3C7',
-  },
   modeOptionsContainer: {
     width: '100%',
     marginBottom: 20,
@@ -1317,17 +1255,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#E8F1E4',
   },
-  modeOptionDark: {
-    backgroundColor: '#34495E',
-    borderColor: '#5D6D7E',
-  },
   modeOptionSelected: {
     borderColor: '#27AE60',
     backgroundColor: '#E8F5E8',
-  },
-  modeOptionSelectedDark: {
-    borderColor: '#27AE60',
-    backgroundColor: '#2C3E50',
   },
   modeIcon: {
     fontSize: 24,
@@ -1342,18 +1272,12 @@ const styles = StyleSheet.create({
     color: '#2D5016',
     marginBottom: 2,
   },
-  modeTitleDark: {
-    color: '#ECF0F1',
-  },
   modeTitleSelected: {
     color: '#27AE60',
   },
   modeDescription: {
     fontSize: 12,
     color: '#7F8C8D',
-  },
-  modeDescriptionDark: {
-    color: '#BDC3C7',
   },
   modeCheckbox: {
     width: 24,
@@ -1364,10 +1288,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
-  },
-  modeCheckboxDark: {
-    borderColor: '#5D6D7E',
-    backgroundColor: '#34495E',
   },
   modeCheckboxSelected: {
     borderColor: '#27AE60',
@@ -1424,7 +1344,6 @@ const styles = StyleSheet.create({
 const MemoizedSideBar = React.memo(SideBar, (prevProps, nextProps) => {
   // Solo re-renderizar si cambian props específicas importantes
   return (
-    prevProps.isDarkMode === nextProps.isDarkMode &&
     prevProps.navigation === nextProps.navigation &&
     prevProps.isVisible === nextProps.isVisible
   );

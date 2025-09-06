@@ -4,14 +4,9 @@ import { supabase } from '../supabaseClient';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { createShadowStyle } from '../utils/shadowUtils';
 
-const JugadasScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibilityChange }) => {
+const JugadasScreen = ({ navigation, onModeVisibilityChange }) => {
   // Mover el estado sidebarVisible aquí para evitar re-mounts
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  
-  // Usar useCallback para estabilizar las funciones
-  const handleToggleDarkMode = useCallback(() => {
-    if (onToggleDarkMode) onToggleDarkMode();
-  }, [onToggleDarkMode]);
   
   const handleModeVisibilityChange = useCallback((modes) => {
     if (onModeVisibilityChange) onModeVisibilityChange(modes);
@@ -20,8 +15,6 @@ const JugadasScreen = ({ navigation, isDarkMode, onToggleDarkMode, onModeVisibil
   return (
     <JugadasContent
       navigation={navigation}
-      isDarkMode={isDarkMode}
-      onToggleDarkMode={handleToggleDarkMode}
       onModeVisibilityChange={handleModeVisibilityChange}
       sidebarVisible={sidebarVisible}
       setSidebarVisible={setSidebarVisible}
@@ -40,8 +33,6 @@ const DEFAULT_JUGADAS_JSON = {
 
 const JugadasContent = React.memo(({ 
   navigation, 
-  isDarkMode, 
-  onToggleDarkMode, 
   onModeVisibilityChange,
   sidebarVisible,
   setSidebarVisible 
@@ -342,8 +333,6 @@ const JugadasContent = React.memo(({
         isVisible={sidebarVisible} 
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
         role={userRole}
       />
@@ -352,7 +341,6 @@ const JugadasContent = React.memo(({
 }, (prevProps, nextProps) => {
   // Comparador personalizado para React.memo - solo re-render si hay cambios importantes
   const isEqual = (
-    prevProps.isDarkMode === nextProps.isDarkMode &&
     prevProps.sidebarVisible === nextProps.sidebarVisible &&
     prevProps.navigation.isFocused === nextProps.navigation.isFocused
     // Ignoramos las funciones porque pueden cambiar referencia pero funcionalmente son iguales

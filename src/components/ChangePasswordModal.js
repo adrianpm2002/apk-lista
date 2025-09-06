@@ -13,7 +13,7 @@ import { supabase } from '../supabaseClient';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { getAccessibilityProps } from '../utils/accessibilityUtils';
 
-const ChangePasswordModal = ({ visible, onClose, isDarkMode }) => {
+const ChangePasswordModal = ({ visible, onClose }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -96,42 +96,30 @@ const ChangePasswordModal = ({ visible, onClose, isDarkMode }) => {
       accessibilityLabel="Cambiar contraseña"
     >
       <View style={[styles.overlay, { pointerEvents: 'box-none' }]}>
-        <View style={[
-          styles.container,
-          isDarkMode && styles.containerDark
-        ]}
+        <View style={styles.container}
         {...getAccessibilityProps('dialog', 'Formulario para cambiar contraseña')}
         >
-          <Text style={[
-            styles.title,
-            isDarkMode && styles.titleDark
-          ]}>
+          <Text style={styles.title}>
             Cambiar Contraseña
           </Text>
 
           <TextInput
             secureTextEntry
             placeholder="Nueva contraseña"
-            placeholderTextColor={isDarkMode ? "#95a5a6" : "#7f8c8d"}
+            placeholderTextColor="#7f8c8d"
             value={newPassword}
             onChangeText={setNewPassword}
-            style={[
-              styles.input,
-              isDarkMode && styles.inputDark
-            ]}
+            style={styles.input}
             editable={!isLoading}
           />
 
           <TextInput
             secureTextEntry
             placeholder="Confirmar contraseña"
-            placeholderTextColor={isDarkMode ? "#95a5a6" : "#7f8c8d"}
+            placeholderTextColor="#7f8c8d"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
-            style={[
-              styles.input,
-              isDarkMode && styles.inputDark
-            ]}
+            style={styles.input}
             editable={!isLoading}
           />
 

@@ -6,8 +6,6 @@ import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import { adminResetPasswordByUsername } from '../utils/adminUtils';
 import { createShadowStyle } from '../utils/shadowUtils';
-import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
-import { useDarkMode } from '../contexts/UnifiedDarkModeContext';
 
 // Orden canónico unificado de jugadas en toda la app
 const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
@@ -44,12 +42,6 @@ const CustomButton = ({ title, onPress, disabled = false, color = '#007AFF', sty
 const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   // Estados locales
   const [userRole, setUserRole] = useState(null);
-  
-  const { isDarkMode, toggleDarkMode } = useDarkMode();
-  
-  // Crear estilos adaptativos para modo oscuro
-  const commonStyles = createCommonDarkStyles(isDarkMode);
-  const formStyles = createFormDarkStyles(isDarkMode);
   
   const [users, setUsers] = useState([]);
   const [hierarchicalUsers, setHierarchicalUsers] = useState([]);
@@ -911,24 +903,24 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     // Collector card
     if (isCollector) {
       return (
-        <View style={[styles.userCard, styles.collectorCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
+        <View style={[styles.userCard, styles.collectorCard, { backgroundColor: '#fff' }]}>
           <TouchableOpacity 
             style={styles.collectorHeader}
             onPress={() => toggleCollectorExpansion(item.id)}
           >
             <View style={styles.userNameContainer}>
               <Text 
-                style={[styles.username, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}
+                style={[styles.username, { color: '#2c3e50' }]}
                 numberOfLines={2}
                 ellipsizeMode="tail"
               >
                 📊 {item.username}
               </Text>
-              <Text style={[styles.userRole, { color: isDarkMode ? '#3498db' : '#3498db' }]}>
+              <Text style={[styles.userRole, { color: '#3498db' }]}>
                 Colector • {item.activo ? 'Habilitado' : 'Deshabilitado'}
               </Text>
             </View>
-            <Text style={[styles.expandIcon, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+            <Text style={[styles.expandIcon, { color: '#7f8c8d' }]}>
               {isExpanded ? '▼' : '▶'}
             </Text>
           </TouchableOpacity>
@@ -982,22 +974,22 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         <View style={[
           styles.userCard,
           isOrphan ? styles.orphanListeroCard : styles.listeroCard,
-          { backgroundColor: isDarkMode ? (isOrphan ? '#7f8c8d' : '#34495e') : (isOrphan ? '#e9ecef' : '#f8f9fa') }
+          { backgroundColor: isOrphan ? '#e9ecef' : '#f8f9fa' }
         ]}>
           <View style={styles.userNameContainer}>
             <Text 
-              style={[styles.listeroName, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}
+              style={[styles.listeroName, { color: '#2c3e50' }]}
               numberOfLines={2}
               ellipsizeMode="tail"
             >
               {isOrphan ? '🔗' : '└── 📝'} {item.username}
             </Text>
-            <Text style={[styles.userRole, { color: isDarkMode ? (isOrphan ? '#f39c12' : '#95a5a6') : (isOrphan ? '#f39c12' : '#6c757d') }]}>
+            <Text style={[styles.userRole, { color: isOrphan ? '#f39c12' : '#6c757d' }]}>
               Listero • {item.activo ? 'Habilitado' : 'Deshabilitado'}
             </Text>
             
             {/* Información adicional del listero */}
-            <Text style={[styles.userDetails, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+            <Text style={[styles.userDetails, { color: '#7f8c8d' }]}>
               {(() => {
                 const gainsData = item.id_precio;
                 if (!gainsData || typeof gainsData !== 'object') return '💰 Sin ganancias configuradas';
@@ -1033,7 +1025,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
               })()}
             </Text>
             
-            <Text style={[styles.userDetails, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+            <Text style={[styles.userDetails, { color: '#7f8c8d' }]}>
               {(() => {
                 const raw = item.limite_especifico;
                 if (!raw || (typeof raw === 'object' && Object.keys(raw).length === 0)) return '🛑 Sin límites específicos';
@@ -1141,7 +1133,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                 value={username}
                 onChangeText={setUsername}
                 style={[styles.input, formStyles.inputField]}
-                placeholderTextColor={isDarkMode ? '#7f8c8d' : '#95a5a6'}
+                placeholderTextColor="#95a5a6"
               />
 
               {!isEditing && (
@@ -1185,7 +1177,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
 
                   {/* Botón para seleccionar ganancias por lotería */}
                   <TouchableOpacity
-                    style={[styles.gainSelectionButton, { backgroundColor: isDarkMode ? '#34495e' : '#3498db' }]}
+                    style={[styles.gainSelectionButton, { backgroundColor: '#3498db' }]}
                     onPress={openGainModalForNewUser}
                   >
                     <Text style={[styles.gainSelectionButtonText, { color: '#fff' }]}>
@@ -1329,8 +1321,6 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         isVisible={sidebarVisible}
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
         role={userRole}
       />

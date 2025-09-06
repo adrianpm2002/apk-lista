@@ -14,7 +14,6 @@ const DataTable = ({
   data = [],
   columns = [],
   title,
-  isDarkMode = false,
   maxHeight = 400,
   sortable = true,
   searchable = false,
@@ -159,7 +158,7 @@ const DataTable = ({
 
   // Renderizar header de la tabla
   const renderHeader = () => (
-    <View style={[styles.row, styles.headerRow, isDarkMode && styles.headerRowDark]}>
+    <View style={[styles.row, styles.headerRow]}>
       {columns.map(column => (
         <TouchableOpacity
           key={column.key}
@@ -167,7 +166,7 @@ const DataTable = ({
           onPress={() => handleSort(column.key)}
           disabled={!sortable}
         >
-          <Text style={[styles.headerText, isDarkMode && styles.headerTextDark]}>
+          <Text style={styles.headerText}>
             {column.title}
           </Text>
           {sortable && renderSortIcon(column.key)}
@@ -183,9 +182,7 @@ const DataTable = ({
       style={[
         styles.row,
         styles.dataRow,
-        isDarkMode && styles.dataRowDark,
         index % 2 === 0 && styles.evenRow,
-        index % 2 === 0 && isDarkMode && styles.evenRowDark,
       ]}
       onPress={() => onRowPress && onRowPress(item)}
       disabled={!onRowPress}
@@ -195,7 +192,6 @@ const DataTable = ({
           <Text 
             style={[
               styles.dataText, 
-              isDarkMode && styles.dataTextDark,
               column.align === 'center' && styles.textCenter,
               column.align === 'right' && styles.textRight,
             ]}
@@ -213,10 +209,10 @@ const DataTable = ({
     if (!showFooter || Object.keys(totals).length === 0) return null;
 
     return (
-      <View style={[styles.row, styles.footerRow, isDarkMode && styles.footerRowDark]}>
+      <View style={[styles.row, styles.footerRow]}>
         {columns.map(column => (
           <View key={column.key} style={[styles.cell, { flex: column.flex || 1 }]}>
-            <Text style={[styles.footerText, isDarkMode && styles.footerTextDark]}>
+            <Text style={styles.footerText}>
               {column.key === columns[0].key ? 'Total:' : 
                totals[column.key] !== undefined ? formatValue(totals[column.key], column) : '-'}
             </Text>
@@ -229,15 +225,15 @@ const DataTable = ({
   // Estado de carga
   if (loading) {
     return (
-      <View style={[styles.container, isDarkMode && styles.containerDark]}>
+      <View style={styles.container}>
         {title && (
-          <Text style={[styles.title, isDarkMode && styles.titleDark]}>
+          <Text style={styles.title}>
             {title}
           </Text>
         )}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#27AE60" />
-          <Text style={[styles.loadingText, isDarkMode && styles.loadingTextDark]}>
+          <Text style={styles.loadingText}>
             Cargando datos...
           </Text>
         </View>
@@ -248,14 +244,14 @@ const DataTable = ({
   // Estado sin datos
   if (!data || data.length === 0) {
     return (
-      <View style={[styles.container, isDarkMode && styles.containerDark]}>
+      <View style={styles.container}>
         {title && (
-          <Text style={[styles.title, isDarkMode && styles.titleDark]}>
+          <Text style={styles.title}>
             {title}
           </Text>
         )}
         <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>
+          <Text style={styles.emptyText}>
             📊 {emptyMessage}
           </Text>
         </View>
@@ -264,9 +260,9 @@ const DataTable = ({
   }
 
   return (
-    <View style={[styles.container, isDarkMode && styles.containerDark]}>
+    <View style={styles.container}>
       {title && (
-        <Text style={[styles.title, isDarkMode && styles.titleDark]}>
+        <Text style={styles.title}>
           {title}
         </Text>
       )}
@@ -292,7 +288,7 @@ const DataTable = ({
 
       {/* Información adicional */}
       <View style={styles.infoContainer}>
-        <Text style={[styles.infoText, isDarkMode && styles.infoTextDark]}>
+        <Text style={styles.infoText}>
           {data.length} registro{data.length !== 1 ? 's' : ''}
           {sortConfig.key && (
             <Text> • Ordenado por {columns.find(c => c.key === sortConfig.key)?.title}</Text>
@@ -317,18 +313,12 @@ const styles = StyleSheet.create({
       elevation: 3,
     }),
   },
-  containerDark: {
-    backgroundColor: '#34495e',
-  },
   title: {
     fontSize: 18,
     fontWeight: '600',
     color: '#2c3e50',
     marginBottom: 16,
     textAlign: 'center',
-  },
-  titleDark: {
-    color: '#ecf0f1',
   },
   horizontalScroll: {
     maxWidth: '100%',
@@ -346,30 +336,17 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
   },
-  headerRowDark: {
-    backgroundColor: '#2c3e50',
-    borderBottomColor: '#34495e',
-  },
   dataRow: {
     minHeight: 48,
   },
-  dataRowDark: {
-    borderBottomColor: '#34495e',
-  },
   evenRow: {
     backgroundColor: '#f8f9fa',
-  },
-  evenRowDark: {
-    backgroundColor: '#2c3e50',
   },
   footerRow: {
     backgroundColor: '#e9ecef',
     borderBottomLeftRadius: 8,
     borderBottomRightRadius: 8,
     borderBottomWidth: 0,
-  },
-  footerRowDark: {
-    backgroundColor: '#2c3e50',
   },
   cell: {
     paddingHorizontal: 12,
@@ -387,23 +364,14 @@ const styles = StyleSheet.create({
     color: '#495057',
     flex: 1,
   },
-  headerTextDark: {
-    color: '#ecf0f1',
-  },
   dataText: {
     fontSize: 13,
     color: '#212529',
-  },
-  dataTextDark: {
-    color: '#ecf0f1',
   },
   footerText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#495057',
-  },
-  footerTextDark: {
-    color: '#ecf0f1',
   },
   textCenter: {
     textAlign: 'center',
@@ -432,9 +400,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6c757d',
   },
-  loadingTextDark: {
-    color: '#adb5bd',
-  },
   emptyContainer: {
     padding: 40,
     alignItems: 'center',
@@ -450,9 +415,6 @@ const styles = StyleSheet.create({
     color: '#6c757d',
     textAlign: 'center',
   },
-  emptyTextDark: {
-    color: '#adb5bd',
-  },
   infoContainer: {
     marginTop: 8,
     paddingTop: 8,
@@ -463,9 +425,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6c757d',
     textAlign: 'center',
-  },
-  infoTextDark: {
-    color: '#adb5bd',
   },
 });
 

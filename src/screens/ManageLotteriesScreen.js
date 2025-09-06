@@ -10,8 +10,6 @@ import InputField from '../components/InputField';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
-import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
-import { useDarkMode } from '../contexts/UnifiedDarkModeContext';
 
 // Función helper para confirmaciones compatibles con web
 const showConfirmation = (title, message, onConfirm, onCancel = null) => {
@@ -53,11 +51,6 @@ const ManageLotteriesScreen = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
-  const { isDarkMode, toggleDarkMode } = useDarkMode();
-  
-  // Crear estilos adaptativos para modo oscuro
-  const commonStyles = createCommonDarkStyles(isDarkMode);
-  const formStyles = createFormDarkStyles(isDarkMode);
   
   // Estados locales
   const [lotteries, setLotteries] = useState([]);
@@ -571,24 +564,23 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
   }, []);
 
   return (
-    <View style={[styles.container, commonStyles.container]}>
+    <View style={styles.container}>
       {/* Header personalizado - arriba del todo */}
-      <View style={[styles.customHeader, commonStyles.header]}>
+      <View style={styles.customHeader}>
         <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
-        <Text style={[styles.headerTitle, commonStyles.textPrimary]}>Loterías</Text>
+        <Text style={styles.headerTitle}>Loterías</Text>
       </View>
         
-      <View style={[styles.contentContainer, commonStyles.containerSecondary]}>
+      <View style={styles.contentContainer}>
         <InputField
           placeholder="Nombre de nueva lotería"
           value={newLottery}
           onChangeText={setNewLottery}
-          isDarkMode={isDarkMode}
           style={styles.input}
         />
 
         <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: isDarkMode ? '#27ae60' : '#2ecc71' }]}
+          style={[styles.addButton, { backgroundColor: '#2ecc71' }]}
           onPress={handleAddLottery}
         >
           <Text style={styles.addButtonText}>➕ Agregar Lotería</Text>
@@ -596,7 +588,7 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
 
         {initialLoading ? (
           <View style={styles.loadingContainer}>
-            <Text style={[styles.loadingText, commonStyles.textSecondary]}>
+            <Text style={styles.loadingText}>
               Cargando loterías...
             </Text>
           </View>
@@ -608,38 +600,38 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                colors={[isDarkMode ? '#3498db' : '#2ecc71']}
-                tintColor={isDarkMode ? '#3498db' : '#2ecc71'}
+                colors={['#2ecc71']}
+                tintColor={'#2ecc71'}
               />
             }
             renderItem={({ item }) => {
               const lotterySchedules = getLotterySchedules(item.id);
               return (
-                <View style={[styles.lotteryCard, commonStyles.card]}>
-                  <Text style={[styles.lotteryName, commonStyles.textPrimary]}>
+                <View style={styles.lotteryCard}>
+                  <Text style={styles.lotteryName}>
                     {item.nombre}
                   </Text>
                   
                   {/* Vista previa de horarios */}
                   <View style={styles.schedulePreviewContainer}>
-                    <Text style={[styles.schedulePreviewTitle, commonStyles.textSecondary]}>
+                    <Text style={styles.schedulePreviewTitle}>
                       Horarios ({lotterySchedules.length}):
                     </Text>
                     {lotterySchedules.length > 0 ? (
                       <View style={styles.schedulePreviewList}>
                         {lotterySchedules.slice(0, 3).map((schedule, index) => (
-                          <Text key={schedule.id} style={[styles.schedulePreviewItem, commonStyles.textPrimary]}>
+                          <Text key={schedule.id} style={styles.schedulePreviewItem}>
                             {schedule.nombre}: {formatTimeFromString(schedule.hora_inicio)} - {formatTimeFromString(schedule.hora_fin)}
                           </Text>
                         ))}
                         {lotterySchedules.length > 3 && (
-                          <Text style={[styles.schedulePreviewMore, commonStyles.textTertiary]}>
+                          <Text style={styles.schedulePreviewMore}>
                             y {lotterySchedules.length - 3} más...
                           </Text>
                         )}
                       </View>
                     ) : (
-                      <Text style={[styles.noSchedulesText, { color: isDarkMode ? '#95a5a6' : '#7f8c8d' }]}>
+                      <Text style={[styles.noSchedulesText, { color: '#7f8c8d' }]}>
                         Sin horarios configurados
                       </Text>
                     )}
@@ -665,7 +657,7 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Text style={[styles.emptyText, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+                <Text style={[styles.emptyText, { color: '#7f8c8d' }]}>
                   No hay loterías registradas
                 </Text>
               </View>
@@ -682,9 +674,9 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
         onRequestClose={closeScheduleModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
+          <View style={[styles.modalContainer, { backgroundColor: '#fff' }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
+              <Text style={[styles.modalTitle, { color: '#000' }]}>
                 Horarios de {selectedLottery?.nombre}
               </Text>
               <TouchableOpacity onPress={closeScheduleModal} style={styles.closeButton}>
@@ -695,7 +687,7 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
             <ScrollView style={styles.modalContent}>
               {/* Formulario para agregar/editar horario */}
               <View style={styles.formSection}>
-                <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
+                <Text style={[styles.sectionTitle, { color: '#000' }]}>
                   {editingSchedule ? 'Editar Horario' : 'Nuevo Horario'}
                 </Text>
                 
@@ -703,13 +695,12 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
                   placeholder="Nombre del horario (ej: Mediodía, Noche)"
                   value={newSchedule.name}
                   onChangeText={(text) => setNewSchedule(prev => ({ ...prev, name: text }))}
-                  isDarkMode={isDarkMode}
                   style={styles.input}
                 />
 
                 <View style={styles.timeRow}>
                   <View style={styles.timeField}>
-                    <Text style={[styles.timeLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
+                    <Text style={[styles.timeLabel, { color: '#000' }]}>
                       Hora de Inicio:
                     </Text>
                     {Platform.OS === 'web' ? (
@@ -725,9 +716,9 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
                         style={{
                           padding: 12,
                           borderRadius: 8,
-                          border: `1px solid ${isDarkMode ? '#555' : '#ddd'}`,
-                          backgroundColor: isDarkMode ? '#34495e' : '#fff',
-                          color: isDarkMode ? '#fff' : '#000',
+                          border: `1px solid #ddd`,
+                          backgroundColor: '#fff',
+                          color: '#000',
                           fontSize: 16,
                           width: '100%',
                         }}
@@ -737,13 +728,13 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
                         style={[
                           styles.timeSelector, 
                           { 
-                            backgroundColor: isDarkMode ? '#34495e' : '#fff',
-                            borderColor: isDarkMode ? '#555' : '#ddd'
+                            backgroundColor: '#fff',
+                            borderColor: '#ddd'
                           }
                         ]}
                         onPress={() => setShowStartPicker(true)}
                       >
-                        <Text style={[styles.timeSelectorText, { color: isDarkMode ? '#fff' : '#000' }]}>
+                        <Text style={[styles.timeSelectorText, { color: '#000' }]}>
                           {formatTime12Hour(startTime)}
                         </Text>
                       </TouchableOpacity>
@@ -751,7 +742,7 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
                   </View>
 
                   <View style={styles.timeField}>
-                    <Text style={[styles.timeLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
+                    <Text style={[styles.timeLabel, { color: '#000' }]}>
                       Hora de Fin:
                     </Text>
                     {Platform.OS === 'web' ? (
@@ -767,9 +758,9 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
                         style={{
                           padding: 12,
                           borderRadius: 8,
-                          border: `1px solid ${isDarkMode ? '#555' : '#ddd'}`,
-                          backgroundColor: isDarkMode ? '#34495e' : '#fff',
-                          color: isDarkMode ? '#fff' : '#000',
+                          border: `1px solid #ddd`,
+                          backgroundColor: '#fff',
+                          color: '#000',
                           fontSize: 16,
                           width: '100%',
                         }}
@@ -779,13 +770,13 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
                         style={[
                           styles.timeSelector, 
                           { 
-                            backgroundColor: isDarkMode ? '#34495e' : '#fff',
-                            borderColor: isDarkMode ? '#555' : '#ddd'
+                            backgroundColor: '#fff',
+                            borderColor: '#ddd'
                           }
                         ]}
                         onPress={() => setShowEndPicker(true)}
                       >
-                        <Text style={[styles.timeSelectorText, { color: isDarkMode ? '#fff' : '#000' }]}>
+                        <Text style={[styles.timeSelectorText, { color: '#000' }]}>
                           {formatTime12Hour(endTime)}
                         </Text>
                       </TouchableOpacity>
@@ -840,22 +831,22 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
 
               {/* Lista de horarios existentes */}
               <View style={styles.schedulesSection}>
-                <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
+                <Text style={[styles.sectionTitle, { color: '#000' }]}>
                   Horarios Existentes
                 </Text>
                 
                 {modalSchedules.length === 0 ? (
-                  <Text style={[styles.emptyText, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+                  <Text style={[styles.emptyText, { color: '#7f8c8d' }]}>
                     No hay horarios configurados
                   </Text>
                 ) : (
                   modalSchedules.map((schedule) => (
-                    <View key={schedule.id} style={[styles.scheduleCard, { backgroundColor: isDarkMode ? '#34495e' : '#f8f9fa' }]}>
+                    <View key={schedule.id} style={[styles.scheduleCard, { backgroundColor: '#f8f9fa' }]}>
                       <View style={styles.scheduleInfo}>
-                        <Text style={[styles.scheduleName, { color: isDarkMode ? '#fff' : '#000' }]}>
+                        <Text style={[styles.scheduleName, { color: '#000' }]}>
                           {schedule.nombre}
                         </Text>
-                        <Text style={[styles.scheduleTime, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+                        <Text style={[styles.scheduleTime, { color: '#7f8c8d' }]}>
                           {formatTimeFromString(schedule.hora_inicio)} - {formatTimeFromString(schedule.hora_fin)}
                         </Text>
                       </View>
@@ -886,8 +877,6 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
         isVisible={sidebarVisible}
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
         role={userRole}
       />

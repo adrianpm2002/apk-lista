@@ -6,7 +6,6 @@ import { Platform, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
-import { DarkModeProvider } from './src/contexts/UnifiedDarkModeContext';
 
 export default function App() {
   useEffect(() => {
@@ -17,19 +16,17 @@ export default function App() {
   }, []);
 
   return (
-    <DarkModeProvider>
-      <View style={styles.container}>
-        <StatusBar 
-          style="dark"
-          backgroundColor="transparent"
-          translucent={true}
-          hidden={false}
-        />
-        <NavigationContainer>
-          <AppNavigator />
-        </NavigationContainer>
-      </View>
-    </DarkModeProvider>
+    <View style={styles.container}>
+      <StatusBar 
+        style="dark"
+        backgroundColor="transparent"
+        translucent={true}
+        hidden={false}
+      />
+      <NavigationContainer>
+        <AppNavigator />
+      </NavigationContainer>
+    </View>
   );
 }
 

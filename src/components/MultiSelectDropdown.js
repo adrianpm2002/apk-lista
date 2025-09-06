@@ -16,7 +16,6 @@ const MultiSelectDropdown = ({
   onSelect, 
   options = [], 
   placeholder = "Seleccionar opciones",
-  isDarkMode = false,
   hasError = false,
   errorMessage = ""
 }) => {
@@ -63,8 +62,6 @@ const MultiSelectDropdown = ({
         style={({ pressed }) => [
           styles.option,
           selected && styles.optionSelected,
-          isDarkMode && styles.optionDark,
-          selected && isDarkMode && styles.optionSelectedDark,
           pressed && styles.optionPressed
         ]}
         onPress={() => handleSelect(item.value)}
@@ -72,17 +69,12 @@ const MultiSelectDropdown = ({
         <View style={styles.optionContent}>
           <Text style={[
             styles.optionText,
-            selected && styles.optionTextSelected,
-            isDarkMode && styles.optionTextDark,
-            selected && isDarkMode && styles.optionTextSelectedDark
+            selected && styles.optionTextSelected
           ]}>
             {item.label}
           </Text>
           {selected && (
-            <Text style={[
-              styles.checkmark,
-              isDarkMode && styles.checkmarkDark
-            ]}>
+            <Text style={styles.checkmark}>
               ✓
             </Text>
           )}
@@ -94,7 +86,7 @@ const MultiSelectDropdown = ({
   return (
     <View style={styles.container}>
       {label && (
-        <Text style={[styles.label, isDarkMode && styles.labelDark]}>
+        <Text style={styles.label}>
           {label}
         </Text>
       )}
@@ -102,7 +94,6 @@ const MultiSelectDropdown = ({
       <Pressable
         style={({ pressed }) => [
           styles.dropdown,
-          isDarkMode && styles.dropdownDark,
           hasError && styles.dropdownError,
           pressed && styles.dropdownPressed
         ]}
@@ -111,13 +102,11 @@ const MultiSelectDropdown = ({
         <Text style={[
           styles.dropdownText,
           selectedValues.length === 0 && styles.placeholderText,
-          isDarkMode && styles.dropdownTextDark,
-          selectedValues.length === 0 && isDarkMode && styles.placeholderTextDark,
           hasError && styles.dropdownTextError
         ]}>
           {hasError && errorMessage ? errorMessage : getSelectedLabels()}
         </Text>
-        <Text style={[styles.arrow, isDarkMode && styles.arrowDark]}>▼</Text>
+        <Text style={styles.arrow}>▼</Text>
       </Pressable>
 
       <Modal
@@ -127,9 +116,9 @@ const MultiSelectDropdown = ({
         onRequestClose={() => { setIsVisible(false); }}
       >
         <Pressable style={styles.overlay} onPress={() => { setIsVisible(false); }}>
-          <View style={[styles.modal, isDarkMode && styles.modalDark]}>
-            <View style={[styles.header, isDarkMode && styles.headerDark]}>
-              <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>
+          <View style={styles.modal}>
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>
                 Seleccionar {label || 'Opciones'}
               </Text>
             </View>
@@ -140,7 +129,7 @@ const MultiSelectDropdown = ({
               style={styles.optionsList}
               showsVerticalScrollIndicator={false}
             />
-            <View style={[styles.footerBar, isDarkMode && styles.footerBarDark]}>
+            <View style={styles.footerBar}>
               <Pressable
                 style={({ pressed }) => [styles.clearButtonInline, pressed && styles.clearButtonPressed]}
                 onPress={() => onSelect && onSelect([])}
@@ -171,9 +160,6 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     marginBottom: 6,
   },
-  labelDark: {
-    color: '#ECF0F1',
-  },
   dropdown: {
     borderWidth: 1.5,
     borderColor: '#D5DBDB',
@@ -185,10 +171,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     minHeight: 50,
-  },
-  dropdownDark: {
-    backgroundColor: '#34495E',
-    borderColor: '#5D6D7E',
   },
   dropdownPressed: {
     opacity: 0.8,
@@ -208,22 +190,13 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     flex: 1,
   },
-  dropdownTextDark: {
-    color: '#ECF0F1',
-  },
   placeholderText: {
     color: '#95A5A6',
-  },
-  placeholderTextDark: {
-    color: '#7F8C8D',
   },
   arrow: {
     fontSize: 12,
     color: '#7F8C8D',
     marginLeft: 8,
-  },
-  arrowDark: {
-    color: '#BDC3C7',
   },
   overlay: {
     flex: 1,
@@ -240,9 +213,6 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
     ...createShadowStyle(shadowPresets.modal),
   },
-  modalDark: {
-    backgroundColor: '#2C3E50',
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -251,17 +221,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#ECF0F1',
   },
-  headerDark: {
-    borderBottomColor: '#34495E',
-  },
   headerTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#2C3E50',
     flex: 1,
-  },
-  headerTitleDark: {
-    color: '#ECF0F1',
   },
   closeButton: {
     width: 28,
@@ -287,9 +251,6 @@ const styles = StyleSheet.create({
     padding:12,
     borderTopWidth:1,
     borderTopColor:'#ECF0F1'
-  },
-  footerBarDark:{
-    borderTopColor:'#34495E'
   },
   clearButtonInline:{
     paddingHorizontal:14,
@@ -321,14 +282,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F8F9FA',
   },
-  optionDark: {
-    borderBottomColor: '#34495E',
-  },
   optionSelected: {
     backgroundColor: '#E8F6F3',
-  },
-  optionSelectedDark: {
-    backgroundColor: '#1ABC9C',
   },
   optionPressed: {
     opacity: 0.7,
@@ -343,24 +298,14 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     flex: 1,
   },
-  optionTextDark: {
-    color: '#ECF0F1',
-  },
   optionTextSelected: {
     color: '#16A085',
-    fontWeight: '600',
-  },
-  optionTextSelectedDark: {
-    color: '#FFFFFF',
     fontWeight: '600',
   },
   checkmark: {
     fontSize: 16,
     color: '#16A085',
     fontWeight: 'bold',
-  },
-  checkmarkDark: {
-    color: '#FFFFFF',
   },
   footer: {
     flexDirection: 'row',
@@ -370,15 +315,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#ECF0F1',
   },
-  footerDark: {
-    borderTopColor: '#34495E',
-  },
   footerText: {
     fontSize: 14,
     color: '#7F8C8D',
-  },
-  footerTextDark: {
-    color: '#BDC3C7',
   },
   clearButton: {
     paddingHorizontal: 12,

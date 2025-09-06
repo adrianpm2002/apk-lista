@@ -8,8 +8,8 @@ import { createShadowStyle } from '../utils/shadowUtils';
 // 1. Modal nativo con animationType="fade" (configurable si se requiere).
 // 2. Derivados (displayTokens, duplicados, conteos) memorizados con useMemo para menos renders.
 // 3. Estructura de render simplificada sin wrapper animado externo.
-// 4. Misma API externa (onOptionSelect, isDarkMode, numbersSeparator).
-const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', ' }) => {
+// 4. Misma API externa (onOptionSelect, numbersSeparator).
+const HammerButton = ({ onOptionSelect, numbersSeparator = ', ' }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [rawDigits, setRawDigits] = useState(''); // cadena de dígitos crudos para tokens de 2
   const [tokens, setTokens] = useState([]); // tokens (2 o 4 dígitos tras amarrar)
@@ -282,7 +282,6 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', 
         style={({ pressed }) => [
           styles.button,
           pressed && styles.buttonPressed,
-          isDarkMode && styles.buttonDark
         ]}
         onPress={() => setIsVisible(true)}
       >
@@ -291,28 +290,28 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', 
 
       <Modal visible={isVisible} transparent animationType="fade" onRequestClose={handleCancel}>
         <View style={styles.overlay}>
-          <View style={[styles.modal, isDarkMode && styles.modalDark]}>
+          <View style={styles.modal}>
             {/* Header */}
             <View style={styles.headerRow}>
               <View style={styles.headerLeft}>
                 <Text style={styles.headerIcon}>🔨</Text>
-                <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>Generador de Números</Text>
+                <Text style={styles.headerTitle}>Generador de Números</Text>
               </View>
-              <Pressable style={[styles.closeBtn, isDarkMode && styles.closeBtnDark]} onPress={handleCancel}><Text style={styles.closeBtnText}>✕</Text></Pressable>
+              <Pressable style={styles.closeBtn} onPress={handleCancel}><Text style={styles.closeBtnText}>✕</Text></Pressable>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
               {/* Área de lista con chips coloreables */}
               <View style={styles.block}>
                 <View style={styles.blockHeaderRow}>
-                  <Text style={[styles.blockTitle, isDarkMode && styles.blockTitleDark]}>Lista</Text>
+                  <Text style={styles.blockTitle}>Lista</Text>
                   {(parleMode ? tokens.length : twoDigitTokens.length) > 0 && (
-                    <Text style={[styles.inlineCountLabel, isDarkMode && styles.inlineCountLabelDark]}>
+                    <Text style={styles.inlineCountLabel}>
                       Cantidad de números: {parleMode ? tokens.length : twoDigitTokens.length}{hasDuplicates ? ` (${parleMode ? logicalParleDuplicateGroups : pairDuplicateGroupCount} duplicados)` : ''}
                     </Text>
                   )}
                 </View>
-                <Pressable onPress={()=> hiddenInputRef.current?.focus()} style={[styles.tokensEditContainer, isDarkMode && styles.tokensEditContainerDark, inputFocused && styles.tokensEditFocused, hasDuplicates && styles.tokensEditDup]}>
+                <Pressable onPress={()=> hiddenInputRef.current?.focus()} style={[styles.tokensEditContainer, inputFocused && styles.tokensEditFocused, hasDuplicates && styles.tokensEditDup]}>
                   <ScrollView style={styles.tokensScroll} contentContainerStyle={styles.tokensWrap} keyboardShouldPersistTaps="handled">
                     {(parleMode ? tokens : displayTokens).map((tok, idx)=>{
                       const dup = parleMode ? unorderedParleDupSet.has(tok) : (duplicateCounts[tok]>1 && (tok.length===2 || tok.length===4));
@@ -410,12 +409,12 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', 
                       multiline
                       keyboardType="number-pad"
                       placeholder=""
-                      selectionColor={isDarkMode ? '#6B7D8A' : '#B8C4B8'}
+                      selectionColor='#B8C4B8'
                     />
                   )}
                   <View style={styles.sideButtonsColumnNarrow}>
-                    <Pressable style={[styles.sideActionBtnNarrow, isDarkMode && styles.sideActionBtnNarrowDark]} onPress={handlePaste}><Text style={styles.sideActionBtnNarrowText}>Pegar</Text></Pressable>
-                    <Pressable style={[styles.sideActionBtnNarrow, styles.sideActionBtnNarrowClear, isDarkMode && styles.sideActionBtnNarrowDark]} onPress={()=>{handleClear(); setParleMode(false); setTokens([]);}}><Text style={styles.sideActionBtnNarrowText}>Limpiar</Text></Pressable>
+                    <Pressable style={styles.sideActionBtnNarrow} onPress={handlePaste}><Text style={styles.sideActionBtnNarrowText}>Pegar</Text></Pressable>
+                    <Pressable style={[styles.sideActionBtnNarrow, styles.sideActionBtnNarrowClear]} onPress={()=>{handleClear(); setParleMode(false); setTokens([]);}}><Text style={styles.sideActionBtnNarrowText}>Limpiar</Text></Pressable>
                   </View>
                 </Pressable>
                 {/* Contador inferior eliminado; ahora se muestra en la cabecera */}
@@ -425,17 +424,17 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', 
               <View style={styles.keypadRowWrapper}>
                 <View style={styles.keypadGridLeft}>
                   <View style={styles.keypadRow}>{[0,1,2,3,4].map(k => { const a = selectedDigits.includes(k); return (
-                    <Pressable key={k} style={[styles.keyBtnSmall, a && styles.keyBtnSmallActive, isDarkMode && styles.keyBtnSmallDark, a && isDarkMode && styles.keyBtnSmallActiveDark]} onPress={()=>toggleDigit(k)}>
+                    <Pressable key={k} style={[styles.keyBtnSmall, a && styles.keyBtnSmallActive]} onPress={()=>toggleDigit(k)}>
                       <Text style={[styles.keyBtnSmallText, a && styles.keyBtnSmallTextActive]}>{k}</Text>
                     </Pressable>); })}</View>
                   <View style={styles.keypadRow}>{[5,6,7,8,9].map(k => { const a = selectedDigits.includes(k); return (
-                    <Pressable key={k} style={[styles.keyBtnSmall, a && styles.keyBtnSmallActive, isDarkMode && styles.keyBtnSmallDark, a && isDarkMode && styles.keyBtnSmallActiveDark]} onPress={()=>toggleDigit(k)}>
+                    <Pressable key={k} style={[styles.keyBtnSmall, a && styles.keyBtnSmallActive]} onPress={()=>toggleDigit(k)}>
                       <Text style={[styles.keyBtnSmallText, a && styles.keyBtnSmallTextActive]}>{k}</Text>
                     </Pressable>); })}</View>
                 </View>
                 <View style={styles.genButtonsColumn}>
-                  <Pressable style={[styles.genBtn, isDarkMode && styles.genBtnDark]} onPress={generarDecena}><Text style={styles.genBtnText}>➕ Decena</Text></Pressable>
-                  <Pressable style={[styles.genBtn, isDarkMode && styles.genBtnDark]} onPress={generarTerminal}><Text style={styles.genBtnText}>➕ Terminal</Text></Pressable>
+                  <Pressable style={styles.genBtn} onPress={generarDecena}><Text style={styles.genBtnText}>➕ Decena</Text></Pressable>
+                  <Pressable style={styles.genBtn} onPress={generarTerminal}><Text style={styles.genBtnText}>➕ Terminal</Text></Pressable>
                 </View>
               </View>
 
@@ -448,26 +447,26 @@ const HammerButton = ({ onOptionSelect, isDarkMode=false, numbersSeparator = ', 
                     </Pressable>
                   ))}
                 </View>
-                <Pressable style={[styles.amarrarMiniBtn, isDarkMode && styles.amarrarMiniBtnDark]} onPress={handleAmarrar}>
+                <Pressable style={styles.amarrarMiniBtn} onPress={handleAmarrar}>
                   <Text style={styles.amarrarMiniBtnText}>Amarrar</Text>
                 </Pressable>
-                <Pressable style={[styles.amarrarMiniBtn, styles.combinarBtn, isDarkMode && styles.amarrarMiniBtnDark]} onPress={handleCombinarParleInterno}>
+                <Pressable style={[styles.amarrarMiniBtn, styles.combinarBtn]} onPress={handleCombinarParleInterno}>
                   <Text style={styles.amarrarMiniBtnText}>Combinar Parle</Text>
                 </Pressable>
-                <Pressable disabled={parejasAdded} style={[styles.genBtnInline, parejasAdded && styles.genBtnDisabled, isDarkMode && styles.genBtnDark]} onPress={insertarTodasParejas}>
+                <Pressable disabled={parejasAdded} style={[styles.genBtnInline, parejasAdded && styles.genBtnDisabled]} onPress={insertarTodasParejas}>
                   <Text style={styles.genBtnText}>{parejasAdded ? 'Parejas ✓' : '➕ Parejas'}</Text>
                 </Pressable>
               </View>
             </ScrollView>
 
             <View style={styles.footerBar}>
-              <Pressable style={[styles.footerBtnCancel, isDarkMode && styles.footerBtnCancelDark]} onPress={handleCancel}>
+              <Pressable style={styles.footerBtnCancel} onPress={handleCancel}>
                 <Text style={styles.footerBtnCancelText}>Cancelar</Text>
               </Pressable>
-              <Pressable style={[styles.footerBtnMiddle, isDarkMode && styles.footerBtnMiddleDark]} onPress={generarCentena}>
-                <Text style={[styles.footerBtnMiddleText, isDarkMode && styles.footerBtnMiddleTextDark]}>Combinar Centena</Text>
+              <Pressable style={styles.footerBtnMiddle} onPress={generarCentena}>
+                <Text style={styles.footerBtnMiddleText}>Combinar Centena</Text>
               </Pressable>
-              <Pressable style={[styles.footerBtnInsert, isDarkMode && styles.footerBtnInsertDark]} onPress={handleInsertar}>
+              <Pressable style={styles.footerBtnInsert} onPress={handleInsertar}>
                 <Text style={styles.footerBtnInsertText}>Insertar ({parleMode ? tokens.length : displayTokens.filter(t=>t.length===2).length})</Text>
               </Pressable>
             </View>
@@ -495,10 +494,6 @@ const styles = StyleSheet.create({
       radius: 3,
       elevation: 3,
     }),
-  },
-  buttonDark: {
-    backgroundColor: '#34495E',
-    borderColor: '#5D6D7E',
   },
   buttonIcon: {
     fontSize: 18,
@@ -531,18 +526,13 @@ const styles = StyleSheet.create({
       elevation: 12,
     }),
   },
-  modalDark: {
-    backgroundColor: '#2C3E50',
-  },
   headerRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10 },
   headerLeft:{ flexDirection:'row', alignItems:'center' },
   headerIcon:{ fontSize:18, marginRight:6 },
   headerTitle:{ fontSize:15, fontWeight:'700', color:'#2D5016' },
-  headerTitleDark:{ color:'#ECF0F1' },
   headerActions:{ flexDirection:'row', alignItems:'center' },
   // iconos de header eliminados excepto cerrar
   closeBtn:{ paddingVertical:6, paddingHorizontal:10, marginLeft:6, borderRadius:8, backgroundColor:'#FFE8E6', borderWidth:1, borderColor:'#F5B7B1' },
-  closeBtnDark:{ backgroundColor:'#5D6D7E', borderColor:'#85929E' },
   closeBtnText:{ fontSize:14, fontWeight:'700', color:'#C0392B' },
   numbersListContainer: {
     marginBottom: 12,
@@ -550,81 +540,56 @@ const styles = StyleSheet.create({
   block:{ marginBottom:14 },
   blockHeaderRow:{ flexDirection:'row', alignItems:'center', marginBottom:6 },
   blockTitle:{ fontSize:13, fontWeight:'700', color:'#2D5016', letterSpacing:0.5 },
-  blockTitleDark:{ color:'#ECF0F1' },
   counter:{ marginLeft:8, fontSize:11, fontWeight:'600', color:'#1E8449', backgroundColor:'#E8F5E8', paddingHorizontal:6, paddingVertical:2, borderRadius:12 },
-  counterDark:{ backgroundColor:'#34495E', color:'#58D68D' },
   // chips removidos
-  sectionTitleDark: {
-    color: '#ECF0F1',
-  },
   keypadRowWrapper:{ flexDirection:'row', justifyContent:'flex-start', marginBottom:12 },
   keypadGridLeft:{},
   keypadRow:{ flexDirection:'row' },
   keyBtnSmall:{ width:42, height:42, margin:5, borderRadius:10, backgroundColor:'#FFFFFF', borderWidth:1, borderColor:'#D5E4D0', alignItems:'center', justifyContent:'center' },
-  keyBtnSmallDark:{ backgroundColor:'#2E4053', borderColor:'#5D6D7E' },
   keyBtnSmallActive:{ backgroundColor:'#27AE60', borderColor:'#1E8449' },
-  keyBtnSmallActiveDark:{ backgroundColor:'#229954', borderColor:'#1E8449' },
   keyBtnSmallText:{ fontSize:15, fontWeight:'600', color:'#2D5016' },
   keyBtnSmallTextActive:{ color:'#FFFFFF' },
   genButtonsColumn:{ marginLeft:12, justifyContent:'space-between' },
   genBtn:{ width:100, marginVertical:6, backgroundColor:'#F4F9F2', borderWidth:1, borderColor:'#D5E4D0', paddingVertical:10, borderRadius:10, alignItems:'center' },
-  genBtnDark:{ backgroundColor:'#34495E', borderColor:'#5D6D7E' },
   genBtnDisabled:{ opacity:0.55 },
   genBtnInline:{ marginLeft:10, backgroundColor:'#F4F9F2', borderWidth:1, borderColor:'#D5E4D0', paddingVertical:10, paddingHorizontal:14, borderRadius:10, alignItems:'center' },
   genBtnText:{ fontSize:12, fontWeight:'700', color:'#2D5016' },
   multiInputContainer:{ borderWidth:1, borderColor:'#D5E4D0', borderRadius:10, backgroundColor:'#FFFFFF', padding:6, maxHeight:180 },
-  multiInputContainerDark:{ backgroundColor:'#2E4053', borderColor:'#5D6D7E' },
   multiInputContainerError:{ borderColor:'#C0392B', backgroundColor:'#FFECEA' },
-  multiInputContainerErrorDark:{ borderColor:'#E74C3C' },
   multiInput:{ minHeight:140, fontSize:12, color:'#2D5016' },
-  multiInputDark:{ color:'#ECF0F1' },
   countLabel:{ marginTop:6, fontSize:11, color:'#566573' },
-  countLabelDark:{ color:'#BDC3C7' },
   inlineCountLabel:{ marginLeft:10, fontSize:11, color:'#566573', fontWeight:'500' },
-  inlineCountLabelDark:{ color:'#BDC3C7' },
   inputIconBtn:{ padding:6, borderRadius:8, backgroundColor:'#F1F5F0', marginHorizontal:4, borderWidth:1, borderColor:'#D5E4D0' },
-  inputIconBtnDark:{ backgroundColor:'#34495E', borderColor:'#5D6D7E' },
   inputIconText:{ fontSize:16 },
   clearBtn:{ paddingVertical:6, paddingHorizontal:10, backgroundColor:'#FFEDEA', borderRadius:8, borderWidth:1, borderColor:'#F5C4BD', marginTop:6 },
-  clearBtnDark:{ backgroundColor:'#5D6D7E', borderColor:'#85929E' },
   clearBtnText:{ fontSize:11, fontWeight:'600', color:'#C0392B' },
   inputSideButtons:{ position:'absolute', right:6, top:6, alignItems:'flex-end' },
   modesRow:{ flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between', marginBottom:14 },
   modeGroup:{ flex:1, marginRight:8 },
   segmentButtons:{ flexDirection:'row', borderWidth:1, borderColor:'#D5E4D0', borderRadius:10, overflow:'hidden' },
   segmentBtn:{ flex:1, paddingVertical:8, backgroundColor:'#F4F9F2', alignItems:'center' },
-  segmentBtnDark:{ backgroundColor:'#34495E' },
   segmentBtnActive:{ backgroundColor:'#27AE60' },
-  segmentBtnActiveDark:{ backgroundColor:'#229954' },
   segmentBtnText:{ fontSize:11, fontWeight:'600', color:'#2D5016' },
   segmentBtnTextActive:{ color:'#FFFFFF' },
   amarrarInlineBtn:{ backgroundColor:'#F39C12', paddingVertical:12, paddingHorizontal:14, borderRadius:12, borderWidth:1, borderColor:'#E67E22', alignSelf:'flex-end', height:48, justifyContent:'center' },
-  amarrarInlineBtnDark:{ backgroundColor:'#E67E22', borderColor:'#D35400' },
   amarrarInlineBtnText:{ fontSize:12, fontWeight:'700', color:'#FFFFFF' },
   combineBelowRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:22 },
   quickRow:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:26 },
   // togglePill & secondaryBtn estilos eliminados
   footerBar:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingTop:8, borderTopWidth:1, borderTopColor:'#E4EBE2' },
   footerBtnCancel:{ flex:1, marginRight:8, backgroundColor:'#FFEDEA', paddingVertical:12, borderRadius:10, alignItems:'center', borderWidth:1, borderColor:'#F5C4BD' },
-  footerBtnCancelDark:{ backgroundColor:'#5D6D7E', borderColor:'#85929E' },
   footerBtnCancelText:{ fontSize:14, fontWeight:'600', color:'#C0392B' },
   footerBtnMiddle:{ flex:1, marginHorizontal:8, backgroundColor:'#F4F9F2', paddingVertical:12, borderRadius:10, alignItems:'center', borderWidth:1, borderColor:'#D5E4D0' },
-  footerBtnMiddleDark:{ backgroundColor:'#34495E', borderColor:'#5D6D7E' },
   footerBtnMiddleText:{ fontSize:14, fontWeight:'700', color:'#2D5016' },
-  footerBtnMiddleTextDark:{ color:'#ECF0F1' },
   footerBtnInsert:{ flex:1, marginLeft:8, backgroundColor:'#27AE60', paddingVertical:12, borderRadius:10, alignItems:'center', borderWidth:1, borderColor:'#229954' },
-  footerBtnInsertDark:{ backgroundColor:'#229954', borderColor:'#1E8449' },
   footerBtnInsertText:{ fontSize:14, fontWeight:'700', color:'#FFFFFF' },
   scrollArea:{ flexGrow:1 },
   scrollContent:{ paddingBottom:28 },
   listInputContainer:{ flexDirection:'row', borderWidth:1, borderColor:'#D5E4D0', borderRadius:10, backgroundColor:'#FFFFFF', padding:8, minHeight:140, maxHeight:220 },
-  listInputContainerDark:{ backgroundColor:'#2E4053', borderColor:'#5D6D7E' },
   listInputContainerDup:{ borderColor:'#F1C40F' },
   listInput:{ flex:1, fontSize:12, lineHeight:18, color:'#2D5016', paddingRight:8 },
-  listInputDark:{ color:'#ECF0F1' },
   sideButtonsColumn:{ width:86, justifyContent:'flex-start' },
   sideActionBtn:{ width:'100%', paddingVertical:10, marginBottom:8, borderRadius:10, borderWidth:1, alignItems:'center', backgroundColor:'#F4F9F2', borderColor:'#D5E4D0' },
-  sideActionBtnDark:{ backgroundColor:'#34495E', borderColor:'#5D6D7E' },
   sideActionBtnText:{ fontSize:11, fontWeight:'600', color:'#2D5016' },
   pasteBtn:{},
   clearBtnFull:{ backgroundColor:'#FFEDEA', borderColor:'#F5C4BD' },
@@ -634,17 +599,14 @@ const styles = StyleSheet.create({
   segmentBtnLargeText:{ fontSize:13, fontWeight:'700', color:'#2D5016' },
   segmentBtnLargeTextActive:{ color:'#FFFFFF' },
   amarrarCompactBtn:{ marginLeft:10, height:54, paddingHorizontal:18, backgroundColor:'#F39C12', borderRadius:14, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor:'#E67E22' },
-  amarrarCompactBtnDark:{ backgroundColor:'#E67E22', borderColor:'#D35400' },
   amarrarCompactBtnText:{ fontSize:12, fontWeight:'700', color:'#FFFFFF' },
   // Nueva edición lista
   tokensEditContainer:{ position:'relative', borderWidth:1, borderColor:'#D5E4D0', borderRadius:10, backgroundColor:'#FFFFFF', minHeight:180, maxHeight:210, padding:6, paddingRight:84 },
-  tokensEditContainerDark:{ backgroundColor:'#2E4053', borderColor:'#5D6D7E' },
   tokensEditFocused:{ borderColor:'#A8C8A2' },
   tokensEditDup:{ borderColor:'#F1C40F' },
   transparentInput:{ position:'absolute', top:6, left:6, right:94, bottom:6, opacity:0, color:'transparent' },
   sideButtonsColumnNarrow:{ position:'absolute', top:6, right:6, width:70 },
   sideActionBtnNarrow:{ backgroundColor:'#F4F9F2', borderWidth:1, borderColor:'#D5E4D0', paddingVertical:9, borderRadius:10, marginBottom:8, alignItems:'center' },
-  sideActionBtnNarrowDark:{ backgroundColor:'#34495E', borderColor:'#5D6D7E' },
   sideActionBtnNarrowClear:{ backgroundColor:'#FFEDEA', borderColor:'#F5C4BD' },
   sideActionBtnNarrowText:{ fontSize:10, fontWeight:'600', color:'#2D5016' },
   tokenTextDup:{ color:'#B7950B' },
@@ -655,12 +617,10 @@ const styles = StyleSheet.create({
   segmentBtnMediumText:{ fontSize:12, fontWeight:'700', color:'#2D5016' },
   segmentBtnMediumTextActive:{ color:'#FFFFFF' },
   amarrarMiniBtn:{ marginLeft:8, height:46, paddingHorizontal:14, backgroundColor:'#F39C12', borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor:'#E67E22', alignSelf:'flex-start' },
-  amarrarMiniBtnDark:{ backgroundColor:'#E67E22', borderColor:'#D35400' },
   amarrarMiniBtnText:{ fontSize:11, fontWeight:'700', color:'#FFFFFF' },
   combinarBtn:{ marginLeft:10, backgroundColor:'#2980B9', borderColor:'#2471A3' },
   insertAllBtn:{ marginLeft:10, backgroundColor:'#16A085', borderColor:'#13856E' },
   tokensContainer:{ borderWidth:1, borderColor:'#D5E4D0', borderRadius:10, backgroundColor:'#FFFFFF', padding:8, minHeight:120, maxHeight:220, position:'relative' },
-  tokensContainerDark:{ backgroundColor:'#2E4053', borderColor:'#5D6D7E' },
   tokensScroll:{ maxHeight:180 },
   tokensWrap:{ flexDirection:'row', flexWrap:'wrap', paddingRight:68 },
   token:{ backgroundColor:'#F4F9F2', borderWidth:1, borderColor:'#D5E4D0', paddingVertical:4, borderRadius:6, margin:3, width:44, alignItems:'center' }, // ajustado para 5 por fila
@@ -708,9 +668,6 @@ const styles = StyleSheet.create({
     color: '#2D5016',
     marginBottom: 6,
   },
-  switchLabelDark: {
-    color: '#ECF0F1',
-  },
   switchButtons: {
     flexDirection: 'row',
     borderWidth: 1,
@@ -723,23 +680,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: '#F8F9FA',
   },
-  switchButtonDark: {
-    backgroundColor: '#34495E',
-    borderColor: '#5D6D7E',
-  },
   switchButtonActive: {
     backgroundColor: '#E8F5E8',
-  },
-  switchButtonActiveDark: {
-    backgroundColor: '#5D6D7E',
   },
   switchButtonText: {
     fontSize: 12,
     color: '#2D5016',
     fontWeight: '500',
-  },
-  switchButtonTextDark: {
-    color: '#ECF0F1',
   },
   switchButtonTextActive: {
     fontWeight: '700',
@@ -759,16 +706,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E67E22',
   },
-  amarrarButtonDark: {
-    backgroundColor: '#E67E22',
-    borderColor: '#D35400',
-  },
   amarrarButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  amarrarButtonTextDark: {
     color: '#FFFFFF',
   },
   combineRow: {
@@ -789,25 +729,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignItems: 'center',
   },
-  combineSwitchDark: {
-    backgroundColor: '#34495E',
-    borderColor: '#5D6D7E',
-  },
   combineSwitchActive: {
     backgroundColor: '#E8F5E8',
-    borderColor: '#27AE60',
-  },
-  combineSwitchActiveDark: {
-    backgroundColor: '#5D6D7E',
     borderColor: '#27AE60',
   },
   combineSwitchText: {
     fontSize: 12,
     color: '#2D5016',
     fontWeight: '500',
-  },
-  combineSwitchTextDark: {
-    color: '#ECF0F1',
   },
   combineSwitchTextActive: {
     fontWeight: '700',
@@ -828,18 +757,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#C0392B',
   },
-  cancelButtonDark: {
-    backgroundColor: '#C0392B',
-    borderColor: '#A93226',
-  },
   cancelButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
     textAlign: 'center',
-  },
-  cancelButtonTextDark: {
-    color: '#FFFFFF',
   },
   insertButton: {
     backgroundColor: '#27AE60',
@@ -851,18 +773,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#229954',
   },
-  insertButtonDark: {
-    backgroundColor: '#229954',
-    borderColor: '#1E8449',
-  },
   insertButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
     textAlign: 'center',
-  },
-  insertButtonTextDark: {
-    color: '#FFFFFF',
   },
 });
 

@@ -18,7 +18,6 @@ const SavedPlaysScreen = ({ navigation, route }) => {
     const s = Number(n || 0).toFixed(2);
     return s.replace(/\.00$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
   };
-  const isDarkMode = route?.params?.isDarkMode || false;
   const originMode = route?.params?.originMode || 'Visual';
   const [savedPlays, setSavedPlays] = useState([]);
   const [filteredPlays, setFilteredPlays] = useState([]);
@@ -270,8 +269,8 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   const formatTime = ts => ts.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
 
   const renderFilterButton = (value, current, setter, label) => (
-    <Pressable style={[styles.filterButton, value===current && styles.filterButtonActive, isDarkMode && styles.filterButtonDark, value===current && isDarkMode && styles.filterButtonActiveDark]} onPress={()=> setter(value)}>
-      <Text style={[styles.filterButtonText, isDarkMode && styles.filterButtonTextDark, value===current && styles.filterButtonTextActive]}>{label}</Text>
+    <Pressable style={[styles.filterButton, value===current && styles.filterButtonActive]} onPress={()=> setter(value)}>
+      <Text style={[styles.filterButtonText, value===current && styles.filterButtonTextActive]}>{label}</Text>
     </Pressable>
   );
 
@@ -288,7 +287,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
 
   const renderPlayItem = ({ item }) => (
     <Pressable
-      style={[styles.playCard, isDarkMode && styles.playCardDark, selectedIds.has(item.id) && styles.playCardSelected]}
+      style={[styles.playCard, selectedIds.has(item.id) && styles.playCardSelected]}
       onLongPress={() => {
         setSelectionMode(true);
         setSelectedIds(prev => { const next=new Set(prev); next.add(item.id); return next; });
@@ -315,24 +314,22 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         )}
   <View style={styles.topLeft}>
           <View style={styles.lotteryLine}>
-            <Text style={[styles.lotteryName, isDarkMode && styles.lotteryNameDark]} numberOfLines={1}>{item.lottery}</Text>
-            <Text style={[styles.scheduleTag, isDarkMode && styles.scheduleTagDark]} numberOfLines={1}>{item.schedule}</Text>
-            <Text style={[styles.playTypeInline, isDarkMode && styles.playTypeInlineDark]}>{getPlayTypeLabel(item.playType)}</Text>
+            <Text style={styles.lotteryName} numberOfLines={1}>{item.lottery}</Text>
+            <Text style={styles.scheduleTag} numberOfLines={1}>{item.schedule}</Text>
+            <Text style={styles.playTypeInline}>{getPlayTypeLabel(item.playType)}</Text>
           </View>
           <View style={styles.namePriceInline}>
             {!!item.note && (
-              <Text style={[styles.noteStronger, isDarkMode && styles.noteStrongerDark]} numberOfLines={1}>{(item.note || '').toUpperCase()}</Text>
+              <Text style={styles.noteStronger} numberOfLines={1}>{(item.note || '').toUpperCase()}</Text>
             )}
-            <Text style={[styles.priceCalc, isDarkMode && styles.priceCalcDark]}>${item.amount} × {item.numbers.split(',').filter(Boolean).length} = ${item.total}</Text>
+            <Text style={styles.priceCalc}>${item.amount} × {item.numbers.split(',').filter(Boolean).length} = ${item.total}</Text>
           </View>
         </View>
   <View style={styles.resultBox}>
           <Text
             style={[
               styles.resultLabel,
-              isDarkMode && styles.resultLabelDark,
-              item.result === 'no disponible' && styles.resultUnavailable,
-              item.result === 'no disponible' && isDarkMode && styles.resultUnavailableDark
+              item.result === 'no disponible' && styles.resultUnavailable
             ]}
             numberOfLines={1}
             ellipsizeMode="tail"
@@ -381,7 +378,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
           
           const winningSet = item.winningTokens || new Set();
           return (
-            <Text style={[styles.numbers, isDarkMode && styles.numbersDark]}>
+            <Text style={styles.numbers}>
               {parts.map((n,i)=> (
                 <Text key={i}>
                   {winningSet.has(n)
@@ -396,7 +393,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         })()}
       </View>
       <View style={styles.statusRow}>
-        <Text style={[styles.timestamp, isDarkMode && styles.timestampDark]}>{formatTime(item.timestamp)}</Text>
+        <Text style={styles.timestamp}>{formatTime(item.timestamp)}</Text>
         <View style={{ flexDirection:'row', alignItems:'center' }}>
           {/* Copiar */}
           <Pressable
@@ -499,7 +496,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   }, [editingPlay]);
 
   return (
-    <View style={[styles.container, isDarkMode && styles.containerDark]}>
+    <View style={styles.container}>
       {copiedBanner && (
         <FeedbackBanner
           type="success"
@@ -511,7 +508,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
       {/* Header compacto */}
       <View style={styles.header}> 
         <Pressable style={styles.backBtn} onPress={()=> navigation.goBack()}><Text style={styles.backTxt}>←</Text></Pressable>
-        <Text style={[styles.title, isDarkMode && styles.titleDark]} numberOfLines={1}>Jugadas Guardadas</Text>
+        <Text style={styles.title} numberOfLines={1}>Jugadas Guardadas</Text>
         <View style={styles.headerActions}>
           <Pressable style={styles.iconBtn} onPress={()=> setSearchVisible(v=> !v)}>
             <Text style={[styles.iconTxt, searchVisible && styles.iconActive]}>🔍</Text>
@@ -523,43 +520,43 @@ const SavedPlaysScreen = ({ navigation, route }) => {
       </View>
       {searchVisible && (
         <TextInput
-          style={[styles.searchInput, isDarkMode && styles.searchInputDark]}
+          style={styles.searchInput}
           placeholder="Buscar números / nota / lotería..."
-          placeholderTextColor={isDarkMode ? '#7F8C8D':'#95A5A6'}
+          placeholderTextColor={'#95A5A6'}
           value={searchText}
           onChangeText={setSearchText}
           autoFocus
         />
       )}
       {filtersVisible && (
-        <View style={[styles.filtersPanel, isDarkMode && styles.filtersPanelDark]}>
-          <Text style={[styles.panelLabel, isDarkMode && styles.panelLabelDark]}>Loterías</Text>
+        <View style={styles.filtersPanel}>
+          <Text style={styles.panelLabel}>Loterías</Text>
           <View style={styles.chipsRow}>
             {renderFilterButton('all', selectedLotteryFilter, setSelectedLotteryFilter,'Todas')}
             {lotteryOptions.map(l=> renderFilterButton(l.id, selectedLotteryFilter, setSelectedLotteryFilter, l.name))}
           </View>
-          <Text style={[styles.panelLabel, isDarkMode && styles.panelLabelDark]}>Horarios</Text>
+          <Text style={styles.panelLabel}>Horarios</Text>
           <View style={styles.chipsRow}>
             {renderFilterButton('all', selectedScheduleFilter, setSelectedScheduleFilter,'Todos')}
             {scheduleOptions.map(h=> renderFilterButton(h.id, selectedScheduleFilter, setSelectedScheduleFilter, h.name))}
           </View>
-          <Text style={[styles.panelLabel, isDarkMode && styles.panelLabelDark]}>Tipo de Jugada</Text>
+          <Text style={styles.panelLabel}>Tipo de Jugada</Text>
             <View style={styles.chipsRow}>
               {renderFilterButton('all', selectedPlayTypeFilter, setSelectedPlayTypeFilter,'Todas')}
               {playTypeOptions.map(pt=> renderFilterButton(pt.value, selectedPlayTypeFilter, setSelectedPlayTypeFilter, pt.label))}
             </View>
         </View>
       )}
-      <View style={[styles.inlineTotalsOutside, isDarkMode && styles.inlineTotalsOutsideDark]}>
+      <View style={styles.inlineTotalsOutside}>
         {selectionMode && (
           <Pressable style={styles.bulkDeleteBtn} onPress={handleDeleteSelected}>
             <Text style={styles.bulkDeleteTxt}>Eliminar ({selectedIds.size})</Text>
           </Pressable>
         )}
         <View style={styles.totalsFlexGroup}>
-          <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Recogido: ${totalRecogido.toFixed(1)}</Text>
-          <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Pagado: ${totalPagadoDia.toFixed(1)}</Text>
-          <Text style={[styles.totalText, isDarkMode && styles.totalTextDark]}>Pendiente: ${pendientePago.toFixed(1)}</Text>
+          <Text style={styles.totalText}>Recogido: ${totalRecogido.toFixed(1)}</Text>
+          <Text style={styles.totalText}>Pagado: ${totalPagadoDia.toFixed(1)}</Text>
+          <Text style={styles.totalText}>Pendiente: ${pendientePago.toFixed(1)}</Text>
         </View>
         <Pressable style={[styles.prizeFilterButton, showOnlyWinners && styles.prizeFilterButtonActive]} onPress={()=> setShowOnlyWinners(p=>!p)}>
           <Text style={styles.prizeFilterText}>{showOnlyWinners? '🏆 Ganadores':'🎯 Todos'}</Text>
@@ -576,7 +573,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         </Animated.View>
       )}
       {isLoading ? (
-        <View style={styles.loadingContainer}><Text style={[styles.loadingText, isDarkMode && styles.loadingTextDark]}>Cargando...</Text></View>
+        <View style={styles.loadingContainer}><Text style={styles.loadingText}>Cargando...</Text></View>
       ) : (
         <FlatList
           data={displayedPlays}

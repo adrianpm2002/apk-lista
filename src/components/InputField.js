@@ -17,7 +17,6 @@ const InputField = ({
   onClear,
   editable = true,
   hasError = false,
-  isDarkMode = false,
   ...otherProps
 }) => {
   const handlePaste = async () => {
@@ -71,12 +70,11 @@ const InputField = ({
     <View style={[styles.container, style]}>
       {!pasteButtonOverlay && (
         <View style={styles.labelRow}>
-          <Text style={[styles.label, isDarkMode && styles.labelDark]}>{label}</Text>
+          <Text style={styles.label}>{label}</Text>
           {showPasteButton && (
             <Pressable
               style={({ pressed }) => [
                 styles.pasteButton, 
-                isDarkMode && styles.pasteButtonDark,
                 pressed && styles.pasteButtonPressed
               ]}
               onPress={handlePaste}
@@ -86,13 +84,12 @@ const InputField = ({
           )}
         </View>
       )}
-      {pasteButtonOverlay && <Text style={[styles.label, isDarkMode && styles.labelDark]}>{label}</Text>}
+      {pasteButtonOverlay && <Text style={styles.label}>{label}</Text>}
 
       <View style={styles.inputWrapper}>
         <TextInput
           style={[
             styles.input,
-            isDarkMode && styles.inputDark,
             multiline && styles.multilineInput,
             !editable && styles.readOnlyInput,
             hasError && styles.inputError,
@@ -102,7 +99,7 @@ const InputField = ({
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor={isDarkMode ? "#7f8c8d" : "#8FA987"}
+          placeholderTextColor="#8FA987"
           multiline={multiline}
           keyboardType={keyboardType}
           numberOfLines={multiline ? 4 : 1}
@@ -116,7 +113,6 @@ const InputField = ({
                 key={index}
                 style={[
                   styles.overlayButton,
-                  isDarkMode && styles.overlayButtonDark,
                   button.style
                 ]}
                 onPress={button.onPress}
@@ -219,19 +215,6 @@ const styles = StyleSheet.create({
   pasteButtonOverlayPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.95 }],
-  },
-  // Dark mode styles
-  labelDark: {
-    color: '#ecf0f1',
-  },
-  inputDark: {
-    backgroundColor: '#34495e',
-    borderColor: '#566175',
-    color: '#ecf0f1',
-  },
-  pasteButtonDark: {
-    backgroundColor: '#34495e',
-    borderColor: '#566175',
   },
 });
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { createShadowStyle } from '../utils/shadowUtils';
 
-const CollectorDataTable = ({ data, expandedListeros, onToggleListero, isDarkMode }) => {
+const CollectorDataTable = ({ data, expandedListeros, onToggleListero }) => {
   const formatDateTime = (dateStr) => {
     const date = new Date(dateStr);
     return {
@@ -25,7 +25,7 @@ const CollectorDataTable = ({ data, expandedListeros, onToggleListero, isDarkMod
   if (!data || Object.keys(data).length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={[styles.emptyText, isDarkMode && styles.darkText]}>
+        <Text style={styles.emptyText}>
           No hay datos disponibles para el período seleccionado
         </Text>
       </View>
@@ -41,13 +41,13 @@ const CollectorDataTable = ({ data, expandedListeros, onToggleListero, isDarkMod
         const balanceListero = totalRecogidoListero - totalPagadoListero;
 
         return (
-          <View key={listeroId} style={[styles.listeroGroup, isDarkMode && styles.darkListeroGroup]}>
+          <View key={listeroId} style={styles.listeroGroup}>
             <TouchableOpacity
-              style={[styles.listeroHeader, isDarkMode && styles.darkListeroHeader]}
+              style={styles.listeroHeader}
               onPress={() => onToggleListero(listeroId)}
             >
               <View style={styles.listeroInfo}>
-                <Text style={[styles.listeroName, isDarkMode && styles.darkText]}>
+                <Text style={styles.listeroName}>
                   {listeroData.listero}
                 </Text>
                 <View style={styles.listeroStats}>
@@ -71,7 +71,7 @@ const CollectorDataTable = ({ data, expandedListeros, onToggleListero, isDarkMod
                   </View>
                 </View>
               </View>
-              <Text style={[styles.expandIcon, isDarkMode && styles.darkText]}>
+              <Text style={styles.expandIcon}>
                 {expandedListeros.has(listeroId) ? '▼' : '▶'}
               </Text>
             </TouchableOpacity>
@@ -81,26 +81,26 @@ const CollectorDataTable = ({ data, expandedListeros, onToggleListero, isDarkMod
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View>
                     {/* Table Header */}
-                    <View style={[styles.tableHeader, isDarkMode && styles.darkTableHeader]}>
-                      <Text style={[styles.headerCell, styles.timeColumn, isDarkMode && styles.darkHeaderText]}>
+                    <View style={styles.tableHeader}>
+                      <Text style={[styles.headerCell, styles.timeColumn]}>
                         Hora
                       </Text>
-                      <Text style={[styles.headerCell, styles.numbersColumn, isDarkMode && styles.darkHeaderText]}>
+                      <Text style={[styles.headerCell, styles.numbersColumn]}>
                         Números
                       </Text>
-                      <Text style={[styles.headerCell, styles.amountColumn, isDarkMode && styles.darkHeaderText]}>
+                      <Text style={[styles.headerCell, styles.amountColumn]}>
                         Total
                       </Text>
-                      <Text style={[styles.headerCell, styles.resultColumn, isDarkMode && styles.darkHeaderText]}>
+                      <Text style={[styles.headerCell, styles.resultColumn]}>
                         Resultado
                       </Text>
-                      <Text style={[styles.headerCell, styles.payColumn, isDarkMode && styles.darkHeaderText]}>
+                      <Text style={[styles.headerCell, styles.payColumn]}>
                         Pagado
                       </Text>
-                      <Text style={[styles.headerCell, styles.lotteryColumn, isDarkMode && styles.darkHeaderText]}>
+                      <Text style={[styles.headerCell, styles.lotteryColumn]}>
                         Lotería
                       </Text>
-                      <Text style={[styles.headerCell, styles.scheduleColumn, isDarkMode && styles.darkHeaderText]}>
+                      <Text style={[styles.headerCell, styles.scheduleColumn]}>
                         Horario
                       </Text>
                     </View>
@@ -112,32 +112,32 @@ const CollectorDataTable = ({ data, expandedListeros, onToggleListero, isDarkMod
                       return (
                         <View 
                           key={play.id} 
-                          style={[styles.tableRow, isDarkMode && styles.darkTableRow]}
+                          style={styles.tableRow}
                         >
-                          <Text style={[styles.cell, styles.timeColumn, isDarkMode && styles.darkCellText]}>
+                          <Text style={[styles.cell, styles.timeColumn]}>
                             {time}
                           </Text>
                           <View style={[styles.cell, styles.numbersColumn]}>
-                            <Text style={[styles.numbersText, isDarkMode && styles.darkCellText]}>
+                            <Text style={styles.numbersText}>
                               {play.numeros}
                             </Text>
                           </View>
-                          <Text style={[styles.cell, styles.amountColumn, isDarkMode && styles.darkCellText]}>
+                          <Text style={[styles.cell, styles.amountColumn]}>
                             ${formatCurrency(play.monto_total)}
                           </Text>
-                          <Text style={[styles.cell, styles.resultColumn, isDarkMode && styles.darkCellText]}>
+                          <Text style={[styles.cell, styles.resultColumn]}>
                             {play.resultado}
                           </Text>
-                          <Text style={[styles.cell, styles.payColumn, isDarkMode && styles.darkCellText]}>
+                          <Text style={[styles.cell, styles.payColumn]}>
                             {play.pago_calculado > 0 
                               ? `$${formatCurrency(play.pago_calculado)}`
                               : 'Sin premio'
                             }
                           </Text>
-                          <Text style={[styles.cell, styles.lotteryColumn, isDarkMode && styles.darkCellText]}>
+                          <Text style={[styles.cell, styles.lotteryColumn]}>
                             {play.loteria}
                           </Text>
-                          <Text style={[styles.cell, styles.scheduleColumn, isDarkMode && styles.darkCellText]}>
+                          <Text style={[styles.cell, styles.scheduleColumn]}>
                             {play.horario}
                           </Text>
                         </View>
@@ -168,9 +168,6 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-  darkText: {
-    color: '#FFF',
-  },
   listeroGroup: {
     marginBottom: 16,
     backgroundColor: '#FFF',
@@ -185,18 +182,12 @@ const styles = StyleSheet.create({
       elevation: 2,
     }),
   },
-  darkListeroGroup: {
-    backgroundColor: '#1E1E1E',
-  },
   listeroHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
     backgroundColor: '#F5F5F5',
-  },
-  darkListeroHeader: {
-    backgroundColor: '#2A2A2A',
   },
   listeroInfo: {
     flex: 1,
@@ -240,18 +231,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     borderRadius: 4,
   },
-  darkTableHeader: {
-    backgroundColor: '#1E3A8A',
-  },
   headerCell: {
     fontSize: 12,
     fontWeight: 'bold',
     color: '#1976D2',
     textAlign: 'center',
     paddingVertical: 4,
-  },
-  darkHeaderText: {
-    color: '#FFF',
   },
   tableRow: {
     flexDirection: 'row',
@@ -260,17 +245,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
-  darkTableRow: {
-    borderBottomColor: '#333',
-  },
   cell: {
     fontSize: 12,
     color: '#333',
     textAlign: 'center',
     paddingVertical: 4,
-  },
-  darkCellText: {
-    color: '#FFF',
   },
   timeColumn: {
     width: 70,

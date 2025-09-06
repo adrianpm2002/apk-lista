@@ -9,7 +9,6 @@ const PlaysInputField = ({
   placeholder,
   playType,
   selectedPlayTypes = [],
-  isDarkMode = false,
   multiline = true,
   showPasteButton = false,
   pasteButtonOverlay = false,
@@ -133,16 +132,16 @@ const PlaysInputField = ({
     <View style={styles.container}>
       {label && !pasteButtonOverlay && (
         <View style={styles.headerRow}>
-          <Text style={[styles.label, isDarkMode && styles.labelDark]}>{label}</Text>
+          <Text style={styles.label}>{label}</Text>
           {showPasteButton && (
-            <Pressable onPress={handlePaste} style={[styles.pasteBtn, isDarkMode && styles.pasteBtnDark]}>
-              <Text style={[styles.pasteBtnText, isDarkMode && styles.pasteBtnTextDark]}>📋</Text>
+            <Pressable onPress={handlePaste} style={styles.pasteBtn}>
+              <Text style={styles.pasteBtnText}>📋</Text>
             </Pressable>
           )}
         </View>
       )}
-      {label && pasteButtonOverlay && <Text style={[styles.label, isDarkMode && styles.labelDark]}>{label}</Text>}
-      <Pressable style={[styles.tokensBox, isDarkMode && styles.tokensBoxDark, hasError && styles.inputError]} onPress={()=> hiddenInputRef.current?.focus()}>
+      {label && pasteButtonOverlay && <Text style={styles.label}>{label}</Text>}
+      <Pressable style={[styles.tokensBox, hasError && styles.inputError]} onPress={()=> hiddenInputRef.current?.focus()}>
         <ScrollView
           style={styles.tokensScroll}
           contentContainerStyle={styles.tokensWrap}
@@ -187,7 +186,7 @@ const PlaysInputField = ({
           {reqLen && trailing ? (
             <View style={[styles.token, styles.tokenTrailing]}><Text style={[styles.tokenText, styles.trailingText]}>{trailing}</Text></View>
           ) : null}
-          {!rawDigits && <Text style={[styles.placeholder, isDarkMode && styles.placeholderDark]}>{placeholder || 'Numeros'}</Text>}
+          {!rawDigits && <Text style={styles.placeholder}>{placeholder || 'Numeros'}</Text>}
         </ScrollView>
         <TextInput
           ref={hiddenInputRef}
@@ -201,8 +200,8 @@ const PlaysInputField = ({
         />
         {showPasteButton && (
           <View style={styles.sideButtons}>
-            <Pressable style={[styles.sideBtn, isDarkMode && styles.sideBtnDark]} onPress={handlePaste}><Text style={styles.sideBtnTxt}>📋</Text></Pressable>
-            <Pressable style={[styles.sideBtn, isDarkMode && styles.sideBtnDark]} onPress={handleClear}><Text style={styles.sideBtnTxt}>🧹</Text></Pressable>
+            <Pressable style={styles.sideBtn} onPress={handlePaste}><Text style={styles.sideBtnTxt}>📋</Text></Pressable>
+            <Pressable style={styles.sideBtn} onPress={handleClear}><Text style={styles.sideBtnTxt}>🧹</Text></Pressable>
           </View>
         )}
       </Pressable>

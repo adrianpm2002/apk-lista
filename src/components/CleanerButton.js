@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, Modal, StyleSheet, Platform, Alert, Clipboard as RNClipboard } from 'react-native';
 
-const CleanerButton = ({ onInsert, append=true, isDarkMode=false }) => {
+const CleanerButton = ({ onInsert, append=true }) => {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
 
@@ -45,9 +45,9 @@ const CleanerButton = ({ onInsert, append=true, isDarkMode=false }) => {
   <Pressable style={({pressed})=> [styles.btnText, pressed && styles.btnTextPressed]} onPress={()=> setOpen(true)}><Text style={styles.btnTextLabel}>Formatear</Text></Pressable>
       <Modal transparent visible={open} animationType="fade" onRequestClose={()=> setOpen(false)}>
         <View style={styles.mOverlay}> 
-          <View style={[styles.mPanel, isDarkMode && styles.mPanelDark]}> 
+          <View style={styles.mPanel}> 
             <View style={styles.mHeader}> 
-              <Text style={[styles.mTitle, isDarkMode && styles.mTitleDark]}>Formatear</Text>
+              <Text style={styles.mTitle}>Formatear</Text>
               <Pressable onPress={()=> setOpen(false)}><Text style={styles.mClose}>✕</Text></Pressable>
             </View>
             <View style={styles.mInputWrap}> 
@@ -56,7 +56,7 @@ const CleanerButton = ({ onInsert, append=true, isDarkMode=false }) => {
                 onChangeText={handleChange}
                 multiline
                 // placeholder eliminado según requerimiento
-                style={[styles.mInput, isDarkMode && styles.mInputDark]}
+                style={styles.mInput}
               />
               <View style={styles.mInlineBtns}> 
                 <Pressable style={styles.inlineBtn} onPress={handlePaste}><Text style={styles.inlineBtnTxt}>Pegar</Text></Pressable>

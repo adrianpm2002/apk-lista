@@ -8,8 +8,6 @@ import { supabase } from '../supabaseClient';
 import { useFocusEffect } from '@react-navigation/native';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
-import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
-import { useDarkMode } from '../contexts/UnifiedDarkModeContext';
 
 const InsertResultsScreen = ({ navigation, onModeVisibilityChange }) => {
   return (
@@ -23,12 +21,6 @@ const InsertResultsScreen = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
-  const { isDarkMode, toggleDarkMode } = useDarkMode();
-  
-  // Crear estilos adaptativos para modo oscuro
-  const commonStyles = createCommonDarkStyles(isDarkMode);
-  const formStyles = createFormDarkStyles(isDarkMode);
-  
   // Estados locales
   const [lotteryOptions, setLotteryOptions] = useState([]);
   const [selectedLottery, setSelectedLottery] = useState(null);
@@ -585,8 +577,8 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
           <RefreshControl
             refreshing={refreshing || loadingResults}
             onRefresh={handleRefresh}
-            colors={isDarkMode ? ['#3498db'] : ['#27AE60']}
-            tintColor={isDarkMode ? '#3498db' : '#27AE60'}
+            colors={['#27AE60']}
+            tintColor="#27AE60"
           />
         }
       >
@@ -603,7 +595,6 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
           options={lotteryOptions}
           placeholder="Seleccionar lotería"
           hasError={errors.lottery}
-          isDarkMode={isDarkMode}
         />
 
         <DropdownPicker
@@ -619,7 +610,6 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
           placeholder="Seleccionar horario"
           disabled={!selectedLottery}
           hasError={errors.horario}
-          isDarkMode={isDarkMode}
         />
 
         <InputField
@@ -635,7 +625,6 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
           placeholder="Ej: 2538666 o 253 8666"
           keyboardType="numeric"
           hasError={errors.result}
-          isDarkMode={isDarkMode}
         />
 
         <ActionButton
@@ -644,7 +633,6 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
           variant="success"
           size="medium"
           style={styles.submitButton}
-          isDarkMode={isDarkMode}
         />
 
         {/* Listado resultados hoy */}
@@ -672,13 +660,13 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
                 item.id === deniedEditId && styles.resultRowDenied
               ]}>
                 <View style={styles.resultInfo}>
-                  <Text style={[styles.resultLottery, { color: isDarkMode ? '#ecf0f1' : '#334155' }]}>
+                  <Text style={[styles.resultLottery, { color: '#334155' }]}>
                     {item.horario?.loteria?.nombre || 'Lotería'}
                   </Text>
-                  <Text style={[styles.resultHorario, { color: isDarkMode ? '#bdc3c7' : '#64748B' }]}>
+                  <Text style={[styles.resultHorario, { color: '#64748B' }]}>
                     {item.horario?.nombre || 'Horario'}
                   </Text>
-                  <Text style={[styles.resultCreatedBy, { color: isDarkMode ? '#95a5a6' : '#6B7280' }]}>
+                  <Text style={[styles.resultCreatedBy, { color: '#6B7280' }]}>
                     Editado por: {getRoleDisplayName(item.rol)} ({item.rol})
                   </Text>
                   {isEditing ? (
@@ -686,9 +674,9 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
                       style={[
                         styles.editInput,
                         {
-                          backgroundColor: isDarkMode ? '#34495e' : '#FFFFFF',
-                          borderColor: isDarkMode ? '#566175' : '#CBD5E1',
-                          color: isDarkMode ? '#ecf0f1' : '#1E293B'
+                          backgroundColor: '#FFFFFF',
+                          borderColor: '#CBD5E1',
+                          color: '#1E293B'
                         }
                       ]}
                       value={editingValue.length > 3 ? editingValue.slice(0,3) + ' ' + editingValue.slice(3) : editingValue}
@@ -698,16 +686,16 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
                       }}
                       keyboardType="numeric"
                       placeholder="7 dígitos"
-                      placeholderTextColor={isDarkMode ? '#7f8c8d' : '#94A3B8'}
+                      placeholderTextColor="#94A3B8"
                       maxLength={8}
                     />
                   ) : (
-                    <Text style={[styles.resultNumber, { color: isDarkMode ? '#ecf0f1' : '#1E293B' }]}>
+                    <Text style={[styles.resultNumber, { color: '#1E293B' }]}>
                       {item.numeros}
                     </Text>
                   )}
                   {item.id === deniedEditId && (
-                    <Text style={[styles.deniedText, { color: isDarkMode ? '#e74c3c' : '#B91C1C' }]}>
+                    <Text style={[styles.deniedText, { color: '#B91C1C' }]}>
                       {userRole === 'listero' 
                         ? 'Solo puedes editar resultados que hayas insertado tú mismo.'
                         : userRole === 'collector'
@@ -748,8 +736,6 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
         isVisible={sidebarVisible}
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={toggleDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
         role={userRole}
       />

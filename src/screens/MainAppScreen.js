@@ -12,11 +12,9 @@ import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
 import TextMode2Screen from './TextMode2Screen';
 import VaultModeScreen from './VaultModeScreen';
-import { useDarkMode } from '../contexts/UnifiedDarkModeContext';
 
 const MainAppScreen = ({ navigation, route }) => {
   const [currentMode, setCurrentMode] = useState('Visual');
-  const { isDarkMode } = useDarkMode();
   const [visibleModes, setVisibleModes] = useState({
     visual: true,
   text: true,
@@ -124,7 +122,7 @@ const MainAppScreen = ({ navigation, route }) => {
   };
 
   return (
-    <View style={[styles.container, isDarkMode && styles.containerDark]}>
+    <View style={styles.container}>
   {/* Mode Selector movido a los headers de cada pantalla */}
       
       {/* Renderizar solo la pantalla del modo actual si está visible */}
@@ -134,7 +132,6 @@ const MainAppScreen = ({ navigation, route }) => {
           route={visualRoute}
           currentMode={currentMode}
           onModeChange={handleModeChange}
-          isDarkMode={isDarkMode}
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
@@ -144,7 +141,6 @@ const MainAppScreen = ({ navigation, route }) => {
           route={route}
           currentMode={currentMode}
           onModeChange={handleModeChange}
-          isDarkMode={isDarkMode}
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
@@ -154,7 +150,6 @@ const MainAppScreen = ({ navigation, route }) => {
           route={route}
           currentMode={currentMode}
           onModeChange={handleModeChange}
-          isDarkMode={isDarkMode}
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
@@ -164,7 +159,6 @@ const MainAppScreen = ({ navigation, route }) => {
           route={route}
           currentMode={currentMode}
           onModeChange={handleModeChange}
-          isDarkMode={isDarkMode}
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
@@ -178,9 +172,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
-  containerDark: {
-    backgroundColor: '#2c3e50',
-  },
   modeSelectorContainer: {
     position: 'absolute',
     top: 0,
@@ -191,9 +182,6 @@ const styles = StyleSheet.create({
   paddingHorizontal: 12,
   paddingTop: 44,
     zIndex: 10,
-  },
-  modeSelectorContainerDark: {
-    // Mantener transparente para el modo oscuro también
   },
 });
 

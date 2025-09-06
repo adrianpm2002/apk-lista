@@ -16,19 +16,18 @@ import { SideBar, SideBarToggle } from '../components/SideBar';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 
-const LotteryLimitsScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
+const LotteryLimitsScreen = ({ navigation, onToggleDarkMode }) => {
   return (
     <ScreenWrapper>
       <LotteryLimitsContent
         navigation={navigation}
-        isDarkMode={isDarkMode}
         onToggleDarkMode={onToggleDarkMode}
       />
     </ScreenWrapper>
   );
 };
 
-const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
+const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -304,22 +303,22 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
     };
     
     return (
-      <View style={[styles.lotteryItem, isDarkMode && styles.lotteryItemDark]}>
+      <View style={styles.lotteryItem}>
         <View style={styles.lotteryInfo}>
-          <Text style={[styles.lotteryName, isDarkMode && styles.lotteryNameDark]}>
+          <Text style={styles.lotteryName}>
             {item.nombre}
           </Text>
           
           {hasLimits ? (
             <View style={styles.limitsPreview}>
-              <Text style={[styles.limitsPreviewTitle, isDarkMode && styles.limitsPreviewTitleDark]}>
+              <Text style={styles.limitsPreviewTitle}>
                 Límites configurados:
               </Text>
               {createLimitRows().map((row, rowIndex) => (
                 <View key={rowIndex} style={styles.limitRow}>
                   {row.map(jugada => (
-                    <View key={jugada} style={[styles.limitChip, isDarkMode && styles.limitChipDark]}>
-                      <Text style={[styles.limitChipText, isDarkMode && styles.limitChipTextDark]}>
+                    <View key={jugada} style={styles.limitChip}>
+                      <Text style={styles.limitChipText}>
                         {jugada.charAt(0).toUpperCase() + jugada.slice(1)}: ${itemLimits[jugada].toLocaleString()}
                       </Text>
                     </View>
@@ -328,7 +327,7 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
               ))}
             </View>
           ) : (
-            <Text style={[styles.noLimitsText, isDarkMode && styles.noLimitsTextDark]}>
+            <Text style={styles.noLimitsText}>
               Sin límites configurados
             </Text>
           )}
@@ -350,11 +349,11 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
 
   const renderLimitInput = (jugada) => (
     <View key={jugada} style={styles.limitInputRow}>
-      <Text style={[styles.limitLabel, isDarkMode && styles.limitLabelDark]}>
+      <Text style={styles.limitLabel}>
         {jugada.charAt(0).toUpperCase() + jugada.slice(1)}:
       </Text>
       <TextInput
-        style={[styles.limitInput, isDarkMode && styles.limitInputDark]}
+        style={styles.limitInput}
         value={currentLimits[jugada]?.toString() || ''}
         onChangeText={(value) => handleLimitChange(jugada, value)}
         placeholder="0.00"
@@ -365,14 +364,14 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   );
 
   return (
-    <SafeAreaView style={[styles.container, isDarkMode && styles.containerDark]}>
-      <View style={[styles.header, isDarkMode && styles.headerDark]}>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
         <SideBarToggle 
           inline 
           onToggle={() => setSidebarVisible(!sidebarVisible)} 
           style={styles.sidebarButton} 
         />
-        <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>
+        <Text style={styles.headerTitle}>
           Límites de Loterías
         </Text>
       </View>
@@ -380,7 +379,7 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2D5016" />
-          <Text style={[styles.loadingText, isDarkMode && styles.loadingTextDark]}>
+          <Text style={styles.loadingText}>
             Cargando loterías...
           </Text>
         </View>
@@ -403,9 +402,9 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
           onRequestClose={() => setModalVisible(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
+            <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
+                <Text style={styles.modalTitle}>
                   Límites - {selectedLottery?.nombre}
                 </Text>
                 <TouchableOpacity onPress={() => setModalVisible(false)}>
@@ -417,7 +416,7 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
                 {getActiveJugadasList().length > 0 ? (
                   getActiveJugadasList().map(renderLimitInput)
                 ) : (
-                  <Text style={[styles.noJugadasText, isDarkMode && styles.noJugadasTextDark]}>
+                  <Text style={styles.noJugadasText}>
                     No hay jugadas activas configuradas
                   </Text>
                 )}
@@ -448,7 +447,6 @@ const LotteryLimitsContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       <SideBar
         isVisible={sidebarVisible}
         onClose={() => setSidebarVisible(false)}
-        isDarkMode={isDarkMode}
         onToggleDarkMode={onToggleDarkMode}
         navigation={navigation}
         role={role}
@@ -462,9 +460,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FDF5'
   },
-  containerDark: {
-    backgroundColor: '#1a252f'
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -475,10 +470,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E8F5E8',
     ...createShadowStyle(0, 2, '#000000', 0.1, 4)
-  },
-  headerDark: {
-    backgroundColor: '#2c3e50',
-    borderBottomColor: '#34495e'
   },
   sidebarButton: {
     padding: 8

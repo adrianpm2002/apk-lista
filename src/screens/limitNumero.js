@@ -7,19 +7,17 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import DropdownPicker from '../components/DropdownPicker';
 
-const LimitNumberScreen = ({ navigation, isDarkMode, onToggleDarkMode }) => {
+const LimitNumberScreen = ({ navigation }) => {
   return (
     <ScreenWrapper>
       <LimitNumberContent
         navigation={navigation}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
       />
     </ScreenWrapper>
   );
 };
 
-const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
+const LimitNumberContent = ({ navigation }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [role, setRole] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -111,9 +109,9 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   };
 
   const renderItem = ({ item }) => (
-    <View style={[styles.item, isDarkMode && styles.itemDark]}>
-      <Text style={[styles.itemNumber, isDarkMode && styles.itemNumberDark]}>#{item.number}</Text>
-      <Text style={[styles.itemLimit, isDarkMode && styles.itemLimitDark]}>Límite: {item.limit}</Text>
+    <View style={styles.item}>
+      <Text style={styles.itemNumber}>#{item.number}</Text>
+      <Text style={styles.itemLimit}>Límite: {item.limit}</Text>
     </View>
   );
 
@@ -534,18 +532,18 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, isDarkMode && styles.containerDark]}>
-      <View style={[styles.header, isDarkMode && styles.headerDark]}>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
         <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
-        <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>Límites</Text>
+        <Text style={styles.headerTitle}>Límites</Text>
         <TouchableOpacity style={styles.filterToggleBtn} onPress={()=> setFiltersVisible(v=>!v)}>
           <Text style={styles.filterToggleText}>🔍 Filtros</Text>
         </TouchableOpacity>
       </View>
 
       {filtersVisible && (
-        <View style={[styles.filtersPopover, isDarkMode && styles.filtersPopoverDark]}>
-          <View style={[styles.filterBox, isDarkMode && styles.selectorBoxDark]}>
+        <View style={styles.filtersPopover}>
+          <View style={styles.filterBox}>
             <TouchableOpacity style={[styles.filterChip, filterLotteryId===null && styles.filterChipActive]} onPress={()=> setFilterLotteryId(null)}>
               <Text style={[styles.filterChipText, filterLotteryId===null && styles.filterChipTextActive]}>Todas Loterías</Text>
             </TouchableOpacity>
@@ -555,7 +553,7 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
               </TouchableOpacity>
             ))}
           </View>
-          <View style={[styles.filterBox, isDarkMode && styles.selectorBoxDark]}>
+          <View style={styles.filterBox}>
             <TouchableOpacity style={[styles.filterChip, filterJugadaKey===null && styles.filterChipActive]} onPress={()=> setFilterJugadaKey(null)}>
               <Text style={[styles.filterChipText, filterJugadaKey===null && styles.filterChipTextActive]}>Todas Jugadas</Text>
             </TouchableOpacity>
@@ -570,18 +568,18 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
 
       <View style={styles.panelsRow}>
         {/* Panel Números limitados (ahora a la izquierda) */}
-        <View style={[styles.panel, isDarkMode && styles.panelDark]}>
+        <View style={styles.panel}>
           <View style={styles.panelHeaderRow}>
-            <Text style={[styles.panelTitle, isDarkMode && styles.panelTitleDark]}>Números limitados</Text>
+            <Text style={styles.panelTitle}>Números limitados</Text>
             <TouchableOpacity style={styles.addBtn} onPress={() => openModal('left')}>
               <Text style={styles.addBtnText}>+</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.listBody}>
             {loadingNumeros ? (
-              <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>Cargando...</Text>
+              <Text style={styles.emptyText}>Cargando...</Text>
             ) : numerosLimitados.length === 0 ? (
-              <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>vacio</Text>
+              <Text style={styles.emptyText}>vacio</Text>
             ) : (
               <FlatList
                 data={filteredNumerosLimitados}
@@ -595,12 +593,12 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
                   />
                 }
                 renderItem={({item}) => (
-                  <View style={[styles.item, isDarkMode && styles.itemDark, styles.itemRow]}> 
+                  <View style={[styles.item, styles.itemRow]}> 
                     <View style={styles.itemContent}>
-          <Text style={[styles.itemNumber, isDarkMode && styles.itemNumberDark, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
+          <Text style={[styles.itemNumber, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
                         {(item.horario?.loteria?.nombre || '') + (item.horario?.loteria?.nombre ? ' - ' : '') + (item.horario?.nombre || '')}
                       </Text>
-          <Text style={[styles.itemLimit, isDarkMode && styles.itemLimitDark, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
+          <Text style={[styles.itemLimit, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
                         {formatNumberDisplay(item.numero, item.jugadaKey)} {item.jugadaKey ? `(${item.jugadaKey})` : ''}
                       </Text>
                     </View>
@@ -615,18 +613,18 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
         </View>
 
         {/* Panel Limite de números (derecha) */}
-        <View style={[styles.panel, isDarkMode && styles.panelDark]}>
+        <View style={styles.panel}>
           <View style={styles.panelHeaderRow}>
-            <Text style={[styles.panelTitle, isDarkMode && styles.panelTitleDark]}>Limite de números</Text>
+            <Text style={styles.panelTitle}>Limite de números</Text>
             <TouchableOpacity style={styles.addBtn} onPress={() => openModal('right')}>
               <Text style={styles.addBtnText}>+</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.listBody}>
             {loadingLimites ? (
-              <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>Cargando...</Text>
+              <Text style={styles.emptyText}>Cargando...</Text>
             ) : filteredLimitesNumeros.length === 0 ? (
-              <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>vacio</Text>
+              <Text style={styles.emptyText}>vacio</Text>
             ) : (
               <FlatList
                 data={filteredLimitesNumeros}
@@ -640,12 +638,12 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
                   />
                 }
                 renderItem={({item}) => (
-                  <View style={[styles.item, isDarkMode && styles.itemDark, styles.itemRow]}>
+                  <View style={[styles.item, styles.itemRow]}>
                     <View style={styles.itemContent}>
-                      <Text style={[styles.itemNumber, isDarkMode && styles.itemNumberDark, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
+                      <Text style={[styles.itemNumber, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
                         {(item.horario?.loteria?.nombre || '') + (item.horario?.loteria?.nombre ? ' - ' : '') + (item.horario?.nombre || '')}
                       </Text>
-                      <Text style={[styles.itemLimit, isDarkMode && styles.itemLimitDark, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
+                      <Text style={[styles.itemLimit, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
                         {String(item.numero).padStart((DIGIT_RULES[item.jugadaKey]||2),'0')} {item.jugadaKey? `(${item.jugadaKey})`: ''}  Límite: {item.limite}
                       </Text>
                     </View>
@@ -668,9 +666,9 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
           onRequestClose={() => closeModal('left')}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
+            <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
+              <Text style={styles.modalTitle}>
                 Números Limitados
               </Text>
               <TouchableOpacity onPress={() => closeModal('left')}>
@@ -723,7 +721,7 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
                     setTempNumber(clean.slice(0, maxLen));
                   }}
                   keyboardType="numeric"
-                  style={[styles.input, isDarkMode && styles.inputDark]}
+                  style={styles.input}
                 />
               </View>
             </View>
@@ -763,9 +761,9 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
           onRequestClose={() => closeModal('right')}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
+            <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
+              <Text style={styles.modalTitle}>
                 Límite de Números
               </Text>
               <TouchableOpacity onPress={() => closeModal('right')}>
@@ -818,7 +816,7 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
                     setTempNumber2(clean.slice(0,maxLen));
                   }}
                   keyboardType="numeric"
-                  style={[styles.input, isDarkMode && styles.inputDark]}
+                  style={styles.input}
                 />
               </View>
               <View style={[styles.selectorColumn,{flex:1}]}> 
@@ -829,7 +827,7 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
                   value={tempLimit2}
                   onChangeText={t=> setTempLimit2(t.replace(/[^0-9]/g,''))}
                   keyboardType="numeric"
-                  style={[styles.input, isDarkMode && styles.inputDark]}
+                  style={styles.input}
                 />
               </View>
             </View>
@@ -864,8 +862,6 @@ const LimitNumberContent = ({ navigation, isDarkMode, onToggleDarkMode }) => {
       <SideBar
         isVisible={sidebarVisible}
         onClose={() => setSidebarVisible(false)}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={onToggleDarkMode}
         navigation={navigation}
         role={role}
       />
