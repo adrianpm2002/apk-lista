@@ -59,30 +59,51 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Para colectores: mostrar solo sus propias jugadas y estadísticas
   // Para listeros/admin: mostrar estadísticas completas del banco
   
-  // Cargar bankId del usuario
+  // Cargar bankId del usuario y perfil completo (consolidado)
   useEffect(() => {
-    const loadBankId = async () => {
+    const loadUserProfile = async () => {
       try {
+        console.log('🔍 [StatisticsScreen] Loading user profile...');
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          // ...
+          console.log('❌ [StatisticsScreen] No user found');
           return;
         }
         
-        const { data: profile } = await supabase.from('profiles').select('role,id_banco,id_collector').eq('id', user.id).single();
-        if (!profile) {
-          // ...
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('role,id_banco,id_collector')
+          .eq('id', user.id)
+          .single();
+          
+        if (error || !profile) {
+          console.log('❌ [StatisticsScreen] Error loading profile:', error);
           return;
         }
         
-        // Configurar userRole para la interfaz
+        // Validar que el rol es válido
+        const validRoles = ['admin', 'collector', 'listero'];
+        if (!validRoles.includes(profile.role)) {
+          console.error('❌ [StatisticsScreen] Invalid role:', profile.role);
+          return;
+        }
+        
+        console.log('✅ [StatisticsScreen] User profile loaded:', { 
+          userId: user.id, 
+          role: profile.role, 
+          id_banco: profile.id_banco,
+          id_collector: profile.id_collector 
+        });
+        
+        // Configurar userRole para la interfaz (CRÍTICO para sidebar)
         setUserRole(profile.role);
         setCurrentUserId(user.id);
         
         // Determinar bankId según el rol
         let bId;
         if (profile.role === 'admin') {
-          bId = profile.id_banco;
+          // Para admin, usar su propio ID como banco ID
+          bId = user.id;
         } else if (profile.role === 'collector') {
           bId = profile.id_banco;
         } else if (profile.role === 'listero') {
@@ -91,14 +112,21 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           bId = profile.id_banco;
         }
         
-  // ...
+        console.log('✅ [StatisticsScreen] Setting bankId:', bId, 'for role:', profile.role);
         setCurrentBankId(bId);
+        
+        // Validar que tenemos los datos necesarios
+        if (!bId && profile.role !== 'admin') {
+          console.error('❌ [StatisticsScreen] Missing bankId for role:', profile.role);
+        }
+        
       } catch (e) {
-  // ...
+        console.error('❌ [StatisticsScreen] Error in loadUserProfile:', e);
       }
     };
-    loadBankId();
-  }, []);
+    
+    loadUserProfile();
+  }, []); // Solo ejecutar una vez al montar el componente
   
   // Estados para filtros
   const [selectedPeriod, setSelectedPeriod] = useState('last7days');
@@ -202,36 +230,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   }, [userRole, currentUserId, currentBankId]);
 
-  // Obtener rol del usuario y bank ID para la sidebar (en background)
+  // Monitor de cambios de userRole para detectar inconsistencias
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-        const { supabase } = await import('../supabaseClient');
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('role, id_banco')
-            .eq('id', user.id)
-            .single();
-
-          if (data && !error) {
-            setUserRole(data.role);
-            // Si es admin (banco), su propio ID es el banco ID, si es colector usa id_banco
-            const bankId = data.role === 'admin' ? user.id : data.id_banco;
-            setCurrentBankId(bankId);
-          }
-        }
-      } catch (error) {
-  // ...
-        // No bloquear la interfaz por este error
-      }
-    };
-
-    // Cargar el perfil después de un pequeño delay para no bloquear la UI inicial
-    const timeoutId = setTimeout(fetchUserProfile, 50);
-    return () => clearTimeout(timeoutId);
-  }, []);
+    if (userRole) {
+      console.log('🔄 [StatisticsScreen] UserRole changed to:', userRole, '(for sidebar)');
+    }
+  }, [userRole]);
 
   // Cargar datos cuando cambian los filtros
   useEffect(() => {
