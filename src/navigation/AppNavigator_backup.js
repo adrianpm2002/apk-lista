@@ -1,6 +1,25 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Platform } from 'react-native';
+import { Platform } from 'rea    <Stack.Screen 
+      name="CollectorStatistics" 
+      component={StatisticsScreen} 
+      options={{
+        headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
+      }}
+    />
+
+    <Stack.Screen 
+      name="BankCapacity" 
+      component={BankCapacityScreen} 
+      options={{
+        headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
+      }}
+    />
+
+
+  </Stack.Navigator>);
 import LoginScreen from '../screens/LoginScreen';
 import MainAppScreen from '../screens/MainAppScreen';
 import CreateUserScreen from '../screens/CreateUserScreen';
@@ -13,6 +32,7 @@ import LimitNumero from '../screens/limitNumero';
 import StatisticsScreen from '../screens/StatisticsScreen';
 import SavedPlaysScreen from '../screens/SavedPlaysScreen';
 import BankCapacityScreen from '../screens/BankCapacityScreen';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -53,14 +73,6 @@ const AppNavigator = () => (
       }}
     />
     <Stack.Screen 
-      name="CreateUser" 
-      component={CreateUserScreen}
-      options={{
-        headerShown: false,
-        gestureEnabled: Platform.OS === 'ios',
-      }}
-    />
-    <Stack.Screen 
       name="ManageLotteries" 
       component={ManageLotteriesScreen}
       options={{
@@ -68,9 +80,28 @@ const AppNavigator = () => (
         gestureEnabled: Platform.OS === 'ios',
       }}
     />
+
     <Stack.Screen 
-      name="ManagePrices" 
-      component={ManagePricesScreen}
+      name="CreateUser" 
+      component={CreateUserScreen} 
+      options={{
+        headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
+      }}
+    />
+
+    <Stack.Screen 
+      name="ManageUsers" 
+      component={CreateUserScreen} 
+      options={{
+        headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
+      }}
+    />
+
+    <Stack.Screen 
+      name="Prices" 
+      component={ManagePricesScreen} 
       options={{
         headerShown: false,
         gestureEnabled: Platform.OS === 'ios',
@@ -112,7 +143,6 @@ const AppNavigator = () => (
         gestureEnabled: Platform.OS === 'ios',
       }}
     />
-    
     <Stack.Screen 
       name="SavedPlays" 
       component={SavedPlaysScreen} 
@@ -131,14 +161,6 @@ const AppNavigator = () => (
       }}
     />
 
-    <Stack.Screen 
-      name="BankCapacity" 
-      component={BankCapacityScreen} 
-      options={{
-        headerShown: false,
-        gestureEnabled: Platform.OS === 'ios',
-      }}
-    />
 
   </Stack.Navigator>
 );

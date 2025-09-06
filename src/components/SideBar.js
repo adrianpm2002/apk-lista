@@ -60,6 +60,7 @@ const roleOptionsMap = {
     { id: 'jugadas', icon: '🎲', title: 'Jugadas' },
     { id: 'prices', icon: '💰', title: 'Precios' },
     { id: 'limitedNumbers', icon: '📊', title: 'Límites' },
+    { id: 'bankCapacity', icon: '🔋', title: 'Capacidad del Banco' },
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   collector: [
@@ -187,6 +188,9 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
       break;
     case 'statistics':
       navigation.navigate('Statistics');
+      break;
+    case 'bankCapacity':
+      navigation.navigate('BankCapacity');
       break;
     case 'collectorStatistics':
       navigation.navigate('CollectorStatistics');
