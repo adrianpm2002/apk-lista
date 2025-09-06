@@ -1,16 +1,196 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Alert, ActivityIndicator, Switch, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Alert, ActivityIndicator, Switch, RefreshControl, TouchableOpacity } from 'react-native';
 import { supabase } from '../supabaseClient';
 import { SideBar, SideBarToggle } from '../components/SideBar';
+import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 
-const JugadasScreen = ({ navigation, onModeVisibilityChange }) => {
+// Componente para mostrar registro de jugadas en modo solo lectura
+const PlaysRecordView = ({ navigation, groupData, title, sidebarVisible, setSidebarVisible }) => {
+  const formatMoney = (amount) => {
+    const num = Number(amount) || 0;
+    return `$${num.toLocaleString('es-DO', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    })}`;
+  };
+
+  const formatTime = (timestamp) => {
+    try {
+      let date;
+      
+      // Manejar diferentes formatos de timestamp
+      if (!timestamp) {
+        return 'Hora no disponible';
+      }
+      
+      if (typeof timestamp === 'string') {
+        // Si es una cadena, intentar parsearlo
+        date = new Date(timestamp);
+      } else if (typeof timestamp === 'number') {
+        // Si es un número, usarlo directamente
+        date = new Date(timestamp);
+      } else {
+        return 'Hora no disponible';
+      }
+      
+      // Verificar si la fecha es válida
+      if (isNaN(date.getTime())) {
+        return 'Hora no disponible';
+      }
+      
+      return date.toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (error) {
+      console.error('Error formateando tiempo:', error);
+      return 'Hora no disponible';
+    }
+  };
+
+  // Volver a la pantalla anterior
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
+  // Calcular totales
+  const calcularTotales = () => {
+    const jugadas = groupData.jugadas || [];
+    
+    const totalBruto = jugadas.reduce((sum, jugada) => sum + (Number(jugada.bruto) || Number(jugada.total) || 0), 0);
+    const totalPremios = jugadas.reduce((sum, jugada) => sum + (Number(jugada.pagado) || 0), 0);
+    const totalGanancia = jugadas.reduce((sum, jugada) => sum + (Number(jugada.ganancia) || 0), 0);
+    const totalBalance = jugadas.reduce((sum, jugada) => sum + (Number(jugada.balance) || 0), 0);
+    
+    return {
+      bruto: totalBruto,
+      premios: totalPremios,
+      ganancia: totalGanancia,
+      balance: totalBalance
+    };
+  };
+
+  const totales = calcularTotales();
+
+  return (
+    <ScreenWrapper>
+      <View style={styles.container}>
+        <View style={styles.recordHeader}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>← Volver</Text>
+          </TouchableOpacity>
+          <Text style={styles.recordTitle}>{title}</Text>
+        </View>
+
+        <View style={styles.groupInfo}>
+          <Text style={styles.groupInfoText}>
+            📅 {groupData.fecha} | 🎲 {groupData.loteria} | ⏰ {groupData.horario}
+          </Text>
+          
+          <View style={styles.resultAndTotalsContainer}>
+            {groupData.resultado && (
+              <Text style={styles.resultText}>🎯 Resultado: {groupData.resultado}</Text>
+            )}
+            
+            <View style={styles.totalsContainer}>
+              <Text style={styles.totalItem}>
+                💰 Total Bruto: {formatMoney(totales.bruto)}
+              </Text>
+              <Text style={styles.totalItem}>
+                🏆 Total Premios: {formatMoney(totales.premios)}
+              </Text>
+              {totales.ganancia > 0 && (
+                <Text style={styles.totalItem}>
+                  📈 Total Ganancia: {formatMoney(totales.ganancia)}
+                </Text>
+              )}
+              <Text style={[
+                styles.totalItem,
+                totales.balance >= 0 ? styles.positiveBalance : styles.negativeBalance
+              ]}>
+                📊 Balance Total: {formatMoney(totales.balance)}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <ScrollView style={styles.content} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
+          {groupData.jugadas && groupData.jugadas.length > 0 ? (
+            groupData.jugadas.map((jugada, index) => (
+              <View key={index} style={[styles.playCard, index % 2 === 0 && styles.evenPlayCard]}>
+                <View style={styles.playHeader}>
+                  <Text style={styles.playTime}>
+                    {jugada.time || formatTime(jugada.ts || jugada.created_at || Date.now())}
+                  </Text>
+                  <Text style={styles.playType}>{jugada.jugada}</Text>
+                </View>
+                
+                <View style={styles.playDetails}>
+                  <Text style={styles.playNumbers}>📝 {jugada.numeros}</Text>
+                  {jugada.nota && (
+                    <Text style={styles.playNote}>💬 {jugada.nota}</Text>
+                  )}
+                </View>
+                
+                <View style={styles.playAmounts}>
+                  <Text style={styles.amountItem}>
+                    💰 Total: {formatMoney(jugada.bruto || jugada.total)}
+                  </Text>
+                  {jugada.ganancia !== undefined && (
+                    <Text style={styles.amountItem}>
+                      📈 Ganancia: {formatMoney(jugada.ganancia)}
+                    </Text>
+                  )}
+                  {jugada.pagado > 0 && (
+                    <Text style={styles.amountItem}>
+                      🏆 Premio: {formatMoney(jugada.pagado)}
+                    </Text>
+                  )}
+                  <Text style={[
+                    styles.amountItem,
+                    (jugada.balance || 0) >= 0 ? styles.positiveBalance : styles.negativeBalance
+                  ]}>
+                    📊 Balance: {formatMoney(jugada.balance || 0)}
+                  </Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.emptyMessage}>No hay jugadas para mostrar</Text>
+          )}
+        </ScrollView>
+      </View>
+    </ScreenWrapper>
+  );
+};
+
+const JugadasScreen = ({ navigation, onModeVisibilityChange, route }) => {
   // Mover el estado sidebarVisible aquí para evitar re-mounts
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  
+  // Verificar si estamos en modo solo lectura
+  const isReadOnlyMode = route?.params?.readOnlyMode || false;
+  const groupData = route?.params?.groupData || null;
+  const recordTitle = route?.params?.title || 'Registro de Jugadas';
   
   const handleModeVisibilityChange = useCallback((modes) => {
     if (onModeVisibilityChange) onModeVisibilityChange(modes);
   }, [onModeVisibilityChange]);
+  
+  // Si estamos en modo solo lectura, mostrar el componente de registro
+  if (isReadOnlyMode && groupData) {
+    return (
+      <PlaysRecordView 
+        navigation={navigation}
+        groupData={groupData}
+        title={recordTitle}
+        sidebarVisible={sidebarVisible}
+        setSidebarVisible={setSidebarVisible}
+      />
+    );
+  }
   
   return (
     <JugadasContent
@@ -410,6 +590,270 @@ const styles = {
     fontSize: 16,
     color: '#2c3e50',
     fontWeight: '500',
+  },
+  // Estilos para PlaysRecordView
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e1e8ed',
+    ...createShadowStyle(2),
+  },
+  headerContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#3498db',
+    borderRadius: 6,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  groupInfo: {
+    backgroundColor: '#fff',
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    ...createShadowStyle(1),
+  },
+  groupInfoTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 12,
+  },
+  groupInfoText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 6,
+  },
+  playsContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  playsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 12,
+  },
+  emptyContainer: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  playCard: {
+    backgroundColor: '#fff',
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 12,
+    ...createShadowStyle(1),
+  },
+  playCardEven: {
+    backgroundColor: '#f8f9fa',
+  },
+  playHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e1e8ed',
+  },
+  playTime: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3498db',
+  },
+  playType: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    backgroundColor: '#ecf0f1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  playContent: {
+    gap: 8,
+  },
+  playNote: {
+    fontSize: 14,
+    color: '#555',
+    fontStyle: 'italic',
+  },
+  playNumbers: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+  playAmounts: {
+    marginTop: 8,
+    gap: 4,
+  },
+  playAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#27ae60',
+  },
+  playEarnings: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#f39c12',
+  },
+  playPrize: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  prizePaid: {
+    color: '#27ae60',
+  },
+  prizeNone: {
+    color: '#95a5a6',
+  },
+  playBalance: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  positiveBalance: {
+    color: '#27ae60',
+  },
+  negativeBalance: {
+    color: '#e74c3c',
+  },
+  // Estilos para PlaysRecordView
+  recordHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e1e8ed',
+  },
+  backButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#3498db',
+    borderRadius: 8,
+    marginRight: 16,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  recordTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2c3e50',
+    flex: 1,
+  },
+  groupInfo: {
+    padding: 16,
+    backgroundColor: '#ecf0f1',
+    marginBottom: 8,
+  },
+  groupInfoText: {
+    fontSize: 14,
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  resultAndTotalsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  resultText: {
+    fontSize: 14,
+    color: '#e74c3c',
+    fontWeight: '600',
+    flex: 1,
+  },
+  totalsContainer: {
+    flex: 1,
+    marginLeft: 16,
+    alignItems: 'flex-end',
+  },
+  totalItem: {
+    fontSize: 12,
+    color: '#2c3e50',
+    fontWeight: '600',
+    marginBottom: 2,
+    textAlign: 'right',
+  },
+  playCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e1e8ed',
+  },
+  evenPlayCard: {
+    backgroundColor: '#f8f9fa',
+  },
+  playHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  playTime: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    fontWeight: '600',
+  },
+  playType: {
+    fontSize: 12,
+    color: '#3498db',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  playDetails: {
+    marginBottom: 8,
+  },
+  playNumbers: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '600',
+  },
+  playNote: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  playAmounts: {
+    borderTopWidth: 1,
+    borderTopColor: '#ecf0f1',
+    paddingTop: 8,
+  },
+  amountItem: {
+    fontSize: 12,
+    color: '#2c3e50',
+    marginBottom: 2,
+  },
+  emptyMessage: {
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#7f8c8d',
+    marginTop: 32,
+    fontStyle: 'italic',
   },
 };
 

@@ -932,6 +932,44 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     );
   };
 
+  // Función para navegar al registro de jugadas en modo solo lectura
+  const navigateToPlaysRecord = (groupData) => {
+    try {
+      // Preparar datos para el registro de jugadas
+      const playsRecordParams = {
+        readOnlyMode: true,
+        groupData: {
+          fecha: groupData.dayLabel,
+          loteria: groupData.lottery,
+          horario: groupData.schedule,
+          resultado: groupData.resultado,
+          jugadas: (groupData.plays || []).map(play => ({
+            ts: play.ts || new Date(play.created_at || Date.now()).getTime(),
+            time: play.time || new Date(play.created_at || Date.now()).toLocaleTimeString('es-ES', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            }),
+            nota: play.nota || '',
+            jugada: play.jugada || play.play_type || '',
+            numeros: play.numeros || '',
+            bruto: Number(play.bruto || play.total || 0),
+            ganancia: Number(play.ganancia || play.ganancia_listero || play.ganancia_colector || 0),
+            pagado: Number(play.pagado || play.premio || 0),
+            balance: Number(play.balance || play.balance_listero || play.balance_colector || play.balance_banco || 0)
+          }))
+        },
+        title: `${groupData.dayLabel} - ${groupData.lottery} - ${groupData.schedule}`
+      };
+      
+      // Navegar a la pantalla de jugadas con los parámetros
+      navigation.navigate('Jugadas', playsRecordParams);
+    } catch (error) {
+      console.error('Error navegando al registro de jugadas:', error);
+      Alert.alert('Error', 'No se pudo abrir el registro de jugadas');
+    }
+  };
+
   // Renderizar contenido del tab de detalles
   const renderDetailsTab = () => {
     // Para collector y admin, mostrar desplegables de agrupación
@@ -1086,14 +1124,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                   
                   return (
                     <View key={g.key}>
-                      {/* Fila principal del grupo (clickeable) */}
+                      {/* Fila principal del grupo (clickeable para ir al registro) */}
                       <TouchableOpacity 
                         style={[styles.excelDataRow, groupIndex % 2 === 0 && styles.excelRowEven]}
-                        onPress={() => toggle(g.key)}
+                        onPress={() => navigateToPlaysRecord(g)}
                       >
                         <View style={[styles.excelCellContainer, { width: 30 }]}>
                           <Text style={[styles.excelCell, styles.chevronCell]}>
-                            {open ? '▼' : '▶'}
+                            👁️
                           </Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 70 }]}>
@@ -1125,61 +1163,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                           </Text>
                         </View>
                       </TouchableOpacity>
-                      
-                      {/* Contenido expandido - detalles de jugadas */}
-                      {open && (
-                        <View style={styles.expandedContent}>
-                          {/* Sub-header para las jugadas detalladas */}
-                          <View style={[styles.excelHeaderRow, styles.subHeader]}>
-                            <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
-                            <Text style={[styles.excelHeaderCell, { width: 50 }]}>Hora</Text>
-                            <Text style={[styles.excelHeaderCell, { width: 60 }]}>Jugada</Text>
-                            <Text style={[styles.excelHeaderCell, { width: 100 }]}>Números</Text>
-                            <Text style={[styles.excelHeaderCell, { width: 50 }]}>Total</Text>
-                            <Text style={[styles.excelHeaderCell, { width: 50 }]}>Ganancia</Text>
-                            <Text style={[styles.excelHeaderCell, { width: 50 }]}>Pagado</Text>
-                            <Text style={[styles.excelHeaderCell, { width: 50 }]}>Balance</Text>
-                          </View>
-                          
-                          {/* Filas de jugadas individuales */}
-                          {g.plays.map((p, idx) => (
-                            <View key={idx} style={[styles.excelDataRow, styles.detailRow, idx % 2 === 0 && styles.excelRowEven]}>
-                              <View style={[styles.excelCellContainer, { width: 30 }]}>
-                                <Text style={styles.excelCell}></Text>
-                              </View>
-                              <View style={[styles.excelCellContainer, { width: 50 }]}>
-                                <Text style={styles.excelCell} numberOfLines={2}>{p.time}</Text>
-                              </View>
-                              <View style={[styles.excelCellContainer, { width: 60 }]}>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
-                                  <Text style={styles.excelCell}>{p.jugada}</Text>
-                                </ScrollView>
-                              </View>
-                              <View style={[styles.excelCellContainer, { width: 100 }]}>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
-                                  <Text style={styles.excelCell}>{p.numeros}</Text>
-                                </ScrollView>
-                              </View>
-                              <View style={[styles.excelCellContainer, { width: 50 }]}>
-                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(p.bruto)}</Text>
-                              </View>
-                              <View style={[styles.excelCellContainer, { width: 50 }]}>
-                                <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(p.ganancia)}</Text>
-                              </View>
-                              <View style={[styles.excelCellContainer, { width: 50 }]}>
-                                <Text style={styles.excelCell} numberOfLines={2}>
-                                  {p.pagado > 0 ? fmt(p.pagado) : 'Sin premio'}
-                                </Text>
-                              </View>
-                              <View style={[styles.excelCellContainer, { width: 50 }]}>
-                                <Text style={[styles.excelCell, p.balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
-                                  {fmt(p.balance)}
-                                </Text>
-                              </View>
-                            </View>
-                          ))}
-                        </View>
-                      )}
                     </View>
                   );
                 })}
@@ -1635,14 +1618,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               
               return (
                 <View key={g.key}>
-                  {/* Fila principal del grupo (clickeable) */}
+                  {/* Fila principal del grupo (clickeable para ir al registro) */}
                   <TouchableOpacity 
                     style={[styles.excelDataRow, groupIndex % 2 === 0 && styles.excelRowEven]}
-                    onPress={() => toggle(g.key)}
+                    onPress={() => navigateToPlaysRecord(g)}
                   >
                     <View style={[styles.excelCellContainer, { width: 30 }]}>
                       <Text style={[styles.excelCell, styles.chevronCell]}>
-                        {open ? '▼' : '▶'}
+                        👁️
                       </Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 70 }]}>
@@ -1676,65 +1659,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       </Text>
                     </View>
                   </TouchableOpacity>
-                  
-                  {/* Contenido expandido - detalles de jugadas */}
-                  {open && (
-                    <View style={styles.expandedContent}>
-                      {/* Sub-header para las jugadas detalladas */}
-                      <View style={[styles.excelHeaderRow, styles.subHeader]}>
-                        <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
-                        <Text style={[styles.excelHeaderCell, { width: 50 }]}>Hora</Text>
-                        <Text style={[styles.excelHeaderCell, { width: 60 }]}>Jugada</Text>
-                        <Text style={[styles.excelHeaderCell, { width: 100 }]}>Números</Text>
-                        <Text style={[styles.excelHeaderCell, { width: 50 }]}>Total</Text>
-                        {userRole === 'collector' && (
-                          <Text style={[styles.excelHeaderCell, { width: 50 }]}>Ganancia</Text>
-                        )}
-                        <Text style={[styles.excelHeaderCell, { width: 50 }]}>Pagado</Text>
-                        <Text style={[styles.excelHeaderCell, { width: 50 }]}>Balance</Text>
-                      </View>
-                      
-                      {/* Filas de jugadas individuales */}
-                      {g.plays.map((p, idx) => (
-                        <View key={idx} style={[styles.excelDataRow, styles.detailRow, idx % 2 === 0 && styles.excelRowEven]}>
-                          <View style={[styles.excelCellContainer, { width: 30 }]}>
-                            <Text style={styles.excelCell}></Text>
-                          </View>
-                          <View style={[styles.excelCellContainer, { width: 50 }]}>
-                            <Text style={styles.excelCell} numberOfLines={2}>{p.time}</Text>
-                          </View>
-                          <View style={[styles.excelCellContainer, { width: 60 }]}>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
-                              <Text style={styles.excelCell}>{p.jugada}</Text>
-                            </ScrollView>
-                          </View>
-                          <View style={[styles.excelCellContainer, { width: 100 }]}>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cellScrollView}>
-                              <Text style={styles.excelCell}>{p.numeros}</Text>
-                            </ScrollView>
-                          </View>
-                          <View style={[styles.excelCellContainer, { width: 50 }]}>
-                            <Text style={styles.excelCell} numberOfLines={1}>{fmt(p.bruto)}</Text>
-                          </View>
-                          {userRole === 'collector' && (
-                            <View style={[styles.excelCellContainer, { width: 50 }]}>
-                              <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(p.ganancia)}</Text>
-                            </View>
-                          )}
-                          <View style={[styles.excelCellContainer, { width: 50 }]}>
-                            <Text style={styles.excelCell} numberOfLines={2}>
-                              {p.pagado > 0 ? fmt(p.pagado) : 'Sin premio'}
-                            </Text>
-                          </View>
-                          <View style={[styles.excelCellContainer, { width: 50 }]}>
-                            <Text style={[styles.excelCell, p.balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
-                              {fmt(p.balance)}
-                            </Text>
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  )}
                 </View>
               );
             })}
