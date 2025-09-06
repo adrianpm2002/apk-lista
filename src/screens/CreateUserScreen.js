@@ -56,7 +56,8 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   const [selectedCollector, setSelectedCollector] = useState('');
   // Uso actualizado: se guarda id_precio como JSONB con {loteria_id: ganancia_id, loteria_nombre: nombre} en profiles
   // Ganancias disponibles (tabla precio) y selección (solo colector asigna a listeros)
-  const [gainOptions, setGainOptions] = useState([]); // [{id,nombre,precios}]
+  const [gainOptions, setGainOptions] = useState([]); // [{id,nombre,precios}] - todas las configuraciones para resolución de nombres
+  const [validGainOptions, setValidGainOptions] = useState([]); // [{id,nombre,precios}] - solo configuraciones válidas para modal
   const [availableLotteries, setAvailableLotteries] = useState([]); // [{id, nombre}]
   const [selectedLotteryGains, setSelectedLotteryGains] = useState({}); // {lotteryId: gainId}
   const [selectedGainDetail, setSelectedGainDetail] = useState(null);
@@ -256,9 +257,12 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         // Para admin: cargar todas las configuraciones para poder resolver nombres históricos
         // pero usar la validación para determinar el estado actual
         setGainOptions(data || []);
+        // Para el modal de asignación, usar solo las configuraciones válidas
+        setValidGainOptions(filtered);
       } else {
-        // Para collector: solo las configuraciones válidas
+        // Para collector: solo las configuraciones válidas en ambos casos
         setGainOptions(filtered);
+        setValidGainOptions(filtered);
       }
     } catch (e) {
       console.error('Excepción fetchValidGains:', e);
@@ -374,7 +378,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
             username,
             role: effectiveRole,
             id_collector: userRole === 'collector' ? currentUserId : (selectedCollector || null),
-            id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? buildGainsData() : (editingUser.id_precio || null),
+            id_precio: ((userRole === 'collector' || userRole === 'admin') && effectiveRole === 'listero') ? buildGainsData() : (editingUser.id_precio || null),
             activo: editingUser.activo !== undefined ? editingUser.activo : true
           };
           const { error: updateError } = await supabase
@@ -469,7 +473,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
              role: effectiveRole,
              id_banco,
              id_collector,
-             id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? buildGainsData() : null,
+             id_precio: ((userRole === 'collector' || userRole === 'admin') && effectiveRole === 'listero') ? buildGainsData() : null,
            }; // sin ganancia
 
           console.log('Creating listero with data:', insertData);
@@ -697,7 +701,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       } else {
         setEnableSpecificLimits(false);
       }
-      if (userRole === 'collector') {
+      if (userRole === 'collector' || userRole === 'admin') {
         // Inicializar selecciones por lotería desde el id_precio (formato JSONB)
         const initialSelections = {};
         if (user.id_precio && typeof user.id_precio === 'object') {
@@ -727,9 +731,9 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     setResetModalVisible(true);
   };
 
-  // Abrir modal de asignación de ganancia (solo colector)
+  // Abrir modal de asignación de ganancia (colector y admin)
   const openGainModal = (user) => {
-    if (userRole !== 'collector') return;
+    if (userRole !== 'collector' && userRole !== 'admin') return;
     setGainTargetUser(user);
     
     // Inicializar selecciones por lotería desde el id_precio (formato JSONB)
@@ -898,7 +902,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   };
 
   // Función para obtener el texto de las ganancias seleccionadas
-  const getSelectedGainsText = () => {
+  const getSelectedGainsText = (useValidOnly = false) => {
     const hasAnySelection = Object.values(selectedLotteryGains).some(gainId => gainId);
     if (!hasAnySelection) {
       return 'Seleccionar Ganancias por Lotería';
@@ -907,18 +911,26 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     const selectedItems = [];
     const invalidItems = [];
     
+    // Usar validGainOptions para el modal, gainOptions para resolución de nombres históricos
+    const optionsToUse = useValidOnly ? validGainOptions : gainOptions;
+    
     for (const [lotteryId, gainId] of Object.entries(selectedLotteryGains)) {
       if (gainId) {
         const lottery = availableLotteries.find(l => l.id === lotteryId);
-        const gain = gainOptions.find(g => g.id === gainId && g.id_loteria === lotteryId);
+        const gain = optionsToUse.find(g => g.id === gainId && g.id_loteria === lotteryId);
         
         if (lottery && gain) {
-          // Verificar si la ganancia es válida según las jugadas activas
-          const isValid = isGainValid(gainId);
-          if (isValid) {
+          // Para el modal (useValidOnly=true), las ganancias ya están filtradas como válidas
+          // Para la lista (useValidOnly=false), verificar validez
+          if (useValidOnly) {
             selectedItems.push(`${lottery.nombre}: ${gain.nombre}`);
           } else {
-            invalidItems.push(`${lottery.nombre}: Ganancia inválida`);
+            const isValid = isGainValid(gainId);
+            if (isValid) {
+              selectedItems.push(`${lottery.nombre}: ${gain.nombre}`);
+            } else {
+              invalidItems.push(`${lottery.nombre}: Ganancia inválida`);
+            }
           }
         } else if (lottery) {
           invalidItems.push(`${lottery.nombre}: Ganancia inválida`);
@@ -1120,7 +1132,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                 <Text style={styles.buttonText}>Editar</Text>
               </TouchableOpacity>
               
-              {userRole === 'collector' && (
+              {(userRole === 'collector' || userRole === 'admin') && (
                 <TouchableOpacity
                   style={styles.gainButton}
                   onPress={() => openGainModal(item)}
@@ -1251,7 +1263,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                     onPress={openGainModalForNewUser}
                   >
                     <Text style={[styles.gainSelectionButtonText, { color: '#fff' }]}>
-                      {getSelectedGainsText()}
+                      {getSelectedGainsText(true)}
                     </Text>
                   </TouchableOpacity>
 
@@ -1279,6 +1291,18 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                     </View>
                   )}
                 </>
+              )}
+
+              {/* Botón de ganancias para colector cuando crea listero */}
+              {userRole === 'collector' && (
+                <TouchableOpacity
+                  style={[styles.gainSelectionButton, { backgroundColor: '#3498db', marginBottom: 15 }]}
+                  onPress={openGainModalForNewUser}
+                >
+                  <Text style={[styles.gainSelectionButtonText, { color: '#fff' }]}>
+                    {getSelectedGainsText(true)}
+                  </Text>
+                </TouchableOpacity>
               )}
 
               <CustomButton title={isEditing ? 'Guardar Cambios' : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')} onPress={handleCreateOrUpdate} />
@@ -1375,7 +1399,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                       value={(() => {
                         const gainId = selectedLotteryGains[lottery.id];
                         if (!gainId) return "";
-                        const selectedGain = gainOptions.find(g => g.id === gainId && g.id_loteria === lottery.id);
+                        const selectedGain = validGainOptions.find(g => g.id === gainId && g.id_loteria === lottery.id);
                         return selectedGain ? selectedGain.nombre : "";
                       })()}
                       onSelect={(selectedItem) => {
@@ -1384,7 +1408,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                       }}
                       options={[
                         { id: "none", label: 'Sin ganancia', value: "" },
-                        ...gainOptions
+                        ...validGainOptions
                           .filter(gain => gain.id_loteria === lottery.id)
                           .map(gain => ({
                             id: gain.id,
