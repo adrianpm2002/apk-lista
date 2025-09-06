@@ -1160,14 +1160,52 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
               {(() => {
                 const raw = item.limite_especifico;
                 if (!raw || (typeof raw === 'object' && Object.keys(raw).length === 0)) return '🛑 Sin límites específicos';
-                let entries = Object.entries(raw).filter(([k]) => activePlayTypes.includes(k));
-                entries.sort((a,b) => {
-                  const ia = JUGADA_ORDER.indexOf(a[0]);
-                  const ib = JUGADA_ORDER.indexOf(b[0]);
-                  return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-                });
-                if (entries.length === 0) return '🛑 Sin límites específicos';
-                return '🔒 ' + entries.map(([k,v]) => `${k}: ${v}`).join(', ');
+                
+                // Detectar formato: nuevo (por lotería) o antiguo (global)
+                const isNewFormat = Object.values(raw).some(val => 
+                  typeof val === 'object' && val !== null && !Array.isArray(val)
+                );
+                
+                if (isNewFormat) {
+                  // Formato nuevo: {lotteryId: {playType: value}}
+                  const lotteryLimitPairs = [];
+                  
+                  Object.entries(raw).forEach(([lotteryId, lotteryLimits]) => {
+                    if (typeof lotteryLimits === 'object' && lotteryLimits !== null) {
+                      // Obtener nombre de la lotería
+                      const lottery = availableLotteries.find(l => l.id === lotteryId);
+                      const lotteryName = lottery ? lottery.nombre : `Lotería ${lotteryId}`;
+                      
+                      // Filtrar solo jugadas activas y ordenar
+                      let entries = Object.entries(lotteryLimits).filter(([k]) => activePlayTypes.includes(k));
+                      entries.sort((a,b) => {
+                        const ia = JUGADA_ORDER.indexOf(a[0]);
+                        const ib = JUGADA_ORDER.indexOf(b[0]);
+                        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+                      });
+                      
+                      if (entries.length > 0) {
+                        const limitsText = entries.map(([k,v]) => `${k}: ${v}`).join(', ');
+                        lotteryLimitPairs.push(`${lotteryName}: ${limitsText}`);
+                      }
+                    }
+                  });
+                  
+                  if (lotteryLimitPairs.length === 0) return '🛑 Sin límites específicos';
+                  if (lotteryLimitPairs.length === 1) return `🔒 ${lotteryLimitPairs[0]}`;
+                  if (lotteryLimitPairs.length <= 3) return `🔒 ${lotteryLimitPairs.join(' | ')}`;
+                  return `🔒 ${lotteryLimitPairs.length} loterías con límites`;
+                } else {
+                  // Formato antiguo: {playType: value} - mostrar como antes
+                  let entries = Object.entries(raw).filter(([k]) => activePlayTypes.includes(k));
+                  entries.sort((a,b) => {
+                    const ia = JUGADA_ORDER.indexOf(a[0]);
+                    const ib = JUGADA_ORDER.indexOf(b[0]);
+                    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+                  });
+                  if (entries.length === 0) return '🛑 Sin límites específicos';
+                  return '🔒 ' + entries.map(([k,v]) => `${k}: ${v}`).join(', ');
+                }
               })()}
             </Text>
           </View>
