@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Alert, Modal, StyleSheet, TextInput, FlatList, TouchableOpacity, Switch, Platform, ScrollView, BackHandler } from 'react-native';
-import { Picker } from '../components/PickerWrapper';
 import DropdownPicker from '../components/DropdownPicker';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
@@ -1142,6 +1141,8 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                 onChangeText={setUsername}
                 style={styles.input}
                 placeholderTextColor="#95a5a6"
+                autoCapitalize="none"
+                autoCorrect={false}
               />
 
               {!isEditing && (
@@ -1152,6 +1153,9 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                     value={password}
                     onChangeText={setPassword}
                     style={styles.passwordInput}
+                    placeholderTextColor="#95a5a6"
+                    autoCapitalize="none"
+                    autoCorrect={false}
                   />
                   <TouchableOpacity
                     style={styles.passwordToggleButton}
@@ -1166,32 +1170,30 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
 
               {userRole !== 'collector' && (
                 <>
-                  <Text>Rol:</Text>
-                  <Picker
-                    selectedValue={role}
-                    onValueChange={setRole}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="Selecciona un rol" value="" />
-                    <Picker.Item label="Colector" value="collector" />
-                    <Picker.Item label="Listero" value="listero" />
-                  </Picker>
+                  <DropdownPicker
+                    label="Rol"
+                    value={role ? (role === 'collector' ? 'Colector' : 'Listero') : ''}
+                    onSelect={(item) => setRole(item.value)}
+                    options={[
+                      { label: 'Colector', value: 'collector' },
+                      { label: 'Listero', value: 'listero' }
+                    ]}
+                    placeholder="Selecciona un rol"
+                    style={{ marginBottom: 15 }}
+                  />
                 </>
               )}
 
               {role === 'listero' && userRole !== 'collector' && (
                 <>
-                  <Text>Seleccionar colector:</Text>
-                  <Picker
-                    selectedValue={selectedCollector}
-                    onValueChange={setSelectedCollector}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="Selecciona un colector" value="" />
-                    {collectors.map((col) => (
-                      <Picker.Item key={col.id} label={col.username} value={col.id} />
-                    ))}
-                  </Picker>
+                  <DropdownPicker
+                    label="Seleccionar colector"
+                    value={selectedCollector ? collectors.find(col => col.id === selectedCollector)?.username || '' : ''}
+                    onSelect={(item) => setSelectedCollector(item.value)}
+                    options={collectors.map(col => ({ label: col.username, value: col.id }))}
+                    placeholder="Selecciona un colector"
+                    style={{ marginBottom: 15 }}
+                  />
 
                   {/* Botón para seleccionar ganancias por lotería */}
                   <TouchableOpacity
@@ -1253,6 +1255,9 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                   value={resetPassword}
                   onChangeText={setResetPassword}
                   style={styles.passwordInput}
+                  placeholderTextColor="#95a5a6"
+                  autoCapitalize="none"
+                  autoCorrect={false}
                 />
                 <TouchableOpacity
                   style={styles.passwordToggleButton}
@@ -1270,6 +1275,9 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                   value={resetPassword2}
                   onChangeText={setResetPassword2}
                   style={styles.passwordInput}
+                  placeholderTextColor="#95a5a6"
+                  autoCapitalize="none"
+                  autoCorrect={false}
                 />
                 <TouchableOpacity
                   style={styles.passwordToggleButton}
@@ -1420,18 +1428,20 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    paddingHorizontal: 10,
+    borderColor: '#ddd',
+    paddingHorizontal: 12,
     paddingVertical: 12,
     marginBottom: 15,
-    borderRadius: 5,
-    backgroundColor: '#fff',
-  },
-  picker: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    marginBottom: 15,
-    backgroundColor: '#fff',
+    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
+    fontSize: 16,
+    color: '#2C3E50',
+    ...Platform.select({
+      android: {
+        textAlignVertical: 'center',
+        includeFontPadding: false,
+      },
+    }),
   },
   userItem: {
     padding: 15,
@@ -1824,12 +1834,19 @@ const styles = StyleSheet.create({
   },
   passwordInput: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f9f9f9',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#ddd',
+    color: '#2C3E50',
+    ...Platform.select({
+      android: {
+        textAlignVertical: 'center',
+        includeFontPadding: false,
+      },
+    }),
   },
   passwordToggleButton: {
     position: 'absolute',
