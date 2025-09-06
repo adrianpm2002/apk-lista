@@ -1,7 +1,7 @@
 import { supabase } from '../supabaseClient';
 
 export const fetchLimitsContext = async (horarios, userId) => {
-  if(!horarios.length) return { limitMap:new Map(), specificLimits:null, usageMap:new Map() };
+  if(!horarios.length) return { limitMap:new Map(), specificLimits:null, lotteryLimits:{}, horarioToLoteria:new Map(), usageMap:new Map() };
   let specificLimits=null;
   let bankId=null;
   if(userId){
@@ -9,9 +9,47 @@ export const fetchLimitsContext = async (horarios, userId) => {
     specificLimits = profile?.limite_especifico || null;
     bankId = profile?.id_banco;
   }
+  
+  // Obtener límites por número
   const { data: limitRows } = await supabase.from('limite_numero').select('numero, limite, jugada, id_horario').in('id_horario', horarios);
   const limitMap=new Map();
   (limitRows||[]).forEach(r=> limitMap.set(r.id_horario+"|"+r.jugada+"|"+r.numero, r.limite));
+  
+  // Obtener información de horarios y sus loterías
+  const { data: horariosData } = await supabase
+    .from('horario')
+    .select('id, id_loteria')
+    .in('id', horarios);
+  
+  const horarioToLoteria = new Map();
+  (horariosData || []).forEach(h => {
+    horarioToLoteria.set(h.id, h.id_loteria);
+  });
+  
+  // Obtener límites por lotería - NUEVA FUNCIONALIDAD
+  let lotteryLimits = {};
+  try {
+    if (horariosData && horariosData.length > 0) {
+      const lotteryIds = [...new Set(horariosData.map(h => h.id_loteria))];
+      
+      // Cargar límites por lotería
+      const { data: lotteryLimitsData } = await supabase
+        .from('limite_loteria')
+        .select('id_loteria, limites')
+        .in('id_loteria', lotteryIds);
+      
+      if (lotteryLimitsData) {
+        lotteryLimitsData.forEach(item => {
+          lotteryLimits[item.id_loteria] = item.limites || {};
+        });
+        console.log('🎯 [limitUtils] Límites por lotería cargados:', Object.keys(lotteryLimits).length, 'loterías');
+      }
+    }
+  } catch (e) {
+    console.warn('Error loading lottery limits in limitUtils, continuing without them:', e.message);
+    lotteryLimits = {};
+  }
+  
   const dayStart=new Date(); dayStart.setHours(0,0,0,0);
   
   // Filtrar jugadas del día solo del mismo banco
@@ -25,7 +63,7 @@ export const fetchLimitsContext = async (horarios, userId) => {
       jugadasQuery = jugadasQuery.in('id_listero', listerosIds);
     } else {
       // Si no hay listeros del banco, no hay jugadas válidas
-      return { limitMap, specificLimits, usageMap:new Map() };
+      return { limitMap, specificLimits, lotteryLimits, horarioToLoteria, usageMap:new Map() };
     }
   }
   
@@ -43,7 +81,7 @@ export const fetchLimitsContext = async (horarios, userId) => {
       usageMap.set(k,(usageMap.get(k)||0)+(j.monto_unitario||0));
     });
   });
-  return { limitMap, specificLimits, usageMap };
+  return { limitMap, specificLimits, lotteryLimits, horarioToLoteria, usageMap };
 };
 
 export const checkInstructionsLimits = (instructions, horarios, limitCtx) => {
@@ -55,6 +93,15 @@ export const checkInstructionsLimits = (instructions, horarios, limitCtx) => {
     const d = (n||'').replace(/[^0-9]/g,'');
     if(d.length===4){ const a=d.slice(0,2), b=d.slice(2); return [a,b].sort().join(''); }
     return n;
+  };
+
+  // Función auxiliar para calcular el límite efectivo (igual que useCapacityData)
+  const calculateEffectiveLimit = (perNumber, lotteryLimit, specLimit) => {
+    const limits = [];
+    if (perNumber !== undefined && perNumber !== null) limits.push(perNumber);
+    if (lotteryLimit !== undefined && lotteryLimit !== null) limits.push(lotteryLimit);
+    if (specLimit !== undefined && specLimit !== null) limits.push(specLimit);
+    return limits.length > 0 ? Math.min(...limits) : null;
   };
 
   instructions.forEach(instr => {
@@ -72,16 +119,35 @@ export const checkInstructionsLimits = (instructions, horarios, limitCtx) => {
     });
   });
 
-  // Comparar intentos agregados con límites efectivos
+  // Comparar intentos agregados con límites efectivos (incluyendo límites por lotería)
   attemptMap.forEach((attempt, key) => {
     const [h, jugada, canonical] = key.split('|');
+    
+    // Límite por número específico
     const perNumber = limitCtx.limitMap.get(key);
+    
+    // Límite específico del listero
     const specLimit = limitCtx.specificLimits && limitCtx.specificLimits[jugada];
-    let effective = perNumber!=null && specLimit!=null ? Math.min(perNumber,specLimit) : (perNumber!=null ? perNumber : (specLimit!=null ? specLimit : null));
+    
+    // Límite por lotería - NUEVA FUNCIONALIDAD
+    const lotteryId = limitCtx.horarioToLoteria && limitCtx.horarioToLoteria.get(h);
+    const lotteryLimit = lotteryId && limitCtx.lotteryLimits && limitCtx.lotteryLimits[lotteryId] && limitCtx.lotteryLimits[lotteryId][jugada];
+    
+    // Calcular límite efectivo (mínimo entre los tres tipos)
+    const effective = calculateEffectiveLimit(perNumber, lotteryLimit, specLimit);
+    
     if(!effective) return;
     const used = limitCtx.usageMap.get(key)||0;
     if(used + attempt > effective){
-      violations.push({ numero: canonical, jugada, permitido: effective, usado: used, intento: attempt });
+      violations.push({ 
+        numero: canonical, 
+        jugada, 
+        permitido: effective, 
+        usado: used, 
+        intento: attempt,
+        limitType: perNumber !== undefined ? 'número' : (lotteryLimit !== undefined ? 'lotería' : 'listero')
+      });
+      console.log(`🚫 [limitUtils] Límite violado - ${jugada} ${canonical}: límite ${effective} (${perNumber !== undefined ? 'número' : (lotteryLimit !== undefined ? 'lotería' : 'listero')}), usado ${used}, intento ${attempt}`);
     }
   });
 
