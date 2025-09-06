@@ -52,6 +52,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   const [editingUser, setEditingUser] = useState(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState('');
   const [selectedCollector, setSelectedCollector] = useState('');
   // Uso actualizado: se guarda id_precio como JSONB con {loteria_id: ganancia_id, loteria_nombre: nombre} en profiles
@@ -71,6 +72,8 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   const [resetTargetUser, setResetTargetUser] = useState(null);
   const [resetPassword, setResetPassword] = useState('');
   const [resetPassword2, setResetPassword2] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetPassword2, setShowResetPassword2] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   
   // Estado para modal de ganancia
@@ -689,6 +692,8 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     setResetTargetUser(user);
     setResetPassword('');
     setResetPassword2('');
+    setShowResetPassword(false);
+    setShowResetPassword2(false);
     setResetModalVisible(true);
   };
 
@@ -792,6 +797,8 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       setIsResetting(false);
       setResetPassword('');
       setResetPassword2('');
+      setShowResetPassword(false);
+      setShowResetPassword2(false);
     }
   };
 
@@ -853,6 +860,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   const clearForm = () => {
     setUsername('');
     setPassword('');
+    setShowPassword(false);
     setRole('');
     setSelectedCollector('');
     setSelectedLotteryGains({});
@@ -1137,13 +1145,23 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
               />
 
               {!isEditing && (
-                <TextInput
-                  placeholder="Contraseña"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                  style={styles.input}
-                />
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    placeholder="Contraseña"
+                    secureTextEntry={!showPassword}
+                    value={password}
+                    onChangeText={setPassword}
+                    style={styles.passwordInput}
+                  />
+                  <TouchableOpacity
+                    style={styles.passwordToggleButton}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Text style={styles.passwordToggleText}>
+                      {showPassword ? 'Ocultar' : 'Mostrar'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               )}
 
               {userRole !== 'collector' && (
@@ -1228,22 +1246,46 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
               showsVerticalScrollIndicator={true}
             >
               <Text style={{ marginBottom: 8 }}>Usuario: {resetTargetUser?.username}</Text>
-              <TextInput
-                placeholder="Nueva contraseña"
-                secureTextEntry
-                value={resetPassword}
-                onChangeText={setResetPassword}
-                style={styles.input}
-              />
-              <TextInput
-                placeholder="Confirmar contraseña"
-                secureTextEntry
-                value={resetPassword2}
-                onChangeText={setResetPassword2}
-                style={styles.input}
-              />
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  placeholder="Nueva contraseña"
+                  secureTextEntry={!showResetPassword}
+                  value={resetPassword}
+                  onChangeText={setResetPassword}
+                  style={styles.passwordInput}
+                />
+                <TouchableOpacity
+                  style={styles.passwordToggleButton}
+                  onPress={() => setShowResetPassword(!showResetPassword)}
+                >
+                  <Text style={styles.passwordToggleText}>
+                    {showResetPassword ? 'Ocultar' : 'Mostrar'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  placeholder="Confirmar contraseña"
+                  secureTextEntry={!showResetPassword2}
+                  value={resetPassword2}
+                  onChangeText={setResetPassword2}
+                  style={styles.passwordInput}
+                />
+                <TouchableOpacity
+                  style={styles.passwordToggleButton}
+                  onPress={() => setShowResetPassword2(!showResetPassword2)}
+                >
+                  <Text style={styles.passwordToggleText}>
+                    {showResetPassword2 ? 'Ocultar' : 'Mostrar'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <CustomButton title={isResetting ? 'Actualizando…' : 'Actualizar'} disabled={isResetting} onPress={handleConfirmResetPassword} />
-              <CustomButton title="Cancelar" color="#666" onPress={() => setResetModalVisible(false)} />
+              <CustomButton title="Cancelar" color="#666" onPress={() => {
+                setResetModalVisible(false);
+                setShowResetPassword(false);
+                setShowResetPassword2(false);
+              }} />
             </ScrollView>
           </View>
         </Modal>
@@ -1773,5 +1815,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+    marginBottom: 15,
+  },
+  passwordInput: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  passwordToggleButton: {
+    position: 'absolute',
+    right: 15,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+  },
+  passwordToggleText: {
+    fontSize: 12,
+    color: '#27AE60',
+    fontWeight: '600',
   },
 });

@@ -677,7 +677,7 @@ const useStatistics = (bankId = null) => {
       const { startDate, endDate } = filters;
       
       if (!bankId || !startDate || !endDate) {
-        console.log('Missing requirements for filtering - bankId:', !!bankId, 'dates:', !!startDate, !!endDate);
+        // console.log('Missing requirements for filtering - bankId:', !!bankId, 'dates:', !!startDate, !!endDate);
         return;
       }
       

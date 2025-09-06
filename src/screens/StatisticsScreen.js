@@ -63,7 +63,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   useEffect(() => {
     const loadUserProfile = async () => {
       try {
-        console.log('🔍 [StatisticsScreen] Loading user profile...');
+        // console.log('🔍 [StatisticsScreen] Loading user profile...');
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           console.log('❌ [StatisticsScreen] No user found');
@@ -88,12 +88,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           return;
         }
         
-        console.log('✅ [StatisticsScreen] User profile loaded:', { 
-          userId: user.id, 
-          role: profile.role, 
-          id_banco: profile.id_banco,
-          id_collector: profile.id_collector 
-        });
+        // console.log('✅ [StatisticsScreen] User profile loaded:', { 
+        //   userId: user.id, 
+        //   role: profile.role, 
+        //   id_banco: profile.id_banco,
+        //   id_collector: profile.id_collector 
+        // });
         
         // Configurar userRole para la interfaz (CRÍTICO para sidebar)
         setUserRole(profile.role);
@@ -112,7 +112,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           bId = profile.id_banco;
         }
         
-        console.log('✅ [StatisticsScreen] Setting bankId:', bId, 'for role:', profile.role);
+        // console.log('✅ [StatisticsScreen] Setting bankId:', bId, 'for role:', profile.role);
         setCurrentBankId(bId);
         
         // Validar que tenemos los datos necesarios
@@ -233,7 +233,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Monitor de cambios de userRole para detectar inconsistencias
   useEffect(() => {
     if (userRole) {
-      console.log('🔄 [StatisticsScreen] UserRole changed to:', userRole, '(for sidebar)');
+      // console.log('🔄 [StatisticsScreen] UserRole changed to:', userRole, '(for sidebar)');
     }
   }, [userRole]);
 
