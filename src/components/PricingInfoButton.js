@@ -328,19 +328,62 @@ const PricingInfoButton = () => {
         </View>
         
         <View style={styles.limitsBlock}>
-          <Text style={styles.limitsTitle}>Límites Específicos</Text>
+          <Text style={styles.limitsTitle}>Límites Específicos por Lotería</Text>
           {!limits || Object.keys(limits).length===0 ? (
-            <Text style={styles.noLimits}>No tiene límites específicos.</Text>
-          ) : (
-            <View style={styles.limitsGrid}>
-              {['fijo','corrido','posicion','parle','centena','tripleta'].filter(k=> limits[k] !== undefined).map(k => (
-                <View key={k} style={styles.limitCard}>
-                  <Text style={styles.limitPlay}>{k.toUpperCase()}</Text>
-                  <Text style={styles.limitValue}>{limits[k]}</Text>
+            <Text style={styles.noLimits}>No tiene límites específicos por lotería.</Text>
+          ) : (() => {
+            // Detectar formato: nuevo (por lotería) o antiguo (global)
+            const isNewFormat = Object.values(limits).some(val => 
+              typeof val === 'object' && val !== null && !Array.isArray(val)
+            );
+
+            if (isNewFormat) {
+              // Formato nuevo: mostrar por lotería
+              return Object.entries(limits).map(([lotteryId, lotteryLimits]) => {
+                if (typeof lotteryLimits === 'object' && lotteryLimits !== null) {
+                  // Obtener el nombre real de la lotería desde lotterySchedules
+                  const lotteryInfo = lotterySchedules[lotteryId];
+                  const lotteryName = lotteryInfo?.nombre || `Lotería ${lotteryId}`;
+                  
+                  // Filtrar y ordenar límites según el orden estándar
+                  const orderedLimits = ['fijo','corrido','posicion','parle','centena','tripleta']
+                    .filter(k => lotteryLimits[k] !== undefined);
+                  
+                  if (orderedLimits.length > 0) {
+                    return (
+                      <View key={lotteryId} style={styles.lotteryLimitSection}>
+                        <Text style={styles.lotteryLimitName}>{lotteryName}</Text>
+                        <View style={styles.limitsGrid}>
+                          {orderedLimits.map(k => (
+                            <View key={`${lotteryId}-${k}`} style={styles.limitCard}>
+                              <Text style={styles.limitPlay}>{k.toUpperCase()}</Text>
+                              <Text style={styles.limitValue}>{lotteryLimits[k]}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    );
+                  }
+                }
+                return null;
+              });
+            } else {
+              // Formato antiguo: mostrar como antes (compatibilidad)
+              return (
+                <View>
+                  <Text style={styles.lotteryLimitName}>Límites Globales (Formato Anterior)</Text>
+                  <View style={styles.limitsGrid}>
+                    {['fijo','corrido','posicion','parle','centena','tripleta'].filter(k=> limits[k] !== undefined).map(k => (
+                      <View key={k} style={styles.limitCard}>
+                        <Text style={styles.limitPlay}>{k.toUpperCase()}</Text>
+                        <Text style={styles.limitValue}>{limits[k]}</Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
-              ))}
-            </View>
-          )}
+              );
+            }
+          })()}
         </View>
         
         <View style={styles.limitsBlock}>
