@@ -1338,7 +1338,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
               <Text style={[styles.excelHeaderCell, { width: 80 }]}>Listero</Text>
               <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bruto</Text>
-              <Text style={[styles.excelHeaderCell, { width: 60 }]}>Ganancia</Text>
+              <Text style={[styles.excelHeaderCell, { width: 60 }]}>Gan. Colector</Text>
+              <Text style={[styles.excelHeaderCell, { width: 60 }]}>Gan. Listero</Text>
+              <Text style={[styles.excelHeaderCell, { width: 60 }]}>Premios</Text>
               <Text style={[styles.excelHeaderCell, { width: 60 }]}>Balance</Text>
             </View>
             
@@ -1367,6 +1369,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     </View>
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
                       <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(listero.ganancia_colector_total)}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 60 }]}>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.ganancia_listero_total)}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 60 }]}>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.premios_total)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
                       <Text style={[styles.excelCell, listero.balance_colector_total >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>

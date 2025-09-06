@@ -1104,6 +1104,8 @@ const useStatistics = (bankId = null) => {
             id_listero: play.id_listero,
             bruto_total: 0,
             ganancia_colector_total: 0,
+            ganancia_listero_total: 0,
+            premios_total: 0,
             balance_colector_total: 0,
             plays: []
           };
@@ -1111,6 +1113,8 @@ const useStatistics = (bankId = null) => {
         
         groupedByListero[listeroKey].bruto_total += Number(play.bruto || 0);
         groupedByListero[listeroKey].ganancia_colector_total += Number(play.ganancia_colector || 0);
+        groupedByListero[listeroKey].ganancia_listero_total += Number(play.ganancia_listero || 0);
+        groupedByListero[listeroKey].premios_total += Number(play.premio || 0);
         groupedByListero[listeroKey].balance_colector_total += Number(play.balance_colector || 0);
         groupedByListero[listeroKey].plays.push(play);
       });
