@@ -343,3 +343,73 @@ export const generateTextModeCopyFromInstructions = async (
     return 'Error generando texto';
   }
 };
+
+// Función específica para modo texto que usa el comando original del input
+export const generateTextModeCopyFromOriginalCommand = async (
+  originalCommand,
+  selectedLottery,
+  selectedSchedule,
+  currentUserProfile = null,
+  noteName = null,
+  parsedInstructions = null
+) => {
+  try {
+    let copyText = '';
+    
+    // Usar el nombre de la nota si está disponible, sino "SIN NOMBRE"
+    let userName = noteName && noteName.trim() ? noteName.trim() : 'SIN NOMBRE';
+    copyText += userName + '\n';
+    
+    // Obtener información de loterías y horarios
+    const { supabase } = await import('../supabaseClient');
+    
+    // Obtener información de la lotería
+    const { data: lottery } = await supabase
+      .from('loteria')
+      .select('nombre')
+      .eq('id', selectedLottery)
+      .single();
+    
+    if (!lottery) {
+      return 'Error: Lotería no encontrada';
+    }
+    
+    // Obtener horario para esta lotería
+    let scheduleName = 'Sin horario';
+    if (selectedSchedule) {
+      const { data: schedule } = await supabase
+        .from('horario')
+        .select('nombre')
+        .eq('id', selectedSchedule)
+        .single();
+      
+      if (schedule) {
+        scheduleName = schedule.nombre;
+      }
+    }
+    
+    // Agregar información de la lotería
+    copyText += `\nLotería: ${lottery.nombre} \n`;
+    copyText += `Horario: ${scheduleName}\n\n`;
+    
+    // Agregar el comando original exactamente como está en el input
+    copyText += originalCommand + '\n\n';
+    
+    // Calcular el total usando las instrucciones parseadas si están disponibles
+    let totalAmount = 0;
+    if (parsedInstructions && parsedInstructions.length > 0) {
+      totalAmount = parsedInstructions.reduce((acc, instruction) => {
+        return acc + (instruction.totalPerLottery || 0);
+      }, 0);
+      copyText += `Total: ${totalAmount}`;
+    } else {
+      copyText += `Total: Ver total en la app`;
+    }
+    
+    return copyText;
+    
+  } catch (error) {
+    console.error('Error generando texto para copiar:', error);
+    return 'Error generando texto';
+  }
+};

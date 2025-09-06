@@ -140,6 +140,11 @@ export const usePlaySubmission = () => {
         id_listero: user?.id || null
       };
       
+      // Agregar comando si viene en formData (para modo texto y texto 2.0)
+      if (formData.comando && formData.comando.trim()) {
+        insertPayload.comando = formData.comando.trim();
+      }
+      
       const { error: insertError } = await supabase.from('jugada').insert(insertPayload);
       if (insertError) {
         console.error('Error insertando jugada:', insertError);

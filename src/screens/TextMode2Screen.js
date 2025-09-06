@@ -30,7 +30,7 @@ import { parseTextMode2 } from '../utils/textModeParser2';
 import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import FeedbackBanner from '../components/FeedbackBanner';
-import { generateTextModeCopyFromInstructions } from '../utils/copyUtils';
+import { generateTextModeCopyFromInstructions, generateTextModeCopyFromOriginalCommand } from '../utils/copyUtils';
 import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { supabase } from '../supabaseClient';
@@ -273,23 +273,18 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         return;
       }
       
-      // Verificar que las instrucciones fueron parseadas correctamente
-      if (parsedInstructions.length === 0) {
-        Alert.alert('Error', 'No se pudieron interpretar las jugadas. Verifica el formato.');
-        return;
-      }
-      
-      // Para modo texto, solo trabajamos con una lotería y horario a la vez
+      // Para modo texto 2.0, copiamos el comando original del input
       const selectedLottery = selectedLotteries[0];
       const selectedSchedule = selectedSchedules[selectedLottery];
       
-      // Generar texto para copiar usando las instrucciones parseadas
-      const copyText = await generateTextModeCopyFromInstructions(
-        parsedInstructions,
+      // Generar texto para copiar usando el comando original
+      const copyText = await generateTextModeCopyFromOriginalCommand(
+        plays.trim(), // Usar el texto original del input
         selectedLottery,
         selectedSchedule,
         userProfile,
-        note
+        note,
+        parsedInstructions // Pasar las instrucciones para calcular el total
       );
       
       // Copiar al portapapeles
@@ -500,7 +495,7 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         const pad=(n)=> String(n).padStart(2,'0');
         const now=new Date();
         const tsLocal = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-    const updatePayload={ numeros: instr.numbers.join(','), nota: note.trim() || null, monto_unitario: instr.amountEach, monto_total: instr.totalPerLottery, jugada: instr.playType };
+    const updatePayload={ numeros: instr.numbers.join(','), nota: note.trim() || null, monto_unitario: instr.amountEach, monto_total: instr.totalPerLottery, jugada: instr.playType, comando: plays.trim() };
         if(newHorario) updatePayload.id_horario = newHorario;
   const { error } = await supabase.from('jugada').update(updatePayload).eq('id', editingId);
         if(error) throw error;
@@ -560,7 +555,8 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
               numbers: instr.numbers.join(','),
               note: note.trim() || null,
               amount: unit,
-              total
+              total,
+              comando: plays.trim() // Agregar el texto original del input con saltos de línea
             });
           }
         }
