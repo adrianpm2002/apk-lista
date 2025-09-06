@@ -153,16 +153,193 @@ export const generateTextModeCopyText = async (
   currentUserProfile = null,
   noteName = null
 ) => {
-  // Convertir formato de texto a formato compatible
-  const formData = {
-    selectedLotteries: selectedLottery ? [selectedLottery] : [],
-    selectedSchedules: selectedSchedule ? { [selectedLottery]: selectedSchedule } : {},
-    selectedPlayTypes: Object.keys(amounts || {}).filter(key => 
-      amounts[key] && parseFloat(amounts[key].toString().replace(/[^0-9.]/g, '')) > 0
-    ),
-    plays: plays || '',
-    amounts: amounts || {}
-  };
-  
-  return generateCopyText(formData, currentUserProfile, noteName);
+  try {
+    let copyText = '';
+    
+    // Usar el nombre de la nota si está disponible, sino "SIN NOMBRE"
+    let userName = noteName && noteName.trim() ? noteName.trim() : 'SIN NOMBRE';
+    copyText += userName + '\n';
+    
+    // Obtener información de loterías y horarios
+    const { supabase } = await import('../supabaseClient');
+    
+    // Obtener información de la lotería
+    const { data: lottery } = await supabase
+      .from('loteria')
+      .select('nombre')
+      .eq('id', selectedLottery)
+      .single();
+    
+    if (!lottery) {
+      return 'Error: Lotería no encontrada';
+    }
+    
+    // Obtener horario para esta lotería
+    let scheduleName = 'Sin horario';
+    if (selectedSchedule) {
+      const { data: schedule } = await supabase
+        .from('horario')
+        .select('nombre')
+        .eq('id', selectedSchedule)
+        .single();
+      
+      if (schedule) {
+        scheduleName = schedule.nombre;
+      }
+    }
+    
+    // Agregar información de la lotería
+    copyText += `\nLotería: ${lottery.nombre} \n`;
+    copyText += `Horario: ${scheduleName}\n\n`;
+    
+    // Extraer números únicos de las jugadas (solo números de 2 dígitos)
+    const numbers = plays.match(/\d{2}/g) || [];
+    const uniqueNumbers = [...new Set(numbers)];
+    
+    if (uniqueNumbers.length === 0) {
+      return copyText + 'Sin números válidos\n\nTotal: 0';
+    }
+    
+    // Generar líneas según el tipo de jugada
+    let totalAmount = 0;
+    
+    // Si hay fijo, generar línea con todos los números
+    if (amounts.fijo && parseFloat(amounts.fijo) > 0) {
+      const fijoAmount = parseFloat(amounts.fijo);
+      copyText += `${uniqueNumbers.join(' ')} -${fijoAmount}\n`;
+      totalAmount += fijoAmount * uniqueNumbers.length;
+    }
+    
+    // Si hay corrido, generar línea separada
+    if (amounts.corrido && parseFloat(amounts.corrido) > 0) {
+      const corridoAmount = parseFloat(amounts.corrido);
+      copyText += `${uniqueNumbers.join(' ')} -0-${corridoAmount}\n`;
+      totalAmount += corridoAmount * uniqueNumbers.length;
+    }
+    
+    // Si hay parle, generar líneas según el tipo
+    if (amounts.parle && parseFloat(amounts.parle) > 0) {
+      const parleAmount = parseFloat(amounts.parle);
+      // Para parle, usar los números en combinaciones
+      if (uniqueNumbers.length >= 2) {
+        const combinations = [];
+        for (let i = 0; i < uniqueNumbers.length; i++) {
+          for (let j = i + 1; j < uniqueNumbers.length; j++) {
+            combinations.push(uniqueNumbers[i] + uniqueNumbers[j]);
+          }
+        }
+        copyText += `${combinations.join(' ')} -${parleAmount}\n`;
+        totalAmount += parleAmount * combinations.length;
+      }
+    }
+    
+    // Si hay centena
+    if (amounts.centena && parseFloat(amounts.centena) > 0) {
+      const centenaAmount = parseFloat(amounts.centena);
+      // Para centena, mostrar números de 3 dígitos
+      const centenas = plays.match(/\d{3}/g) || [];
+      if (centenas.length > 0) {
+        copyText += `${centenas.join(' ')} -${centenaAmount}\n`;
+        totalAmount += centenaAmount * centenas.length;
+      }
+    }
+    
+    copyText += `\nTotal: ${totalAmount}`;
+    
+    return copyText;
+    
+  } catch (error) {
+    console.error('Error generando texto para copiar:', error);
+    return 'Error generando texto';
+  }
+};
+
+// Función específica para modo texto que recibe instrucciones parseadas
+export const generateTextModeCopyFromInstructions = async (
+  parsedInstructions,
+  selectedLottery,
+  selectedSchedule,
+  currentUserProfile = null,
+  noteName = null
+) => {
+  try {
+    let copyText = '';
+    
+    // Usar el nombre de la nota si está disponible, sino "SIN NOMBRE"
+    let userName = noteName && noteName.trim() ? noteName.trim() : 'SIN NOMBRE';
+    copyText += userName + '\n';
+    
+    // Obtener información de loterías y horarios
+    const { supabase } = await import('../supabaseClient');
+    
+    // Obtener información de la lotería
+    const { data: lottery } = await supabase
+      .from('loteria')
+      .select('nombre')
+      .eq('id', selectedLottery)
+      .single();
+    
+    if (!lottery) {
+      return 'Error: Lotería no encontrada';
+    }
+    
+    // Obtener horario para esta lotería
+    let scheduleName = 'Sin horario';
+    if (selectedSchedule) {
+      const { data: schedule } = await supabase
+        .from('horario')
+        .select('nombre')
+        .eq('id', selectedSchedule)
+        .single();
+      
+      if (schedule) {
+        scheduleName = schedule.nombre;
+      }
+    }
+    
+    // Agregar información de la lotería
+    copyText += `\nLotería: ${lottery.nombre} \n`;
+    copyText += `Horario: ${scheduleName}\n\n`;
+    
+    if (!parsedInstructions || parsedInstructions.length === 0) {
+      return copyText + 'Sin jugadas válidas\n\nTotal: 0';
+    }
+    
+    let totalGeneral = 0;
+    
+    // Procesar cada instrucción
+    parsedInstructions.forEach(instruction => {
+      const { playType, numbers, amountEach } = instruction;
+      
+      if (!numbers || numbers.length === 0) return;
+      
+      if (playType === 'fijo' || playType === 'corrido') {
+        // Para fijo y corrido: mostrar números individuales
+        if (playType === 'fijo') {
+          copyText += `${numbers.join(' ')} -${amountEach}\n`;
+        } else {
+          copyText += `${numbers.join(' ')} -0-${amountEach}\n`;
+        }
+      } else if (playType === 'parle') {
+        // Para parle: mostrar combinaciones de 4 dígitos
+        copyText += `${numbers.join(' ')} -${amountEach}\n`;
+      } else if (playType === 'centena') {
+        // Para centena: mostrar números de 3 dígitos
+        copyText += `${numbers.join(' ')} -${amountEach}\n`;
+      } else if (playType === 'tripleta') {
+        // Para tripleta: mostrar números de 6 dígitos
+        copyText += `${numbers.join(' ')} -${amountEach}\n`;
+      }
+      
+      totalGeneral += instruction.totalPerLottery || 0;
+    });
+    
+    copyText += `\nTotal: ${totalGeneral}`;
+    
+    return copyText;
+    
+  } catch (error) {
+    console.error('Error generando texto para copiar:', error);
+    return 'Error generando texto';
+  }
 };

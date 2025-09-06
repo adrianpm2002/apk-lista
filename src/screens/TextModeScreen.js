@@ -30,7 +30,7 @@ import { playToTextCommand } from '../utils/playToTextCommand';
 import { parseTextMode } from '../utils/textModeParser';
 import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
-import { generateTextModeCopyText } from '../utils/copyUtils';
+import { generateTextModeCopyFromInstructions } from '../utils/copyUtils';
 import FeedbackBanner from '../components/FeedbackBanner';
 import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
@@ -281,33 +281,15 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         return;
       }
       
-      // Convertir parsedInstructions a formato compatible con generateTextModeCopyText
-      const amounts = {};
-      parsedInstructions.forEach(instruction => {
-        if (instruction.playType && instruction.amountEach) {
-          amounts[instruction.playType] = instruction.amountEach.toString();
-        }
-      });
-      
       // Para modo texto, solo trabajamos con una lotería y horario a la vez
       const selectedLottery = selectedLotteries[0];
       const selectedSchedule = selectedSchedules[selectedLottery];
       
-      // Extraer solo los números de las jugadas (sin comandos)
-      const numbers = [];
-      parsedInstructions.forEach(instruction => {
-        if (instruction.numbers && Array.isArray(instruction.numbers)) {
-          numbers.push(...instruction.numbers);
-        }
-      });
-      const playsText = numbers.join(' ');
-      
-      // Generar texto para copiar
-      const copyText = await generateTextModeCopyText(
+      // Generar texto para copiar usando las instrucciones parseadas
+      const copyText = await generateTextModeCopyFromInstructions(
+        parsedInstructions,
         selectedLottery,
         selectedSchedule,
-        playsText,
-        amounts,
         userProfile,
         note
       );
