@@ -163,8 +163,8 @@ export function parseTextMode2(rawText, { isLocked = false } = {}) {
     }
     // Detectar si hay mezcla de comandos y números directos
     else if (left.match(/([dDtTpP]\d*|\d{2,6})/)) {
-      // Dividir por espacios y procesar cada token individualmente
-      const allTokens = left.split(/\s+/).filter(Boolean);
+      // Dividir por espacios y otros separadores (igual que splitNums)
+      const allTokens = left.split(/[^0-9dDtTpP]+/).filter(Boolean);
       let allNumbers = []; // Usar array normal para mantener todos los números, incluyendo duplicados
       let hasCommands = false;
       let hasDirectNumbers = false;
