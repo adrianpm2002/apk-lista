@@ -491,14 +491,36 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
 
   const handleDelete = useCallback((id) => {
     const executeDeletion = async () => {
+      const userToDelete = users.find(u => u.id === id);
+      const isCollector = userToDelete?.role === 'collector';
+      
+      // Si es colector, encontrar listeros asociados para actualización local
+      let affectedListeros = [];
+      if (isCollector) {
+        affectedListeros = users.filter(u => u.role === 'listero' && u.id_collector === id);
+      }
+
       // Eliminación optimista local
       setUsers(prev => {
-        const toDelete = prev.find(u => u.id === id);
         const filtered = prev.filter(u => u.id !== id);
-        // Si era colector y el backend también elimina/ajusta listeros, dejamos que fetch sincronice.
-        // Si no, esos listeros quedarán como huérfanos tras fetch si siguen existiendo.
+        
+        // Si era colector, actualizar listeros asociados localmente
+        if (isCollector && affectedListeros.length > 0) {
+          return filtered.map(user => {
+            if (user.role === 'listero' && user.id_collector === id) {
+              return {
+                ...user,
+                id_collector: null,
+                activo: false // Deshabilitar automáticamente
+              };
+            }
+            return user;
+          });
+        }
+        
         return filtered;
       });
+      
       // Si estaba expandido quitarlo
       setExpandedCollectors(prev => {
         if (prev.has(id)) {
@@ -516,11 +538,37 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       }, 0);
 
       try {
+        // Si es colector, primero actualizar listeros asociados
+        if (isCollector && affectedListeros.length > 0) {
+          const { error: listeroUpdateError } = await supabase
+            .from('profiles')
+            .update({ 
+              id_collector: null,
+              activo: false 
+            })
+            .eq('id_collector', id)
+            .eq('role', 'listero');
+            
+          if (listeroUpdateError) {
+            console.error('Error updating associated listeros:', listeroUpdateError);
+          }
+        }
+
+        // Eliminar el usuario
         const { data, error } = await supabase.rpc('delete_user_complete', { user_id: id });
         if (error) throw error;
         if (data && data.success === false) {
           throw new Error(data.message || data.error || 'Fallo al eliminar');
         }
+        
+        // Mostrar mensaje específico si era colector con listeros
+        if (isCollector && affectedListeros.length > 0) {
+          Alert.alert(
+            'Colector eliminado', 
+            `Se eliminó el colector y se deshabilitaron ${affectedListeros.length} listero(s) asociado(s).`
+          );
+        }
+        
       } catch (e) {
         console.error('Delete Error:', e);
         Alert.alert('Error', e.message || 'No se pudo eliminar. Refrescando.');
@@ -993,7 +1041,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
               {isOrphan ? '🔗' : '└── 📝'} {item.username}
             </Text>
             <Text style={[styles.userRole, { color: isDarkMode ? (isOrphan ? '#f39c12' : '#95a5a6') : (isOrphan ? '#f39c12' : '#6c757d') }]}>
-              Listero • {item.activo ? 'Habilitado' : 'Deshabilitado'}
+              Listero • {item.activo ? 'Habilitado' : 'Deshabilitado'} {isOrphan ? '• Sin colector' : ''}
             </Text>
             
             {/* Información adicional del listero */}
