@@ -373,8 +373,15 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         setLimitViolations(violations);
         setShowInsertButton(false); // Ocultar botón si hay violaciones
         setDuplicateLines([]); // Limpiar duplicados cuando hay violaciones de límite
-        const first = violations.slice(0,3).map(v=> `${v.numero}(${v.jugada})`).join(', ');
-        setVerifyFeedback({ type:'error', message:`${t('verify.limitViolations')}: ${violations.length}${violations.length? ' - '+first+(violations.length>3?'...':''):''}` });
+        // Mostrar detalles igual que en insertFeedback
+        const violationDetails = violations.slice(0,3).map(v=> {
+          const usado = v.usado || 0;
+          const intento = v.intento || 0;
+          const total = usado + intento;
+          const exceso = total - v.permitido;
+          return `${v.numero} (${v.jugada}): excede ${exceso}`;
+        }).join(', ');
+        setVerifyFeedback({ type:'error', message:`${t('verify.limitViolations')}: ${violationDetails}${violations.length > 3 ? '...' : ''}` });
         return;
       }
       // Resumen agregado sin listar números
@@ -839,7 +846,13 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         <FeedbackBanner
           type={insertFeedback.blocked ? 'blocked' : (insertFeedback.fail ? (insertFeedback.success ? 'warning' : 'error') : 'success')}
           message={insertFeedback.blocked ? `${t('edit.blocked')}: ${t('edit.blocked.detail')}` : `${t('banner.inserted')}: ${insertFeedback.success}  ${t('banner.fail')}: ${insertFeedback.fail}`}
-          details={(limitViolations.length ? limitViolations.slice(0,10).map(v=> `${v.numero} (${v.jugada}) usado ${v.usado||0}${v.intento?` +${v.intento}`:''}/${v.permitido}`) : [])
+          details={(limitViolations.length ? limitViolations.slice(0,10).map(v=> {
+            const usado = v.usado || 0;
+            const intento = v.intento || 0;
+            const total = usado + intento;
+            const exceso = total - v.permitido;
+            return `${v.numero} (${v.jugada}): excede ${exceso}`;
+          }) : [])
             .concat(insertFeedback.serverError ? [`Servidor: ${insertFeedback.serverError}`] : [])}
           onClose={()=> setInsertFeedback(null)}
           style={{ top: verifyFeedback ? 120 : 70 }}

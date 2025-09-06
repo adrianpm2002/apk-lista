@@ -78,14 +78,14 @@ const roleOptionsMap = {
   ]
 };
 
-// Opciones básicas que siempre están disponibles
+// Opciones básicas que siempre están disponibles (solo para casos extremos)
 const basicOptions = [
   { id: 'settings', title: 'Configuración', icon: '⚙️' },
   { id: 'logout', title: 'Cerrar Sesión', icon: '🚪', action: 'logout' },
 ];
 
-// Selección de opciones dinámicamente según rol con fallback a opciones básicas
-const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptions;
+// Selección de opciones dinámicamente según rol - mostrar loading si no hay rol
+const configOptions = role ? roleOptionsMap[role] : null;
 
 
   // Animación del sidebar
@@ -780,25 +780,31 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
               style={styles.content}
               showsVerticalScrollIndicator={false}
             >
-              {/* Siempre mostrar el contenido, sin estado de carga */}
-              {configOptions.map((option) => (
-                <Pressable
-                  key={option.id}
-                  style={({ pressed }) => [
-                    styles.optionRow,
-                      pressed && styles.optionRowPressed
-                    ]}
-                    onPress={() => handleOptionPress(option)}
-                  >
-                    <Text style={styles.optionIcon}>{option.icon}</Text>
-                    <View style={styles.optionTextContainer}>
-                      <Text style={styles.optionTitle}>
-                        {option.title}
-                      </Text>
-                    </View>
-                    <Text style={styles.arrowIcon}>▶</Text>
-                  </Pressable>
-                ))
+              {/* Mostrar loading si no hay opciones, contenido si las hay */}
+              {configOptions ? (
+                configOptions.map((option) => (
+                  <Pressable
+                    key={option.id}
+                    style={({ pressed }) => [
+                      styles.optionRow,
+                        pressed && styles.optionRowPressed
+                      ]}
+                      onPress={() => handleOptionPress(option)}
+                    >
+                      <Text style={styles.optionIcon}>{option.icon}</Text>
+                      <View style={styles.optionTextContainer}>
+                        <Text style={styles.optionTitle}>
+                          {option.title}
+                        </Text>
+                      </View>
+                      <Text style={styles.arrowIcon}>▶</Text>
+                    </Pressable>
+                  ))
+                ) : (
+                  <View style={styles.loadingContainer}>
+                    <Text style={styles.loadingText}>Cargando...</Text>
+                  </View>
+                )
               }
             </ScrollView>
 
@@ -1347,6 +1353,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   
+  // Loading estado
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  
   // Pressed states
   buttonPressed: {
     opacity: 0.7,
@@ -1357,7 +1376,8 @@ const MemoizedSideBar = React.memo(SideBar, (prevProps, nextProps) => {
   // Solo re-renderizar si cambian props específicas importantes
   return (
     prevProps.navigation === nextProps.navigation &&
-    prevProps.isVisible === nextProps.isVisible
+    prevProps.isVisible === nextProps.isVisible &&
+    prevProps.role === nextProps.role
   );
 });
 

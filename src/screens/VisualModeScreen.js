@@ -821,7 +821,13 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           <FeedbackBanner
             type="blocked"
             message={t('edit.blocked')}
-            details={limitViolations.slice(0,10).map(v=> `${v.numero} (${v.jugada}) ${(v.usado||0)}${v.intento?` +${v.intento}`:''}/${v.permitido}`)}
+            details={limitViolations.slice(0,10).map(v=> {
+              const usado = v.usado || 0;
+              const intento = v.intento || 0;
+              const total = usado + intento;
+              const exceso = total - v.permitido;
+              return `${v.numero} (${v.jugada}): excede ${exceso}`;
+            })}
             onClose={()=> setLimitViolations([])}
             style={{ top:70 }}
           />

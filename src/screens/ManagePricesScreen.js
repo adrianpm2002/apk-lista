@@ -832,7 +832,7 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
-        role={userRole}
+        role="admin"
       />
     </View>
   );

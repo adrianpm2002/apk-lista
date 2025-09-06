@@ -514,7 +514,7 @@ const JugadasContent = React.memo(({
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
-        role={userRole}
+        role="admin"
       />
     </View>
   );
