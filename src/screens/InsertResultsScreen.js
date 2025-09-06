@@ -557,21 +557,21 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
 
 
   return (
-    <View style={[styles.container, commonStyles.container]}>
+    <View style={styles.container}>
       {/* Header personalizado - arriba del todo */}
-      <View style={[styles.customHeader, commonStyles.header]}>
+      <View style={styles.customHeader}>
         <SideBarToggle 
           inline 
           onToggle={() => setSidebarVisible(!sidebarVisible)} 
           style={styles.sidebarButton} 
         />
-        <Text style={[styles.headerTitle, commonStyles.textPrimary]}>
+        <Text style={styles.headerTitle}>
           Resultados
         </Text>
       </View>
 
       <ScrollView 
-        style={[styles.content, commonStyles.containerSecondary]} 
+        style={styles.content} 
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -637,17 +637,17 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
 
         {/* Listado resultados hoy */}
         <View style={styles.todayContainer}>
-          <Text style={[styles.todayTitle, commonStyles.textPrimary]}>
+          <Text style={styles.todayTitle}>
             Resultados de Hoy
           </Text>
           
           {(loadingResults || initialLoading) && (
-            <Text style={[styles.loadingText, commonStyles.textSecondary]}>
+            <Text style={styles.loadingText}>
               Cargando...
             </Text>
           )}
           {!loadingResults && !initialLoading && todayResults.length === 0 && (
-            <Text style={[styles.emptyText, commonStyles.textTertiary]}>
+            <Text style={styles.emptyText}>
               No hay resultados registrados hoy.
             </Text>
           )}
@@ -656,7 +656,6 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
             return (
               <View key={item.id} style={[
                 styles.resultRow, 
-                commonStyles.card,
                 item.id === deniedEditId && styles.resultRowDenied
               ]}>
                 <View style={styles.resultInfo}>

@@ -178,10 +178,10 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
       navigation.navigate('LotteryLimits');
       break;
     case 'prices':
-      navigation.navigate('Prices');
+      navigation.navigate('ManagePrices');
       break;
     case 'listerLimits':
-      navigation.navigate('UserLimits');
+      navigation.navigate('NumberLimits');
       break;
     case 'limitedNumbers':
       navigation.navigate('NumberLimits');
@@ -1194,7 +1194,7 @@ const styles = StyleSheet.create({
   // Toggle Button
   toggleButton: {
     position: 'absolute',
-    top: 8,
+    top: 40,
     left: 8,
     width: 42,
     height: 42,

@@ -740,7 +740,9 @@ const styles = {
   recordHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingTop: 40,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e1e8ed',

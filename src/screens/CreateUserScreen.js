@@ -1097,17 +1097,17 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   };
 
   return (
-    <View style={[styles.container, commonStyles.container]}>
-      <View style={[styles.customHeader, commonStyles.header]}>
+    <View style={styles.container}>
+      <View style={styles.customHeader}>
         <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
-        <Text style={[styles.headerTitle, commonStyles.textPrimary]}>Usuarios</Text>
+        <Text style={styles.headerTitle}>Usuarios</Text>
       </View>
 
-      <View style={[styles.content, commonStyles.containerSecondary]}>
+      <View style={styles.content}>
   <CustomButton title={userRole === 'collector' ? 'Crear Listero' : 'Crear Usuario'} onPress={() => { clearForm(); if (userRole==='collector'){ setRole('listero'); setSelectedCollector(currentUserId);} setModalVisible(true); }} />
 
         {userRole === 'collector' && hierarchicalUsers.length === 0 && (
-          <Text style={[styles.emptyListText, commonStyles.textSecondary]}>No tienes listeros asignados todavía.</Text>
+          <Text style={styles.emptyListText}>No tienes listeros asignados todavía.</Text>
         )}
         
         {/* Solo mostrar Collectors y Listeros */}
@@ -1119,8 +1119,8 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         />
 
         <Modal visible={modalVisible} animationType="slide">
-          <View style={[styles.modalContent, commonStyles.modalContent]}>
-            <Text style={[styles.modalTitle, commonStyles.textPrimary]}>{isEditing ? (userRole==='collector' ? 'Editar Listero' : 'Editar Usuario') : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')}</Text>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{isEditing ? (userRole==='collector' ? 'Editar Listero' : 'Editar Usuario') : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')}</Text>
 
             <ScrollView 
               style={styles.modalScrollView}
@@ -1132,7 +1132,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                 placeholder="Nombre de usuario"
                 value={username}
                 onChangeText={setUsername}
-                style={[styles.input, formStyles.inputField]}
+                style={styles.input}
                 placeholderTextColor="#95a5a6"
               />
 
