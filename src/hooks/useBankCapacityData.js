@@ -186,22 +186,13 @@ export function useBankCapacityData(bankId, options = {}) {
         allNumberKeys.add(key);
       });
 
-      // Función para obtener límite específico considerando el nuevo formato por lotería
+      // Función para obtener límite específico del nuevo formato por lotería
       const getSpecificLimitForLottery = (listero, jugada, lotteryId) => {
-        if (!listero.limite_especifico) return null;
+        if (!listero.limite_especifico || !lotteryId) return null;
         
-        // Detectar formato: si hay claves numéricas, es el formato nuevo por lotería
-        const keys = Object.keys(listero.limite_especifico);
-        const hasNumericKeys = keys.some(key => !isNaN(parseInt(key)));
-        
-        if (hasNumericKeys) {
-          // Formato nuevo: {lotteryId: {jugada: valor}}
-          const lotteryLimits = listero.limite_especifico[lotteryId];
-          return lotteryLimits && lotteryLimits[jugada] ? lotteryLimits[jugada] : null;
-        } else {
-          // Formato viejo: {jugada: valor} - aplicar a todas las loterías
-          return listero.limite_especifico[jugada] || null;
-        }
+        // Formato: {lotteryId: {jugada: valor}}
+        const lotteryLimits = listero.limite_especifico[lotteryId];
+        return lotteryLimits && lotteryLimits[jugada] ? lotteryLimits[jugada] : null;
       };
 
       // Para cada número único, calcular el límite total

@@ -180,6 +180,15 @@ export const checkInstructionsLimits = (instructions, horarios, limitCtx) => {
     });
   });
 
+  // Función para obtener límite específico del nuevo formato por lotería
+  const getSpecificLimitForLottery = (specificLimits, jugada, lotteryId) => {
+    if (!specificLimits || !lotteryId) return null;
+    
+    // Formato: {lotteryId: {jugada: valor}}
+    const lotteryLimits = specificLimits[lotteryId];
+    return lotteryLimits && lotteryLimits[jugada] ? lotteryLimits[jugada] : null;
+  };
+
   // Comparar intentos agregados con límites efectivos (incluyendo límites por lotería)
   attemptMap.forEach((attempt, key) => {
     const [h, jugada, canonical] = key.split('|');
@@ -189,12 +198,12 @@ export const checkInstructionsLimits = (instructions, horarios, limitCtx) => {
     // Límite por número específico
     const perNumber = limitCtx.limitMap.get(key);
     
-    // Límite específico del listero
-    const specLimit = limitCtx.specificLimits && limitCtx.specificLimits[jugada];
-    
     // Límite por lotería - NUEVA FUNCIONALIDAD
     const lotteryId = limitCtx.horarioToLoteria && limitCtx.horarioToLoteria.get(h);
     const lotteryLimit = lotteryId && limitCtx.lotteryLimits && limitCtx.lotteryLimits[lotteryId] && limitCtx.lotteryLimits[lotteryId][jugada];
+    
+    // Límite específico del listero usando nueva función
+    const specLimit = getSpecificLimitForLottery(limitCtx.specificLimits, jugada, lotteryId);
     
     console.log(`🔍 [limitUtils] Límites encontrados: número=${perNumber}, lotería=${lotteryLimit} (lotteryId=${lotteryId}), específico=${specLimit}`);
     

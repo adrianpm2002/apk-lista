@@ -118,21 +118,11 @@ export function useCapacityData(bankId, options = {}) {
 
       // Función auxiliar para obtener límite específico por lotería
       const getSpecificLimitForLottery = (lotId, jugada) => {
-        if (!specificLimits) return null;
+        if (!specificLimits || !lotId) return null;
         
-        // Detectar formato: nuevo (por lotería) o antiguo (global)
-        const isNewFormat = Object.values(specificLimits).some(val => 
-          typeof val === 'object' && val !== null && !Array.isArray(val)
-        );
-        
-        if (isNewFormat) {
-          // Formato nuevo: buscar por lotería específica
-          const lotteryLimits = specificLimits[lotId];
-          return lotteryLimits && lotteryLimits[jugada] ? lotteryLimits[jugada] : null;
-        } else {
-          // Formato antiguo: límite global
-          return specificLimits[jugada] || null;
-        }
+        // Formato: {lotteryId: {jugada: valor}}
+        const lotteryLimits = specificLimits[lotId];
+        return lotteryLimits && lotteryLimits[jugada] ? lotteryLimits[jugada] : null;
       };
 
       // Función auxiliar para calcular el límite efectivo (mínimo entre los 3 tipos de límites)
