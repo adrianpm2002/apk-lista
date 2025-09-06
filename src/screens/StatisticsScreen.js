@@ -168,6 +168,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Opciones de períodos
   const periodOptions = [
+    { label: 'Hoy', value: 'today' },
     { label: 'Mes pasado', value: 'lastMonth' },
     { label: 'Últimos 7 días', value: 'last7days' },
     { label: 'Últimos 30 días', value: 'last30days' },
@@ -687,6 +688,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Función para generar título dinámico del gráfico
   const getChartTitle = () => {
     const titleMap = {
+      'today': 'Ganancias vs Pérdidas (Hoy)',
       'lastMonth': 'Ganancias vs Pérdidas (Mes pasado)',
       'last7days': 'Ganancias vs Pérdidas (Últimos 7 días)',
       'last30days': 'Ganancias vs Pérdidas (Últimos 30 días)',

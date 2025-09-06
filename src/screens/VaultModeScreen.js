@@ -465,15 +465,16 @@ const VaultModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkM
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
-  <View style={styles.headerFloating} pointerEvents="box-none">
-        <View style={styles.inlineHeaderRow} pointerEvents="box-none">
+  <View style={[styles.headerFloating, { pointerEvents: 'box-none' }]}>
+        <View style={[styles.inlineHeaderRow, { pointerEvents: 'box-none' }]}>
           <SideBarToggle inline onToggle={()=> setSidebarVisible(s=>!s)} />
           <View style={styles.modeSelectorWrapper}>
     <ModeSelector currentMode={currentMode||'Vault'} onModeChange={onModeChange} isDarkMode={isDarkMode} visibleModes={visibleModes} />
           </View>
-          <View style={styles.rightButtonsGroup} pointerEvents="box-none">
+          <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
             <PricingInfoButton />
-            <NotificationsButton />
+            {/* OCULTO PARA BUILD - NotificationsButton */}
+            {/* <NotificationsButton /> */}
           </View>
         </View>
       </View>

@@ -8,7 +8,7 @@ import {
   Animated,
 } from 'react-native';
 
-const ModeSelector = ({ currentMode, onModeChange, visibleModes = { visual: true, text: true, text2: true, vault: true } }) => {
+const ModeSelector = ({ currentMode, onModeChange, visibleModes = { visual: true, text: true, text2: true /* OCULTO PARA BUILD: vault: true */ } }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -95,6 +95,7 @@ const ModeSelector = ({ currentMode, onModeChange, visibleModes = { visual: true
           </Text>
         </Pressable>
       )}
+      {/* OCULTO PARA BUILD - Modo Vault
       {visibleModes.vault && (
         <Pressable
           style={({ pressed }) => [
@@ -113,6 +114,7 @@ const ModeSelector = ({ currentMode, onModeChange, visibleModes = { visual: true
           </Text>
         </Pressable>
       )}
+      */}
     </Animated.View>
   );
 };

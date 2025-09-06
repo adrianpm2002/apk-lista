@@ -415,7 +415,8 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                   marginBottom: 10
                 }
               ]}>
-                {/* Mantener sesión iniciada */}
+                {/* OCULTO PARA BUILD - Mantener sesión iniciada */}
+                {/*
                 <Pressable style={[
                   styles.settingOption,
                   Platform.OS === 'android' && {
@@ -438,8 +439,10 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                   </View>
                   <Text style={[styles.settingArrow, { fontSize: 12 }]}>▶</Text>
                 </Pressable>
+                */}
 
-                {/* Tamaño de letra */}
+                {/* OCULTO PARA BUILD - Tamaño de letra */}
+                {/*
                 <Pressable style={[
                   styles.settingOption,
                   Platform.OS === 'android' && {
@@ -463,8 +466,10 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                   </View>
                   <Text style={[styles.settingArrow, { fontSize: 12 }]}>▶</Text>
                 </Pressable>
+                */}
 
-                {/* Patrón de seguridad */}
+                {/* OCULTO PARA BUILD - Patrón de seguridad */}
+                {/*
                 <Pressable style={[
                   styles.settingOption,
                   Platform.OS === 'android' && {
@@ -487,6 +492,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                   </View>
                   <Text style={[styles.settingArrow, { fontSize: 12 }]}>▶</Text>
                 </Pressable>
+                */}
 
                 {/* Modos Visibles (solo listero) */}
                 {role === 'listero' && (
@@ -626,7 +632,8 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                   </View>
                 </Pressable>
 
-                {/* Modo Vault */}
+                {/* OCULTO PARA BUILD - Modo Vault */}
+                {/* 
                 <Pressable
                   style={[
                     styles.modeOption,
@@ -653,6 +660,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                     {visibleModes.vault && <Text style={styles.checkmark}>✓</Text>}
                   </View>
                 </Pressable>
+                */}
               </View>
 
               <View style={styles.modeModalButtons}>
@@ -750,7 +758,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
               <View style={styles.appInfo}>
                 <Text style={styles.appLogo}>🎲</Text>
                 <Text style={styles.appName}>
-                  Lotería Pro
+                  Cloud
                 </Text>
               </View>
               <Pressable

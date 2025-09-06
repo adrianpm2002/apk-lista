@@ -19,7 +19,7 @@ const MainAppScreen = ({ navigation, route }) => {
     visual: true,
   text: true,
   text2: true,
-  vault: true,
+  // OCULTO PARA BUILD - vault: true,
   });
 
   // Eliminado el chequeo de isLoading ya que el nuevo contexto no lo tiene
@@ -47,13 +47,14 @@ const MainAppScreen = ({ navigation, route }) => {
       { key: 'visual', mode: 'Visual' },
       { key: 'text', mode: 'Texto' },
       { key: 'text2', mode: 'Texto2' },
-      { key: 'vault', mode: 'Vault' },
+      // OCULTO PARA BUILD - { key: 'vault', mode: 'Vault' },
     ];
     const currentKey =
       currentMode === 'Visual' ? 'visual' :
       currentMode === 'Texto' ? 'text' :
       currentMode === 'Texto2' ? 'text2' :
-      currentMode === 'Vault' ? 'vault' : null;
+      // OCULTO PARA BUILD - currentMode === 'Vault' ? 'vault' : 
+      null;
 
     if (currentKey && visibleModes[currentKey]) return; // el actual es visible
 
@@ -153,6 +154,8 @@ const MainAppScreen = ({ navigation, route }) => {
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
+      ) : null}
+      {/* OCULTO PARA BUILD - VaultModeScreen
       ) : currentMode === 'Vault' && visibleModes.vault ? (
         <VaultModeScreen
           navigation={navigation}
@@ -162,7 +165,7 @@ const MainAppScreen = ({ navigation, route }) => {
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
-      ) : null}
+      */}
     </View>
   );
 };

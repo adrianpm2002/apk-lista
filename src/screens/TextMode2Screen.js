@@ -603,8 +603,8 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
 
   return (
     <View style={[styles.container, isDarkMode && styles.containerDark]}>
-      <View style={styles.headerFloating} pointerEvents="box-none">
-        <View style={styles.inlineHeaderRow} pointerEvents="box-none">
+      <View style={[styles.headerFloating, { pointerEvents: 'box-none' }]}>
+        <View style={[styles.inlineHeaderRow, { pointerEvents: 'box-none' }]}>
           <SideBarToggle inline onToggle={toggleSidebar} />
           <View style={styles.modeSelectorWrapper}>
             <ModeSelector 
@@ -614,9 +614,10 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
               visibleModes={visibleModes || { visual: true, text: true }}
             />
           </View>
-          <View style={styles.rightButtonsGroup} pointerEvents="box-none">
+          <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
             <PricingInfoButton />
-            <NotificationsButton />
+            {/* OCULTO PARA BUILD - NotificationsButton */}
+            {/* <NotificationsButton /> */}
           </View>
         </View>
   {/* Eliminado InfoButton general flotante en favor de botón en barra inferior */}

@@ -49,6 +49,15 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   const loadSavedPlays = async () => {
     try {
       setIsLoading(true);
+      
+      // Obtener el ID del usuario actual para filtrar solo sus jugadas
+      const { data: userRes } = await supabase.auth.getUser();
+      const userId = userRes?.user?.id;
+      if (!userId) {
+        setIsLoading(false);
+        return;
+      }
+      
       // Construir rango local del día (00:00:00 a 23:59:59.999) SIN convertir a UTC para columnas timestamp without time zone
       const now = new Date();
       const pad = (n) => String(n).padStart(2, '0');
@@ -61,6 +70,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
       const { data, error } = await supabase
         .from('jugada')
         .select('id, id_horario, jugada, numeros, monto_unitario, monto_total, created_at, nota, horario:horario(id,nombre,hora_inicio,hora_fin,loteria:loteria(id,nombre)))')
+        .eq('id_listero', userId) // FILTRO AGREGADO: Solo jugadas del listero actual
         .gte('created_at', startStr)
         .lte('created_at', endStr)
         .order('created_at', { ascending: false });
@@ -122,10 +132,8 @@ const SavedPlaysScreen = ({ navigation, route }) => {
       // Precios según perfil (específicos por lotería)
       let userGainsData = null;
       try {
-        const { data: userRes } = await supabase.auth.getUser();
-        const uid = userRes?.user?.id;
-        if (uid) {
-          const { data: profile } = await supabase.from('profiles').select('id_precio').eq('id', uid).maybeSingle();
+        if (userId) {
+          const { data: profile } = await supabase.from('profiles').select('id_precio').eq('id', userId).maybeSingle();
           userGainsData = profile?.id_precio;
         }
       } catch {}
@@ -437,7 +445,9 @@ const SavedPlaysScreen = ({ navigation, route }) => {
               }
               const targetMode = originMode === 'Texto' ? 'Texto' : (originMode === 'Texto2' ? 'Texto2' : 'Visual');
               const msg = targetMode === 'Texto' ? '¿Abrir esta jugada en modo Texto para editarla?' : (targetMode==='Texto2' ? '¿Abrir esta jugada en modo Texto 2.0 para editarla?' : '¿Abrir esta jugada en modo Visual para editarla?');
-              confirm('Editar', msg, ()=> { setEditingPlay(item); navigation.navigate('MainApp', { editPayload: item, originMode: targetMode }); });
+              // Serializar el timestamp para evitar warnings de navegación
+              const serializableItem = { ...item, timestamp: item.timestamp.toISOString() };
+              confirm('Editar', msg, ()=> { setEditingPlay(item); navigation.navigate('MainApp', { editPayload: serializableItem, originMode: targetMode }); });
             }}>
               <Text style={styles.editUnderPendingTxt}>Editar</Text>
             </Pressable>
@@ -491,7 +501,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   useEffect(()=>{
     if(editingPlay){
       editBannerOpacity.setValue(0);
-      Animated.timing(editBannerOpacity,{ toValue:1, duration:250, useNativeDriver:true }).start();
+      Animated.timing(editBannerOpacity,{ toValue:1, duration:250, useNativeDriver:false }).start();
     }
   }, [editingPlay]);
 
@@ -566,7 +576,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         <Animated.View style={[styles.editBanner, { opacity: editBannerOpacity, backgroundColor:'#F9E79F', borderColor:'#D4AC0D', borderWidth:1, paddingVertical:12, paddingHorizontal:14, borderRadius:10, flexDirection:'row', alignItems:'center' }] }>
           <Text style={[styles.editBannerText, { fontSize:16, fontWeight:'800', color:'#5C4B00', flex:1 }]}>Editando jugada</Text>
           <Pressable onPress={()=> {
-            Animated.timing(editBannerOpacity,{ toValue:0, duration:200, useNativeDriver:true }).start(({finished})=> { if(finished) setEditingPlay(null); });
+            Animated.timing(editBannerOpacity,{ toValue:0, duration:200, useNativeDriver:false }).start(({finished})=> { if(finished) setEditingPlay(null); });
           }} style={{ backgroundColor:'#D4AC0D', paddingVertical:6, paddingHorizontal:10, borderRadius:8 }}>
             <Text style={{ fontSize:13, fontWeight:'700', color:'#FFFFFF' }}>Cancelar</Text>
           </Pressable>
