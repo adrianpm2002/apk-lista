@@ -186,6 +186,24 @@ export function useBankCapacityData(bankId, options = {}) {
         allNumberKeys.add(key);
       });
 
+      // Función para obtener límite específico considerando el nuevo formato por lotería
+      const getSpecificLimitForLottery = (listero, jugada, lotteryId) => {
+        if (!listero.limite_especifico) return null;
+        
+        // Detectar formato: si hay claves numéricas, es el formato nuevo por lotería
+        const keys = Object.keys(listero.limite_especifico);
+        const hasNumericKeys = keys.some(key => !isNaN(parseInt(key)));
+        
+        if (hasNumericKeys) {
+          // Formato nuevo: {lotteryId: {jugada: valor}}
+          const lotteryLimits = listero.limite_especifico[lotteryId];
+          return lotteryLimits && lotteryLimits[jugada] ? lotteryLimits[jugada] : null;
+        } else {
+          // Formato viejo: {jugada: valor} - aplicar a todas las loterías
+          return listero.limite_especifico[jugada] || null;
+        }
+      };
+
       // Para cada número único, calcular el límite total
       allNumberKeys.forEach(key => {
         const [h, jug, numero] = key.split('|');
@@ -200,7 +218,7 @@ export function useBankCapacityData(bankId, options = {}) {
         listeros.forEach(listero => {
           const perNumber = limitNumberMap.get(`${h}|${jug}|${numero}`);
           const lotteryLimit = lotteryLimits[lotId] && lotteryLimits[lotId][jug];
-          const specLimit = listero.limite_especifico && listero.limite_especifico[jug];
+          const specLimit = getSpecificLimitForLottery(listero, jug, lotId);
           
           const effective = calculateEffectiveLimit(perNumber, lotteryLimit, specLimit);
           if (effective) {
