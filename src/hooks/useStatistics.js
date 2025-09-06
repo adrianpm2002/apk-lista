@@ -653,28 +653,162 @@ const useStatistics = (bankId = null) => {
       setIsLoading(true);
       setError(null);
       
-      // Actualizar estados de filtros
+      // Solo actualizar estados de filtros de fecha
       if (filters.startDate) setDateRange(prev => ({ ...prev, startDate: filters.startDate }));
       if (filters.endDate) setDateRange(prev => ({ ...prev, endDate: filters.endDate }));
-      if (filters.lotteryId) setSelectedLottery(filters.lotteryId);
-      if (filters.scheduleId) setSelectedSchedule(filters.scheduleId);
       
-      // Recargar datos con filtros aplicados
-      if (USE_MOCK_DATA) {
-        // Para datos mock, simular filtrado
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await loadAllStats();
-      } else {
-        // Para datos reales, aplicar filtros en las consultas
-        // 🔮 Las consultas reales usarán estos filtros en WHERE clauses
-        await loadAllStats();
-      }
+      // Cargar datos con filtros de fecha aplicados
+      await loadFilteredStats({
+        startDate: filters.startDate,
+        endDate: filters.endDate
+      });
       
     } catch (error) {
       console.error('❌ Error aplicando filtros:', error);
       setError(error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Función nueva para cargar estadísticas filtradas
+  const loadFilteredStats = async (filters) => {
+    try {
+      const { startDate, endDate } = filters;
+      
+      if (!bankId || !startDate || !endDate) {
+        console.log('Missing requirements for filtering - bankId:', !!bankId, 'dates:', !!startDate, !!endDate);
+        return;
+      }
+      
+      // Formatear fechas para consulta con timestamp
+      const startStr = startDate.toISOString().split('T')[0] + ' 00:00:00';
+      const endStr = endDate.toISOString().split('T')[0] + ' 23:59:59';
+      
+      // Consulta simple solo por fecha y banco para estadísticas
+      const { data: jugadas, error } = await supabase
+        .from('v_statistics_complete')
+        .select(`
+          jugada_id,
+          created_at,
+          loteria_nombre,
+          horario_nombre,
+          play_type,
+          numeros,
+          nota,
+          bruto,
+          premio,
+          ganancia_listero,
+          ganancia_colector,
+          balance_listero,
+          balance_colector,
+          balance_banco,
+          listero_username,
+          colector_username
+        `)
+        .eq('id_banco', bankId)
+        .gte('created_at', startStr)
+        .lte('created_at', endStr)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Calcular estadísticas reales filtradas
+      const totalBets = (jugadas || []).reduce((sum, j) => sum + (j.bruto || 0), 0);
+      const totalPrizes = (jugadas || []).reduce((sum, j) => sum + (j.premio || 0), 0);
+      const totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_listero || 0), 0);
+      const playsCount = (jugadas || []).length;
+      const netProfit = totalBets - totalPrizes - totalCommissions;
+      
+      // Actualizar estadísticas con datos filtrados
+      const filteredStats = {
+        daily_total_bets: totalBets,
+        daily_total_prizes: totalPrizes,
+        daily_listero_commissions: totalCommissions,
+        daily_plays_count: playsCount,
+        daily_net_profit: netProfit
+      };
+      
+      setDailyStats(filteredStats);
+      
+      // Actualizar datos de tabla con jugadas filtradas
+      const formattedPlays = (jugadas || []).map(j => ({
+        id: j.jugada_id,
+        created_at: j.created_at, // Mantener el timestamp original
+        fecha: new Date(j.created_at).toLocaleDateString('es-ES'),
+        hora: new Date(j.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+        loteria: j.loteria_nombre || 'N/A',
+        horario: j.horario_nombre || 'N/A',
+        jugada: j.play_type || 'N/A',
+        numeros: j.numeros || 'N/A',
+        monto: j.bruto || 0,
+        nota: j.nota || '',
+        // Campos adicionales para la tabla (usando datos reales de la vista)
+        play_type: j.play_type || 'N/A',
+        bruto: j.bruto || 0,
+        ganancia_listero: j.ganancia_listero || 0, // Valor real de la vista
+        ganancia_colector: j.ganancia_colector || 0, // Valor real de la vista
+        resultado: 'Pendiente', // TODO: agregar cuando esté disponible
+        premio: j.premio || 0, // Valor real de la vista
+        balance_listero: j.balance_listero || 0, // Valor real de la vista
+        balance_colector: j.balance_colector || 0, // Valor real de la vista
+        balance_banco: j.balance_banco || 0 // Valor real de la vista
+      }));
+      
+      setTableData(prev => ({
+        ...prev,
+        plays: formattedPlays
+      }));
+      
+      // Generar datos de tendencia para el período filtrado
+      await loadTrendDataForPeriod(startDate, endDate);
+      
+    } catch (error) {
+      console.error('❌ Error cargando estadísticas filtradas:', error);
+      throw error;
+    }
+  };
+
+  // Cargar datos de tendencia para período específico
+  const loadTrendDataForPeriod = async (startDate, endDate) => {
+    try {
+      const trendData = [];
+      const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+      
+      for (let i = 0; i <= dayDiff; i++) {
+        const currentDate = new Date(startDate);
+        currentDate.setDate(startDate.getDate() + i);
+        const dateStr = currentDate.toISOString().split('T')[0];
+        
+        // Consultar jugadas para este día específico
+        const { data: dayJugadas } = await supabase
+          .from('v_statistics_complete')
+          .select(`
+            bruto,
+            premio,
+            ganancia_listero
+          `)
+          .eq('id_banco', bankId)
+          .gte('created_at', `${dateStr} 00:00:00`)
+          .lte('created_at', `${dateStr} 23:59:59`);
+        
+        const dayTotalBets = (dayJugadas || []).reduce((sum, j) => sum + (j.bruto || 0), 0);
+        const dayTotalPrizes = (dayJugadas || []).reduce((sum, j) => sum + (j.premio || 0), 0);
+        const dayTotalCommissions = (dayJugadas || []).reduce((sum, j) => sum + (j.ganancia_listero || 0), 0);
+        const dayNetProfit = dayTotalBets - dayTotalPrizes - dayTotalCommissions;
+        
+        trendData.push({
+          date: dateStr,
+          total_bets: dayTotalBets,
+          total_prizes: dayTotalPrizes,
+          net_profit: dayNetProfit
+        });
+      }
+      
+      setTrendData(trendData);
+      
+    } catch (error) {
+      console.error('❌ Error cargando tendencias filtradas:', error);
     }
   };
 
@@ -1015,12 +1149,18 @@ const useStatistics = (bankId = null) => {
             colector_username: colectorKey,
             id_colector: play.id_colector,
             bruto_total: 0,
+            ganancia_colector_total: 0,
+            ganancia_listero_total: 0,
+            premios_total: 0,
             balance_banco_total: 0,
             plays: []
           };
         }
         
         groupedByColector[colectorKey].bruto_total += Number(play.bruto || 0);
+        groupedByColector[colectorKey].ganancia_colector_total += Number(play.ganancia_colector || 0);
+        groupedByColector[colectorKey].ganancia_listero_total += Number(play.ganancia_listero || 0);
+        groupedByColector[colectorKey].premios_total += Number(play.premio || 0);
         groupedByColector[colectorKey].balance_banco_total += Number(play.balance_banco || 0);
         groupedByColector[colectorKey].plays.push(play);
       });

@@ -186,6 +186,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     loadInitialData();
   }, []);
 
+  // Aplicar filtros iniciales cuando se cargue el bankId
+  useEffect(() => {
+    if (currentBankId) {
+      applyPeriodFilter(selectedPeriod);
+    }
+  }, [currentBankId]);
+
   // Recargar datos agrupados cuando cambie el rol o los IDs
   useEffect(() => {
     if (userRole === 'collector' && currentUserId) {
@@ -333,14 +340,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   setStartDate(start);
   setEndDate(end);
-  // Si se cambia la lotería a 'all', limpiar horario
-  if(selectedLottery === 'all' && selectedSchedule !== 'all') setSelectedSchedule('all');
     
     const filterParams = {
       startDate: start,
-      endDate: end,
-      lotteryId: selectedLottery === 'all' ? null : selectedLottery,
-      scheduleId: selectedSchedule === 'all' ? null : selectedSchedule,
+      endDate: end
     };
     
     applyFilters(filterParams);
@@ -349,12 +352,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Aplicar filtros personalizados
   const applyCustomFilters = () => {
-    if(selectedLottery === 'all' && selectedSchedule !== 'all') setSelectedSchedule('all');
     applyFilters({
       startDate,
-      endDate,
-      lotteryId: selectedLottery === 'all' ? null : selectedLottery,
-      scheduleId: selectedSchedule === 'all' ? null : selectedSchedule,
+      endDate
     });
   // noop: modal eliminado
   };
@@ -412,9 +412,22 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
     
     // Reutilizar misma agrupación base que en pantalla
-    const dayKeyOf = (ts)=>{ const d=new Date(ts); d.setHours(0,0,0,0); return d.getTime(); };
-    const dayLabelOf = (ts)=>{ const d=new Date(ts); return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }); };
-    const timeStr = (ts)=> new Date(ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit', hour12: true});
+    const dayKeyOf = (ts)=>{ 
+      const d=new Date(ts); 
+      if (isNaN(d.getTime())) return 0; // Manejar fecha inválida
+      d.setHours(0,0,0,0); 
+      return d.getTime(); 
+    };
+    const dayLabelOf = (ts)=>{ 
+      const d=new Date(ts); 
+      if (isNaN(d.getTime())) return 'Fecha inválida'; // Manejar fecha inválida
+      return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }); 
+    };
+    const timeStr = (ts)=> {
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return 'Hora inválida'; // Manejar fecha inválida
+      return d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit', hour12: true});
+    };
     const inferCollected = (row)=>{
       const mt = row.monto_total;
       if(mt!=null && mt!==undefined) return Number(mt)||0;
@@ -438,7 +451,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       g.totalPagado += Number(r.pago_calculado||0);
       if (!g.resultado && r.resultado) g.resultado = r.resultado;
       g.plays.push({
-        ts: new Date(r.created_at).getTime(),
+        ts: (() => {
+          const d = new Date(r.created_at);
+          return isNaN(d.getTime()) ? 0 : d.getTime();
+        })(),
         time: timeStr(r.created_at),
         nota: r.nota,
         jugada: r.jugada,
@@ -731,7 +747,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         const dailyBalanceMap = new Map();
         
         tableData.plays.forEach(play => {
+          // Validar que created_at sea una fecha válida
           const playDate = new Date(play.created_at);
+          if (isNaN(playDate.getTime())) {
+            console.warn('Fecha inválida encontrada:', play.created_at);
+            return; // Saltar esta jugada si la fecha es inválida
+          }
+          
           const dateKey = playDate.toISOString().split('T')[0]; // YYYY-MM-DD
           
           if (!dailyBalanceMap.has(dateKey)) {
@@ -754,14 +776,55 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         const dailyData = Array.from(dailyBalanceMap.values())
           .sort((a, b) => new Date(a.date) - new Date(b.date));
         
-        // Si tenemos más de 7 días, tomar solo los últimos 7
-        const displayData = dailyData.length > 7 ? dailyData.slice(-7) : dailyData;
+        // Determinar la agrupación según el número de días
+        let displayData = dailyData;
+        let labelFormat = fmtShort;
+        
+        if (dailyData.length > 30) {
+          // Para más de 30 días, agrupar por semanas
+          const weeklyMap = new Map();
+          dailyData.forEach(day => {
+            const date = new Date(day.date);
+            const weekStart = new Date(date);
+            weekStart.setDate(date.getDate() - date.getDay()); // Inicio de semana (domingo)
+            const weekKey = weekStart.toISOString().split('T')[0];
+            
+            if (!weeklyMap.has(weekKey)) {
+              weeklyMap.set(weekKey, {
+                date: weekKey,
+                d: weekStart,
+                bruto: 0,
+                pagado: 0,
+                balance: 0
+              });
+            }
+            
+            const weekData = weeklyMap.get(weekKey);
+            weekData.bruto += day.bruto;
+            weekData.pagado += day.pagado;
+            weekData.balance += day.balance;
+          });
+          
+          displayData = Array.from(weeklyMap.values())
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+          labelFormat = (dt) => `Sem ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+          
+        } else if (dailyData.length > 14) {
+          // Para más de 14 días, tomar solo los últimos 14
+          displayData = dailyData.slice(-14);
+        } else if (dailyData.length > 7) {
+          // Para más de 7 días, tomar todos pero máximo 14
+          displayData = dailyData;
+        } else {
+          // Para 7 días o menos, mostrar todos
+          displayData = dailyData;
+        }
         
         // Crear serie para el gráfico (solo balance)
         const series = displayData.map(day => ({
           date: day.date,
           profit: day.balance, // El gráfico usa 'profit' pero mostramos balance
-          label: fmtShort(day.d)
+          label: labelFormat(day.d)
         }));
         
         return (
@@ -858,14 +921,57 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           const dailyData = Array.from(dailyBalanceMap.values())
             .sort((a, b) => new Date(a.date) - new Date(b.date));
           
-          // Si tenemos más de 7 días, tomar solo los últimos 7
-          const displayData = dailyData.length > 7 ? dailyData.slice(-7) : dailyData;
+          // Determinar la agrupación según el número de días
+          let displayData = dailyData;
+          let labelFormat = fmtShort;
+          
+          if (dailyData.length > 30) {
+            // Para más de 30 días, agrupar por semanas
+            const weeklyMap = new Map();
+            dailyData.forEach(day => {
+              const date = new Date(day.date);
+              const weekStart = new Date(date);
+              weekStart.setDate(date.getDate() - date.getDay()); // Inicio de semana (domingo)
+              const weekKey = weekStart.toISOString().split('T')[0];
+              
+              if (!weeklyMap.has(weekKey)) {
+                weeklyMap.set(weekKey, {
+                  date: weekKey,
+                  d: weekStart,
+                  bruto: 0,
+                  pagado: 0,
+                  ganancia: 0,
+                  balance: 0
+                });
+              }
+              
+              const weekData = weeklyMap.get(weekKey);
+              weekData.bruto += day.bruto;
+              weekData.pagado += day.pagado;
+              weekData.ganancia += day.ganancia;
+              weekData.balance += day.balance;
+            });
+            
+            displayData = Array.from(weeklyMap.values())
+              .sort((a, b) => new Date(a.date) - new Date(b.date));
+            labelFormat = (dt) => `Sem ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+            
+          } else if (dailyData.length > 14) {
+            // Para más de 14 días, tomar solo los últimos 14
+            displayData = dailyData.slice(-14);
+          } else if (dailyData.length > 7) {
+            // Para más de 7 días, tomar todos pero máximo 14
+            displayData = dailyData;
+          } else {
+            // Para 7 días o menos, mostrar todos
+            displayData = dailyData;
+          }
           
           // Crear serie para el gráfico (solo balance)
           const series = displayData.map(day => ({
             date: day.date,
             profit: day.balance, // El gráfico usa 'profit' pero mostramos balance
-            label: fmtShort(day.d)
+            label: labelFormat(day.d)
           }));
           
           return (
@@ -946,12 +1052,18 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           horario: groupData.schedule,
           resultado: groupData.resultado,
           jugadas: (groupData.plays || []).map(play => ({
-            ts: play.ts || new Date(play.created_at || Date.now()).getTime(),
-            time: play.time || new Date(play.created_at || Date.now()).toLocaleTimeString('es-ES', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: true
-            }),
+            ts: play.ts || (() => {
+              const d = new Date(play.created_at || Date.now());
+              return isNaN(d.getTime()) ? Date.now() : d.getTime();
+            })(),
+            time: play.time || (() => {
+              const d = new Date(play.created_at || Date.now());
+              return isNaN(d.getTime()) ? 'Hora inválida' : d.toLocaleTimeString('es-ES', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              });
+            })(),
             nota: play.nota || '',
             jugada: play.jugada || play.play_type || '',
             numeros: play.numeros || '',
@@ -996,6 +1108,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         // Helpers para formateo
         const dayKeyOf = (ts) => { 
           const d = new Date(ts); 
+          if (isNaN(d.getTime())) return 0; // Manejar fecha inválida
           d.setHours(0,0,0,0); 
           return d.getTime(); 
         };
@@ -1058,7 +1171,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           // Agregar jugada individual
           group.plays.push({
             time: timeStr(r.created_at),
-            ts: new Date(r.created_at).getTime(),
+            ts: (() => {
+              const d = new Date(r.created_at);
+              return isNaN(d.getTime()) ? 0 : d.getTime();
+            })(),
             nota: r.nota || '',
             jugada: r.play_type || '',
             numeros: r.numeros || '',
@@ -1335,12 +1451,18 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             listero_username: listeroKey,
             id_listero: play.id_listero,
             bruto_total: 0,
+            ganancia_colector_total: 0,
+            ganancia_listero_total: 0,
+            premios_total: 0,
             balance_banco_total: 0,
             plays: []
           };
         }
         
         groupedByListero[listeroKey].bruto_total += Number(play.bruto || 0);
+        groupedByListero[listeroKey].ganancia_colector_total += Number(play.ganancia_colector || 0);
+        groupedByListero[listeroKey].ganancia_listero_total += Number(play.ganancia_listero || 0);
+        groupedByListero[listeroKey].premios_total += Number(play.premio || 0);
         groupedByListero[listeroKey].balance_banco_total += Number(play.balance_banco || 0);
         groupedByListero[listeroKey].plays.push(play);
       });
@@ -1357,6 +1479,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
               <Text style={[styles.excelHeaderCell, { width: 80 }]}>Colector</Text>
               <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bruto</Text>
+              <Text style={[styles.excelHeaderCell, { width: 60 }]}>Gan. Colector</Text>
+              <Text style={[styles.excelHeaderCell, { width: 60 }]}>Gan. Listeros</Text>
+              <Text style={[styles.excelHeaderCell, { width: 60 }]}>Premios</Text>
               <Text style={[styles.excelHeaderCell, { width: 60 }]}>Balance</Text>
             </View>
             
@@ -1384,6 +1509,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.bruto_total)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.ganancia_colector_total)}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 60 }]}>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.ganancia_listero_total)}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 60 }]}>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.premios_total)}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 60 }]}>
                       <Text style={[styles.excelCell, colector.balance_banco_total >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
                         {fmt(colector.balance_banco_total)}
                       </Text>
@@ -1398,6 +1532,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                         <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
                         <Text style={[styles.excelHeaderCell, { width: 80 }]}>Listero</Text>
                         <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bruto</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 60 }]}>Gan. Colector</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 60 }]}>Gan. Listeros</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 60 }]}>Premios</Text>
                         <Text style={[styles.excelHeaderCell, { width: 60 }]}>Balance</Text>
                       </View>
                       
@@ -1423,6 +1560,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                               </View>
                               <View style={[styles.excelCellContainer, { width: 60 }]}>
                                 <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.bruto_total)}</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 60 }]}>
+                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.ganancia_colector_total)}</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 60 }]}>
+                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.ganancia_listero_total)}</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 60 }]}>
+                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.premios_total)}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 60 }]}>
                                 <Text style={[styles.excelCell, listero.balance_banco_total >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
@@ -1505,6 +1651,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     // Helpers para formateo
     const dayKeyOf = (ts) => { 
       const d = new Date(ts); 
+      if (isNaN(d.getTime())) return 0; // Manejar fecha inválida
       d.setHours(0,0,0,0); 
       return d.getTime(); 
     };
@@ -1572,7 +1719,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       // Agregar jugada individual
       group.plays.push({
         time: timeStr(r.created_at),
-        ts: new Date(r.created_at).getTime(),
+        ts: (() => {
+          const d = new Date(r.created_at);
+          return isNaN(d.getTime()) ? 0 : d.getTime();
+        })(),
         jugada: r.play_type || '',
         numeros: r.numeros || '',
         bruto: Number(r.bruto || 0),
