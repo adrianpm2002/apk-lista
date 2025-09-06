@@ -2049,7 +2049,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
-    marginTop: 70,
+    marginTop: 110,
   },
   tabsContainerDark: {
     backgroundColor: '#2c3e50',

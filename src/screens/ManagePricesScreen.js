@@ -894,7 +894,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    marginTop: Platform.OS === 'android' ? 85 : 75,
+    marginTop: Platform.OS === 'android' ? 125 : 75,
   },
   section: {
     backgroundColor: '#FFFFFF',

@@ -810,7 +810,7 @@ const styles = StyleSheet.create({
   inlineHeaderRow:{ flexDirection:'row', alignItems:'center', gap:6, flex:1, paddingTop:0, minHeight:44 },
   rightButtonsGroup:{ flexDirection:'row', alignItems:'center', gap:6, marginLeft:'auto', flexWrap:'wrap' },
   modeSelectorWrapper:{ marginLeft:6, flexShrink:1 },
-  content:{ flex:1, paddingHorizontal:16, paddingVertical:12, paddingTop:112 },
+  content:{ flex:1, paddingHorizontal:16, paddingVertical:12, paddingTop:152 },
   dynamicSchedulesRow:{ flexDirection:'row', flexWrap:'wrap', alignItems:'flex-start', gap:8, marginBottom:8 },
   schedulePickerDynamic:{},
   columnsRow:{ flexDirection:'row', gap:8, marginTop:6 },

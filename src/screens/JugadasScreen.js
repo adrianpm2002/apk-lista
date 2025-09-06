@@ -547,6 +547,7 @@ const styles = {
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    paddingTop: 50,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e1e8ed',
@@ -563,7 +564,7 @@ const styles = {
   content: {
     flex: 1,
     padding: 16,
-    marginTop: 20,
+    marginTop: 40,
   },
   section: {
     marginBottom: 24,
@@ -740,7 +741,7 @@ const styles = {
   recordHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 40,
+    paddingTop: 50,
     paddingBottom: 16,
     paddingHorizontal: 16,
     backgroundColor: '#fff',

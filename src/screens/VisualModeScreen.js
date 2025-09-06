@@ -1110,7 +1110,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 140,
+    paddingTop: 160,
     paddingBottom: 40, // Espacio adicional para scroll completo
   },
   row: {

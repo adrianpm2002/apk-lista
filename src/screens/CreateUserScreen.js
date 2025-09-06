@@ -1336,7 +1336,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FDF5',
   },
   customHeader: {
-    height: 100,
+    height: 70,
     backgroundColor: '#F8F9FA',
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -1373,7 +1373,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,
-    marginTop: 100,
+    marginTop: 110,
     backgroundColor: '#fff',
   },
   input: {

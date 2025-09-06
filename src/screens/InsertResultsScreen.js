@@ -788,7 +788,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    marginTop: Platform.OS === 'android' ? 75 : 105, // Ajustado para coincidir con altura del header más un pequeño espacio
+    marginTop: Platform.OS === 'android' ? 115 : 105, // Ajustado para coincidir con altura del header más un pequeño espacio
   },
   submitButton: {
     marginTop: 10,

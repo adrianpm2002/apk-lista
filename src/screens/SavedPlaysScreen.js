@@ -602,7 +602,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  container:{ flex:1, backgroundColor:'#FFFFFF', padding:12 },
+  container:{ flex:1, backgroundColor:'#FFFFFF', padding:12, paddingTop:50 },
   containerDark:{ backgroundColor:'#1B262C' },
   header:{ flexDirection:'row', alignItems:'center', marginBottom:6 },
   backBtn:{ padding:6, marginRight:8 },
