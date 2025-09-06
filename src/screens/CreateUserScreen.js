@@ -66,7 +66,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   const [updatingUsers, setUpdatingUsers] = useState(new Set()); // Para tracking de actualizaciones
   const [activePlayTypes, setActivePlayTypes] = useState([]); // jugadas activas del banco
   const [enableSpecificLimits, setEnableSpecificLimits] = useState(false); // toggle crear listero
-  const [limitsValues, setLimitsValues] = useState({}); // valores ingresados para limites específicos
+  const [limitsValues, setLimitsValues] = useState({}); // valores ingresados para limites específicos por lotería: {lotteryId: {playType: value}}
   // Estado para reset de contraseña (solo admin)
   const [resetModalVisible, setResetModalVisible] = useState(false);
   const [resetTargetUser, setResetTargetUser] = useState(null);
@@ -214,9 +214,25 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
       });
       setActivePlayTypes(actives);
+      
+      // Inicializar límites por lotería y jugada
       setLimitsValues(prev => {
         const draft = { ...prev };
-        actives.forEach(j => { if (draft[j] === undefined) draft[j] = ''; });
+        
+        // Para cada lotería disponible
+        availableLotteries.forEach(lottery => {
+          if (!draft[lottery.id]) {
+            draft[lottery.id] = {};
+          }
+          
+          // Para cada jugada activa
+          actives.forEach(playType => {
+            if (draft[lottery.id][playType] === undefined) {
+              draft[lottery.id][playType] = '';
+            }
+          });
+        });
+        
         return draft;
       });
     } catch (e) {
@@ -398,13 +414,23 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
           try {
             if (enableSpecificLimits) {
               const limitsObj = {};
-              activePlayTypes.forEach(pt => {
-                const val = limitsValues[pt];
-                if (val && !isNaN(val)) {
-                  const num = parseInt(val, 10);
-                  if (num > 0) limitsObj[pt] = num;
+              
+              // Procesar límites por lotería
+              Object.entries(limitsValues).forEach(([lotteryId, lotteryLimits]) => {
+                const lotteryLimitsObj = {};
+                
+                Object.entries(lotteryLimits || {}).forEach(([playType, value]) => {
+                  if (value && !isNaN(value)) {
+                    const num = parseInt(value, 10);
+                    if (num > 0) lotteryLimitsObj[playType] = num;
+                  }
+                });
+                
+                if (Object.keys(lotteryLimitsObj).length > 0) {
+                  limitsObj[lotteryId] = lotteryLimitsObj;
                 }
               });
+              
               const { error: upErr } = await supabase
                 .from('profiles')
                 .update({ limite_especifico: Object.keys(limitsObj).length ? limitsObj : null })
@@ -480,15 +506,25 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
 
           if (effectiveRole === 'listero' && enableSpecificLimits && userRole !== 'collector') {
             const limitsObj = {};
-            activePlayTypes.forEach(pt => {
-              const val = limitsValues[pt];
-              if (val && !isNaN(val)) {
-                const num = parseInt(val, 10);
-                if (num > 0) limitsObj[pt] = num;
+            
+            // Procesar límites por lotería
+            Object.entries(limitsValues).forEach(([lotteryId, lotteryLimits]) => {
+              const lotteryLimitsObj = {};
+              
+              Object.entries(lotteryLimits || {}).forEach(([playType, value]) => {
+                if (value && !isNaN(value)) {
+                  const num = parseInt(value, 10);
+                  if (num > 0) lotteryLimitsObj[playType] = num;
+                }
+              });
+              
+              if (Object.keys(lotteryLimitsObj).length > 0) {
+                limitsObj[lotteryId] = lotteryLimitsObj;
               }
             });
+            
             if (Object.keys(limitsObj).length > 0) {
-              insertData.limite_especifico = limitsObj; // JSONB
+              insertData.limite_especifico = limitsObj; // JSONB por lotería
             }
           }
 
@@ -695,7 +731,33 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         setEnableSpecificLimits(userRole === 'collector' ? false : true);
         setLimitsValues(prev => {
           const draft = { ...prev };
-          Object.entries(raw).forEach(([k,v]) => { draft[k] = v?.toString?.() || `${v}`; });
+          
+          // Detectar formato: nuevo (por lotería) o antiguo (global)
+          const isNewFormat = Object.values(raw).some(val => 
+            typeof val === 'object' && val !== null && !Array.isArray(val)
+          );
+          
+          if (isNewFormat) {
+            // Formato nuevo: {lotteryId: {playType: value}}
+            Object.entries(raw).forEach(([lotteryId, lotteryLimits]) => {
+              if (typeof lotteryLimits === 'object' && lotteryLimits !== null) {
+                draft[lotteryId] = {};
+                Object.entries(lotteryLimits).forEach(([playType, value]) => {
+                  draft[lotteryId][playType] = value?.toString?.() || `${value}`;
+                });
+              }
+            });
+          } else {
+            // Formato antiguo: {playType: value} - migrar a primera lotería disponible
+            if (availableLotteries.length > 0) {
+              const firstLotteryId = availableLotteries[0].id;
+              draft[firstLotteryId] = {};
+              Object.entries(raw).forEach(([playType, value]) => {
+                draft[firstLotteryId][playType] = value?.toString?.() || `${value}`;
+              });
+            }
+          }
+          
           return draft;
         });
       } else {
@@ -1273,19 +1335,33 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                   </View>
                   {enableSpecificLimits && (
                     <View style={styles.limitsContainer}>
+                      {availableLotteries.length === 0 && (
+                        <Text style={styles.limitsHint}>No hay loterías disponibles.</Text>
+                      )}
                       {activePlayTypes.length === 0 && (
                         <Text style={styles.limitsHint}>No hay jugadas activas.</Text>
                       )}
-                      {activePlayTypes.map(pt => (
-                        <View key={pt} style={styles.limitInputRow}>
-                          <Text style={styles.limitPlayType}>{pt}</Text>
-                          <TextInput
-                            placeholder="Limite"
-                            keyboardType="numeric"
-                            value={limitsValues[pt] || ''}
-                            onChangeText={val => setLimitsValues(prev => ({ ...prev, [pt]: val.replace(/[^0-9]/g,'') }))}
-                            style={styles.limitInput}
-                          />
+                      {availableLotteries.map(lottery => (
+                        <View key={lottery.id} style={styles.lotteryLimitsSection}>
+                          <Text style={styles.lotteryLimitsTitle}>{lottery.nombre}</Text>
+                          {activePlayTypes.map(playType => (
+                            <View key={`${lottery.id}-${playType}`} style={styles.limitInputRow}>
+                              <Text style={styles.limitPlayType}>{playType}</Text>
+                              <TextInput
+                                placeholder="Límite"
+                                keyboardType="numeric"
+                                value={limitsValues[lottery.id]?.[playType] || ''}
+                                onChangeText={val => setLimitsValues(prev => ({
+                                  ...prev,
+                                  [lottery.id]: {
+                                    ...(prev[lottery.id] || {}),
+                                    [playType]: val.replace(/[^0-9]/g,'')
+                                  }
+                                }))}
+                                style={styles.limitInput}
+                              />
+                            </View>
+                          ))}
                         </View>
                       ))}
                     </View>
@@ -1737,6 +1813,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     backgroundColor: '#fff',
+  },
+  lotteryLimitsSection: {
+    marginBottom: 15,
+    padding: 10,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  lotteryLimitsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2c3e50',
+    marginBottom: 8,
+    textAlign: 'center',
   },
   emptyListText: {
     textAlign: 'center',
