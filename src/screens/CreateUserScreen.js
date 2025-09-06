@@ -803,13 +803,6 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
 
   // Función para asignar ganancia a listero
   const handleAssignGain = async () => {
-    // Validar que al menos una lotería tenga ganancia asignada
-    const hasAnySelection = Object.values(selectedLotteryGains).some(gainId => gainId);
-    if (!hasAnySelection) {
-      Alert.alert('Error', 'Asigna al menos una ganancia para una lotería');
-      return;
-    }
-
     // Si no hay usuario objetivo, solo cerrar el modal (es para nuevo usuario)
     if (!gainTargetUser) {
       setGainModalVisible(false);
@@ -830,9 +823,12 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         }
       }
 
+      // Si no hay ganancias, establecer como null para quitar todas las ganancias
+      const finalGainsData = Object.keys(gainsData).length > 0 ? gainsData : null;
+
       const { data, error } = await supabase
         .from('profiles')
-        .update({ id_precio: gainsData })
+        .update({ id_precio: finalGainsData })
         .eq('id', gainTargetUser.id)
         .select('id_precio');
 
@@ -840,7 +836,8 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         throw error;
       }
 
-      Alert.alert('Éxito', 'Ganancias asignadas correctamente');
+      const message = finalGainsData ? 'Ganancias asignadas correctamente' : 'Ganancias removidas correctamente';
+      Alert.alert('Éxito', message);
       setGainModalVisible(false);
       setSelectedLotteryGains({});
       fetchUsers();
@@ -877,20 +874,27 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     }
 
     const selectedItems = [];
+    const invalidItems = [];
+    
     for (const [lotteryId, gainId] of Object.entries(selectedLotteryGains)) {
       if (gainId) {
         const lottery = availableLotteries.find(l => l.id === lotteryId);
         const gain = gainOptions.find(g => g.id === gainId && g.id_loteria === lotteryId);
+        
         if (lottery && gain) {
           selectedItems.push(`${lottery.nombre}: ${gain.nombre}`);
+        } else if (lottery) {
+          invalidItems.push(`${lottery.nombre}: Ganancia inválida`);
         }
       }
     }
 
-    if (selectedItems.length === 0) return 'Seleccionar Ganancias por Lotería';
-    if (selectedItems.length === 1) return selectedItems[0];
-    if (selectedItems.length <= 2) return selectedItems.join(', ');
-    return `${selectedItems.length} loterías configuradas`;
+    const allItems = [...selectedItems, ...invalidItems];
+
+    if (allItems.length === 0) return 'Seleccionar Ganancias por Lotería';
+    if (allItems.length === 1) return allItems[0];
+    if (allItems.length <= 2) return allItems.join(', ');
+    return `${allItems.length} loterías configuradas`;
   };
 
   const renderUserItem = ({ item }) => {
@@ -1020,7 +1024,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                   if (lotteryName && gainId) {
                     // Buscar el nombre de la ganancia en gainOptions
                     const gain = gainOptions.find(g => g.id === gainId);
-                    const gainName = gain ? gain.nombre : `ID: ${gainId}`;
+                    const gainName = gain ? gain.nombre : 'Ganancia inválida';
                     lotteryGainPairs.push(`${lotteryName}: ${gainName}`);
                   }
                 });
