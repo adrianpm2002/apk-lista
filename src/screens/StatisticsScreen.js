@@ -526,29 +526,29 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Renderizar header con filtros y sidebar toggle
   const contentRef = useRef(null);
   const renderHeader = () => (
-    <View style={[styles.header, isDarkMode && styles.headerDark]}>
+    <View style={styles.header}>
   {userRole !== 'colector' && <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />}
       
       <View style={styles.headerControls}>
-        <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>
+        <Text style={styles.headerTitle}>
           {userRole === 'colector' ? 'Estadísticas Colector' : 'Estadísticas'}
         </Text>
         
         <TouchableOpacity
-          style={[styles.filterButton, isDarkMode && styles.filterButtonDark]}
+          style={styles.filterButton}
           onPress={() => setFiltersVisible(v=>{
             const next = !v; 
             if(next){ setTimeout(()=> contentRef.current?.scrollTo({ y: 0, animated: true }), 0); }
             return next;
           })}
         >
-          <Text style={[styles.filterButtonText, isDarkMode && styles.filterButtonTextDark]}>
+          <Text style={styles.filterButtonText}>
             🔍 Filtros
           </Text>
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.exportButton, isDarkMode && styles.exportButtonDark]}
+          style={styles.exportButton}
           onPress={() => setShowExportModal(true)}
         >
           <Text style={styles.exportButtonText}>📤 Exportar</Text>
@@ -559,7 +559,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Renderizar tabs de navegación
   const renderTabs = () => (
-    <View style={[styles.tabsContainer, isDarkMode && styles.tabsContainerDark]}>
+    <View style={styles.tabsContainer}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         {tabs.map(tab => (
           <React.Fragment key={tab.id}>
@@ -567,7 +567,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               style={[
                 styles.tab,
                 activeTab === tab.id && styles.activeTab,
-                activeTab === tab.id && isDarkMode && styles.activeTabDark,
               ]}
               onPress={() => setActiveTab(tab.id)}
             >
@@ -575,7 +574,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[
                 styles.tabText,
                 activeTab === tab.id && styles.activeTabText,
-                isDarkMode && styles.tabTextDark,
               ]}>
                 {tab.title}
               </Text>
@@ -599,24 +597,21 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         key={`${label}-${value}`}
         style={[
           styles.filterChip,
-          isDarkMode && styles.filterChipDark,
           current === value && styles.filterChipActive,
-          current === value && isDarkMode && styles.filterChipActiveDark,
         ]}
         onPress={() => setter(value)}
       >
         <Text style={[
           styles.filterChipText,
-          isDarkMode && styles.filterChipTextDark,
           current === value && styles.filterChipTextActive,
         ]}>{label}</Text>
       </TouchableOpacity>
     );
 
     return (
-      <View style={[styles.filtersPanel, isDarkMode && styles.filtersPanelDark]}>
+      <View style={styles.filtersPanel}>
         {/* Selector de período (chips) */}
-        <Text style={[styles.panelLabel, isDarkMode && styles.panelLabelDark]}>Período</Text>
+        <Text style={styles.panelLabel}>Período</Text>
         <View style={styles.chipsRow}>
           {periodOptions.map(opt => renderChip(opt.value, selectedPeriod, setSelectedPeriod, opt.label))}
         </View>
@@ -625,18 +620,18 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         {selectedPeriod === 'custom' && (
           <View style={styles.dateSectionCompact}>
             <TouchableOpacity
-              style={[styles.dateButton, isDarkMode && styles.dateButtonDark]}
+              style={styles.dateButton}
               onPress={() => { setDatePickerType('start'); setShowDatePicker(true); }}
             >
-              <Text style={[styles.dateButtonText, isDarkMode && styles.dateButtonTextDark]}>
+              <Text style={styles.dateButtonText}>
                 Desde: {startDate.toLocaleDateString()}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.dateButton, isDarkMode && styles.dateButtonDark]}
+              style={styles.dateButton}
               onPress={() => { setDatePickerType('end'); setShowDatePicker(true); }}
             >
-              <Text style={[styles.dateButtonText, isDarkMode && styles.dateButtonTextDark]}>
+              <Text style={styles.dateButtonText}>
                 Hasta: {endDate.toLocaleDateString()}
               </Text>
             </TouchableOpacity>
@@ -650,7 +645,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         {false && (
           <>
             {/* Lotería (chips) */}
-            <Text style={[styles.panelLabel, isDarkMode && styles.panelLabelDark]}>Lotería</Text>
+            <Text style={styles.panelLabel}>Lotería</Text>
             <View style={styles.chipsRow}>
               {renderChip('all', selectedLottery, setSelectedLottery, 'Todas')}
               {lotteries.map(l => renderChip(l.id.toString(), selectedLottery, setSelectedLottery, l.name))}
@@ -659,7 +654,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             {/* Horario (chips) - solo si hay lotería específica */}
             {selectedLottery !== 'all' && (
               <>
-                <Text style={[styles.panelLabel, isDarkMode && styles.panelLabelDark]}>Horario</Text>
+                <Text style={styles.panelLabel}>Horario</Text>
                 <View style={styles.chipsRow}>
                   {renderChip('all', selectedSchedule, setSelectedSchedule, 'Todos')}
                   {lotterySchedules.map(h => renderChip(h.id, selectedSchedule, setSelectedSchedule, h.name))}
@@ -672,15 +667,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         {/* Búsqueda de detalles - solo visible cuando estamos en tab de detalles */}
         {activeTab === 'details' && (
           <>
-            <Text style={[styles.panelLabel, isDarkMode && styles.panelLabelDark]}>Búsqueda</Text>
+            <Text style={styles.panelLabel}>Búsqueda</Text>
             <TextInput
               placeholder="Buscar por nota o jugada"
-              placeholderTextColor={isDarkMode ? '#95A5A6' : '#6c757d'}
+              placeholderTextColor="#6c757d"
               value={detailsSearchQuery}
               onChangeText={setDetailsSearchQuery}
               style={[
                 styles.searchInput,
-                isDarkMode && styles.searchInputDark,
                 { marginTop: 4, marginBottom: 8 }
               ]}
             />
@@ -717,11 +711,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     <ScrollView style={styles.tabContent}>
       {/* Debug: Mostrar información de chartData */}
       {!chartData?.trends || chartData.trends.length === 0 ? (
-        <View style={[styles.kpiCard, { backgroundColor: isDarkMode ? '#2c2c2c' : '#f8f9fa' }]}>
-          <Text style={[styles.kpiTitle, { color: isDarkMode ? '#ffffff' : '#333333' }]}>
+        <View style={[styles.kpiCard, { backgroundColor: '#f8f9fa' }]}>
+          <Text style={[styles.kpiTitle, { color: '#333333' }]}>
             📊 Datos de Gráfico
           </Text>
-          <Text style={[styles.kpiValue, { color: isDarkMode ? '#cccccc' : '#666666' }]}>
+          <Text style={[styles.kpiValue, { color: '#666666' }]}>
             {chartData ? `Tendencias: ${chartData.trends?.length || 0}` : 'No hay datos de chartData'}
           </Text>
         </View>
@@ -774,7 +768,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               type="profitLoss"
               title="Balance Diario"
               data={series}
-              isDarkMode={isDarkMode}
               height={260}
             />
             {/* KPIs del período debajo del gráfico */}
@@ -789,16 +782,16 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               
               return (
                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
-                  <View style={{ flexBasis:'31%', backgroundColor: isDarkMode ? '#2c3e50' : '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                    <Text style={{ color: isDarkMode ? '#ecf0f1' : '#6c757d', fontSize: 12 }}>Bruto</Text>
+                  <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                    <Text style={{ color: '#6c757d', fontSize: 12 }}>Bruto</Text>
                     <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatMoney(totalBruto)}</Text>
                   </View>
-                  <View style={{ flexBasis:'31%', backgroundColor: isDarkMode ? '#2c3e50' : '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                    <Text style={{ color: isDarkMode ? '#ecf0f1' : '#6c757d', fontSize: 12 }}>Ganancia</Text>
+                  <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                    <Text style={{ color: '#6c757d', fontSize: 12 }}>Ganancia</Text>
                     <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatMoney(totalGananciaListero)}</Text>
                   </View>
-                  <View style={{ flexBasis:'31%', backgroundColor: isDarkMode ? '#2c3e50' : '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                    <Text style={{ color: isDarkMode ? '#ecf0f1' : '#6c757d', fontSize: 12 }}>Balance</Text>
+                  <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                    <Text style={{ color: '#6c757d', fontSize: 12 }}>Balance</Text>
                     <Text style={{ fontSize:16, fontWeight:'800', color: totalBalance>=0? '#27AE60':'#e74c3c' }}>{formatMoney(totalBalance)}</Text>
                   </View>
                 </View>
@@ -879,7 +872,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 type="profitLoss"
                 title="Balance Diario"
                 data={series}
-                isDarkMode={isDarkMode}
                 height={260}
               />
               {/* KPIs del período debajo del gráfico */}
@@ -902,20 +894,20 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 
                 return (
                   <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
-                    <View style={{ flexBasis:'31%', backgroundColor: isDarkMode ? '#2c3e50' : '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                      <Text style={{ color: isDarkMode ? '#ecf0f1' : '#6c757d', fontSize: 12 }}>Bruto</Text>
+                    <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                      <Text style={{ color: '#6c757d', fontSize: 12 }}>Bruto</Text>
                       <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatMoney(totalBruto)}</Text>
                     </View>
                     
                     {userRole === 'collector' && (
-                      <View style={{ flexBasis:'31%', backgroundColor: isDarkMode ? '#2c3e50' : '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                        <Text style={{ color: isDarkMode ? '#ecf0f1' : '#6c757d', fontSize: 12 }}>Ganancia</Text>
+                      <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                        <Text style={{ color: '#6c757d', fontSize: 12 }}>Ganancia</Text>
                         <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatMoney(totalGanancia)}</Text>
                       </View>
                     )}
                     
-                    <View style={{ flexBasis:'31%', backgroundColor: isDarkMode ? '#2c3e50' : '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                      <Text style={{ color: isDarkMode ? '#ecf0f1' : '#6c757d', fontSize: 12 }}>Balance</Text>
+                    <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                      <Text style={{ color: '#6c757d', fontSize: 12 }}>Balance</Text>
                       <Text style={{ fontSize:16, fontWeight:'800', color: totalBalance>=0? '#27AE60':'#e74c3c' }}>{formatMoney(totalBalance)}</Text>
                     </View>
                   </View>
@@ -927,11 +919,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         
         {/* Mensaje cuando no hay datos */}
         {(!allPlays || allPlays.length === 0) && (
-          <View style={[styles.kpiCard, { backgroundColor: isDarkMode ? '#2c2c2c' : '#f8f9fa' }]}>
-            <Text style={[styles.kpiTitle, { color: isDarkMode ? '#ffffff' : '#333333' }]}>
+          <View style={[styles.kpiCard, { backgroundColor: '#f8f9fa' }]}>
+            <Text style={[styles.kpiTitle, { color: '#333333' }]}>
               📊 Sin Datos
             </Text>
-            <Text style={[styles.kpiValue, { color: isDarkMode ? '#cccccc' : '#666666' }]}>
+            <Text style={[styles.kpiValue, { color: '#666666' }]}>
               No hay datos para mostrar en el período seleccionado
             </Text>
           </View>
@@ -1300,14 +1292,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Desplegable para collector (agrupa por listero)
   const renderCollectorDropdown = () => (
     <View style={styles.dropdownContainer}>
-      <Text style={[styles.dropdownLabel, isDarkMode && styles.dropdownLabelDark]}>
+      <Text style={styles.dropdownLabel}>
         Listeros
       </Text>
-      <View style={[styles.pickerContainer, isDarkMode && styles.pickerContainerDark]}>
+      <View style={styles.pickerContainer}>
         <Picker
           selectedValue={selectedGroup}
           onValueChange={setSelectedGroup}
-          style={[styles.picker, isDarkMode && styles.pickerDark]}
+          style={styles.picker}
         >
           <Picker.Item label="Seleccionar listero..." value="" />
           {groupedData.map(item => (
@@ -1477,14 +1469,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Desplegables para admin (agrupa por colector)
   const renderAdminDropdowns = () => (
     <View style={styles.dropdownContainer}>
-      <Text style={[styles.dropdownLabel, isDarkMode && styles.dropdownLabelDark]}>
+      <Text style={styles.dropdownLabel}>
         Colectores
       </Text>
-      <View style={[styles.pickerContainer, isDarkMode && styles.pickerContainerDark]}>
+      <View style={styles.pickerContainer}>
         <Picker
           selectedValue={selectedGroup}
           onValueChange={setSelectedGroup}
-          style={[styles.picker, isDarkMode && styles.pickerDark]}
+          style={styles.picker}
         >
           <Picker.Item label="Seleccionar colector..." value="" />
           {groupedData.map(item => (
@@ -1765,8 +1757,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       onRequestClose={() => setShowExportModal(false)}
     >
       <View style={styles.modalOverlay}>
-        <View style={[styles.exportModalContent, isDarkMode && styles.modalContentDark]}>
-          <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark]}>
+        <View style={styles.exportModalContent}>
+          <Text style={styles.modalTitle}>
             📤 Exportar Datos
           </Text>
 
@@ -1774,16 +1766,16 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             style={styles.exportOption}
             onPress={() => handleExport('pdf')}
           >
-            <Text style={[styles.exportOptionText, isDarkMode && styles.exportOptionTextDark]}>
+            <Text style={styles.exportOptionText}>
               🖨️ Exportar a PDF
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.cancelButton, isDarkMode && styles.cancelButtonDark]}
+            style={styles.cancelButton}
             onPress={() => setShowExportModal(false)}
           >
-            <Text style={[styles.cancelButtonText, isDarkMode && styles.cancelButtonTextDark]}>
+            <Text style={styles.cancelButtonText}>
               Cancelar
             </Text>
           </TouchableOpacity>
@@ -1806,8 +1798,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   if (error) {
     return (
-      <View style={[styles.errorContainer, isDarkMode && styles.errorContainerDark]}>
-        <Text style={[styles.errorText, isDarkMode && styles.errorTextDark]}>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>
           ❌ Error al cargar estadísticas
         </Text>
         <TouchableOpacity style={styles.retryButton} onPress={loadInitialData}>
@@ -1818,7 +1810,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   }
 
   return (
-    <View style={[styles.container, isDarkMode && styles.containerDark]}>
+    <View style={styles.container}>
       {renderHeader()}
       {renderTabs()}
       
@@ -1855,7 +1847,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         isVisible={sidebarVisible}
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
-        isDarkMode={isDarkMode}
         onModeVisibilityChange={onModeVisibilityChange}
         role={userRole}
       />
