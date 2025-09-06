@@ -1142,8 +1142,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         for(const r of tableData.plays) {
           const dayKey = dayKeyOf(r.created_at);
           const dayLabel = dayLabelOf(r.created_at);
-          const lottery = r.loteria_nombre || 'Lotería';
-          const schedule = r.horario_nombre || 'Horario';
+          const lottery = r.loteria_nombre || r.loteria || 'Lotería';
+          const schedule = r.horario_nombre || r.horario || 'Horario';
           const resultado = r.resultado || null;
           
           const key = `${dayKey}|${lottery}|${schedule}|${resultado || 'sin_resultado'}`;
