@@ -1372,7 +1372,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     });
 
     return (
-      <View style={{ paddingHorizontal: 8, marginTop: 16 }}>
+      <View style={{ paddingHorizontal: 4, marginTop: 2 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
           <View style={styles.excelTable}>
             {/* Header de la tabla principal estilo Excel */}
@@ -1521,7 +1521,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     };
 
     return (
-      <View style={{ paddingHorizontal: 8, marginTop: 16 }}>
+      <View style={{ paddingHorizontal: 4, marginTop: 2 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
           <View style={styles.excelTable}>
             {/* Header de la tabla principal estilo Excel */}
@@ -1798,7 +1798,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     const toggle = (key)=> setExpandedGroups(prev=>{ const next=new Set(prev); if(next.has(key)) next.delete(key); else next.add(key); return next; });
 
     return (
-      <View style={{ paddingHorizontal:8, marginTop: 16 }}>
+      <View style={{ paddingHorizontal:4, marginTop: 2 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
           <View style={styles.excelTable}>
             {/* Header de la tabla principal estilo Excel */}
@@ -2597,8 +2597,9 @@ const styles = StyleSheet.create({
   },
   expandedContent: {
     backgroundColor: '#F8F9FA',
-    marginTop: 0, // Sin margen superior
+    marginTop: -1, // Superponer ligeramente para eliminar cualquier gap
     paddingTop: 0, // Sin padding superior
+    borderTopWidth: 0, // Sin borde superior para que se vea continuo
   },
   subHeader: {
     backgroundColor: '#E9ECEF',
