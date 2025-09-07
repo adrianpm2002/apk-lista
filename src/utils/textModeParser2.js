@@ -82,8 +82,8 @@ export function parseTextMode2(rawText, { isLocked = false } = {}) {
       
       let amountEach, totalPerLottery;
       if (isLocked) {
-        amountEach = Math.floor(amountTotal / parlePairs.length) || 0;
-        if (amountEach === 0) { errors.push({ line: lineNo, message: 'Monto insuficiente para repartir entre parle x(...)' }); return; }
+        amountEach = amountTotal / parlePairs.length;
+        if (amountEach <= 0) { errors.push({ line: lineNo, message: 'Monto insuficiente para repartir entre parle x(...)' }); return; }
         totalPerLottery = amountTotal;
       } else {
         amountEach = amountTotal;
@@ -320,7 +320,7 @@ export function parseTextMode2(rawText, { isLocked = false } = {}) {
           emit({ playType:'parle', numbers:pairs, amountEach:acc.parlePer, totalPerLottery: acc.parlePer * pairs.length, meta:{ mode:'pairs' } });
         }
         if(acc.parleCan>0){
-          let each = Math.floor(acc.parleCan / pairs.length);
+          let each = acc.parleCan / pairs.length;
           if(each<=0){ errors.push({ line: lineNo, message:'Monto insuficiente para repartir entre parle' }); return; }
           emit({ playType:'parle', numbers:pairs, amountEach:each, totalPerLottery: acc.parleCan, meta:{ mode:'pairs', locked:true } });
         }
@@ -338,7 +338,7 @@ export function parseTextMode2(rawText, { isLocked = false } = {}) {
       // Permitir p/can también aquí además de monto simple
       if(acc.parlePer>0){ emit({ playType:'parle', numbers: nums4, amountEach: acc.parlePer, totalPerLottery: acc.parlePer * count, meta:{ mode:'direct' } }); }
       if(acc.parleCan>0){
-        let each = Math.floor(acc.parleCan / count);
+        let each = acc.parleCan / count;
         if(each<=0){ errors.push({ line: lineNo, message:'Monto insuficiente para repartir entre parle' }); return; }
         emit({ playType:'parle', numbers: nums4, amountEach: each, totalPerLottery: acc.parleCan, meta:{ mode:'direct', locked:true } });
       }

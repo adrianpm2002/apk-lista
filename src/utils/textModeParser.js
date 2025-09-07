@@ -32,8 +32,8 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
       if (!pairs.length) { errors.push({ line: idx + 1, message: 'Sin combinaciones parle' }); return; }
       let amountEach; let totalPerLottery;
       if (isLocked) { // candado reparte
-        amountEach = Math.floor(amountTotal / pairs.length) || 0;
-        if (amountEach === 0) { errors.push({ line: idx + 1, message: 'Monto insuficiente para repartir entre parle' }); return; }
+        amountEach = amountTotal / pairs.length;
+        if (amountEach <= 0) { errors.push({ line: idx + 1, message: 'Monto insuficiente para repartir entre parle' }); return; }
         totalPerLottery = amountTotal;
       } else {
         amountEach = amountTotal;
@@ -66,8 +66,8 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
       
       let amountEach, totalPerLottery;
       if (isLocked) {
-        amountEach = Math.floor(amountTotal / parlePairs.length) || 0;
-        if (amountEach === 0) { errors.push({ line: idx + 1, message: 'Monto insuficiente para repartir entre parle x(...)' }); return; }
+        amountEach = amountTotal / parlePairs.length;
+        if (amountEach <= 0) { errors.push({ line: idx + 1, message: 'Monto insuficiente para repartir entre parle x(...)' }); return; }
         totalPerLottery = amountTotal;
       } else {
         amountEach = amountTotal;
