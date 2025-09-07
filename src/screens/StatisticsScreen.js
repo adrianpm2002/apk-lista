@@ -1264,7 +1264,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                           <Text style={styles.excelCell} numberOfLines={2}>{g.schedule}</Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
-                          <Text style={[styles.excelCell, styles.resultCell]} numberOfLines={1}>
+                          <Text style={styles.excelCell} numberOfLines={1}>
                             {g.resultado || 'N/A'}
                           </Text>
                         </View>
@@ -1272,13 +1272,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                           <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalRecogido)}</Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
-                          <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(g.totalGananciaListero)}</Text>
+                          <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalGananciaListero)}</Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
                           <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalPagado)}</Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
-                          <Text style={[styles.excelCell, balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                          <Text style={styles.excelCell} numberOfLines={1}>
                             {fmt(balance)}
                           </Text>
                         </View>
@@ -1414,7 +1414,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_bruto)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
-                      <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(listero.total_comision_colector)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_comision_colector)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_ganancia_listero)}</Text>
@@ -1423,12 +1423,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_premios)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 70 }]}>
-                      <Text style={[styles.excelCell, listero.total_balance_colector >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                      <Text style={styles.excelCell} numberOfLines={1}>
                         {fmt(listero.total_balance_colector)}
                       </Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 70 }]}>
-                      <Text style={[styles.excelCell, listero.total_balance_listero >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                      <Text style={styles.excelCell} numberOfLines={1}>
                         {fmt(listero.total_balance_listero)}
                       </Text>
                     </View>
@@ -1577,7 +1577,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.premios_total)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
-                      <Text style={[styles.excelCell, colector.balance_banco_total >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                      <Text style={styles.excelCell} numberOfLines={1}>
                         {fmt(colector.balance_banco_total)}
                       </Text>
                     </View>
@@ -1630,7 +1630,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                                 <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.premios_total)}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 60 }]}>
-                                <Text style={[styles.excelCell, listero.balance_colector_total >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                                <Text style={styles.excelCell} numberOfLines={1}>
                                   {fmt(listero.balance_colector_total)}
                                 </Text>
                               </View>
@@ -1889,7 +1889,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={styles.excelCell} numberOfLines={2}>{g.schedule}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
-                      <Text style={[styles.excelCell, styles.resultCell]} numberOfLines={1}>
+                      <Text style={styles.excelCell} numberOfLines={1}>
                         {g.resultado || 'N/A'}
                       </Text>
                     </View>
@@ -1899,15 +1899,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     {userRole === 'collector' ? (
                       <>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
-                          <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(g.totalGananciaListero || 0)}</Text>
+                          <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalGananciaListero || 0)}</Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
-                          <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(g.totalGananciaColector || 0)}</Text>
+                          <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalGananciaColector || 0)}</Text>
                         </View>
                       </>
                     ) : (
                       <View style={[styles.excelCellContainer, { width: 60 }]}>
-                        <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(g.totalGanancia)}</Text>
+                        <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalGanancia)}</Text>
                       </View>
                     )}
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
@@ -1916,12 +1916,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     {userRole === 'collector' ? (
                       <>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
-                          <Text style={[styles.excelCell, (g.totalBalanceListero || 0) >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                          <Text style={styles.excelCell} numberOfLines={1}>
                             {fmt(g.totalBalanceListero || 0)}
                           </Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
-                          <Text style={[styles.excelCell, (g.totalBalanceColector || 0) >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                          <Text style={styles.excelCell} numberOfLines={1}>
                             {fmt(g.totalBalanceColector || 0)}
                           </Text>
                         </View>
@@ -1931,7 +1931,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <></>
                     ) : (
                       <View style={[styles.excelCellContainer, { width: 60 }]}>
-                        <Text style={[styles.excelCell, balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                        <Text style={styles.excelCell} numberOfLines={1}>
                           {fmt(balance)}
                         </Text>
                       </View>
