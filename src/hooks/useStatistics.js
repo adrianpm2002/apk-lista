@@ -16,7 +16,7 @@ import { Alert } from 'react-native';
  * - estadisticas_diarias: resumen diario de operaciones (opcional, se puede calcular)
  */
 
-const USE_MOCK_DATA = false; // ✅ Usando datos reales desde v_statistics_complete
+const USE_MOCK_DATA = false; // ✅ Usando datos reales desde v_estadisticas
 
 const useStatistics = (bankId = null) => {
   // Hook inicializado - logs removidos para producción
@@ -27,7 +27,7 @@ const useStatistics = (bankId = null) => {
   const [userId, setUserId] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
   
-  // Estados de datos - Estructura estandarizada para datos reales usando v_statistics_complete
+  // Estados de datos - Estructura estandarizada para datos reales usando v_estadisticas
   const [dailyStats, setDailyStats] = useState({
     daily_total_bets: 0,
     daily_total_prizes: 0,
@@ -674,10 +674,11 @@ const useStatistics = (bankId = null) => {
   // Función nueva para cargar estadísticas filtradas
   const loadFilteredStats = async (filters) => {
     try {
+      console.log('🔍 loadFilteredStats called with:', { filters, bankId });
       const { startDate, endDate } = filters;
       
       if (!bankId || !startDate || !endDate) {
-        // console.log('Missing requirements for filtering - bankId:', !!bankId, 'dates:', !!startDate, !!endDate);
+        console.log('❌ Missing requirements for filtering - bankId:', !!bankId, 'dates:', !!startDate, !!endDate);
         return;
       }
       
@@ -685,37 +686,40 @@ const useStatistics = (bankId = null) => {
       const startStr = startDate.toISOString().split('T')[0] + ' 00:00:00';
       const endStr = endDate.toISOString().split('T')[0] + ' 23:59:59';
       
+      console.log('🕐 Query dates:', { startStr, endStr });
+      
       // Consulta simple solo por fecha y banco para estadísticas
       const { data: jugadas, error } = await supabase
-        .from('v_statistics_complete')
+        .from('v_estadisticas')
         .select(`
-          jugada_id,
-          created_at,
-          loteria_nombre,
-          horario_nombre,
-          play_type,
-          numeros,
+          id_listero,
+          fecha_jugada,
+          nombre_loteria,
+          nombre_horario,
+          tipo_jugada,
+          numeros_jugados,
           nota,
-          bruto,
-          premio,
+          monto_total,
+          monto_a_pagar,
           ganancia_listero,
-          ganancia_colector,
           balance_listero,
-          balance_colector,
-          balance_banco,
-          listero_username,
-          colector_username
+          estado_horario
         `)
-        .eq('id_banco', bankId)
-        .gte('created_at', startStr)
-        .lte('created_at', endStr)
-        .order('created_at', { ascending: false });
+        .eq('id_listero', bankId)
+        .gte('fecha_jugada', startStr)
+        .lte('fecha_jugada', endStr)
+        .eq('estado_horario', 'cerrada')
+        .order('fecha_jugada', { ascending: false });
       
-      if (error) throw error;
+      console.log('📊 Query result:', { count: jugadas?.length || 0, error });
+      if (error) {
+        console.error('❌ Error cargando estadísticas filtradas:', error);
+        throw error;
+      }
       
       // Calcular estadísticas reales filtradas
-      const totalBets = (jugadas || []).reduce((sum, j) => sum + (j.bruto || 0), 0);
-      const totalPrizes = (jugadas || []).reduce((sum, j) => sum + (j.premio || 0), 0);
+      const totalBets = (jugadas || []).reduce((sum, j) => sum + (j.monto_total || 0), 0);
+      const totalPrizes = (jugadas || []).reduce((sum, j) => sum + (j.monto_a_pagar || 0), 0);
       const totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_listero || 0), 0);
       const playsCount = (jugadas || []).length;
       const netProfit = totalBets - totalPrizes - totalCommissions;
@@ -733,26 +737,26 @@ const useStatistics = (bankId = null) => {
       
       // Actualizar datos de tabla con jugadas filtradas
       const formattedPlays = (jugadas || []).map(j => ({
-        id: j.jugada_id,
-        created_at: j.created_at, // Mantener el timestamp original
-        fecha: new Date(j.created_at).toLocaleDateString('es-ES'),
-        hora: new Date(j.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-        loteria: j.loteria_nombre || 'N/A',
-        horario: j.horario_nombre || 'N/A',
-        jugada: j.play_type || 'N/A',
-        numeros: j.numeros || 'N/A',
-        monto: j.bruto || 0,
+        id: j.id_listero + '_' + j.fecha_jugada, // Crear un ID único
+        created_at: j.fecha_jugada, // Usar fecha_jugada como created_at
+        fecha: new Date(j.fecha_jugada).toLocaleDateString('es-ES'),
+        hora: new Date(j.fecha_jugada).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+        loteria: j.nombre_loteria || 'N/A',
+        horario: j.nombre_horario || 'N/A',
+        jugada: j.tipo_jugada || 'N/A',
+        numeros: j.numeros_jugados || 'N/A',
+        monto: j.monto_total || 0,
         nota: j.nota || '',
         // Campos adicionales para la tabla (usando datos reales de la vista)
-        play_type: j.play_type || 'N/A',
-        bruto: j.bruto || 0,
+        play_type: j.tipo_jugada || 'N/A',
+        bruto: j.monto_total || 0,
         ganancia_listero: j.ganancia_listero || 0, // Valor real de la vista
-        ganancia_colector: j.ganancia_colector || 0, // Valor real de la vista
+        ganancia_colector: 0, // No disponible en esta vista simplificada
         resultado: 'Pendiente', // TODO: agregar cuando esté disponible
-        premio: j.premio || 0, // Valor real de la vista
+        premio: j.monto_a_pagar || 0, // Valor real de la vista
         balance_listero: j.balance_listero || 0, // Valor real de la vista
-        balance_colector: j.balance_colector || 0, // Valor real de la vista
-        balance_banco: j.balance_banco || 0 // Valor real de la vista
+        balance_colector: 0, // No disponible en esta vista simplificada
+        balance_banco: 0 // No disponible en esta vista simplificada
       }));
       
       setTableData(prev => ({
@@ -764,7 +768,7 @@ const useStatistics = (bankId = null) => {
       await loadTrendDataForPeriod(startDate, endDate);
       
     } catch (error) {
-      console.error('❌ Error cargando estadísticas filtradas:', error);
+      console.error('❌ Error aplicando filtros:', error);
       throw error;
     }
   };
@@ -782,18 +786,19 @@ const useStatistics = (bankId = null) => {
         
         // Consultar jugadas para este día específico
         const { data: dayJugadas } = await supabase
-          .from('v_statistics_complete')
+          .from('v_estadisticas')
           .select(`
-            bruto,
-            premio,
+            monto_total,
+            monto_a_pagar,
             ganancia_listero
           `)
-          .eq('id_banco', bankId)
-          .gte('created_at', `${dateStr} 00:00:00`)
-          .lte('created_at', `${dateStr} 23:59:59`);
+          .eq('id_listero', bankId)
+          .gte('fecha_jugada', `${dateStr} 00:00:00`)
+          .lte('fecha_jugada', `${dateStr} 23:59:59`)
+          .eq('estado_horario', 'cerrada');
         
-        const dayTotalBets = (dayJugadas || []).reduce((sum, j) => sum + (j.bruto || 0), 0);
-        const dayTotalPrizes = (dayJugadas || []).reduce((sum, j) => sum + (j.premio || 0), 0);
+        const dayTotalBets = (dayJugadas || []).reduce((sum, j) => sum + (j.monto_total || 0), 0);
+        const dayTotalPrizes = (dayJugadas || []).reduce((sum, j) => sum + (j.monto_a_pagar || 0), 0);
         const dayTotalCommissions = (dayJugadas || []).reduce((sum, j) => sum + (j.ganancia_listero || 0), 0);
         const dayNetProfit = dayTotalBets - dayTotalPrizes - dayTotalCommissions;
         
@@ -1036,14 +1041,14 @@ const useStatistics = (bankId = null) => {
     }
   };
 
-  // Función para generar datos reales de jugadas desde v_statistics_complete
+  // Función para generar datos reales de jugadas desde v_estadisticas
   async function loadRealPlaysData(userId, userRole = 'listero') {
     try {
       if (!userId) {
         return generateMockPlaysData();
       }
 
-      let query = supabase.from('v_statistics_complete').select('*');
+      let query = supabase.from('v_estadisticas').select('*');
 
       // Filtrar según el rol del usuario
       switch (userRole) {
@@ -1054,16 +1059,16 @@ const useStatistics = (bankId = null) => {
           query = query.eq('id_colector', userId);
           break;
         case 'admin':
-          // Admin ve todo el banco
-          query = query.eq('id_banco', userId);
+          // Admin ve todo el banco (asumiendo que userId es el id_colector para admin)
+          query = query.eq('id_colector', userId);
           break;
         default:
           query = query.eq('id_listero', userId);
       }
 
       const { data: playsData, error } = await query
-        .eq('estado_loteria', 'cerrada') // Solo loterías cerradas
-        .order('created_at', { ascending: false });
+        .eq('estado_horario', 'cerrada') // Solo horarios cerrados
+        .order('fecha_jugada', { ascending: false });
 
       if (error) {
         return generateMockPlaysData();
@@ -1084,11 +1089,11 @@ const useStatistics = (bankId = null) => {
       }
 
       const { data: playsData, error } = await supabase
-        .from('v_statistics_complete')
+        .from('v_estadisticas')
         .select('*')
         .eq('id_colector', collectorId)
-        .eq('estado_loteria', 'cerrada')
-        .order('created_at', { ascending: false });
+        .eq('estado_horario', 'cerrada')
+        .order('fecha_jugada', { ascending: false });
 
       if (error) {
         return [];
@@ -1134,11 +1139,11 @@ const useStatistics = (bankId = null) => {
       }
 
       const { data: playsData, error } = await supabase
-        .from('v_statistics_complete')
+        .from('v_estadisticas')
         .select('*')
-        .eq('id_banco', bankId)
-        .eq('estado_loteria', 'cerrada')
-        .order('created_at', { ascending: false });
+        .eq('id_colector', bankId)
+        .eq('estado_horario', 'cerrada')
+        .order('fecha_jugada', { ascending: false });
 
       if (error) {
         return [];

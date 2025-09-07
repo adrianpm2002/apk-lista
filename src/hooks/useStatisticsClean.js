@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { getListeroStatsFromView } from '../services/listeroStatsService';
 
 /**
  * HOOK LIMPIO PARA ESTADÍSTICAS
@@ -77,46 +78,80 @@ const useStatisticsClean = (period = 'today') => {
     };
   }, []);
 
-  // Cargar datos reales desde Supabase
+  // Cargar datos reales desde v_estadisticas
   const loadRealData = useCallback(async () => {
     try {
-      // Obtener rango de fechas según el período
-      const dateRange = getDateRange(period);
-      
-      // Consultar jugadas con las relaciones correctas
-      const { data: jugadas, error: jugadasError } = await supabase
-        .from('jugada')
-        .select(`
-          *,
-          horario:id_horario(
-            id,
-            nombre,
-            loteria:id_loteria(
-              id,
-              nombre
-            )
-          )
-        `)
-        .gte('created_at', dateRange.start)
-        .lte('created_at', dateRange.end)
-        .order('created_at', { ascending: false });
-
-      if (jugadasError) {
-        console.warn('Error en consulta jugadas:', jugadasError);
+      // Obtener usuario actual
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData?.user || null;
+      if (!user) {
+        console.log('[useStatisticsClean] No user found');
         return null;
       }
 
-      if (!jugadas || jugadas.length === 0) {
-        console.log('No hay datos reales, usando fallback');
-        return null; // No hay datos reales, usar fallback
+      // Obtener rango de fechas según el período
+      const dateRange = getDateRange(period);
+      console.log('[useStatisticsClean] loadRealData - dateRange:', dateRange, 'user:', user.id);
+
+      const from = new Date(dateRange.start);
+      const to = new Date(dateRange.end);
+
+      // Llamar a la nueva función que usa v_estadisticas
+      const stats = await getListeroStatsFromView(user.id, { from, to });
+      console.log('[useStatisticsClean] getListeroStatsFromView returned:', stats?.length || 0);
+
+      if (!stats || stats.length === 0) {
+        console.log('[useStatisticsClean] No hay datos reales en v_estadisticas, usando fallback');
+        return null;
       }
 
-      // Procesar datos reales
-      return processRealData(jugadas);
-      
+      // Construir estructuras para la UI desde los datos agregados
+      const totalBets = stats.reduce((sum, s) => sum + Number(s.bruto || 0), 0);
+      const totalCommissions = stats.reduce((sum, s) => sum + Number(s.ganancia || 0), 0);
+      const totalBalance = stats.reduce((sum, s) => sum + Number(s.balance || 0), 0);
+      const totalPlays = stats.reduce((sum, s) => sum + Number(s.jugadas_count || 0), 0);
+      const avgBetAmount = totalPlays ? totalBets / totalPlays : 0;
+
+      const dailyStats = {
+        totalBets: Number(totalBets.toFixed(2)),
+        totalPrizes: 0, // No calculamos premios directamente aquí
+        totalCommissions: Number(totalCommissions.toFixed(2)),
+        netProfit: Number(totalBalance.toFixed(2)),
+        totalPlays,
+        avgBetAmount: Number(avgBetAmount.toFixed(2))
+      };
+
+      // chartData: agrupar por fecha
+      const chartMap = {};
+      stats.forEach(s => {
+        const day = s.fecha || '';
+        if (!chartMap[day]) chartMap[day] = { date: day, bets: 0, prizes: 0, profit: 0 };
+        chartMap[day].bets += Number(s.bruto || 0);
+        chartMap[day].profit += Number(s.balance || 0);
+      });
+      const chartData = Object.values(chartMap).sort((a,b)=> new Date(a.date) - new Date(b.date));
+
+      // tableData: agrupar por lotería
+      const tableMap = {};
+      stats.forEach(s => {
+        const key = s.nombre_loteria || 'Lotería';
+        if (!tableMap[key]) tableMap[key] = { lottery: key, plays: 0, amount: 0, prizes: 0, profit: 0 };
+        tableMap[key].plays += Number(s.jugadas_count || 0);
+        tableMap[key].amount += Number(s.bruto || 0);
+        tableMap[key].profit += Number(s.ganancia || 0);
+      });
+      const tableData = Object.values(tableMap).sort((a,b)=> b.amount - a.amount).map(x=> ({ 
+        ...x, 
+        amount: Number(x.amount.toFixed(2)), 
+        profit: Number(x.profit.toFixed(2)) 
+      }));
+
+      console.log('[useStatisticsClean] Datos procesados:', { dailyStats, chartData: chartData.length, tableData: tableData.length });
+      return { dailyStats, chartData, tableData };
+
     } catch (err) {
-      console.warn('Error cargando datos reales:', err.message);
-      return null; // En caso de error, usar fallback
+      console.warn('[useStatisticsClean] Error cargando datos reales:', err?.message || err);
+      return null;
     }
   }, [period]);
 

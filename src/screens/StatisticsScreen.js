@@ -107,7 +107,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         } else if (profile.role === 'collector') {
           bId = profile.id_banco;
         } else if (profile.role === 'listero') {
-          bId = profile.id_banco;
+          // Para listeros, usar su propio ID en lugar del id_banco
+          bId = user.id;
         } else {
           bId = profile.id_banco;
         }

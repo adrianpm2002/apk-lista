@@ -1,7 +1,9 @@
 import { supabase } from '../supabaseClient';
-import { parseResultado, evaluatePlay, winnersByType, canonicalParle, DEFAULT_PRICES } from '../utils/prizeCalculator';
 
-// Helpers
+// =====================================
+// HELPERS Y UTILIDADES
+// =====================================
+
 const toLocalDateStr = (d) => {
   const dt = new Date(d);
   const y = dt.getFullYear();
@@ -16,90 +18,251 @@ const buildRangeStrings = (from, to) => {
   return { startStr: s, endStr: e };
 };
 
-const isTodayLocal = (d) => {
-  const dt = new Date(d);
-  const now = new Date();
-  return dt.getFullYear()===now.getFullYear() && dt.getMonth()===now.getMonth() && dt.getDate()===now.getDate();
-};
-
-const startOfTodayStr = () => {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth()+1).padStart(2,'0');
-  const d = String(now.getDate()).padStart(2,'0');
-  return `${y}-${m}-${d} 00:00:00`;
-};
-
-const splitNumbers = (raw) => {
-  if (!raw) return [];
-  // Acepta separados por espacios o comas
-  return String(raw)
-    .split(/[ ,]+/)
-    .map(s=> s.trim())
-    .filter(Boolean);
-};
-
-export async function fetchPricesForListero(listeroId){
-  try{
-    const { data: profile } = await supabase.from('profiles').select('id_precio').eq('id', listeroId).maybeSingle();
-    const idPrecio = profile?.id_precio;
-    if (idPrecio) {
-      const { data: priceRow } = await supabase.from('precio').select('precios').eq('id', idPrecio).maybeSingle();
-      if (priceRow?.precios) return priceRow.precios;
-    }
-  }catch{}
-  return DEFAULT_PRICES;
+// Helper: formatea fecha (ISO) a "día mes año" en español, ej. "1 enero 2025"
+function formatDateSpanish(isoDate){
+  if(!isoDate) return '';
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return String(isoDate).split('T')[0];
+  const day = d.getDate();
+  const monthNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const month = monthNames[d.getMonth()] || '';
+  const year = d.getFullYear();
+  return `${day} ${month} ${year}`;
 }
 
-// Nueva función para obtener precios específicos por lotería
-export async function fetchPricesForListeroAndLottery(listeroId, lotteryId){
-  try{
-    const { data: profile } = await supabase.from('profiles').select('id_precio').eq('id', listeroId).maybeSingle();
-    const gainsData = profile?.id_precio;
+// Helper: formatea hora desde timestamp a formato AM/PM
+function formatTimeAMPM(isoDate) {
+  if (!isoDate) return '';
+  try {
+    const d = new Date(isoDate);
+    const hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const h12 = (hours % 12) || 12;
+    return `${h12}:${minutes} ${ampm}`;
+  } catch (e) {
+    return '';
+  }
+}
+
+// =====================================
+// FUNCIONES PRINCIPALES v_estadisticas
+// =====================================
+
+// Obtener estadísticas agregadas del listero desde v_estadisticas
+export async function getListeroStatsFromView(listeroId, { from, to } = {}) {
+  try {
+    console.log('[listeroStatsService] getListeroStatsFromView called', { listeroId, from, to });
     
-    if (gainsData && typeof gainsData === 'object') {
-      // Buscar el ID de ganancia específico para esta lotería
-      const gainId = gainsData[`${lotteryId}_id`];
-      
-      if (gainId) {
-        const { data: priceRow } = await supabase.from('precio').select('precios').eq('id', gainId).maybeSingle();
-        if (priceRow?.precios) return priceRow.precios;
-      }
+    const { startStr, endStr } = buildRangeStrings(from, to);
+    
+    const { data, error } = await supabase
+      .from('v_estadisticas')
+      .select('*')
+      .eq('id_listero', listeroId)
+      .eq('estado_horario', 'cerrada')
+      .gte('fecha_jugada', startStr)
+      .lte('fecha_jugada', endStr)
+      .order('fecha_jugada', { ascending: false });
+
+    if (error) {
+      console.error('[listeroStatsService] Error consultando v_estadisticas:', error);
+      throw error;
     }
-  }catch{}
-  return DEFAULT_PRICES;
+
+    console.log('[listeroStatsService] v_estadisticas returned rows:', (data || []).length);
+
+    // Agrupar por fecha, lotería, horario, resultado
+    const groups = {};
+    for (const row of (data || [])) {
+      const fechaFormateada = formatDateSpanish(row.fecha_jugada);
+      const key = `${fechaFormateada}||${row.nombre_loteria || ''}||${row.nombre_horario || ''}||${row.resultado || ''}`;
+      
+      if (!groups[key]) {
+        groups[key] = {
+          fecha: fechaFormateada,
+          fecha_jugada: row.fecha_jugada, // Mantener fecha original para ordenamiento
+          nombre_loteria: row.nombre_loteria || '',
+          nombre_horario: row.nombre_horario || '',
+          resultado: row.resultado || '',
+          bruto: 0,
+          ganancia: 0,
+          balance: 0,
+          jugadas_count: 0
+        };
+      }
+      
+      groups[key].bruto += Number(row.monto_total || 0);
+      groups[key].ganancia += Number(row.ganancia_listero || 0);
+      groups[key].balance += Number(row.balance_listero || 0);
+      groups[key].jugadas_count += 1;
+    }
+
+    const result = Object.values(groups)
+      .map(r => ({
+        fecha: r.fecha,
+        fecha_jugada: r.fecha_jugada,
+        nombre_loteria: r.nombre_loteria,
+        nombre_horario: r.nombre_horario,
+        resultado: r.resultado,
+        bruto: Number(r.bruto.toFixed(2)),
+        ganancia: Number(r.ganancia.toFixed(2)),
+        balance: Number(r.balance.toFixed(2)),
+        jugadas_count: r.jugadas_count
+      }))
+      .sort((a, b) => new Date(b.fecha_jugada) - new Date(a.fecha_jugada));
+
+    console.log('[listeroStatsService] getListeroStatsFromView result count:', result.length);
+    return result;
+
+  } catch (err) {
+    console.error('[listeroStatsService] Error en getListeroStatsFromView:', err);
+    throw err;
+  }
 }
 
-export async function fetchJugadasForListero(listeroId, from, to, includeToday=false){
-  const { startStr, endStr } = buildRangeStrings(from, to);
-  const { data, error } = await supabase
-    .from('jugada')
-  .select('id, id_horario, id_listero, jugada, numeros, nota, monto_unitario, monto_total, created_at, horario: id_horario (id, nombre, loteria: id_loteria (id, nombre))')
-    .eq('id_listero', listeroId)
-    .gte('created_at', startStr)
-    .lte('created_at', endStr)
-    .order('created_at', { ascending: true });
-  if (error) {
+// Obtener jugadas individuales para "ver más" desde v_estadisticas
+export async function getListeroPlayDetailsFromView(listeroId, fecha_jugada, nombre_loteria, nombre_horario) {
+  try {
+    console.log('[listeroStatsService] getListeroPlayDetailsFromView called', { 
+      listeroId, fecha_jugada, nombre_loteria, nombre_horario 
+    });
+
+    // Obtener todas las jugadas del día específico, lotería y horario
+    const startOfDay = new Date(fecha_jugada);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(fecha_jugada);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const { data, error } = await supabase
+      .from('v_estadisticas')
+      .select('*')
+      .eq('id_listero', listeroId)
+      .eq('nombre_loteria', nombre_loteria)
+      .eq('nombre_horario', nombre_horario)
+      .gte('fecha_jugada', startOfDay.toISOString())
+      .lte('fecha_jugada', endOfDay.toISOString())
+      .order('fecha_jugada', { ascending: false });
+
+    if (error) {
+      console.error('[listeroStatsService] Error consultando v_estadisticas para detalles:', error);
+      throw error;
+    }
+
+    console.log('[listeroStatsService] v_estadisticas detalles returned rows:', (data || []).length);
+
+    // Mapear a formato esperado
+    const jugadas = (data || []).map(row => {
+      // Calcular monto total como cantidad de números × monto unitario
+      const numerosArray = row.numeros_jugados ? String(row.numeros_jugados).split(/[ ,]+/).filter(Boolean) : [];
+      const cantidadNumeros = numerosArray.length;
+      const montoUnitario = Number(row.monto_unitario || 0);
+      const montoTotalCalculado = Number((cantidadNumeros * montoUnitario).toFixed(2));
+
+      // Estado: pendiente si no hay resultado, ganada/perdida si hay resultado
+      let estado = 'pendiente';
+      if (row.resultado && row.resultado !== 'resultado no disponible') {
+        estado = Number(row.monto_a_pagar || 0) > 0 ? 'ganada' : 'perdida';
+      }
+
+      return {
+        id: row.id || null,
+        fecha_jugada: row.fecha_jugada,
+        nombre_loteria: row.nombre_loteria || '',
+        nombre_horario: row.nombre_horario || '',
+        tipo_jugada: row.tipo_jugada || '',
+        nota: row.nota || '',
+        numeros_jugados: row.numeros_jugados || '',
+        monto_unitario: montoUnitario,
+        monto_total: row.monto_total != null ? Number(row.monto_total) : montoTotalCalculado,
+        hora: formatTimeAMPM(row.fecha_jugada),
+        resultado: row.resultado || 'resultado no disponible',
+        estado: estado,
+        monto_a_pagar: Number(row.monto_a_pagar || 0),
+        ganancia_listero: Number(row.ganancia_listero || 0),
+        balance_listero: Number(row.balance_listero || 0)
+      };
+    });
+
+    // Calcular totales
+    const totales = {
+      total_bruto: jugadas.reduce((sum, j) => sum + j.monto_total, 0),
+      total_premios: jugadas.reduce((sum, j) => sum + j.monto_a_pagar, 0),
+      total_ganancia: jugadas.reduce((sum, j) => sum + j.ganancia_listero, 0),
+      total_balance: jugadas.reduce((sum, j) => sum + j.balance_listero, 0)
+    };
+
+    return {
+      jugadas,
+      totales: {
+        total_bruto: Number(totales.total_bruto.toFixed(2)),
+        total_premios: Number(totales.total_premios.toFixed(2)),
+        total_ganancia: Number(totales.total_ganancia.toFixed(2)),
+        total_balance: Number(totales.total_balance.toFixed(2))
+      },
+      resumen: {
+        fecha: formatDateSpanish(fecha_jugada),
+        nombre_loteria,
+        nombre_horario
+      }
+    };
+
+  } catch (err) {
+    console.error('[listeroStatsService] Error en getListeroPlayDetailsFromView:', err);
+    throw err;
+  }
+}
+
+// =====================================
+// ENDPOINTS COMPATIBLES
+// =====================================
+
+// Función principal para estadísticas diarias (nueva implementación)
+export async function getDailyStats(listeroId, { from, to, lotteryId=null, scheduleId=null, includeToday=false, onlyClosedToday=false }){
+  try {
+    return await getListeroStatsFromView(listeroId, { from, to });
+  } catch (error) {
+    console.error('Error en getDailyStats:', error);
     throw error;
   }
-  const mapped = (data||[]).map(r=> ({
-    id: r.id,
-    scheduleId: r.horario?.id || r.id_horario,
-    scheduleName: r.horario?.nombre || 'Horario',
-    lotteryId: r.horario?.loteria?.id || null,
-    lotteryName: r.horario?.loteria?.nombre || 'Lotería',
-  playType: r.jugada || 'posicion',
-  numeros: r.numeros,
-  nota: r.nota,
-    monto_unitario: r.monto_unitario,
-    monto_total: r.monto_total,
-    created_at: r.created_at,
-  }));
-  if (!includeToday){
-    const filtered = mapped.filter(j => !isTodayLocal(j.created_at));
-    return filtered;
+}
+
+// Función para obtener detalles de jugadas (nueva implementación)
+export async function getPlaysDetails(listeroId, { from, to, lotteryId=null, scheduleId=null, includeToday=false, onlyClosedToday=false }){
+  try {
+    // Para esta función mantenemos compatibilidad pero usamos la nueva lógica
+    const stats = await getListeroStatsFromView(listeroId, { from, to });
+    
+    // Si hay stats, retornamos las primeras jugadas como ejemplo
+    // En la práctica, esta función será reemplazada por getListeroPlayDetailsFromView
+    if (stats.length > 0) {
+      const firstStat = stats[0];
+      const details = await getListeroPlayDetailsFromView(
+        listeroId, 
+        firstStat.fecha_jugada, 
+        firstStat.nombre_loteria, 
+        firstStat.nombre_horario
+      );
+      return details.jugadas;
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Error en getPlaysDetails:', error);
+    throw error;
   }
-  return mapped;
+}
+
+// Endpoints simplificados
+export async function getDailyStatsEndpoint(listeroId, rangeDays=7){
+  const to = new Date();
+  const from = new Date(); 
+  from.setDate(to.getDate() - rangeDays + 1);
+  return await getDailyStats(listeroId, { from, to, includeToday: false });
+}
+
+export async function getPlaysDetailsEndpoint(listeroId, from, to){
+  return await getPlaysDetails(listeroId, { from, to });
 }
 
 export async function getTotalRecogidoHistorico(listeroId, { excludeToday=true } = {}){
