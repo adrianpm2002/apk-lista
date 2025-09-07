@@ -350,8 +350,15 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         const { data: limitRows } = await supabase.from('limite_numero').select('numero, limite, jugada, id_horario').in('id_horario', horarios);
         const limitMap=new Map();
         (limitRows||[]).forEach(r=> limitMap.set(r.id_horario+"|"+r.jugada+"|"+r.numero, r.limite));
-        const dayStart=new Date(); dayStart.setHours(0,0,0,0);
-        const { data: jugadasDia } = await supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', dayStart.toISOString()).in('id_horario', horarios);
+        // Usar zona horaria de La Habana (Cuba) para calcular el día actual
+        const nowLocal = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const y = nowLocal.getFullYear();
+        const m = pad(nowLocal.getMonth() + 1);
+        const d = pad(nowLocal.getDate());
+        const startStr = `${y}-${m}-${d} 00:00:00`;
+        const endStr = `${y}-${m}-${d} 23:59:59.999`;
+        const { data: jugadasDia } = await supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', startStr).lte('created_at', endStr).in('id_horario', horarios);
         const usageMap=new Map();
         (jugadasDia||[]).forEach(j=>{
           (j.numeros||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(n=>{

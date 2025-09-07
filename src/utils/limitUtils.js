@@ -58,20 +58,24 @@ export const fetchLimitsContext = async (horarios, userId) => {
     lotteryLimits = {};
   }
   
-  const dayStart=new Date(); dayStart.setHours(0,0,0,0);
-  // Usar un rango más amplio para asegurar que capture todas las jugadas del día
-  const dayStartUTC = new Date(dayStart.getTime() - (12 * 60 * 60 * 1000)); // 12 horas antes para cubrir zonas horarias
-  const dayEndUTC = new Date(dayStart.getTime() + (36 * 60 * 60 * 1000)); // 36 horas después para cubrir zonas horarias
+  // Usar zona horaria de La Habana (Cuba) para calcular el día actual
+  const nowLocal = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const y = nowLocal.getFullYear();
+  const m = pad(nowLocal.getMonth() + 1);
+  const d = pad(nowLocal.getDate());
+  const startStr = `${y}-${m}-${d} 00:00:00`;
+  const endStr = `${y}-${m}-${d} 23:59:59.999`;
   
-  console.log('🔍 [limitUtils] Consultando jugadas desde:', dayStartUTC.toISOString(), 'hasta:', dayEndUTC.toISOString());
+  console.log('🔍 [limitUtils] Consultando jugadas desde:', startStr, 'hasta:', endStr);
   console.log('🔍 [limitUtils] Horarios para consulta:', horarios);
   console.log('🔍 [limitUtils] Bank ID:', bankId);
   
-  // Filtrar jugadas del día solo del mismo banco - usando rango amplio de fechas
+  // Filtrar jugadas del día solo del mismo banco - usando zona horaria local
   let jugadasQuery = supabase.from('jugada')
     .select('id_horario,jugada,numeros,monto_unitario,created_at,id_listero')
-    .gte('created_at', dayStartUTC.toISOString())
-    .lte('created_at', dayEndUTC.toISOString())
+    .gte('created_at', startStr)
+    .lte('created_at', endStr)
     .in('id_horario', horarios);
   
   if (bankId) {

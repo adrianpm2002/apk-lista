@@ -124,9 +124,9 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
     if (!bankId) return;
     setLoadingResults(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const startStr = `${today}T00:00:00.000Z`;
-      const endStr = `${today}T23:59:59.999Z`;
+      const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD en zona horaria local
+      const startStr = `${today} 00:00:00`;
+      const endStr = `${today} 23:59:59.999`;
 
       const { data, error } = await supabase
         .from('resultado')

@@ -9,7 +9,7 @@ export const formatDate = (date, formatStr) => {
   
   switch (formatStr) {
     case 'yyyy-MM-dd':
-      return d.toISOString().slice(0, 10);
+      return d.toLocaleDateString('en-CA'); // YYYY-MM-DD en zona horaria local
     case 'dd/MM/yyyy':
       return d.toLocaleDateString('es-ES');
     case 'HH:mm':
