@@ -9,7 +9,6 @@ import {
   RefreshControl,
   Modal,
   Dimensions,
-  TextInput,
   Platform,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
@@ -117,8 +116,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [chartHeight, setChartHeight] = useState(240);
   // Estado de expansión para grupos en Detalles (debe estar a nivel de componente para mantener el orden de hooks)
   const [expandedGroups, setExpandedGroups] = useState(new Set());
-  // Búsqueda en detalles
-  const [detailsSearchQuery, setDetailsSearchQuery] = useState('');
 
   // Estados para sidebar
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -651,23 +648,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             )}
           </>
         )}
-
-        {/* Búsqueda de detalles - solo visible cuando estamos en tab de detalles */}
-        {activeTab === 'details' && (
-          <>
-            <Text style={styles.panelLabel}>Búsqueda</Text>
-            <TextInput
-              placeholder="Buscar por nota o jugada"
-              placeholderTextColor="#6c757d"
-              value={detailsSearchQuery}
-              onChangeText={setDetailsSearchQuery}
-              style={[
-                styles.searchInput,
-                { marginTop: 4, marginBottom: 8 }
-              ]}
-            />
-          </>
-        )}
       </View>
     );
   };
@@ -1195,30 +1175,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         let groups = Array.from(map.values())
           .sort((a,b) => (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
 
-        // Filtro por búsqueda (nota o jugada)
-        if (detailsSearchQuery && detailsSearchQuery.trim().length > 0) {
-          const q = detailsSearchQuery.trim().toLowerCase();
-          groups = groups.map(g => {
-            const filteredPlays = g.plays.filter(p =>
-              (p.nota && String(p.nota).toLowerCase().includes(q)) ||
-              (p.jugada && String(p.jugada).toLowerCase().includes(q))
-            ).sort((a,b) => b.ts - a.ts);
-            
-            return { 
-              ...g, 
-              plays: filteredPlays, 
-              totalRecogido: filteredPlays.reduce((s,x) => s + x.bruto, 0), 
-              totalGananciaListero: filteredPlays.reduce((s,x) => s + x.ganancia, 0),
-              totalBalance: filteredPlays.reduce((s,x) => s + x.balance, 0),
-              totalPagado: filteredPlays.reduce((s,x) => s + x.pagado, 0)
-            };
-          }).filter(g => g.plays.length > 0);
-        } else {
-          // Ordenar jugadas dentro de cada grupo por hora
-          groups.forEach(g => {
-            g.plays.sort((a,b) => b.ts - a.ts);
-          });
-        }
+        // Ordenar jugadas dentro de cada grupo por hora
+        groups.forEach(g => {
+          g.plays.sort((a,b) => b.ts - a.ts);
+        });
 
         // Usar estado top-level para expandir/colapsar grupos
         const expanded = expandedGroups;
@@ -2485,21 +2445,6 @@ const styles = StyleSheet.create({
   playsRow:{ flexDirection:'row', alignItems:'flex-start', paddingVertical:8, borderBottomWidth:1, borderBottomColor:'#F0F3F4' },
   playsRowAlt:{ backgroundColor:'#FBFCFC' },
   playsCell:{ fontSize:11.5, color:'#2C3E50', paddingRight:6 },
-  searchInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E1E8E3',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
-    color: '#2C3E50',
-  },
-  searchInputDark: {
-    backgroundColor: '#34495E',
-    borderColor: '#5D6D7E',
-    color: '#ECF0F1',
-  },
   
   // Estilos para tarjetas compactas
   compactGroupCard: {
