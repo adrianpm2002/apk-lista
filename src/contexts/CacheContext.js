@@ -127,14 +127,7 @@ export const CacheProvider = ({ children }) => {
       }
       
       // Obtener fecha actual en zona horaria de La Habana, Cuba
-      const now = new Date();
-      
-      // Crear fecha en zona horaria de La Habana (CDT = UTC-4 o CST = UTC-5)
-      // Cuba está en CDT (UTC-4) en septiembre
-      const havanaTime = new Date(now.getTime() - (4 * 60 * 60 * 1000)); // Restar 4 horas
-      const todayHavana = havanaTime.toISOString().split('T')[0];
-      
-      const today = todayHavana;
+      const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD en zona horaria local
       
       // Primero obtener IDs de horarios válidos para el banco
       const { data: validSchedules, error: schedulesError } = await supabase
@@ -176,8 +169,8 @@ export const CacheProvider = ({ children }) => {
           )
         `)
         .in('id_horario', validScheduleIds)
-        .gte('created_at', `${today}T00:00:00`)
-        .lte('created_at', `${today}T23:59:59`)
+        .gte('created_at', `${today} 00:00:00`)
+        .lte('created_at', `${today} 23:59:59`)
         .order('created_at', { ascending: false });
 
       if (error) {
