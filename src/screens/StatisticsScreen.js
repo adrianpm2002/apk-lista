@@ -1823,14 +1823,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               
               return (
                 <View key={g.key}>
-                  {/* Fila principal del grupo (clickeable para expandir) */}
+                  {/* Fila principal del grupo (clickeable para ir al registro) */}
                   <TouchableOpacity 
                     style={[styles.excelDataRow, groupIndex % 2 === 0 && styles.excelRowEven]}
-                    onPress={() => toggle(g.key)}
+                    onPress={() => navigateToPlaysRecord(g)}
                   >
                     <View style={[styles.excelCellContainer, { width: 30 }]}>
                       <Text style={[styles.excelCell, styles.chevronCell]}>
-                        {open ? '▼' : '▶'}
+                        👁️
                       </Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 70 }]}>
@@ -1864,58 +1864,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       </Text>
                     </View>
                   </TouchableOpacity>
-
-                  {/* Contenido expandido - jugadas individuales */}
-                  {open && g.plays.map((play, playIndex) => (
-                    <View 
-                      key={`${g.key}_play_${playIndex}`}
-                      style={[styles.excelDataRow, styles.nestedRow]}
-                    >
-                      <View style={[styles.excelCellContainer, { width: 30 }]}><Text style={styles.excelCell}></Text></View>
-                      <View style={[styles.excelCellContainer, { width: 70 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={2}>
-                          {play.time}
-                        </Text>
-                      </View>
-                      <View style={[styles.excelCellContainer, { width: 70 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={2}>
-                          {play.jugada}
-                        </Text>
-                      </View>
-                      <View style={[styles.excelCellContainer, { width: 70 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={2}>
-                          {play.numeros}
-                        </Text>
-                      </View>
-                      <View style={[styles.excelCellContainer, { width: 60 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={1}>
-                          -
-                        </Text>
-                      </View>
-                      <View style={[styles.excelCellContainer, { width: 60 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={1}>
-                          {fmt(play.bruto)}
-                        </Text>
-                      </View>
-                      {userRole === 'collector' && (
-                        <View style={[styles.excelCellContainer, { width: 60 }]}>
-                          <Text style={[styles.excelCell, styles.nestedText, styles.earningsCell]} numberOfLines={1}>
-                            {fmt(play.ganancia)}
-                          </Text>
-                        </View>
-                      )}
-                      <View style={[styles.excelCellContainer, { width: 60 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={1}>
-                          {fmt(play.pagado)}
-                        </Text>
-                      </View>
-                      <View style={[styles.excelCellContainer, { width: 60 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText, (play.balance >= 0 ? styles.positiveBalance : styles.negativeBalance)]} numberOfLines={1}>
-                          {fmt(play.balance)}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
                 </View>
               );
             })}
@@ -2589,9 +2537,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderBottomWidth: 2,
     borderBottomColor: '#9CA3AF',
+    minHeight: 30, // Reducido de altura por defecto
   },
   excelHeaderCell: {
-    padding: 8,
+    padding: 6, // Reducido de 8 a 6
     fontSize: 11,
     fontWeight: '700',
     color: '#374151',
@@ -2603,7 +2552,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    minHeight: 36,
+    minHeight: 32, // Reducido de 36 a 32
   },
   excelRowEven: {
     backgroundColor: '#F9FAFB',
@@ -2612,7 +2561,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: '#E5E7EB',
     justifyContent: 'center',
-    minHeight: 36,
+    minHeight: 32, // Reducido de 36 a 32 para que coincida
   },
   excelCell: {
     fontSize: 11,
@@ -2648,6 +2597,8 @@ const styles = StyleSheet.create({
   },
   expandedContent: {
     backgroundColor: '#F8F9FA',
+    marginTop: 0, // Sin margen superior
+    paddingTop: 0, // Sin padding superior
   },
   subHeader: {
     backgroundColor: '#E9ECEF',
