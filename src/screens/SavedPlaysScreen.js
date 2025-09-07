@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, Pressable, FlatList, TextInput, ScrollView, Ref
 import FeedbackBanner from '../components/FeedbackBanner';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../supabaseClient';
-import { parseResultado, evaluatePlay, DEFAULT_PRICES, formatMoney, winnersByType, canonicalParle } from '../utils/prizeCalculator';
+import { canonicalParle } from '../utils/prizeCalculator';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -58,151 +58,63 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         return;
       }
       
-      // Construir rango local del día (00:00:00 a 23:59:59.999) SIN convertir a UTC para columnas timestamp without time zone
-      const now = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      const y = now.getFullYear();
-      const m = pad(now.getMonth() + 1);
-      const d = pad(now.getDate());
-      const startStr = `${y}-${m}-${d} 00:00:00`; // inicio día local
-      const endStr = `${y}-${m}-${d} 23:59:59.999`; // fin día local
-      // NOTA: Antes se usaba toISOString() (UTC) lo que desplazaba el inicio a las 04:00 para UTC-4 y omitía jugadas tempranas.
+      // Usar la nueva view v_registro_diario para obtener todos los datos optimizados
+      const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD en zona horaria local
+      
       const { data, error } = await supabase
-        .from('jugada')
-        .select('id, id_horario, jugada, numeros, monto_unitario, monto_total, created_at, nota, horario:horario(id,nombre,hora_inicio,hora_fin,loteria:loteria(id,nombre)))')
-        .eq('id_listero', userId) // FILTRO AGREGADO: Solo jugadas del listero actual
-        .gte('created_at', startStr)
-        .lte('created_at', endStr)
-        .order('created_at', { ascending: false });
+        .from('v_registro_diario')
+        .select('*')
+        .eq('id_listero', userId)
+        .gte('fecha_jugada', `${today} 00:00:00`)
+        .lte('fecha_jugada', `${today} 23:59:59.999`)
+        .order('fecha_jugada', { ascending: false });
+        
       if (error) throw error;
-      const mapped = (data||[]).map(r=> ({
-        id: r.id,
-        lottery: r.horario?.loteria?.nombre || 'Lotería',
-        lotteryId: r.horario?.loteria?.id || 'unknown',
-        schedule: r.horario?.nombre || 'Horario',
-        scheduleId: r.horario?.id || 'unknown',
-        scheduleStart: r.horario?.hora_inicio || null,
-        scheduleEnd: r.horario?.hora_fin || null,
-        playType: r.jugada,
-        numbers: r.numeros,
-        amount: r.monto_unitario,
-        total: r.monto_total,
-        note: r.nota || '',
-        hasPrize: false,
-        prize: 'desconocido',
-        payAmount: 0,
-        result: 'no disponible',
-        timestamp: new Date(r.created_at)
-      }));
-      // Resultados del día por horario
-      const { data: resultadosRows, error: resErr } = await supabase
-        .from('resultado')
-        .select('id, id_horario, numeros, created_at')
-        .gte('created_at', startStr)
-        .lte('created_at', endStr);
-      if (resErr) throw resErr;
-      const resultadosByHorario = new Map();
-      (resultadosRows||[]).forEach(r => {
-        const prev = resultadosByHorario.get(r.id_horario);
-        if (!prev) {
-          resultadosByHorario.set(r.id_horario, r.numeros);
-        } else {
-          // Mantener el más reciente: como no tenemos la anterior fecha a la mano, sobreescribir en orden; opcional: ordenar antes
-          resultadosByHorario.set(r.id_horario, r.numeros);
-        }
-      });
-
-      // Números limitados por horario
-      const uniqueHorarios = Array.from(new Set(mapped.map(m => m.scheduleId).filter(Boolean)));
-      let limitedByHorario = new Map();
-      if (uniqueHorarios.length) {
-        const { data: limitedRows, error: limErr } = await supabase
-          .from('numero_limitado')
-          .select('id_horario, numero')
-          .in('id_horario', uniqueHorarios);
-        if (limErr) throw limErr;
-        limitedByHorario = (limitedRows||[]).reduce((acc, r) => {
-          const key = r.id_horario;
-          if (!acc.has(key)) acc.set(key, new Set());
-          acc.get(key).add(String(r.numero));
-          return acc;
-        }, new Map());
-      }
-
-      // Precios según perfil (específicos por lotería)
-      let userGainsData = null;
-      try {
-        if (userId) {
-          const { data: profile } = await supabase.from('profiles').select('id_precio').eq('id', userId).maybeSingle();
-          userGainsData = profile?.id_precio;
-        }
-      } catch {}
-
-      // Función para obtener precios específicos por lotería
-      const getPricesForLottery = async (lotteryId) => {
-        if (!userGainsData || typeof userGainsData !== 'object') {
-          return DEFAULT_PRICES;
-        }
+      
+      // Mapear los datos de la view al formato esperado por la UI
+      const mapped = (data || []).map(r => {
+        // Extraer hora en formato AM/PM
+        const timestamp = new Date(r.fecha_jugada);
         
-        const gainId = userGainsData[`${lotteryId}_id`];
-        if (!gainId) {
-          return DEFAULT_PRICES;
-        }
+        // Calcular monto total (cantidad de números × monto unitario)
+        const numbersCount = (r.numeros_jugados || '').split(',').filter(Boolean).length;
+        const calculatedTotal = r.monto_unitario * numbersCount;
         
-        try {
-          const { data: priceRow } = await supabase.from('precio').select('precios').eq('id', gainId).maybeSingle();
-          if (priceRow?.precios) {
-            return priceRow.precios;
-          }
-        } catch {}
-        return DEFAULT_PRICES;
-      };
-
-      // Evaluar premios (ahora usando precios específicos por lotería)
-      const enhanced = [];
-      for (const m of mapped) {
-        const numerosRes = resultadosByHorario.get(m.scheduleId);
-        const parsed = numerosRes ? parseResultado(numerosRes) : null;
-        const limitedSet = limitedByHorario.get(m.scheduleId) || new Set();
+        // Determinar estado del resultado
+        const hasResult = r.resultado !== null && r.resultado !== undefined;
+        const hasWin = hasResult && r.numeros_ganadores_jugada && r.numeros_ganadores_jugada.length > 0;
         
-        if (!parsed) {
-          enhanced.push({ ...m, result: 'no disponible', hasPrize: false, prize: 'no cogió premio', payAmount: 0, winningTokens: new Set() });
-          continue;
-        }
+        // Crear set de números ganadores para resaltado
+        const winningTokens = new Set(r.numeros_ganadores_jugada || []);
         
-        // Obtener precios específicos para la lotería de esta jugada
-        const prices = await getPricesForLottery(m.lotteryId);
-        
-        const evalRes = evaluatePlay({ playType: m.playType, numbers: m.numbers, amount: m.amount }, parsed, limitedSet, prices);
-        
-        // Calcular tokens ganadores específicos de la jugada para resaltar en la UI (normalizando longitudes)
-        const winnersSet = winnersByType(parsed, m.playType);
-        const expectedLenFor = (jug) => jug==='centena'?3 : jug==='parle'?4 : jug==='tripleta'?6 : 2;
-        const normalize = (jug, tok) => {
-          if (!tok) return tok;
-          if (jug === 'parle') return canonicalParle(tok);
-          const len = expectedLenFor(jug);
-          return String(tok).padStart(len, '0');
+        return {
+          id: r.id_jugada,
+          lottery: r.nombre_loteria || 'Lotería',
+          lotteryId: r.id_loteria || 'unknown',
+          schedule: r.nombre_horario || 'Horario',
+          scheduleId: r.id_horario || 'unknown',
+          scheduleStart: r.hora_inicio || null,
+          scheduleEnd: r.hora_fin || null,
+          playType: r.tipo_jugada,
+          numbers: r.numeros_jugados,
+          amount: r.monto_unitario,
+          total: calculatedTotal,
+          note: r.nota || '',
+          hasPrize: hasWin,
+          prize: hasResult ? (hasWin ? 'bingo' : 'no cogió premio') : 'pendiente',
+          payAmount: r.monto_a_pagar || 0,
+          result: hasResult ? r.resultado : 'no disponible',
+          timestamp: timestamp,
+          winningTokens: winningTokens
         };
-        const tokens = (m.numbers||'')
-          .split(',')
-          .map(s=> s.trim())
-          .filter(Boolean);
-        const winningTokens = new Set(tokens.filter(t => winnersSet.has(normalize(m.playType, t))));
-        
-        enhanced.push({
-          ...m,
-          result: numerosRes,
-          hasPrize: evalRes.hasPrize,
-          prize: evalRes.hasPrize ? 'bingo' : 'no cogió premio',
-          payAmount: evalRes.pay,
-          winningTokens,
-        });
-      }
-
-      setSavedPlays(enhanced);
-    } catch(e){ }
-    finally { setIsLoading(false); }
+      });
+      
+      setSavedPlays(mapped);
+    } catch(e) { 
+      console.error('Error loading saved plays:', e);
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   useFocusEffect(useCallback(()=> { loadSavedPlays(); },[]));
@@ -274,7 +186,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   // Pagado = suma de premios pagados del día (todas las jugadas de hoy con resultado; las perdidas aportan 0)
   const totalPagadoDia = savedPlays.reduce((s,p)=> s + (p.payAmount || 0), 0);
 
-  const formatTime = ts => ts.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+  const formatTime = ts => ts.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',hour12:true});
 
   const renderFilterButton = (value, current, setter, label) => (
     <Pressable style={[styles.filterButton, value===current && styles.filterButtonActive]} onPress={()=> setter(value)}>
@@ -385,17 +297,39 @@ const SavedPlaysScreen = ({ navigation, route }) => {
           }
           
           const winningSet = item.winningTokens || new Set();
+          
+          // Función para normalizar números según el tipo de jugada
+          const normalizeNumber = (num, playType) => {
+            const digits = num.replace(/[^0-9]/g, '');
+            switch(playType) {
+              case 'fijo':
+              case 'corrido':
+                return digits.padStart(2, '0');
+              case 'centena':
+                return digits.padStart(3, '0');
+              case 'parle':
+                return digits.padStart(4, '0');
+              case 'tripleta':
+                return digits.padStart(6, '0');
+              default:
+                return digits;
+            }
+          };
+          
           return (
             <Text style={styles.numbers}>
-              {parts.map((n,i)=> (
-                <Text key={i}>
-                  {winningSet.has(n)
-                    ? <Text style={styles.winningNumber}>{n}</Text>
-                    : (counts[n]>1 ? <Text style={styles.dupNumber}>{n}</Text> : n)
-                  }
-                  {i < parts.length-1 ? ', ' : ''}
-                </Text>
-              ))}
+              {parts.map((n,i)=> {
+                const normalizedN = normalizeNumber(n.trim(), item.playType);
+                return (
+                  <Text key={i}>
+                    {winningSet.has(normalizedN)
+                      ? <Text style={styles.winningNumber}>{n}</Text>
+                      : (counts[n]>1 ? <Text style={styles.dupNumber}>{n}</Text> : n)
+                    }
+                    {i < parts.length-1 ? ', ' : ''}
+                  </Text>
+                );
+              })}
             </Text>
           );
         })()}
