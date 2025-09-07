@@ -192,12 +192,60 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   }, [userRole]);
 
+  // Cargar datos cuando el userRole esté disponible (para admin/banco)
+  useEffect(() => {
+    if (userRole && userRole === 'admin') {
+      console.log('🔄 [StatisticsScreen] UserRole admin detectado, cargando datos:', userRole);
+      loadAllStats();
+    }
+  }, [userRole]);
+
   // Monitor de cambios de userRole para detectar inconsistencias
   useEffect(() => {
     if (userRole) {
       // console.log('🔄 [StatisticsScreen] UserRole changed to:', userRole, '(for sidebar)');
     }
   }, [userRole]);
+
+  // Procesar datos de tabla para crear groupedData para admin
+  useEffect(() => {
+    if (userRole === 'admin' && tableData && tableData.plays) {
+      console.log('🔄 [StatisticsScreen] Procesando datos agrupados para admin');
+      
+      // Agrupar jugadas por colector
+      const playsByColector = tableData.plays.reduce((acc, play) => {
+        const colectorName = play.colector_username || `Colector ${play.id_colector}`;
+        if (!acc[colectorName]) {
+          acc[colectorName] = {
+            id_colector: play.id_colector,
+            colector_username: colectorName,
+            plays: []
+          };
+        }
+        acc[colectorName].plays.push(play);
+        return acc;
+      }, {});
+
+      // Convertir a formato de groupedData con totales calculados
+      const groupedDataForAdmin = Object.values(playsByColector).map(colector => {
+        const plays = colector.plays;
+        
+        return {
+          id_colector: colector.id_colector,
+          colector_username: colector.colector_username,
+          bruto_total: plays.reduce((sum, p) => sum + (Number(p.bruto) || 0), 0),
+          ganancia_colector_total: plays.reduce((sum, p) => sum + (Number(p.ganancia_colector) || 0), 0),
+          ganancia_listero_total: plays.reduce((sum, p) => sum + (Number(p.ganancia_listero) || 0), 0),
+          premios_total: plays.reduce((sum, p) => sum + (Number(p.premio) || 0), 0),
+          balance_banco_total: plays.reduce((sum, p) => sum + (Number(p.balance_colector) || 0), 0),
+          plays: plays
+        };
+      });
+
+      setGroupedData(groupedDataForAdmin);
+      console.log('✅ [StatisticsScreen] Datos agrupados para admin:', groupedDataForAdmin.length, 'colectores');
+    }
+  }, [userRole, tableData]);
 
   // Cargar datos cuando cambian los filtros
   useEffect(() => {
@@ -499,7 +547,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       
       <View style={styles.headerControls}>
         <Text style={styles.headerTitle}>
-          {(userRole === 'colector' || userRole === 'collector') ? 'Estadísticas Colector' : 'Estadísticas'}
+          {(userRole === 'colector' || userRole === 'collector') ? 'Estadísticas Colector' : 
+           userRole === 'admin' ? 'Estadísticas Banco' : 'Estadísticas'}
         </Text>
         
         <TouchableOpacity

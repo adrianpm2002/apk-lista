@@ -719,6 +719,7 @@ const useStatistics = () => {
         .select(`
           id_listero,
           id_colector,
+          id_banco,
           fecha_jugada,
           nombre_loteria,
           nombre_horario,
@@ -741,7 +742,10 @@ const useStatistics = () => {
         .eq('estado_horario', 'cerrada');
       
       // Aplicar filtro según el rol
-      if (role === 'collector') {
+      if (role === 'admin') {
+        console.log('🔍 Filtrando como ADMIN (banco) por id_banco:', user.id);
+        query = query.eq('id_banco', user.id);
+      } else if (role === 'collector') {
         console.log('🔍 Filtrando como COLECTOR por id_colector:', user.id);
         query = query.eq('id_colector', user.id);
       } else {
@@ -762,7 +766,11 @@ const useStatistics = () => {
       const totalPrizes = (jugadas || []).reduce((sum, j) => sum + (j.monto_a_pagar || 0), 0);
       
       let totalCommissions, netProfit;
-      if (role === 'collector' || role === 'colector') {
+      if (role === 'admin') {
+        // Para admin (banco): usar ganancia_banco y balance_banco (si existen), sino calcular
+        totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_banco || j.ganancia_colector || 0), 0);
+        netProfit = (jugadas || []).reduce((sum, j) => sum + (j.balance_banco || j.balance_colector || 0), 0);
+      } else if (role === 'collector' || role === 'colector') {
         // Para colectores: usar ganancia_colector y balance_colector
         totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_colector || 0), 0);
         netProfit = (jugadas || []).reduce((sum, j) => sum + (j.balance_colector || 0), 0);
@@ -824,6 +832,7 @@ const useStatistics = () => {
         // IDs para filtrado
         id_listero: j.id_listero || null,
         id_colector: j.id_colector || null,
+        id_banco: j.id_banco || null,
         // Información de usuarios (para colectores ver sus listeros)
         listero_username: j.listero_username || '',
         colector_username: j.colector_username || '',
