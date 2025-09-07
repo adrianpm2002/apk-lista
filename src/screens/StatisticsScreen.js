@@ -147,10 +147,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     applyFilters,
     clearData,
     // Nuevas propiedades para colectores
-    availableListeros,
-    selectedListero,
     userRole,
-    filterByListero,
   } = useStatistics(); // Hook para listeros y colectores
 
   // Agregar logs cuando cambien los datos del hook
@@ -581,20 +578,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
     return (
       <View style={styles.filtersPanel}>
-        {/* Dropdown de listeros para colectores */}
-        {(userRole === 'colector' || userRole === 'collector') && availableListeros?.length > 0 && (
-          <View style={styles.filterSection}>
-            <Text style={styles.panelLabel}>Listero</Text>
-            <DropdownPicker
-              items={availableListeros.map(l => ({ label: l.username, value: l.id }))}
-              placeholder="Todos los listeros"
-              value={selectedListero}
-              onValueChange={(val) => filterByListero(val)}
-              style={styles.dropdown}
-            />
-          </View>
-        )}
-        
         {/* Selector de período (chips) */}
         <Text style={styles.panelLabel}>Período</Text>
         <View style={styles.chipsRow}>

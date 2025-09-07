@@ -83,9 +83,9 @@ const useStatistics = () => {
   const [selectedLottery, setSelectedLottery] = useState(null);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   
-  // Estados para agrupación por listero (colectores)
-  const [availableListeros, setAvailableListeros] = useState([]);
-  const [selectedListero, setSelectedListero] = useState(null);
+  // Estados para agrupación por listero (colectores) - removidos
+  // const [availableListeros, setAvailableListeros] = useState([]);
+  // const [selectedListero, setSelectedListero] = useState(null);
 
   // ===================================================
   // FUNCIONES DE DATOS MOCK (PARA DESARROLLO)
@@ -835,27 +835,6 @@ const useStatistics = () => {
         ...prev,
         plays: formattedPlays
       }));
-
-      // Para colectores: extraer listeros únicos para el desplegable
-      if (role === 'colector' || role === 'collector') {
-        // Crear un Map para eliminar duplicados por id_listero
-        const listerosMap = new Map();
-        
-        jugadas
-          .filter(j => j.listero_username && j.listero_username.trim() !== '' && j.id_listero)
-          .forEach(j => {
-            if (!listerosMap.has(j.id_listero)) {
-              listerosMap.set(j.id_listero, {
-                id: j.id_listero,
-                username: j.listero_username
-              });
-            }
-          });
-        
-        const listerosUnicos = Array.from(listerosMap.values());
-        setAvailableListeros(listerosUnicos);
-        console.log('👥 Listeros encontrados:', listerosUnicos);
-      }
       
       // Generar datos de tendencia para el período filtrado
       await loadTrendDataForPeriod(startDate, endDate);
@@ -953,7 +932,8 @@ const useStatistics = () => {
     loadAllStats();
   };
 
-  // Filtrar por listero seleccionado (solo para colectores)
+  // Filtrar por listero seleccionado - FUNCIÓN ELIMINADA
+  /*
   const filterByListero = (listeroId) => {
     setSelectedListero(listeroId);
     
@@ -987,6 +967,7 @@ const useStatistics = () => {
       plays: filteredPlays
     }));
   };
+  */
 
   // ===================================================
   // FUNCIONES DE EXPORTACIÓN
@@ -1316,8 +1297,8 @@ const useStatistics = () => {
     selectedSchedule,
     
     // ===== ESTADOS PARA COLECTORES =====
-    availableListeros,
-    selectedListero,
+    // availableListeros, // ELIMINADO
+    // selectedListero, // ELIMINADO
     userRole,
     
     // ===== FUNCIONES DE CARGA =====
@@ -1339,7 +1320,7 @@ const useStatistics = () => {
     // ===== FUNCIONES DE FILTROS =====
     applyFilters,
     resetFilters,
-    filterByListero,
+    // filterByListero, // ELIMINADO
     
     // ===== FUNCIONES DE EXPORTACIÓN =====
     exportToCSV,
@@ -1352,7 +1333,7 @@ const useStatistics = () => {
     setDateRange,
     setSelectedLottery,
     setSelectedSchedule,
-    setSelectedListero,
+    // setSelectedListero, // ELIMINADO
     
     // ===== INFORMACIÓN DEL SISTEMA =====
     isUsingMockData: USE_MOCK_DATA,
