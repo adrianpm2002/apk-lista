@@ -501,7 +501,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const contentRef = useRef(null);
   const renderHeader = () => (
     <View style={styles.header}>
-  {(userRole !== 'colector' && userRole !== 'collector') && <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />}
+      <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
       
       <View style={styles.headerControls}>
         <Text style={styles.headerTitle}>

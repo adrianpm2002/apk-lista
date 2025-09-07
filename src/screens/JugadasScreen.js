@@ -741,8 +741,8 @@ const styles = {
   recordHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 50,
-    paddingBottom: 16,
+    paddingTop: 20, // Reducido de 50 a 20
+    paddingBottom: 8, // Reducido de 16 a 8
     paddingHorizontal: 16,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
@@ -761,20 +761,20 @@ const styles = {
     fontWeight: '600',
   },
   recordTitle: {
-    fontSize: 18,
+    fontSize: 16, // Reducido de 18 a 16
     fontWeight: '600',
     color: '#2c3e50',
     flex: 1,
   },
   groupInfo: {
-    padding: 16,
+    padding: 12, // Reducido de 16 a 12
     backgroundColor: '#ecf0f1',
-    marginBottom: 8,
+    marginBottom: 4, // Reducido de 8 a 4
   },
   groupInfoText: {
-    fontSize: 14,
+    fontSize: 13, // Reducido de 14 a 13
     color: '#2c3e50',
-    marginBottom: 8,
+    marginBottom: 6, // Reducido de 8 a 6
   },
   resultAndTotalsContainer: {
     flexDirection: 'row',
@@ -782,7 +782,7 @@ const styles = {
     alignItems: 'flex-start',
   },
   resultText: {
-    fontSize: 14,
+    fontSize: 13, // Reducido de 14 a 13
     color: '#e74c3c',
     fontWeight: '600',
     flex: 1,
@@ -793,10 +793,10 @@ const styles = {
     alignItems: 'flex-end',
   },
   totalItem: {
-    fontSize: 12,
+    fontSize: 11, // Reducido de 12 a 11
     color: '#2c3e50',
     fontWeight: '600',
-    marginBottom: 2,
+    marginBottom: 1, // Reducido de 2 a 1
     textAlign: 'right',
   },
   playCard: {
