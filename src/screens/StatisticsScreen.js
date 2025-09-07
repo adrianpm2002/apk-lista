@@ -1309,7 +1309,45 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Nueva tabla expandible para collector (agrupa por listero)
   const renderCollectorExpandableTable = () => {
-    if (!groupedData || !Array.isArray(groupedData) || groupedData.length === 0) {
+    // Para colectores, usar directamente tableData.plays del hook
+    const allPlays = tableData?.plays || [];
+    
+    if (!allPlays || allPlays.length === 0) {
+      return (
+        <Text style={[styles.empty, { marginTop: 16 }]}>
+          Sin datos para mostrar en el período seleccionado
+        </Text>
+      );
+    }
+
+    // Agrupar las jugadas por listero_username
+    const playsByListero = allPlays.reduce((acc, play) => {
+      const listeroName = play.listero_username || 'Sin nombre';
+      if (!acc[listeroName]) {
+        acc[listeroName] = [];
+      }
+      acc[listeroName].push(play);
+      return acc;
+    }, {});
+
+    // Convertir a formato de groupedData
+    const groupedDataForTable = Object.entries(playsByListero).map(([listeroName, plays]) => {
+      const totalBruto = plays.reduce((sum, p) => sum + (Number(p.bruto) || 0), 0);
+      const totalPremios = plays.reduce((sum, p) => sum + (Number(p.premio) || 0), 0);
+      const totalComision = plays.reduce((sum, p) => sum + (Number(p.ganancia_colector) || 0), 0);
+      
+      return {
+        id: listeroName,
+        name: listeroName,
+        total_bruto: totalBruto,
+        total_premios: totalPremios,
+        total_comision: totalComision,
+        total_balance: plays.reduce((sum, p) => sum + (Number(p.balance_colector) || 0), 0),
+        plays: plays
+      };
+    });
+
+    if (groupedDataForTable.length === 0) {
       return (
         <Text style={[styles.empty, { marginTop: 16 }]}>
           Sin datos de listeros para mostrar
@@ -1349,8 +1387,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             </View>
             
             {/* Filas de listeros expandibles */}
-            {groupedData.map((listero, listeroIndex) => {
-              const listeroKey = `listero_${listero.id_listero}`;
+            {groupedDataForTable.map((listero, listeroIndex) => {
+              const listeroKey = `listero_${listero.id}`;
               const open = expanded.has(listeroKey);
               
               return (
@@ -1366,33 +1404,66 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       </Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 80 }]}>
-                      <Text style={styles.excelCell} numberOfLines={2}>{listero.listero_username}</Text>
+                      <Text style={styles.excelCell} numberOfLines={2}>{listero.name}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.bruto_total)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_bruto)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
-                      <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(listero.ganancia_colector_total)}</Text>
+                      <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(listero.total_comision)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.ganancia_listero_total)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(0)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.premios_total)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_premios)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
-                      <Text style={[styles.excelCell, listero.balance_colector_total >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
-                        {fmt(listero.balance_colector_total)}
+                      <Text style={[styles.excelCell, listero.total_balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                        {fmt(listero.total_balance)}
                       </Text>
                     </View>
                   </TouchableOpacity>
-                  
-                  {/* Contenido expandido - grupos de fecha/lotería/horario */}
-                  {open && (
-                    <View style={styles.expandedContent}>
-                      {renderGroupedPlaysTable(listero.plays || [])}
+
+                  {/* Detalles expandibles de las jugadas del listero */}
+                  {open && listero.plays.map((play, playIndex) => (
+                    <View 
+                      key={`${listeroKey}_play_${playIndex}`}
+                      style={[styles.excelDataRow, styles.nestedRow]}
+                    >
+                      <View style={[styles.excelCellContainer, { width: 30 }]}><Text style={styles.excelCell}></Text></View>
+                      <View style={[styles.excelCellContainer, { width: 80 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={2}>
+                          {play.fecha_jugada}
+                        </Text>
+                      </View>
+                      <View style={[styles.excelCellContainer, { width: 60 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={1}>
+                          {fmt(play.bruto)}
+                        </Text>
+                      </View>
+                      <View style={[styles.excelCellContainer, { width: 60 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText, styles.earningsCell]} numberOfLines={1}>
+                          {fmt(play.ganancia_colector)}
+                        </Text>
+                      </View>
+                      <View style={[styles.excelCellContainer, { width: 60 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={1}>
+                          {fmt(0)}
+                        </Text>
+                      </View>
+                      <View style={[styles.excelCellContainer, { width: 60 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={1}>
+                          {fmt(play.premios)}
+                        </Text>
+                      </View>
+                      <View style={[styles.excelCellContainer, { width: 60 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText, (play.balance_colector >= 0 ? styles.positiveBalance : styles.negativeBalance)]} numberOfLines={1}>
+                          {fmt(play.balance_colector)}
+                        </Text>
+                      </View>
                     </View>
-                  )}
+                  ))}
                 </View>
               );
             })}
