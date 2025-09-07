@@ -1425,45 +1425,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     </View>
                   </TouchableOpacity>
 
-                  {/* Detalles expandibles de las jugadas del listero */}
-                  {open && listero.plays.map((play, playIndex) => (
-                    <View 
-                      key={`${listeroKey}_play_${playIndex}`}
-                      style={[styles.excelDataRow, styles.nestedRow]}
-                    >
-                      <View style={[styles.excelCellContainer, { width: 30 }]}><Text style={styles.excelCell}></Text></View>
-                      <View style={[styles.excelCellContainer, { width: 80 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={2}>
-                          {play.fecha_jugada}
-                        </Text>
-                      </View>
-                      <View style={[styles.excelCellContainer, { width: 60 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={1}>
-                          {fmt(play.bruto)}
-                        </Text>
-                      </View>
-                      <View style={[styles.excelCellContainer, { width: 60 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText, styles.earningsCell]} numberOfLines={1}>
-                          {fmt(play.ganancia_colector)}
-                        </Text>
-                      </View>
-                      <View style={[styles.excelCellContainer, { width: 60 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={1}>
-                          {fmt(0)}
-                        </Text>
-                      </View>
-                      <View style={[styles.excelCellContainer, { width: 60 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={1}>
-                          {fmt(play.premios)}
-                        </Text>
-                      </View>
-                      <View style={[styles.excelCellContainer, { width: 60 }]}>
-                        <Text style={[styles.excelCell, styles.nestedText, (play.balance_colector >= 0 ? styles.positiveBalance : styles.negativeBalance)]} numberOfLines={1}>
-                          {fmt(play.balance_colector)}
-                        </Text>
-                      </View>
+                  {/* Detalles expandibles con estructura jerárquica (fecha/lotería/horario) */}
+                  {open && (
+                    <View style={styles.expandedContent}>
+                      {renderGroupedPlaysTable(listero.plays || [])}
                     </View>
-                  ))}
+                  )}
                 </View>
               );
             })}
@@ -1856,14 +1823,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               
               return (
                 <View key={g.key}>
-                  {/* Fila principal del grupo (clickeable para ir al registro) */}
+                  {/* Fila principal del grupo (clickeable para expandir) */}
                   <TouchableOpacity 
                     style={[styles.excelDataRow, groupIndex % 2 === 0 && styles.excelRowEven]}
-                    onPress={() => navigateToPlaysRecord(g)}
+                    onPress={() => toggle(g.key)}
                   >
                     <View style={[styles.excelCellContainer, { width: 30 }]}>
                       <Text style={[styles.excelCell, styles.chevronCell]}>
-                        👁️
+                        {open ? '▼' : '▶'}
                       </Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 70 }]}>
@@ -1897,6 +1864,58 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       </Text>
                     </View>
                   </TouchableOpacity>
+
+                  {/* Contenido expandido - jugadas individuales */}
+                  {open && g.plays.map((play, playIndex) => (
+                    <View 
+                      key={`${g.key}_play_${playIndex}`}
+                      style={[styles.excelDataRow, styles.nestedRow]}
+                    >
+                      <View style={[styles.excelCellContainer, { width: 30 }]}><Text style={styles.excelCell}></Text></View>
+                      <View style={[styles.excelCellContainer, { width: 70 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={2}>
+                          {play.time}
+                        </Text>
+                      </View>
+                      <View style={[styles.excelCellContainer, { width: 70 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={2}>
+                          {play.jugada}
+                        </Text>
+                      </View>
+                      <View style={[styles.excelCellContainer, { width: 70 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={2}>
+                          {play.numeros}
+                        </Text>
+                      </View>
+                      <View style={[styles.excelCellContainer, { width: 60 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={1}>
+                          -
+                        </Text>
+                      </View>
+                      <View style={[styles.excelCellContainer, { width: 60 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={1}>
+                          {fmt(play.bruto)}
+                        </Text>
+                      </View>
+                      {userRole === 'collector' && (
+                        <View style={[styles.excelCellContainer, { width: 60 }]}>
+                          <Text style={[styles.excelCell, styles.nestedText, styles.earningsCell]} numberOfLines={1}>
+                            {fmt(play.ganancia)}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={[styles.excelCellContainer, { width: 60 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText]} numberOfLines={1}>
+                          {fmt(play.pagado)}
+                        </Text>
+                      </View>
+                      <View style={[styles.excelCellContainer, { width: 60 }]}>
+                        <Text style={[styles.excelCell, styles.nestedText, (play.balance >= 0 ? styles.positiveBalance : styles.negativeBalance)]} numberOfLines={1}>
+                          {fmt(play.balance)}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
                 </View>
               );
             })}
