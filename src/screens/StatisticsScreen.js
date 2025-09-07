@@ -873,8 +873,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
     return (
       <ScrollView style={styles.tabContent}>
-        {/* KPIs principales del hook - ocultar para colectores */}
-        {kpiData && kpiData.length > 0 && userRole !== 'collector' && userRole !== 'colector' && (
+        {/* KPIs principales del hook - ocultar para colectores y admin */}
+        {kpiData && kpiData.length > 0 && userRole !== 'collector' && userRole !== 'colector' && userRole !== 'admin' && (
           <View style={styles.kpiGrid}>
             {kpiData.map((kpi, index) => (
               <View key={index} style={styles.kpiCard}>
@@ -926,7 +926,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               dayData.ganancia += Number(play.ganancia_colector || 0);
               dayData.balance += Number(play.balance_colector || 0); // Usar balance_colector real
             } else if (userRole === 'admin') {
-              dayData.balance += Number(play.balance_banco || 0); // Para admin, usar balance_banco directamente
+              dayData.ganancia += Number(play.ganancia_colector || 0); // Para admin, usar ganancia_colector
+              dayData.balance += Number(play.balance_colector || 0); // Para admin, usar balance_colector (que es el balance del banco)
             }
           });
           
@@ -1012,7 +1013,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                   // Para colectores: balance es la suma de todos los balance_colector de sus listeros
                   totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
                 } else if (userRole === 'admin') {
-                  totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_banco) || 0), 0);
+                  // Para admin: ganancia es la suma de todas las ganancia_colector (ganancia del banco)
+                  totalGanancia = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
+                  // Para admin: balance es la suma de todos los balance_colector (balance del banco)
+                  totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
                 }
                 
                 return (
@@ -1022,7 +1026,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatMoney(totalBruto)}</Text>
                     </View>
                     
-                    {(userRole === 'collector' || userRole === 'colector') && (
+                    {(userRole === 'collector' || userRole === 'colector' || userRole === 'admin') && (
                       <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                         <Text style={{ color: '#6c757d', fontSize: 12 }}>Ganancia</Text>
                         <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatMoney(totalGanancia)}</Text>
@@ -1509,7 +1513,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             ganancia_colector_total: 0,
             ganancia_listero_total: 0,
             premios_total: 0,
-            balance_banco_total: 0,
+            balance_colector_total: 0,
             plays: []
           };
         }
@@ -1518,7 +1522,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         groupedByListero[listeroKey].ganancia_colector_total += Number(play.ganancia_colector || 0);
         groupedByListero[listeroKey].ganancia_listero_total += Number(play.ganancia_listero || 0);
         groupedByListero[listeroKey].premios_total += Number(play.premio || 0);
-        groupedByListero[listeroKey].balance_banco_total += Number(play.balance_banco || 0);
+        groupedByListero[listeroKey].balance_colector_total += Number(play.balance_colector || 0);
         groupedByListero[listeroKey].plays.push(play);
       });
 
@@ -1626,8 +1630,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                                 <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.premios_total)}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 60 }]}>
-                                <Text style={[styles.excelCell, listero.balance_banco_total >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
-                                  {fmt(listero.balance_banco_total)}
+                                <Text style={[styles.excelCell, listero.balance_colector_total >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
+                                  {fmt(listero.balance_colector_total)}
                                 </Text>
                               </View>
                             </TouchableOpacity>
@@ -1776,7 +1780,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         group.totalBalanceListero += Number(r.balance_listero || 0);
         group.totalBalanceColector += Number(r.balance_colector || 0);
       } else if (userRole === 'admin') {
-        group.totalBalance += Number(r.balance_banco || 0);
+        // Para admin, usar los mismos campos que colector
+        group.totalGanancia += Number(r.ganancia_colector || 0);
+        group.totalGananciaListero += Number(r.ganancia_listero || 0);
+        group.totalGananciaColector += Number(r.ganancia_colector || 0);
+        group.totalBalance += Number(r.balance_colector || 0);
+        group.totalBalanceListero += Number(r.balance_listero || 0);
+        group.totalBalanceColector += Number(r.balance_colector || 0);
       } else {
         // Para listeros, usar balance_listero
         group.totalBalance += Number(r.balance_listero || 0);
@@ -1800,7 +1810,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         gananciaColector: Number(r.ganancia_colector || 0),
         pagado: Number(r.premio || 0),
         balance: userRole === 'collector' ? Number(r.balance_colector || 0) : 
-                userRole === 'admin' ? Number(r.balance_banco || 0) : 
+                userRole === 'admin' ? Number(r.balance_colector || 0) : 
                 Number(r.balance_listero || 0),
         balanceListero: Number(r.balance_listero || 0),
         balanceColector: Number(r.balance_colector || 0)
@@ -1831,7 +1841,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 70 }]}>Horario</Text>
               <Text style={[styles.excelHeaderCell, { width: 60 }]}>Resultado</Text>
               <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bruto</Text>
-              {userRole === 'collector' ? (
+              {(userRole === 'collector' || userRole === 'admin') ? (
                 <>
                   <Text style={[styles.excelHeaderCell, { width: 60 }]}>Gan. Listero</Text>
                   <Text style={[styles.excelHeaderCell, { width: 60 }]}>Gan. Colector</Text>
@@ -1840,7 +1850,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 <Text style={[styles.excelHeaderCell, { width: 60 }]}>Ganancia</Text>
               )}
               <Text style={[styles.excelHeaderCell, { width: 60 }]}>Pagado</Text>
-              {userRole === 'collector' ? (
+              {(userRole === 'collector' || userRole === 'admin') ? (
                 <>
                   <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bal. Listero</Text>
                   <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bal. Colector</Text>
