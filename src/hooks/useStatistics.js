@@ -657,6 +657,11 @@ const useStatistics = (bankId = null) => {
       if (filters.startDate) setDateRange(prev => ({ ...prev, startDate: filters.startDate }));
       if (filters.endDate) setDateRange(prev => ({ ...prev, endDate: filters.endDate }));
       
+      // ✅ Verificar que bankId esté disponible antes de cargar
+      if (!bankId) {
+        return; // Esperar hasta que bankId esté disponible
+      }
+      
       // Cargar datos con filtros de fecha aplicados
       await loadFilteredStats({
         startDate: filters.startDate,
@@ -735,7 +740,18 @@ const useStatistics = (bankId = null) => {
       
       // Actualizar datos de tabla con jugadas filtradas
       const formattedPlays = (jugadas || [])
-        .filter(j => j.fecha_jugada) // ✅ Filtrar registros sin fecha válida
+        .filter(j => {
+          // Filtro más estricto: verificar que fecha_jugada exista, no sea null, no sea undefined, y no sea string vacío
+          if (!j.fecha_jugada) return false;
+          if (j.fecha_jugada === null || j.fecha_jugada === undefined) return false;
+          if (typeof j.fecha_jugada === 'string' && j.fecha_jugada.trim() === '') return false;
+          
+          // Intentar crear una fecha para validar que sea válida
+          const testDate = new Date(j.fecha_jugada);
+          if (isNaN(testDate.getTime())) return false;
+          
+          return true;
+        })
         .map(j => ({
           id: j.id_listero + '_' + j.fecha_jugada, // Crear un ID único
           created_at: j.fecha_jugada, // Usar fecha_jugada como created_at

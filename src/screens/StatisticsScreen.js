@@ -449,7 +449,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     
     console.log('Procesando', tableData.length, 'registros...');
     
-    for(const r of tableData){
+    // Filtrar registros con fechas válidas antes de procesarlos
+    const validRecords = tableData.filter(r => r.created_at);
+    console.log('Registros con fecha válida:', validRecords.length);
+    
+    for(const r of validRecords){
       const dayKey = dayKeyOf(r.created_at);
       const dayLabel = dayLabelOf(r.created_at);
       const lot = r.lottery_name || 'Lotería';
@@ -758,10 +762,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         const dailyBalanceMap = new Map();
         
         tableData.plays.forEach(play => {
-          // Validar que created_at sea una fecha válida
+          // Validar que created_at exista y sea una fecha válida
+          if (!play.created_at) {
+            return; // Saltar esta jugada si no tiene fecha
+          }
+          
           const playDate = new Date(play.created_at);
           if (isNaN(playDate.getTime())) {
-            console.warn('Fecha inválida encontrada:', play.created_at);
             return; // Saltar esta jugada si la fecha es inválida
           }
           
@@ -901,7 +908,16 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           const dailyBalanceMap = new Map();
           
           allPlays.forEach(play => {
+            // Validar que created_at exista y sea una fecha válida
+            if (!play.created_at) {
+              return; // Saltar esta jugada si no tiene fecha
+            }
+            
             const playDate = new Date(play.created_at);
+            if (isNaN(playDate.getTime())) {
+              return; // Saltar esta jugada si la fecha es inválida
+            }
+            
             const dateKey = playDate.toISOString().split('T')[0]; // YYYY-MM-DD
             
             if (!dailyBalanceMap.has(dateKey)) {
@@ -1146,7 +1162,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         // Agrupar por fecha + lotería + horario + resultado
         const map = new Map();
         
-        for(const r of tableData.plays) {
+        // Filtrar registros con fechas válidas antes de procesarlos
+        const validPlays = tableData.plays.filter(r => r.created_at);
+        
+        for(const r of validPlays) {
           const dayKey = dayKeyOf(r.created_at);
           const dayLabel = dayLabelOf(r.created_at);
           const lottery = r.loteria_nombre || r.loteria || 'Lotería';
@@ -1697,7 +1716,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     // Agrupar por fecha + lotería + horario + resultado
     const map = new Map();
     
-    for(const r of plays) {
+    // Filtrar registros con fechas válidas antes de procesarlos
+    const validPlays = plays.filter(r => r.created_at);
+    
+    for(const r of validPlays) {
       const dayKey = dayKeyOf(r.created_at);
       const dayLabel = dayLabelOf(r.created_at);
       const lottery = r.loteria_nombre || 'Lotería';
