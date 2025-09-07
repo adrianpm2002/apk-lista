@@ -1341,7 +1341,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
     // Convertir a formato de groupedData
     const groupedDataForTable = Object.entries(playsByListero).map(([listeroName, plays]) => {
-      const totalBruto = plays.reduce((sum, p) => sum + (Number(p.bruto) || 0), 0);
+      const totalBruto = plays.reduce((sum, p) => sum + (Number(p.monto_total) || 0), 0);
       const totalPremios = plays.reduce((sum, p) => sum + (Number(p.premio) || 0), 0);
       const totalComisionColector = plays.reduce((sum, p) => sum + (Number(p.ganancia_colector) || 0), 0);
       const totalGananciaListero = plays.reduce((sum, p) => sum + (Number(p.ganancia_listero) || 0), 0);
@@ -1797,7 +1797,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         group.totalBalance += Number(r.balance_listero || 0);
       }
       
-      group.totalRecogido += Number(r.bruto || 0);
+      // Para colectores, usar monto_total; para otros roles, usar bruto
+      if (userRole === 'collector' || userRole === 'colector') {
+        group.totalRecogido += Number(r.monto_total || 0);
+      } else {
+        group.totalRecogido += Number(r.bruto || 0);
+      }
       group.totalPagado += Number(r.premio || 0);
       
       // Agregar jugada individual
@@ -1809,7 +1814,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         })(),
         jugada: r.play_type || '',
         numeros: r.numeros || '',
-        bruto: Number(r.bruto || 0),
+        bruto: userRole === 'collector' || userRole === 'colector' ? Number(r.monto_total || 0) : Number(r.bruto || 0),
         ganancia: userRole === 'collector' ? Number(r.ganancia_colector || 0) : 0,
         gananciaListero: Number(r.ganancia_listero || 0),
         gananciaColector: Number(r.ganancia_colector || 0),
@@ -1867,19 +1872,18 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             
             {/* Filas de grupos expandibles */}
             {groups.map((g, groupIndex) => {
-              const open = expanded.has(g.key);
               const balance = g.totalBalance; // Usar el balance correcto según el rol
               
               return (
                 <View key={g.key}>
-                  {/* Fila principal del grupo (clickeable para expandir/contraer) */}
+                  {/* Fila principal del grupo (clickeable para ir al registro) */}
                   <TouchableOpacity 
                     style={[styles.excelDataRow, groupIndex % 2 === 0 && styles.excelRowEven]}
-                    onPress={() => toggle(g.key)}
+                    onPress={() => navigateToPlaysRecord(g)}
                   >
                     <View style={[styles.excelCellContainer, { width: 30 }]}>
                       <Text style={[styles.excelCell, styles.chevronCell]}>
-                        {open ? '�' : '▶️'}
+                        👁️
                       </Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 70 }]}>
@@ -1937,74 +1941,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       </View>
                     )}
                   </TouchableOpacity>
-
-                  {/* Filas expandidas - jugadas individuales */}
-                  {open && (
-                    <View style={styles.expandedContent}>
-                      {g.plays.map((play, playIndex) => (
-                        <View 
-                          key={`${g.key}-${playIndex}`}
-                          style={[styles.excelDataRow, styles.expandedRow, playIndex % 2 === 0 && styles.excelRowEven]}
-                        >
-                          <View style={[styles.excelCellContainer, { width: 30 }]}>
-                            <Text style={styles.excelCell}>{play.time}</Text>
-                          </View>
-                          <View style={[styles.excelCellContainer, { width: 70 }]}>
-                            <Text style={styles.excelCell} numberOfLines={2}>{play.jugada}</Text>
-                          </View>
-                          <View style={[styles.excelCellContainer, { width: 70 }]}>
-                            <Text style={styles.excelCell} numberOfLines={2}>{play.numeros}</Text>
-                          </View>
-                          <View style={[styles.excelCellContainer, { width: 70 }]}>
-                            <Text style={styles.excelCell}></Text>
-                          </View>
-                          <View style={[styles.excelCellContainer, { width: 60 }]}>
-                            <Text style={styles.excelCell}></Text>
-                          </View>
-                          <View style={[styles.excelCellContainer, { width: 60 }]}>
-                            <Text style={styles.excelCell} numberOfLines={1}>{fmt(play.bruto)}</Text>
-                          </View>
-                          {userRole === 'collector' ? (
-                            <>
-                              <View style={[styles.excelCellContainer, { width: 60 }]}>
-                                <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(play.gananciaListero)}</Text>
-                              </View>
-                              <View style={[styles.excelCellContainer, { width: 60 }]}>
-                                <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(play.gananciaColector)}</Text>
-                              </View>
-                            </>
-                          ) : (
-                            <View style={[styles.excelCellContainer, { width: 60 }]}>
-                              <Text style={[styles.excelCell, styles.earningsCell]} numberOfLines={1}>{fmt(play.ganancia)}</Text>
-                            </View>
-                          )}
-                          <View style={[styles.excelCellContainer, { width: 60 }]}>
-                            <Text style={styles.excelCell} numberOfLines={1}>{fmt(play.pagado)}</Text>
-                          </View>
-                          {userRole === 'collector' ? (
-                            <>
-                              <View style={[styles.excelCellContainer, { width: 60 }]}>
-                                <Text style={[styles.excelCell, play.balanceListero >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
-                                  {fmt(play.balanceListero)}
-                                </Text>
-                              </View>
-                              <View style={[styles.excelCellContainer, { width: 60 }]}>
-                                <Text style={[styles.excelCell, play.balanceColector >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
-                                  {fmt(play.balanceColector)}
-                                </Text>
-                              </View>
-                            </>
-                          ) : (
-                            <View style={[styles.excelCellContainer, { width: 60 }]}>
-                              <Text style={[styles.excelCell, play.balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
-                                {fmt(play.balance)}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                      ))}
-                    </View>
-                  )}
                 </View>
               );
             })}
