@@ -988,15 +988,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 // Calcular totales del período desde allPlays (datos reales)
                 const playsInPeriod = allPlays || [];
                 
-                let totalBruto = 0;
+                const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.bruto) || 0), 0);
                 const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.premio) || 0), 0);
-                
-                // Para colectores, usar monto_total que es la suma de todos los brutos de los listeros
-                if (userRole === 'collector' || userRole === 'colector') {
-                  totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
-                } else {
-                  totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.bruto) || 0), 0);
-                }
                 
                 let totalGanancia = 0;
                 let totalBalance = 0;
@@ -1341,7 +1334,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
     // Convertir a formato de groupedData
     const groupedDataForTable = Object.entries(playsByListero).map(([listeroName, plays]) => {
-      const totalBruto = plays.reduce((sum, p) => sum + (Number(p.monto_total) || 0), 0);
+      const totalBruto = plays.reduce((sum, p) => sum + (Number(p.bruto) || 0), 0);
       const totalPremios = plays.reduce((sum, p) => sum + (Number(p.premio) || 0), 0);
       const totalComisionColector = plays.reduce((sum, p) => sum + (Number(p.ganancia_colector) || 0), 0);
       const totalGananciaListero = plays.reduce((sum, p) => sum + (Number(p.ganancia_listero) || 0), 0);
@@ -1797,12 +1790,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         group.totalBalance += Number(r.balance_listero || 0);
       }
       
-      // Para colectores, usar monto_total; para otros roles, usar bruto
-      if (userRole === 'collector' || userRole === 'colector') {
-        group.totalRecogido += Number(r.monto_total || 0);
-      } else {
-        group.totalRecogido += Number(r.bruto || 0);
-      }
+      group.totalRecogido += Number(r.bruto || 0);
       group.totalPagado += Number(r.premio || 0);
       
       // Agregar jugada individual
@@ -1814,7 +1802,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         })(),
         jugada: r.play_type || '',
         numeros: r.numeros || '',
-        bruto: userRole === 'collector' || userRole === 'colector' ? Number(r.monto_total || 0) : Number(r.bruto || 0),
+        bruto: Number(r.bruto || 0),
         ganancia: userRole === 'collector' ? Number(r.ganancia_colector || 0) : 0,
         gananciaListero: Number(r.ganancia_listero || 0),
         gananciaColector: Number(r.ganancia_colector || 0),
