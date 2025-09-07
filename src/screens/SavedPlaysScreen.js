@@ -477,17 +477,17 @@ const SavedPlaysScreen = ({ navigation, route }) => {
           <Text style={styles.panelLabel}>Loterías</Text>
           <View style={styles.chipsRow}>
             {renderFilterButton('all', selectedLotteryFilter, setSelectedLotteryFilter,'Todas')}
-            {lotteryOptions.map(l=> renderFilterButton(l.id, selectedLotteryFilter, setSelectedLotteryFilter, l.name))}
+            {lotteryOptions.map(l=> <View key={l.id}>{renderFilterButton(l.id, selectedLotteryFilter, setSelectedLotteryFilter, l.name)}</View>)}
           </View>
           <Text style={styles.panelLabel}>Horarios</Text>
           <View style={styles.chipsRow}>
             {renderFilterButton('all', selectedScheduleFilter, setSelectedScheduleFilter,'Todos')}
-            {scheduleOptions.map(h=> renderFilterButton(h.id, selectedScheduleFilter, setSelectedScheduleFilter, h.name))}
+            {scheduleOptions.map(h=> <View key={h.id}>{renderFilterButton(h.id, selectedScheduleFilter, setSelectedScheduleFilter, h.name)}</View>)}
           </View>
           <Text style={styles.panelLabel}>Tipo de Jugada</Text>
             <View style={styles.chipsRow}>
               {renderFilterButton('all', selectedPlayTypeFilter, setSelectedPlayTypeFilter,'Todas')}
-              {playTypeOptions.map(pt=> renderFilterButton(pt.value, selectedPlayTypeFilter, setSelectedPlayTypeFilter, pt.label))}
+              {playTypeOptions.map(pt=> <View key={pt.value}>{renderFilterButton(pt.value, selectedPlayTypeFilter, setSelectedPlayTypeFilter, pt.label)}</View>)}
             </View>
         </View>
       )}
