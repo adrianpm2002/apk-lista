@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { getListeroStatsFromView } from '../services/listeroStatsService';
+import { getListeroStatsFromView } from '../services/listeroStatsServiceClean';
 
 /**
  * HOOK LIMPIO PARA ESTADÍSTICAS
@@ -9,15 +9,34 @@ import { getListeroStatsFromView } from '../services/listeroStatsService';
  * - Manejo de errores robusto
  * - Fallback a datos de ejemplo
  * - Performance optimizado
+ * - Solo consulta v_estadisticas
  */
 const useStatisticsClean = (period = 'today') => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [data, setData] = useState({
     dailyStats: null,
     chartData: [],
     tableData: []
   });
+
+  // Obtener el usuario actual
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setCurrentUserId(user.id);
+          console.log('[useStatisticsClean] Usuario establecido:', user.id);
+        }
+      } catch (error) {
+        console.error('[useStatisticsClean] Error obteniendo usuario:', error);
+      }
+    };
+
+    getCurrentUser();
+  }, []);
 
   // Generar datos de ejemplo como fallback
   const generateExampleData = useCallback(() => {
@@ -81,23 +100,22 @@ const useStatisticsClean = (period = 'today') => {
   // Cargar datos reales desde v_estadisticas
   const loadRealData = useCallback(async () => {
     try {
-      // Obtener usuario actual
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData?.user || null;
-      if (!user) {
-        console.log('[useStatisticsClean] No user found');
+      if (!currentUserId) {
+        console.log('[useStatisticsClean] No hay currentUserId, esperando...');
         return null;
       }
 
+      console.log('[useStatisticsClean] Cargando datos reales para usuario:', currentUserId);
+
       // Obtener rango de fechas según el período
       const dateRange = getDateRange(period);
-      console.log('[useStatisticsClean] loadRealData - dateRange:', dateRange, 'user:', user.id);
+      console.log('[useStatisticsClean] loadRealData - dateRange:', dateRange, 'user:', currentUserId);
 
       const from = new Date(dateRange.start);
       const to = new Date(dateRange.end);
 
       // Llamar a la nueva función que usa v_estadisticas
-      const stats = await getListeroStatsFromView(user.id, { from, to });
+      const stats = await getListeroStatsFromView(currentUserId, { from, to });
       console.log('[useStatisticsClean] getListeroStatsFromView returned:', stats?.length || 0);
 
       if (!stats || stats.length === 0) {
@@ -153,7 +171,7 @@ const useStatisticsClean = (period = 'today') => {
       console.warn('[useStatisticsClean] Error cargando datos reales:', err?.message || err);
       return null;
     }
-  }, [period]);
+  }, [currentUserId, period]);
 
   // Obtener rango de fechas según el período
   const getDateRange = (period) => {
@@ -350,10 +368,12 @@ const useStatisticsClean = (period = 'today') => {
     }
   }, [loadRealData, generateExampleData]);
 
-  // Cargar datos cuando cambie el período
+  // Cargar datos cuando cambie el período o el usuario
   useEffect(() => {
-    loadData();
-  }, [period, loadData]);
+    if (currentUserId) {
+      loadData();
+    }
+  }, [period, currentUserId, loadData]);
 
   // Función de refresh
   const refresh = useCallback(() => {

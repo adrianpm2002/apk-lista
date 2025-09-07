@@ -188,10 +188,18 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Agregar logs cuando cambien los datos del hook
   useEffect(() => {
-  // ...
+    console.log('🔄 [StatisticsScreen] Hook data updated:', {
+      loading,
+      hasError: !!error,
+      hasKpiData: !!kpiData,
+      hasChartData: !!chartData,
+      hasTableData: !!tableData,
+      lotteriesCount: lotteries?.length || 0,
+      schedulesCount: schedules?.length || 0
+    });
     
     if (error) {
-  // ...
+      console.error('❌ [StatisticsScreen] Hook error:', error);
     }
   }, [kpiData, chartData, tableData, lotteries, schedules, loading, error]);
 
@@ -256,6 +264,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           setLotterySchedules([]);
           return;
         }
+        
+        // ❌ CONSULTA DESHABILITADA - Solo usar datos de v_estadisticas
+        console.log('⚠️ Consulta a horario deshabilitada - usando solo v_estadisticas');
+        setLotterySchedules([]);
+        return;
+        
+        /*
         const { supabase } = await import('../supabaseClient');
         const { data, error } = await supabase
           .from('horario')
@@ -263,6 +278,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           .eq('id_loteria', selectedLottery)
           .order('nombre', { ascending: true });
         if (error) throw error;
+        */
         
         if (!cancelled) {
           const mapped = (data || []).map(h => ({ id: String(h.id), name: h.nombre }));

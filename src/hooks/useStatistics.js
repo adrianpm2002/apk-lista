@@ -703,7 +703,8 @@ const useStatistics = (bankId = null) => {
           monto_a_pagar,
           ganancia_listero,
           balance_listero,
-          estado_horario
+          estado_horario,
+          resultado
         `)
         .eq('id_listero', bankId)
         .gte('fecha_jugada', startStr)
@@ -752,7 +753,7 @@ const useStatistics = (bankId = null) => {
         bruto: j.monto_total || 0,
         ganancia_listero: j.ganancia_listero || 0, // Valor real de la vista
         ganancia_colector: 0, // No disponible en esta vista simplificada
-        resultado: 'Pendiente', // TODO: agregar cuando esté disponible
+        resultado: j.resultado || 'Pendiente', // ✅ Usando valor real de la columna resultado
         premio: j.monto_a_pagar || 0, // Valor real de la vista
         balance_listero: j.balance_listero || 0, // Valor real de la vista
         balance_colector: 0, // No disponible en esta vista simplificada
@@ -1056,11 +1057,12 @@ const useStatistics = (bankId = null) => {
           query = query.eq('id_listero', userId);
           break;
         case 'collector':
-          query = query.eq('id_colector', userId);
+          // Para colectores, filtrar solo por id_listero (ya que no hay id_colector en v_estadisticas)
+          query = query.eq('id_listero', userId);
           break;
         case 'admin':
-          // Admin ve todo el banco (asumiendo que userId es el id_colector para admin)
-          query = query.eq('id_colector', userId);
+          // Admin ve todo el banco (filtrar por id_listero)
+          query = query.eq('id_listero', userId);
           break;
         default:
           query = query.eq('id_listero', userId);
@@ -1091,7 +1093,7 @@ const useStatistics = (bankId = null) => {
       const { data: playsData, error } = await supabase
         .from('v_estadisticas')
         .select('*')
-        .eq('id_colector', collectorId)
+        .eq('id_listero', collectorId) // ✅ Cambiado de id_colector a id_listero
         .eq('estado_horario', 'cerrada')
         .order('fecha_jugada', { ascending: false });
 
@@ -1141,7 +1143,7 @@ const useStatistics = (bankId = null) => {
       const { data: playsData, error } = await supabase
         .from('v_estadisticas')
         .select('*')
-        .eq('id_colector', bankId)
+        .eq('id_listero', bankId) // ✅ Cambiado de id_colector a id_listero
         .eq('estado_horario', 'cerrada')
         .order('fecha_jugada', { ascending: false });
 
