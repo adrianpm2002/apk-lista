@@ -674,7 +674,6 @@ const useStatistics = (bankId = null) => {
   // Función nueva para cargar estadísticas filtradas
   const loadFilteredStats = async (filters) => {
     try {
-      console.log('🔍 loadFilteredStats called with:', { filters, bankId });
       const { startDate, endDate } = filters;
       
       if (!bankId || !startDate || !endDate) {
@@ -685,8 +684,6 @@ const useStatistics = (bankId = null) => {
       // Formatear fechas para consulta con timestamp
       const startStr = startDate.toISOString().split('T')[0] + ' 00:00:00';
       const endStr = endDate.toISOString().split('T')[0] + ' 23:59:59';
-      
-      console.log('🕐 Query dates:', { startStr, endStr });
       
       // Consulta simple solo por fecha y banco para estadísticas
       const { data: jugadas, error } = await supabase
@@ -737,11 +734,13 @@ const useStatistics = (bankId = null) => {
       setDailyStats(filteredStats);
       
       // Actualizar datos de tabla con jugadas filtradas
-      const formattedPlays = (jugadas || []).map(j => ({
-        id: j.id_listero + '_' + j.fecha_jugada, // Crear un ID único
-        created_at: j.fecha_jugada, // Usar fecha_jugada como created_at
-        fecha: new Date(j.fecha_jugada).toLocaleDateString('es-ES'),
-        hora: new Date(j.fecha_jugada).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+      const formattedPlays = (jugadas || [])
+        .filter(j => j.fecha_jugada) // ✅ Filtrar registros sin fecha válida
+        .map(j => ({
+          id: j.id_listero + '_' + j.fecha_jugada, // Crear un ID único
+          created_at: j.fecha_jugada, // Usar fecha_jugada como created_at
+          fecha: new Date(j.fecha_jugada).toLocaleDateString('es-ES'),
+          hora: new Date(j.fecha_jugada).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
         loteria: j.nombre_loteria || 'N/A',
         horario: j.nombre_horario || 'N/A',
         jugada: j.tipo_jugada || 'N/A',

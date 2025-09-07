@@ -188,16 +188,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Agregar logs cuando cambien los datos del hook
   useEffect(() => {
-    console.log('🔄 [StatisticsScreen] Hook data updated:', {
-      loading,
-      hasError: !!error,
-      hasKpiData: !!kpiData,
-      hasChartData: !!chartData,
-      hasTableData: !!tableData,
-      lotteriesCount: lotteries?.length || 0,
-      schedulesCount: schedules?.length || 0
-    });
-    
     if (error) {
       console.error('❌ [StatisticsScreen] Hook error:', error);
     }
