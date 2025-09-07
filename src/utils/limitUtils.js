@@ -71,26 +71,17 @@ export const fetchLimitsContext = async (horarios, userId) => {
   console.log('🔍 [limitUtils] Horarios para consulta:', horarios);
   console.log('🔍 [limitUtils] Bank ID:', bankId);
   
-  // Filtrar jugadas del día solo del mismo banco - usando zona horaria local
+  // Filtrar jugadas del día solo del listero actual - usando zona horaria local
   let jugadasQuery = supabase.from('jugada')
     .select('id_horario,jugada,numeros,monto_unitario,created_at,id_listero')
     .gte('created_at', startStr)
     .lte('created_at', endStr)
     .in('id_horario', horarios);
   
-  if (bankId) {
-    // Obtener listeros del mismo banco
-    const { data: listeros, error: listerosError } = await supabase.from('profiles').select('id').eq('id_banco', bankId);
-    console.log('🔍 [limitUtils] Listeros del banco:', listeros, 'Error:', listerosError);
-    const listerosIds = (listeros||[]).map(l => l.id);
-    if (listerosIds.length > 0) {
-      jugadasQuery = jugadasQuery.in('id_listero', listerosIds);
-      console.log('🔍 [limitUtils] Filtrando por listeros:', listerosIds);
-    } else {
-      // Si no hay listeros del banco, no hay jugadas válidas
-      console.log('🔍 [limitUtils] No hay listeros en el banco, retornando usageMap vacío');
-      return { limitMap, specificLimits, lotteryLimits, horarioToLoteria, usageMap:new Map() };
-    }
+  if (userId) {
+    // Filtrar solo las jugadas del listero actual (capacidad individual)
+    jugadasQuery = jugadasQuery.eq('id_listero', userId);
+    console.log('🔍 [limitUtils] Filtrando por listero individual:', userId);
   }
   
   const { data: jugadasDia, error: jugadasError } = await jugadasQuery;

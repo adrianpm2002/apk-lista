@@ -67,6 +67,7 @@ export function useCapacityData(bankId, options = {}) {
       (limits||[]).forEach(r=>{ limitNumberMap.set(`${r.id_horario}|${r.jugada}|${r.numero}`, r.limite); });
 
       // 5. Jugadas del día (uso real) en tabla jugada - usar rango LOCAL del día para evitar desfases por UTC
+      // Filtrar solo por el listero actual para mostrar capacidad individual
       const nowLocal = new Date();
       const pad = (n) => String(n).padStart(2, '0');
       const y = nowLocal.getFullYear();
@@ -74,12 +75,20 @@ export function useCapacityData(bankId, options = {}) {
       const d = pad(nowLocal.getDate());
       const startStr = `${y}-${m}-${d} 00:00:00`;
       const endStr = `${y}-${m}-${d} 23:59:59.999`;
-      const { data: jugadas, error: jugErr } = await supabase
+      
+      let jugadasQuery = supabase
         .from('jugada')
         .select('id_horario,jugada,numeros,monto_unitario,created_at')
         .gte('created_at', startStr)
         .lte('created_at', endStr)
         .in('id_horario', (horariosRows||[]).map(h=>h.id));
+      
+      if (user) {
+        // Filtrar solo las jugadas del listero actual (capacidad individual)
+        jugadasQuery = jugadasQuery.eq('id_listero', user.id);
+      }
+      
+      const { data: jugadas, error: jugErr } = await jugadasQuery;
       if(jugErr) throw jugErr;
 
       // 6. Calcular horarios abiertos

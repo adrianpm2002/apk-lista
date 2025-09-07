@@ -358,7 +358,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         const d = pad(nowLocal.getDate());
         const startStr = `${y}-${m}-${d} 00:00:00`;
         const endStr = `${y}-${m}-${d} 23:59:59.999`;
-        const { data: jugadasDia } = await supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', startStr).lte('created_at', endStr).in('id_horario', horarios);
+        const { data: jugadasDia } = await supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', startStr).lte('created_at', endStr).in('id_horario', horarios).eq('id_listero', user.id);
         const usageMap=new Map();
         (jugadasDia||[]).forEach(j=>{
           (j.numeros||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(n=>{

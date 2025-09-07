@@ -304,7 +304,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             const { data: limitRows } = await supabase.from('limite_numero').select('numero,limite,jugada,id_horario').eq('id_horario', newHorario);
             const limitMap=new Map(); (limitRows||[]).forEach(r=> limitMap.set(`${r.id_horario}|${r.jugada}|${r.numero}`, r.limite));
             const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD en zona horaria local
-            const { data: usadas } = await supabase.from('jugada').select('id,id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', today).eq('id_horario', newHorario);
+            const { data: usadas } = await supabase.from('jugada').select('id,id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', today).eq('id_horario', newHorario).eq('id_listero', user.id);
             const usageMap=new Map();
             (usadas||[]).forEach(j=>{
               if(j.id===editingId) return; // excluir la jugada actual para recalcular con nuevos montos
