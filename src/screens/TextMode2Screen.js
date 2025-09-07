@@ -30,7 +30,7 @@ import { parseTextMode2 } from '../utils/textModeParser2';
 import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import FeedbackBanner from '../components/FeedbackBanner';
-import { generateTextModeCopyFromInstructions, generateTextModeCopyFromOriginalCommand } from '../utils/copyUtils';
+import { generateTextModeCopyFromInstructions, generateTextModeCopyFromOriginalCommand, generateTextModeCopyFromOriginalCommandMultiple } from '../utils/copyUtils';
 import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { supabase } from '../supabaseClient';
@@ -274,14 +274,10 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
       }
       
       // Para modo texto 2.0, copiamos el comando original del input
-      const selectedLottery = selectedLotteries[0];
-      const selectedSchedule = selectedSchedules[selectedLottery];
-      
-      // Generar texto para copiar usando el comando original
-      const copyText = await generateTextModeCopyFromOriginalCommand(
+      const copyText = await generateTextModeCopyFromOriginalCommandMultiple(
         plays.trim(), // Usar el texto original del input
-        selectedLottery,
-        selectedSchedule,
+        selectedLotteries,
+        selectedSchedules,
         userProfile,
         note,
         parsedInstructions // Pasar las instrucciones para calcular el total

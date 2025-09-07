@@ -30,7 +30,7 @@ import { playToTextCommand } from '../utils/playToTextCommand';
 import { parseTextMode } from '../utils/textModeParser';
 import ModeSelector from '../components/ModeSelector';
 import { SideBar, SideBarToggle } from '../components/SideBar';
-import { generateTextModeCopyFromInstructions, generateTextModeCopyFromOriginalCommand } from '../utils/copyUtils';
+import { generateTextModeCopyFromInstructions, generateTextModeCopyFromOriginalCommand, generateTextModeCopyFromOriginalCommandMultiple } from '../utils/copyUtils';
 import FeedbackBanner from '../components/FeedbackBanner';
 import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
@@ -276,14 +276,10 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
       }
       
       // Para modo texto, copiamos el comando original del input
-      const selectedLottery = selectedLotteries[0];
-      const selectedSchedule = selectedSchedules[selectedLottery];
-      
-      // Generar texto para copiar usando el comando original
-      const copyText = await generateTextModeCopyFromOriginalCommand(
+      const copyText = await generateTextModeCopyFromOriginalCommandMultiple(
         plays.trim(), // Usar el texto original del input
-        selectedLottery,
-        selectedSchedule,
+        selectedLotteries,
+        selectedSchedules,
         userProfile,
         note,
         parsedInstructions // Pasar las instrucciones para calcular el total

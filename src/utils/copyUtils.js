@@ -413,3 +413,90 @@ export const generateTextModeCopyFromOriginalCommand = async (
     return 'Error generando texto';
   }
 };
+
+// Función para modos de texto que maneja múltiples loterías
+export const generateTextModeCopyFromOriginalCommandMultiple = async (
+  originalCommand,
+  selectedLotteries,
+  selectedSchedules,
+  currentUserProfile = null,
+  noteName = null,
+  parsedInstructions = null
+) => {
+  try {
+    let copyText = '';
+    
+    // Usar el nombre de la nota si está disponible, sino "SIN NOMBRE"
+    let userName = noteName && noteName.trim() ? noteName.trim() : 'SIN NOMBRE';
+    copyText += userName + '\n';
+    
+    // Si hay múltiples loterías, agregar una línea en blanco después del nombre
+    if (selectedLotteries.length > 1) {
+      copyText += '\n';
+    }
+    
+    // Obtener información de loterías y horarios
+    const { supabase } = await import('../supabaseClient');
+    
+    // Agregar información de cada lotería
+    for (const lotteryId of selectedLotteries) {
+      // Obtener información de la lotería
+      const { data: lottery } = await supabase
+        .from('loteria')
+        .select('nombre')
+        .eq('id', lotteryId)
+        .single();
+      
+      if (!lottery) continue;
+      
+      // Obtener horario para esta lotería
+      const scheduleId = selectedSchedules[lotteryId];
+      let scheduleName = 'Sin horario';
+      
+      if (scheduleId) {
+        const { data: schedule } = await supabase
+          .from('horario')
+          .select('nombre')
+          .eq('id', scheduleId)
+          .single();
+        
+        if (schedule) {
+          scheduleName = schedule.nombre;
+        }
+      }
+      
+      // Agregar información de la lotería
+      copyText += `\nLotería: ${lottery.nombre} \n`;
+      copyText += `Horario: ${scheduleName}\n`;
+    }
+    
+    // Agregar línea en blanco antes del comando
+    copyText += '\n';
+    
+    // Agregar el comando original exactamente como está en el input
+    copyText += originalCommand + '\n\n';
+    
+    // Calcular el total usando las instrucciones parseadas si están disponibles
+    let totalAmount = 0;
+    if (parsedInstructions && parsedInstructions.length > 0) {
+      totalAmount = parsedInstructions.reduce((acc, instruction) => {
+        return acc + (instruction.totalPerLottery || 0);
+      }, 0);
+      copyText += `Total: ${totalAmount}`;
+    } else {
+      copyText += `Total: Ver total en la app`;
+    }
+    
+    // Si hay múltiples loterías, agregar Total General
+    if (selectedLotteries.length > 1) {
+      const totalGeneral = totalAmount * selectedLotteries.length;
+      copyText += `\n\nTotal General: ${totalGeneral}`;
+    }
+    
+    return copyText;
+    
+  } catch (error) {
+    console.error('Error generando texto para copiar:', error);
+    return 'Error generando texto';
+  }
+};
