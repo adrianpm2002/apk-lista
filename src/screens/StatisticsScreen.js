@@ -18,6 +18,7 @@ import { supabase } from '../supabaseClient';
 import StatisticsChart from '../components/StatisticsChart';
 import DataTable from '../components/DataTable';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
+import DropdownPicker from '../components/DropdownPicker';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
@@ -51,13 +52,10 @@ const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
-  // Estado local para bank ID y usuario
-  const [currentBankId, setCurrentBankId] = useState(null);
+  // Estado local para usuario (listeros y colectores)
   const [currentUserId, setCurrentUserId] = useState(null);
   
-  // TODO: Configurar qué información mostrar según el rol (colector vs listero/admin)
-  // Para colectores: mostrar solo sus propias jugadas y estadísticas
-  // Para listeros/admin: mostrar estadísticas completas del banco
+  // Para listeros y colectores - estadísticas simplificadas
   
   // Cargar bankId del usuario y perfil completo (consolidado)
   useEffect(() => {
@@ -72,7 +70,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         
         const { data: profile, error } = await supabase
           .from('profiles')
-          .select('role,id_banco,id_collector')
+          .select('role')
           .eq('id', user.id)
           .single();
           
@@ -81,45 +79,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           return;
         }
         
-        // Validar que el rol es válido
-        const validRoles = ['admin', 'collector', 'listero'];
-        if (!validRoles.includes(profile.role)) {
-          console.error('❌ [StatisticsScreen] Invalid role:', profile.role);
+        // Permitir acceso a listeros y colectores
+        if (profile.role !== 'listero' && profile.role !== 'colector' && profile.role !== 'collector') {
+          console.error('❌ [StatisticsScreen] Solo listeros y colectores pueden acceder a estadísticas');
+          console.log('🔍 [StatisticsScreen] Rol detectado:', profile.role);
           return;
         }
         
-        // console.log('✅ [StatisticsScreen] User profile loaded:', { 
-        //   userId: user.id, 
-        //   role: profile.role, 
-        //   id_banco: profile.id_banco,
-        //   id_collector: profile.id_collector 
-        // });
-        
-        // Configurar userRole para la interfaz (CRÍTICO para sidebar)
-        setUserRole(profile.role);
+        // Configurar userRole para la interfaz
         setCurrentUserId(user.id);
-        
-        // Determinar bankId según el rol
-        let bId;
-        if (profile.role === 'admin') {
-          // Para admin, usar su propio ID como banco ID
-          bId = user.id;
-        } else if (profile.role === 'collector') {
-          bId = profile.id_banco;
-        } else if (profile.role === 'listero') {
-          // Para listeros, usar su propio ID en lugar del id_banco
-          bId = user.id;
-        } else {
-          bId = profile.id_banco;
-        }
-        
-        // console.log('✅ [StatisticsScreen] Setting bankId:', bId, 'for role:', profile.role);
-        setCurrentBankId(bId);
-        
-        // Validar que tenemos los datos necesarios
-        if (!bId && profile.role !== 'admin') {
-          console.error('❌ [StatisticsScreen] Missing bankId for role:', profile.role);
-        }
         
       } catch (e) {
         console.error('❌ [StatisticsScreen] Error in loadUserProfile:', e);
@@ -154,7 +122,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Estados para sidebar
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [userRole, setUserRole] = useState(null);
 
   // Estados para datos agrupados (collector y admin)
   const [groupedData, setGroupedData] = useState([]);
@@ -179,12 +146,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     loading,
     error,
     loadAllStats,
-    loadCollectorData,
-    loadAdminData,
     loadPlaysData,
     applyFilters,
     clearData,
-  } = useStatistics(currentBankId); // ⭐ PASAR bankId al hook
+    // Nuevas propiedades para colectores
+    availableListeros,
+    selectedListero,
+    userRole,
+    filterByListero,
+  } = useStatistics(); // Hook para listeros y colectores
 
   // Agregar logs cuando cambien los datos del hook
   useEffect(() => {
@@ -213,21 +183,20 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     loadInitialData();
   }, []);
 
-  // Aplicar filtros iniciales cuando se cargue el bankId
+  // Aplicar filtros iniciales cuando se cargue el usuario
   useEffect(() => {
-    if (currentBankId) {
+    if (currentUserId) {
       applyPeriodFilter(selectedPeriod);
     }
-  }, [currentBankId]);
+  }, [currentUserId]);
 
-  // Recargar datos agrupados cuando cambie el rol o los IDs
+  // Cargar datos cuando el userRole esté disponible (para colectores)
   useEffect(() => {
-    if (userRole === 'collector' && currentUserId) {
-      loadGroupedDataForCollector();
-    } else if (userRole === 'admin' && currentBankId) {
-      loadGroupedDataForAdmin();
+    if (userRole && (userRole === 'collector' || userRole === 'colector')) {
+      console.log('🔄 [StatisticsScreen] UserRole detectado, cargando datos:', userRole);
+      loadAllStats();
     }
-  }, [userRole, currentUserId, currentBankId]);
+  }, [userRole]);
 
   // Monitor de cambios de userRole para detectar inconsistencias
   useEffect(() => {
@@ -286,35 +255,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const loadInitialData = async () => {
     try {
       await loadAllStats();
-      
-      // Cargar datos agrupados según el rol
-      if (userRole === 'collector' && currentUserId) {
-        await loadGroupedDataForCollector();
-      } else if (userRole === 'admin' && currentBankId) {
-        await loadGroupedDataForAdmin();
-      }
     } catch (error) {
       Alert.alert('Error', 'No se pudieron cargar las estadísticas iniciales');
-    }
-  };
-
-  // Cargar datos agrupados para collector
-  const loadGroupedDataForCollector = async () => {
-    try {
-      const data = await loadCollectorData(currentUserId);
-      setGroupedData(data);
-    } catch (error) {
-      // Error manejado en el hook
-    }
-  };
-
-  // Cargar datos agrupados para admin
-  const loadGroupedDataForAdmin = async () => {
-    try {
-      const data = await loadAdminData(currentBankId);
-      setGroupedData(data);
-    } catch (error) {
-      // Error manejado en el hook
     }
   };
 
@@ -559,11 +501,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const contentRef = useRef(null);
   const renderHeader = () => (
     <View style={styles.header}>
-  {userRole !== 'colector' && <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />}
+  {(userRole !== 'colector' && userRole !== 'collector') && <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />}
       
       <View style={styles.headerControls}>
         <Text style={styles.headerTitle}>
-          {userRole === 'colector' ? 'Estadísticas Colector' : 'Estadísticas'}
+          {(userRole === 'colector' || userRole === 'collector') ? 'Estadísticas Colector' : 'Estadísticas'}
         </Text>
         
         <TouchableOpacity
@@ -642,6 +584,20 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
     return (
       <View style={styles.filtersPanel}>
+        {/* Dropdown de listeros para colectores */}
+        {(userRole === 'colector' || userRole === 'collector') && availableListeros?.length > 0 && (
+          <View style={styles.filterSection}>
+            <Text style={styles.panelLabel}>Listero</Text>
+            <DropdownPicker
+              items={availableListeros.map(l => ({ label: l.username, value: l.id }))}
+              placeholder="Todos los listeros"
+              value={selectedListero}
+              onValueChange={(val) => filterByListero(val)}
+              style={styles.dropdown}
+            />
+          </View>
+        )}
+        
         {/* Selector de período (chips) */}
         <Text style={styles.panelLabel}>Período</Text>
         <View style={styles.chipsRow}>
@@ -888,18 +844,36 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Vista de gráficos para collector y admin (ahora usa balance diario como listero)
   const renderRoleBasedChartsTab = () => {
-    // Para collector y admin, obtener todas las jugadas desde groupedData
+    // Para collector, usar directamente tableData.plays del hook
     let allPlays = [];
-    if (groupedData && Array.isArray(groupedData)) {
-      groupedData.forEach(group => {
-        if (group.plays && Array.isArray(group.plays)) {
-          allPlays = allPlays.concat(group.plays);
-        }
-      });
+    if (userRole === 'collector' || userRole === 'colector') {
+      allPlays = tableData?.plays || [];
+    } else {
+      // Para admin, obtener todas las jugadas desde groupedData
+      if (groupedData && Array.isArray(groupedData)) {
+        groupedData.forEach(group => {
+          if (group.plays && Array.isArray(group.plays)) {
+            allPlays = allPlays.concat(group.plays);
+          }
+        });
+      }
     }
 
     return (
       <ScrollView style={styles.tabContent}>
+        {/* KPIs principales del hook */}
+        {kpiData && kpiData.length > 0 && (
+          <View style={styles.kpiGrid}>
+            {kpiData.map((kpi, index) => (
+              <View key={index} style={styles.kpiCard}>
+                <Text style={styles.kpiIcon}>{kpi.icon}</Text>
+                <Text style={styles.kpiTitle}>{kpi.title}</Text>
+                <Text style={styles.kpiValue}>{kpi.formattedValue}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+        
         {/* Gráfico de Balance basado en datos reales por día */}
         {allPlays && allPlays.length > 0 && (()=>{
           const fmtShort = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
@@ -2618,6 +2592,12 @@ const styles = StyleSheet.create({
   },
   dropdownLabelDark: {
     color: '#ecf0f1',
+  },
+  dropdown: {
+    marginVertical: 8,
+  },
+  filterSection: {
+    marginBottom: 16,
   },
 });
 

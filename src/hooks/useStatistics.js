@@ -18,13 +18,12 @@ import { Alert } from 'react-native';
 
 const USE_MOCK_DATA = false; // ✅ Usando datos reales desde v_estadisticas
 
-const useStatistics = (bankId = null) => {
-  // Hook inicializado - logs removidos para producción
-  // Estados principales
+const useStatistics = () => {
+  // Estados principales - para listeros y colectores
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [userRole, setUserRole] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
   
   // Estados de datos - Estructura estandarizada para datos reales usando v_estadisticas
@@ -83,6 +82,10 @@ const useStatistics = (bankId = null) => {
   });
   const [selectedLottery, setSelectedLottery] = useState(null);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
+  
+  // Estados para agrupación por listero (colectores)
+  const [availableListeros, setAvailableListeros] = useState([]);
+  const [selectedListero, setSelectedListero] = useState(null);
 
   // ===================================================
   // FUNCIONES DE DATOS MOCK (PARA DESARROLLO)
@@ -596,12 +599,12 @@ const useStatistics = (bankId = null) => {
       setIsLoading(true);
       setError(null);
       
-      await Promise.all([
-        loadDailyStats(),
-        loadTrendData(),
-        loadLotteryStats(),
-        loadScheduleStats()
-      ]);
+      // Cargar datos reales filtrados por usuario
+      const endDate = new Date();
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 30); // Últimos 30 días por defecto
+      
+      await loadFilteredStats(startDate, endDate);
       
     } catch (error) {
       console.error('❌ Error cargando todas las estadísticas:', error);
@@ -657,11 +660,6 @@ const useStatistics = (bankId = null) => {
       if (filters.startDate) setDateRange(prev => ({ ...prev, startDate: filters.startDate }));
       if (filters.endDate) setDateRange(prev => ({ ...prev, endDate: filters.endDate }));
       
-      // ✅ Verificar que bankId esté disponible antes de cargar
-      if (!bankId) {
-        return; // Esperar hasta que bankId esté disponible
-      }
-      
       // Cargar datos con filtros de fecha aplicados
       await loadFilteredStats({
         startDate: filters.startDate,
@@ -676,25 +674,51 @@ const useStatistics = (bankId = null) => {
     }
   };
 
-  // Función nueva para cargar estadísticas filtradas
+  // Función para cargar estadísticas del listero autenticado
   const loadFilteredStats = async (filters) => {
     try {
       const { startDate, endDate } = filters;
       
-      if (!bankId || !startDate || !endDate) {
-        console.log('❌ Missing requirements for filtering - bankId:', !!bankId, 'dates:', !!startDate, !!endDate);
+      // Obtener el usuario autenticado
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('❌ Usuario no autenticado');
         return;
       }
       
-      // Formatear fechas para consulta con timestamp
+      setUserId(user.id);
+      
+      // Detectar el rol del usuario
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      let role = 'listero'; // Por defecto
+      if (profileError) {
+        console.warn('⚠️ Error obteniendo profile, usando rol listero por defecto:', profileError);
+      } else {
+        role = profile.role || 'listero';
+        setUserRole(role);
+        console.log('✅ Rol detectado:', role);
+      }
+      
+      if (!startDate || !endDate) {
+        console.log('❌ Fechas requeridas para filtrar:', { startDate, endDate });
+        return;
+      }
+      
+      // Formatear fechas para consulta
       const startStr = startDate.toISOString().split('T')[0] + ' 00:00:00';
       const endStr = endDate.toISOString().split('T')[0] + ' 23:59:59';
       
-      // Consulta simple solo por fecha y banco para estadísticas
-      const { data: jugadas, error } = await supabase
+      // Crear consulta base
+      let query = supabase
         .from('v_estadisticas')
         .select(`
           id_listero,
+          id_colector,
           fecha_jugada,
           nombre_loteria,
           nombre_horario,
@@ -704,28 +728,51 @@ const useStatistics = (bankId = null) => {
           monto_total,
           monto_a_pagar,
           ganancia_listero,
+          ganancia_colector,
           balance_listero,
+          balance_colector,
           estado_horario,
-          resultado
+          resultado,
+          listero_username,
+          colector_username
         `)
-        .eq('id_listero', bankId)
         .gte('fecha_jugada', startStr)
         .lte('fecha_jugada', endStr)
-        .eq('estado_horario', 'cerrada')
-        .order('fecha_jugada', { ascending: false });
+        .eq('estado_horario', 'cerrada');
       
-      console.log('📊 Query result:', { count: jugadas?.length || 0, error });
+      // Aplicar filtro según el rol
+      if (role === 'collector') {
+        console.log('🔍 Filtrando como COLECTOR por id_colector:', user.id);
+        query = query.eq('id_colector', user.id);
+      } else {
+        console.log('🔍 Filtrando como LISTERO por id_listero:', user.id);
+        query = query.eq('id_listero', user.id);
+      }
+      
+      const { data: jugadas, error } = await query.order('fecha_jugada', { ascending: false });
+      
+      console.log('📊 Datos cargados:', { count: jugadas?.length || 0, userId: user.id, role });
       if (error) {
-        console.error('❌ Error cargando estadísticas filtradas:', error);
+        console.error('❌ Error cargando estadísticas:', error);
         throw error;
       }
       
-      // Calcular estadísticas reales filtradas
+      // Calcular estadísticas reales filtradas según el rol
       const totalBets = (jugadas || []).reduce((sum, j) => sum + (j.monto_total || 0), 0);
       const totalPrizes = (jugadas || []).reduce((sum, j) => sum + (j.monto_a_pagar || 0), 0);
-      const totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_listero || 0), 0);
+      
+      let totalCommissions, netProfit;
+      if (role === 'collector' || role === 'colector') {
+        // Para colectores: usar ganancia_colector y balance_colector
+        totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_colector || 0), 0);
+        netProfit = (jugadas || []).reduce((sum, j) => sum + (j.balance_colector || 0), 0);
+      } else {
+        // Para listeros: usar ganancia_listero y calcular balance
+        totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_listero || 0), 0);
+        netProfit = totalBets - totalPrizes - totalCommissions;
+      }
+      
       const playsCount = (jugadas || []).length;
-      const netProfit = totalBets - totalPrizes - totalCommissions;
       
       // Actualizar estadísticas con datos filtrados
       const filteredStats = {
@@ -737,6 +784,7 @@ const useStatistics = (bankId = null) => {
       };
       
       setDailyStats(filteredStats);
+      console.log('📈 [useStatistics] DailyStats actualizado:', filteredStats);
       
       // Actualizar datos de tabla con jugadas filtradas
       const formattedPlays = (jugadas || [])
@@ -753,7 +801,7 @@ const useStatistics = (bankId = null) => {
           return true;
         })
         .map(j => ({
-          id: j.id_listero + '_' + j.fecha_jugada, // Crear un ID único
+          id: (j.id_listero || j.id_colector) + '_' + j.fecha_jugada, // Crear un ID único
           created_at: j.fecha_jugada, // Usar fecha_jugada como created_at
           fecha: new Date(j.fecha_jugada).toLocaleDateString('es-ES'),
           hora: new Date(j.fecha_jugada).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
@@ -763,22 +811,55 @@ const useStatistics = (bankId = null) => {
         numeros: j.numeros_jugados || 'N/A',
         monto: j.monto_total || 0,
         nota: j.nota || '',
-        // Campos adicionales para la tabla (usando datos reales de la vista)
+        // Campos básicos
         play_type: j.tipo_jugada || 'N/A',
         bruto: j.monto_total || 0,
-        ganancia_listero: j.ganancia_listero || 0, // Valor real de la vista
-        ganancia_colector: 0, // No disponible en esta vista simplificada
-        resultado: j.resultado || 'Pendiente', // ✅ Usando valor real de la columna resultado
-        premio: j.monto_a_pagar || 0, // Valor real de la vista
-        balance_listero: j.balance_listero || 0, // Valor real de la vista
-        balance_colector: 0, // No disponible en esta vista simplificada
-        balance_banco: 0 // No disponible en esta vista simplificada
+        resultado: j.resultado || 'Pendiente',
+        premio: j.monto_a_pagar || 0,
+        // Campos específicos según el rol
+        ganancia_listero: j.ganancia_listero || 0,
+        ganancia_colector: j.ganancia_colector || 0,
+        balance_listero: j.balance_listero || 0,
+        balance_colector: j.balance_colector || 0,
+        // IDs para filtrado
+        id_listero: j.id_listero || null,
+        id_colector: j.id_colector || null,
+        // Información de usuarios (para colectores ver sus listeros)
+        listero_username: j.listero_username || '',
+        colector_username: j.colector_username || '',
+        // Para identificar el rol actual
+        userRole: role
       }));
       
       setTableData(prev => ({
         ...prev,
         plays: formattedPlays
       }));
+
+      // Para colectores: extraer listeros únicos para el desplegable
+      if (role === 'colector' || role === 'collector') {
+        const listerosUnicos = [...new Set(jugadas
+          .filter(j => j.listero_username && j.listero_username.trim() !== '')
+          .map(j => ({
+            id: j.id_listero,
+            username: j.listero_username
+          }))
+          .filter(l => l.id) // Asegurar que tenga id
+        )];
+        
+        // Eliminar duplicados por id
+        const listerosUnicosById = listerosUnicos.reduce((acc, current) => {
+          const x = acc.find(item => item.id === current.id);
+          if (!x) {
+            return acc.concat([current]);
+          } else {
+            return acc;
+          }
+        }, []);
+        
+        setAvailableListeros(listerosUnicosById);
+        console.log('👥 Listeros encontrados:', listerosUnicosById);
+      }
       
       // Generar datos de tendencia para el período filtrado
       await loadTrendDataForPeriod(startDate, endDate);
@@ -792,6 +873,24 @@ const useStatistics = (bankId = null) => {
   // Cargar datos de tendencia para período específico
   const loadTrendDataForPeriod = async (startDate, endDate) => {
     try {
+      // Obtener el usuario autenticado
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Obtener rol del usuario desde la tabla profiles
+      const { data: userData, error: userError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (userError) {
+        console.error('Error al obtener el rol del usuario:', userError);
+        return;
+      }
+
+      const role = userData?.role || 'listero';
+      
       const trendData = [];
       const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
       
@@ -800,22 +899,35 @@ const useStatistics = (bankId = null) => {
         currentDate.setDate(startDate.getDate() + i);
         const dateStr = currentDate.toISOString().split('T')[0];
         
-        // Consultar jugadas para este día específico
-        const { data: dayJugadas } = await supabase
+        // Consultar jugadas para este día específico según el rol
+        let query = supabase
           .from('v_estadisticas')
           .select(`
             monto_total,
             monto_a_pagar,
-            ganancia_listero
+            ganancia_listero,
+            ganancia_colector
           `)
-          .eq('id_listero', bankId)
           .gte('fecha_jugada', `${dateStr} 00:00:00`)
           .lte('fecha_jugada', `${dateStr} 23:59:59`)
           .eq('estado_horario', 'cerrada');
+
+        if (role === 'colector' || role === 'collector') {
+          query = query.eq('id_colector', user.id);
+        } else {
+          query = query.eq('id_listero', user.id);
+        }
+
+        const { data: dayJugadas } = await query;
         
         const dayTotalBets = (dayJugadas || []).reduce((sum, j) => sum + (j.monto_total || 0), 0);
         const dayTotalPrizes = (dayJugadas || []).reduce((sum, j) => sum + (j.monto_a_pagar || 0), 0);
-        const dayTotalCommissions = (dayJugadas || []).reduce((sum, j) => sum + (j.ganancia_listero || 0), 0);
+        
+        // Usar ganancia según el rol
+        const dayTotalCommissions = (dayJugadas || []).reduce((sum, j) => {
+          return sum + ((role === 'colector' || role === 'collector') ? (j.ganancia_colector || 0) : (j.ganancia_listero || 0));
+        }, 0);
+        
         const dayNetProfit = dayTotalBets - dayTotalPrizes - dayTotalCommissions;
         
         trendData.push({
@@ -829,7 +941,7 @@ const useStatistics = (bankId = null) => {
       setTrendData(trendData);
       
     } catch (error) {
-      console.error('❌ Error cargando tendencias filtradas:', error);
+      console.error('❌ Error cargando tendencias:', error);
     }
   };
 
@@ -837,11 +949,47 @@ const useStatistics = (bankId = null) => {
   const resetFilters = () => {
     setSelectedLottery(null);
     setSelectedSchedule(null);
+    setSelectedListero(null); // Resetear también el listero seleccionado
     setDateRange({
       startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
       endDate: new Date()
     });
     loadAllStats();
+  };
+
+  // Filtrar por listero seleccionado (solo para colectores)
+  const filterByListero = (listeroId) => {
+    setSelectedListero(listeroId);
+    
+    if (!listeroId) {
+      // Si no hay listero seleccionado, mostrar todos los datos
+      loadFilteredStats(dateRange.startDate, dateRange.endDate, selectedLottery, selectedSchedule);
+      return;
+    }
+
+    // Filtrar los datos actuales por el listero seleccionado
+    const filteredPlays = tableData.plays.filter(play => 
+      play.id_listero && play.id_listero === listeroId
+    );
+
+    // Recalcular estadísticas solo para este listero
+    const totalBets = filteredPlays.reduce((sum, p) => sum + (p.bruto || 0), 0);
+    const totalPrizes = filteredPlays.reduce((sum, p) => sum + (p.premio || 0), 0);
+    const totalCommissions = filteredPlays.reduce((sum, p) => sum + (p.ganancia_colector || 0), 0);
+    const netProfit = filteredPlays.reduce((sum, p) => sum + (p.balance_colector || 0), 0);
+
+    setDailyStats({
+      daily_total_bets: totalBets,
+      daily_total_prizes: totalPrizes,
+      daily_listero_commissions: totalCommissions,
+      daily_plays_count: filteredPlays.length,
+      daily_net_profit: netProfit
+    });
+
+    setTableData(prev => ({
+      ...prev,
+      plays: filteredPlays
+    }));
   };
 
   // ===================================================
@@ -971,6 +1119,8 @@ const useStatistics = (bankId = null) => {
     }
   ] : [];
 
+  console.log('📊 [useStatistics] KPI Data generado:', kpiData);
+
   // Datos de gráficos formateados
   const chartData = {
     trends: trendData || [],
@@ -988,8 +1138,8 @@ const useStatistics = (bankId = null) => {
     bySchedule: []
   });
 
-  // Función para cargar datos de jugadas
-  const loadPlaysData = async (userRole = 'listero') => {
+  // Función para cargar datos de jugadas del listero autenticado
+  const loadPlaysData = async () => {
     try {
       setIsLoading(true);
       
@@ -998,7 +1148,7 @@ const useStatistics = (bankId = null) => {
       if (USE_MOCK_DATA || !userId) {
         playsData = generateMockPlaysData();
       } else {
-        playsData = await loadRealPlaysData(userId, userRole);
+        playsData = await loadRealPlaysData(userId);
       }
       
       setTableData(prev => ({
@@ -1009,6 +1159,7 @@ const useStatistics = (bankId = null) => {
       return playsData;
       
     } catch (error) {
+      console.error('❌ Error cargando jugadas:', error);
       // Fallback a datos mock
       const mockData = generateMockPlaysData();
       setTableData(prev => ({
@@ -1021,180 +1172,31 @@ const useStatistics = (bankId = null) => {
     }
   };
 
-  // Función para cargar datos agrupados para collector
-  const loadCollectorData = async (collectorId) => {
-    try {
-      setIsLoading(true);
-      
-      if (USE_MOCK_DATA || !collectorId) {
-        return [];
-      }
-      
-      return await loadCollectorGroupedData(collectorId);
-      
-    } catch (error) {
-      return [];
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Función para cargar datos agrupados para admin
-  const loadAdminData = async (bankId) => {
-    try {
-      setIsLoading(true);
-      
-      if (USE_MOCK_DATA || !bankId) {
-        return [];
-      }
-      
-      return await loadAdminGroupedData(bankId);
-      
-    } catch (error) {
-      return [];
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Función para generar datos reales de jugadas desde v_estadisticas
-  async function loadRealPlaysData(userId, userRole = 'listero') {
+  async function loadRealPlaysData(userId) {
     try {
       if (!userId) {
         return generateMockPlaysData();
       }
 
-      let query = supabase.from('v_estadisticas').select('*');
-
-      // Filtrar según el rol del usuario
-      switch (userRole) {
-        case 'listero':
-          query = query.eq('id_listero', userId);
-          break;
-        case 'collector':
-          // Para colectores, filtrar solo por id_listero (ya que no hay id_colector en v_estadisticas)
-          query = query.eq('id_listero', userId);
-          break;
-        case 'admin':
-          // Admin ve todo el banco (filtrar por id_listero)
-          query = query.eq('id_listero', userId);
-          break;
-        default:
-          query = query.eq('id_listero', userId);
-      }
-
-      const { data: playsData, error } = await query
-        .eq('estado_horario', 'cerrada') // Solo horarios cerrados
+      // Consulta simple solo para listeros
+      const { data: playsData, error } = await supabase
+        .from('v_estadisticas')
+        .select('*')
+        .eq('id_listero', userId)
+        .eq('estado_horario', 'cerrada')
         .order('fecha_jugada', { ascending: false });
 
       if (error) {
+        console.error('❌ Error cargando jugadas reales:', error);
         return generateMockPlaysData();
       }
 
       return playsData || [];
       
     } catch (error) {
+      console.error('❌ Error en loadRealPlaysData:', error);
       return generateMockPlaysData();
-    }
-  }
-
-  // Función para cargar datos agrupados por listero (para collector)
-  async function loadCollectorGroupedData(collectorId) {
-    try {
-      if (!collectorId) {
-        return [];
-      }
-
-      const { data: playsData, error } = await supabase
-        .from('v_estadisticas')
-        .select('*')
-        .eq('id_listero', collectorId) // ✅ Cambiado de id_colector a id_listero
-        .eq('estado_horario', 'cerrada')
-        .order('fecha_jugada', { ascending: false });
-
-      if (error) {
-        return [];
-      }
-
-      // Agrupar por listero
-      const groupedByListero = {};
-      (playsData || []).forEach(play => {
-        const listeroKey = play.listero_username || `Listero ${play.id_listero}`;
-        if (!groupedByListero[listeroKey]) {
-          groupedByListero[listeroKey] = {
-            listero_username: listeroKey,
-            id_listero: play.id_listero,
-            bruto_total: 0,
-            ganancia_colector_total: 0,
-            ganancia_listero_total: 0,
-            premios_total: 0,
-            balance_colector_total: 0,
-            plays: []
-          };
-        }
-        
-        groupedByListero[listeroKey].bruto_total += Number(play.bruto || 0);
-        groupedByListero[listeroKey].ganancia_colector_total += Number(play.ganancia_colector || 0);
-        groupedByListero[listeroKey].ganancia_listero_total += Number(play.ganancia_listero || 0);
-        groupedByListero[listeroKey].premios_total += Number(play.premio || 0);
-        groupedByListero[listeroKey].balance_colector_total += Number(play.balance_colector || 0);
-        groupedByListero[listeroKey].plays.push(play);
-      });
-
-      return Object.values(groupedByListero);
-      
-    } catch (error) {
-      return [];
-    }
-  }
-
-  // Función para cargar datos agrupados por colector (para admin)
-  async function loadAdminGroupedData(bankId) {
-    try {
-      if (!bankId) {
-        return [];
-      }
-
-      const { data: playsData, error } = await supabase
-        .from('v_estadisticas')
-        .select('*')
-        .eq('id_listero', bankId) // ✅ Cambiado de id_colector a id_listero
-        .eq('estado_horario', 'cerrada')
-        .order('fecha_jugada', { ascending: false });
-
-      if (error) {
-        return [];
-      }
-
-      // Agrupar por colector
-      const groupedByColector = {};
-      (playsData || []).forEach(play => {
-        const colectorKey = play.colector_username || `Colector ${play.id_colector}`;
-        if (!groupedByColector[colectorKey]) {
-          groupedByColector[colectorKey] = {
-            colector_username: colectorKey,
-            id_colector: play.id_colector,
-            bruto_total: 0,
-            ganancia_colector_total: 0,
-            ganancia_listero_total: 0,
-            premios_total: 0,
-            balance_banco_total: 0,
-            plays: []
-          };
-        }
-        
-        groupedByColector[colectorKey].bruto_total += Number(play.bruto || 0);
-        groupedByColector[colectorKey].ganancia_colector_total += Number(play.ganancia_colector || 0);
-        groupedByColector[colectorKey].ganancia_listero_total += Number(play.ganancia_listero || 0);
-        groupedByColector[colectorKey].premios_total += Number(play.premio || 0);
-        groupedByColector[colectorKey].balance_banco_total += Number(play.balance_banco || 0);
-        groupedByColector[colectorKey].plays.push(play);
-      });
-
-      return Object.values(groupedByColector);
-      
-    } catch (error) {
-      return [];
     }
   }
 
@@ -1240,13 +1242,9 @@ const useStatistics = (bankId = null) => {
 
   const [schedules, setSchedules] = useState([]);
 
-  // Cargar listas reales cuando cambie el bankId
+  // Cargar listas de loterías y horarios al inicializar
   useEffect(() => {
     const loadFilterLists = async () => {
-      if (!bankId) {
-        return;
-      }
-
       const [realLotteries, realSchedules] = await Promise.all([
         getLotteryList(),
         getScheduleList()
@@ -1257,7 +1255,7 @@ const useStatistics = (bankId = null) => {
     };
 
     loadFilterLists();
-  }, [bankId]); // ⭐ DEPENDENCIA CAMBIADA A bankId
+  }, []); // Cargar una sola vez al inicializar
 
   // Auto-cargar datos mock al inicializar
   useEffect(() => {
@@ -1321,6 +1319,11 @@ const useStatistics = (bankId = null) => {
     selectedLottery,
     selectedSchedule,
     
+    // ===== ESTADOS PARA COLECTORES =====
+    availableListeros,
+    selectedListero,
+    userRole,
+    
     // ===== FUNCIONES DE CARGA =====
     loadAllStats,
     refreshAllStats,
@@ -1329,9 +1332,7 @@ const useStatistics = (bankId = null) => {
     loadTrendData,
     loadLotteryStats,
     loadScheduleStats,
-    loadPlaysData, // Nueva función para cargar jugadas
-    loadCollectorData, // Nueva función para collector
-    loadAdminData, // Nueva función para admin
+    loadPlaysData, // Función para cargar jugadas del listero
     
     // ===== FUNCIONES DE UTILIDAD =====
     comparePeriods,
@@ -1342,6 +1343,7 @@ const useStatistics = (bankId = null) => {
     // ===== FUNCIONES DE FILTROS =====
     applyFilters,
     resetFilters,
+    filterByListero,
     
     // ===== FUNCIONES DE EXPORTACIÓN =====
     exportToCSV,
@@ -1354,6 +1356,7 @@ const useStatistics = (bankId = null) => {
     setDateRange,
     setSelectedLottery,
     setSelectedSchedule,
+    setSelectedListero,
     
     // ===== INFORMACIÓN DEL SISTEMA =====
     isUsingMockData: USE_MOCK_DATA,
