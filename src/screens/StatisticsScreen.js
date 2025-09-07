@@ -1233,7 +1233,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                   <Text style={[styles.excelHeaderCell, { width: 60 }]}>Resultado</Text>
                   <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bruto</Text>
                   <Text style={[styles.excelHeaderCell, { width: 60 }]}>Ganancia</Text>
-                  <Text style={[styles.excelHeaderCell, { width: 60 }]}>Pagado</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 60 }]}>Premio</Text>
                   <Text style={[styles.excelHeaderCell, { width: 60 }]}>Balance</Text>
                 </View>
                 
@@ -1849,7 +1849,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               ) : (
                 <Text style={[styles.excelHeaderCell, { width: 60 }]}>Ganancia</Text>
               )}
-              <Text style={[styles.excelHeaderCell, { width: 60 }]}>{userRole === 'collector' ? 'Premio' : 'Pagado'}</Text>
+              <Text style={[styles.excelHeaderCell, { width: 60 }]}>{(userRole === 'collector' || userRole === 'admin') ? 'Premio' : 'Pagado'}</Text>
               {userRole === 'collector' ? (
                 <>
                   <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bal. Listero</Text>
