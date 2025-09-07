@@ -1896,7 +1896,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     <View style={[styles.excelCellContainer, { width: 60 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalRecogido)}</Text>
                     </View>
-                    {userRole === 'collector' ? (
+                    {(userRole === 'collector' || userRole === 'admin') ? (
                       <>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
                           <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalGananciaListero || 0)}</Text>
