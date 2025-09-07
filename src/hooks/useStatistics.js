@@ -838,27 +838,23 @@ const useStatistics = () => {
 
       // Para colectores: extraer listeros únicos para el desplegable
       if (role === 'colector' || role === 'collector') {
-        const listerosUnicos = [...new Set(jugadas
-          .filter(j => j.listero_username && j.listero_username.trim() !== '')
-          .map(j => ({
-            id: j.id_listero,
-            username: j.listero_username
-          }))
-          .filter(l => l.id) // Asegurar que tenga id
-        )];
+        // Crear un Map para eliminar duplicados por id_listero
+        const listerosMap = new Map();
         
-        // Eliminar duplicados por id
-        const listerosUnicosById = listerosUnicos.reduce((acc, current) => {
-          const x = acc.find(item => item.id === current.id);
-          if (!x) {
-            return acc.concat([current]);
-          } else {
-            return acc;
-          }
-        }, []);
+        jugadas
+          .filter(j => j.listero_username && j.listero_username.trim() !== '' && j.id_listero)
+          .forEach(j => {
+            if (!listerosMap.has(j.id_listero)) {
+              listerosMap.set(j.id_listero, {
+                id: j.id_listero,
+                username: j.listero_username
+              });
+            }
+          });
         
-        setAvailableListeros(listerosUnicosById);
-        console.log('👥 Listeros encontrados:', listerosUnicosById);
+        const listerosUnicos = Array.from(listerosMap.values());
+        setAvailableListeros(listerosUnicos);
+        console.log('👥 Listeros encontrados:', listerosUnicos);
       }
       
       // Generar datos de tendencia para el período filtrado
