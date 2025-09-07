@@ -1026,7 +1026,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatMoney(totalBruto)}</Text>
                     </View>
                     
-                    {(userRole === 'collector' || userRole === 'colector' || userRole === 'admin') && (
+                    {(userRole === 'collector' || userRole === 'colector') && (
                       <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                         <Text style={{ color: '#6c757d', fontSize: 12 }}>Ganancia</Text>
                         <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatMoney(totalGanancia)}</Text>
@@ -1850,11 +1850,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 <Text style={[styles.excelHeaderCell, { width: 60 }]}>Ganancia</Text>
               )}
               <Text style={[styles.excelHeaderCell, { width: 60 }]}>Pagado</Text>
-              {(userRole === 'collector' || userRole === 'admin') ? (
+              {userRole === 'collector' ? (
                 <>
                   <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bal. Listero</Text>
                   <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bal. Colector</Text>
                 </>
+              ) : userRole === 'admin' ? (
+                // Para admin, no mostrar columna de balance
+                <></>
               ) : (
                 <Text style={[styles.excelHeaderCell, { width: 60 }]}>Balance</Text>
               )}
@@ -1923,6 +1926,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                           </Text>
                         </View>
                       </>
+                    ) : userRole === 'admin' ? (
+                      // Para admin, no mostrar celda de balance
+                      <></>
                     ) : (
                       <View style={[styles.excelCellContainer, { width: 60 }]}>
                         <Text style={[styles.excelCell, balance >= 0 ? styles.positiveBalance : styles.negativeBalance]} numberOfLines={1}>
