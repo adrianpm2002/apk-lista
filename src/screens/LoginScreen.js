@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, Modal, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, Modal, ActivityIndicator, TouchableOpacity, Switch } from 'react-native';
 import { Formik } from 'formik';
 import { supabase } from '../supabaseClient';
 import Svg, { Path, G } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
+import { authService } from '../services/authService';
+import { secureStorage } from '../utils/storage';
 
 const LoginScreen = ({ navigation }) => {
   return (
@@ -18,6 +20,21 @@ const LoginScreen = ({ navigation }) => {
 const LoginContent = ({ navigation }) => {
   const [isPreloading, setIsPreloading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [keepSessionActive, setKeepSessionActive] = useState(false);
+  
+  // Cargar preferencia de sesión persistente al montar el componente
+  useEffect(() => {
+    const loadPersistentSessionPreference = async () => {
+      try {
+        const isPersistentEnabled = await secureStorage.isPersistentSessionEnabled();
+        setKeepSessionActive(isPersistentEnabled);
+      } catch (error) {
+        console.error('Error al cargar preferencia de sesión persistente:', error);
+      }
+    };
+
+    loadPersistentSessionPreference();
+  }, []);
   
   const validateForm = (values) => {
     const errors = {};
@@ -37,15 +54,12 @@ const LoginContent = ({ navigation }) => {
         return;
       }
 
-      const email = `${username.toLowerCase()}@example.com`;
+      // Usar el nuevo servicio de autenticación
+      const result = await authService.login(username, password, keepSessionActive);
 
-      const { data: authData, error: loginError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (loginError) {
-        // Verificar si el usuario existe
+      if (!result.success) {
+        // Verificar si el usuario existe para dar un mensaje más específico
+        const email = `${username.toLowerCase()}@example.com`;
         const { data: userExists } = await supabase
           .from('profiles')
           .select('id')
@@ -55,62 +69,14 @@ const LoginContent = ({ navigation }) => {
         if (!userExists) {
           setFieldError('general', 'El usuario no existe.');
         } else {
-          setFieldError('general', 'Credenciales incorrectas.');
+          setFieldError('general', result.error || 'Credenciales incorrectas.');
         }
         setSubmitting(false);
         return;
       }
 
-      const userId = authData.user?.id;
-
-      if (!userId) {
-        setFieldError('general', 'Error interno del sistema.');
-        setSubmitting(false);
-        return;
-      }
-
-      // Obtener rol, estado activo y banco_id del perfil
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, activo, id_banco')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (profileError || !profile) {
-        console.error('Profile error:', profileError);
-        console.log('Profile data:', profile);
-        setFieldError('general', `Error al obtener el perfil del usuario: ${profileError?.message || 'Datos no encontrados'}`);
-        setSubmitting(false);
-        return;
-      }
-
-      // Verificar si el usuario está activo
-      if (profile.activo === false) {
-        // Cerrar sesión inmediatamente si el usuario está inactivo
-        await supabase.auth.signOut();
-        setFieldError('general', 'Cuenta desactivada, contacte con su administrador.');
-        setSubmitting(false);
-        return;
-      }
-
+      const { profile } = result;
       const userRole = profile.role;
-      
-      // Determinar el banco_id correcto según el rol
-      let bankId;
-      if (userRole === 'admin') {
-        bankId = userId; // El admin ES el banco
-      } else if (userRole === 'collector' || userRole === 'listero') {
-        bankId = profile.id_banco;
-      }
-      
-      if (!bankId) {
-        setFieldError('general', 'No se pudo determinar el banco ID.');
-        setSubmitting(false);
-        return;
-      }
-
-      // Configurar información del usuario en el storage local si es necesario
-      // (Para este ejemplo, navegamos directamente sin precarga)
       
       // Si es admin o collector, navegar a Statistics
       if (userRole === 'admin' || userRole === 'collector') {
@@ -129,8 +95,6 @@ const LoginContent = ({ navigation }) => {
       setSubmitting(false);
     } catch (error) {
       console.error('Login error details:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
       setFieldError('general', `Error inesperado: ${error.message}`);
       setSubmitting(false);
     }
@@ -227,7 +191,17 @@ const LoginContent = ({ navigation }) => {
                 </View>
               )}
 
-              {/* Eliminado Recordarme y Olvidaste tu contraseña */}
+              {/* Mantener sesión iniciada */}
+              <View style={styles.rememberMeContainer}>
+                <Switch
+                  value={keepSessionActive}
+                  onValueChange={(value) => setKeepSessionActive(value)}
+                  trackColor={{ false: '#E0E0E0', true: '#27AE60' }}
+                  thumbColor={keepSessionActive ? '#fff' : '#fff'}
+                  style={styles.switch}
+                />
+                <Text style={styles.rememberMeText}>Mantener sesión iniciada</Text>
+              </View>
 
               <Pressable 
                 style={({ pressed }) => [
@@ -380,6 +354,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     textAlign: 'left',
+  },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  switch: {
+    marginRight: 12,
+    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
+  },
+  rememberMeText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
   },
   modalOverlay: {
     flex: 1,
