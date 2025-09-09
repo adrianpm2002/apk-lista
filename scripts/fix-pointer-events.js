@@ -92,7 +92,7 @@ files.forEach(file => {
 });
 
 console.log(`\n🎉 Conversión completada!`);
-console.log(`📊 Total de cambios: ${totalChanges}`);
+  // Total de cambios: ${totalChanges}
 console.log(`📁 Archivos procesados: ${files.length}`);
 
 if (totalChanges > 0) {

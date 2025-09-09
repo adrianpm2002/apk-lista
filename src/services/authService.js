@@ -151,7 +151,6 @@ class AuthService {
       // Si está habilitada la persistencia, guardar el refresh token
       if (keepSession && authData.session?.refresh_token) {
         await secureStorage.saveRefreshToken(authData.session.refresh_token);
-        console.log('Refresh token guardado para sesión persistente');
       }
 
       // Guardar datos de sesión
@@ -163,7 +162,7 @@ class AuthService {
         loginAt: new Date().toISOString()
       });
 
-      console.log(`Login exitoso para usuario ${username} (${userProfile.role})`);
+      
 
       return {
         success: true,

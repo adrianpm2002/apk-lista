@@ -681,10 +681,7 @@ const useStatistics = () => {
       
       // Obtener el usuario autenticado
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log('❌ Usuario no autenticado');
-        return;
-      }
+    if (!user) return;
       
       setUserId(user.id);
       
@@ -699,15 +696,11 @@ const useStatistics = () => {
       if (profileError) {
         console.warn('⚠️ Error obteniendo profile, usando rol listero por defecto:', profileError);
       } else {
-        role = profile.role || 'listero';
-        setUserRole(role);
-        console.log('✅ Rol detectado:', role);
+  role = profile.role || 'listero';
+  setUserRole(role);
       }
       
-      if (!startDate || !endDate) {
-        console.log('❌ Fechas requeridas para filtrar:', { startDate, endDate });
-        return;
-      }
+  if (!startDate || !endDate) return;
       
       // Formatear fechas para consulta
       const startStr = startDate.toISOString().split('T')[0] + ' 00:00:00';
@@ -743,23 +736,15 @@ const useStatistics = () => {
       
       // Aplicar filtro según el rol
       if (role === 'admin') {
-        console.log('🔍 Filtrando como ADMIN (banco) por id_banco:', user.id);
-        query = query.eq('id_banco', user.id);
-      } else if (role === 'collector') {
-        console.log('🔍 Filtrando como COLECTOR por id_colector:', user.id);
-        query = query.eq('id_colector', user.id);
-      } else {
-        console.log('🔍 Filtrando como LISTERO por id_listero:', user.id);
-        query = query.eq('id_listero', user.id);
+          query = query.eq('id_banco', user.id);
+        } else if (role === 'collector') {
+          query = query.eq('id_colector', user.id);
+        } else {
+          query = query.eq('id_listero', user.id);
       }
       
-      const { data: jugadas, error } = await query.order('fecha_jugada', { ascending: false });
-      
-      console.log('📊 Datos cargados:', { count: jugadas?.length || 0, userId: user.id, role });
-      if (error) {
-        console.error('❌ Error cargando estadísticas:', error);
-        throw error;
-      }
+  const { data: jugadas, error } = await query.order('fecha_jugada', { ascending: false });
+  if (error) throw error;
       
       // Calcular estadísticas reales filtradas según el rol
       const totalBets = (jugadas || []).reduce((sum, j) => sum + (j.monto_total || 0), 0);
@@ -791,8 +776,7 @@ const useStatistics = () => {
         daily_net_profit: netProfit
       };
       
-      setDailyStats(filteredStats);
-      console.log('📈 [useStatistics] DailyStats actualizado:', filteredStats);
+  setDailyStats(filteredStats);
       
       // Actualizar datos de tabla con jugadas filtradas
       const formattedPlays = (jugadas || [])
@@ -1105,7 +1089,7 @@ const useStatistics = () => {
     }
   ] : [];
 
-  console.log('📊 [useStatistics] KPI Data generado:', kpiData);
+  // KPI Data actualizado
 
   // Datos de gráficos formateados
   const chartData = {

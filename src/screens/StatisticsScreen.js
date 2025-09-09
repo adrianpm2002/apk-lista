@@ -81,7 +81,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         // Permitir acceso a listeros y colectores
         if (profile.role !== 'listero' && profile.role !== 'colector' && profile.role !== 'collector') {
           console.error('❌ [StatisticsScreen] Solo listeros y colectores pueden acceder a estadísticas');
-          console.log('🔍 [StatisticsScreen] Rol detectado:', profile.role);
           return;
         }
         
@@ -187,7 +186,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Cargar datos cuando el userRole esté disponible (para colectores)
   useEffect(() => {
     if (userRole && (userRole === 'collector' || userRole === 'colector')) {
-      console.log('🔄 [StatisticsScreen] UserRole detectado, cargando datos:', userRole);
+      
       loadAllStats();
     }
   }, [userRole]);
@@ -195,7 +194,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Cargar datos cuando el userRole esté disponible (para admin/banco)
   useEffect(() => {
     if (userRole && userRole === 'admin') {
-      console.log('🔄 [StatisticsScreen] UserRole admin detectado, cargando datos:', userRole);
+      
       loadAllStats();
     }
   }, [userRole]);
@@ -210,7 +209,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Procesar datos de tabla para crear groupedData para admin
   useEffect(() => {
     if (userRole === 'admin' && tableData && tableData.plays) {
-      console.log('🔄 [StatisticsScreen] Procesando datos agrupados para admin');
+      
       
       // Agrupar jugadas por colector
       const playsByColector = tableData.plays.reduce((acc, play) => {
@@ -243,7 +242,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       });
 
       setGroupedData(groupedDataForAdmin);
-      console.log('✅ [StatisticsScreen] Datos agrupados para admin:', groupedDataForAdmin.length, 'colectores');
+      
     }
   }, [userRole, tableData]);
 
