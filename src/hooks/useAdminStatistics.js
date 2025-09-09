@@ -157,7 +157,8 @@ export const useAdminStatistics = () => {
           total_premio: 0,
           total_ganancia_listero: 0,
           total_ganancia_colector: 0,
-          balance_listero: 0
+          balance_listero: 0,
+          balance_colector: 0
         };
       }
       
@@ -207,6 +208,7 @@ export const useAdminStatistics = () => {
         listero.total_ganancia_listero = listero.plays.reduce((sum, play) => sum + (play.ganancia_listero || 0), 0);
         listero.total_ganancia_colector = listero.plays.reduce((sum, play) => sum + (play.ganancia_colector || 0), 0);
         listero.balance_listero = listero.plays.reduce((sum, play) => sum + (play.balance_listero || 0), 0);
+        listero.balance_colector = listero.plays.reduce((sum, play) => sum + (play.balance_colector || 0), 0);
       });
       
       // Convertir object de listeros a array

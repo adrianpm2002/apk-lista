@@ -38,6 +38,13 @@ try {
 
 const { width: screenWidth } = Dimensions.get('window');
 
+// Helper function para color coding de balances
+const getBalanceTextStyle = (balance, baseStyle) => {
+  const balanceValue = Number(balance) || 0;
+  const color = balanceValue >= 0 ? '#2E7D32' : '#D32F2F'; // Verde para positivo, rojo para negativo
+  return [baseStyle, { color }];
+};
+
 const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
   
   return (
@@ -1380,7 +1387,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_premio)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 90 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>
+                      <Text style={getBalanceTextStyle(listero.balance_colector, styles.excelCell)} numberOfLines={1}>
                         {fmt(listero.balance_colector)}
                       </Text>
                     </View>
@@ -1500,7 +1507,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.total_premio)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 90 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>
+                      <Text style={getBalanceTextStyle(colector.balance_colector, styles.excelCell)} numberOfLines={1}>
                         {fmt(colector.balance_colector)}
                       </Text>
                     </View>
@@ -1550,7 +1557,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                                 <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_premio)}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 90 }]}>
-                                <Text style={styles.excelCell} numberOfLines={1}>
+                                <Text style={getBalanceTextStyle(listero.balance_listero, styles.excelCell)} numberOfLines={1}>
                                   {fmt(listero.balance_listero)}
                                 </Text>
                               </View>
@@ -1845,12 +1852,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     {userRole === 'collector' ? (
                       <>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
-                          <Text style={styles.excelCell} numberOfLines={1}>
+                          <Text style={getBalanceTextStyle(g.totalBalanceListero, styles.excelCell)} numberOfLines={1}>
                             {fmt(g.totalBalanceListero || 0)}
                           </Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
-                          <Text style={styles.excelCell} numberOfLines={1}>
+                          <Text style={getBalanceTextStyle(g.totalBalanceColector, styles.excelCell)} numberOfLines={1}>
                             {fmt(g.totalBalanceColector || 0)}
                           </Text>
                         </View>
@@ -1858,19 +1865,19 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     ) : userRole === 'admin' ? (
                       <>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
-                          <Text style={styles.excelCell} numberOfLines={1}>
+                          <Text style={getBalanceTextStyle(g.totalBalanceListero, styles.excelCell)} numberOfLines={1}>
                             {fmt(g.totalBalanceListero || 0)}
                           </Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 60 }]}>
-                          <Text style={styles.excelCell} numberOfLines={1}>
+                          <Text style={getBalanceTextStyle(g.totalBalanceColector, styles.excelCell)} numberOfLines={1}>
                             {fmt(g.totalBalanceColector || 0)}
                           </Text>
                         </View>
                       </>
                     ) : (
                       <View style={[styles.excelCellContainer, { width: 60 }]}>
-                        <Text style={styles.excelCell} numberOfLines={1}>
+                        <Text style={getBalanceTextStyle(balance, styles.excelCell)} numberOfLines={1}>
                           {fmt(balance)}
                         </Text>
                       </View>
