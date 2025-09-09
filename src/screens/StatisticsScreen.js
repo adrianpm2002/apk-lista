@@ -426,7 +426,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     const inferCollected = (row)=>{
       const mt = row.monto_total;
       if(mt!=null && mt!==undefined) return Number(mt)||0;
-      const count = String(row.numeros||'').split(',').map(s=>s.trim()).filter(Boolean).length;
+      const count = String(row.numeros || row.numeros_jugados || '').split(',').map(s=>s.trim()).filter(Boolean).length;
       return (Number(row.monto_unitario)||0)*count;
     };
     const map = new Map();
@@ -457,7 +457,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         time: timeStr(r.created_at),
         nota: r.nota,
         jugada: r.jugada,
-        numeros: r.numeros,
+        numeros: r.numeros || r.numeros_jugados,
         total: collected,
         pagado: Number(r.pago_calculado||0),
       });
@@ -493,7 +493,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             <td>${p.time}</td>
             <td>${(p.nota||'')}</td>
             <td>${(p.jugada||'')}</td>
-            <td>${(p.numeros||'').replace(/</g,'&lt;')}</td>
+            <td>${(p.numeros || p.numeros_jugados || '').replace(/</g,'&lt;')}</td>
             <td>${formatMoney(p.bruto)}</td>
             <td>${p.pagado>0? formatMoney(p.pagado) : 'Sin premio'}</td>
           </tr>`).join('');
@@ -1120,7 +1120,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             })(),
             nota: play.nota || '',
             jugada: play.jugada || play.play_type || '',
-            numeros: play.numeros || '',
+            numeros: play.numeros || play.numeros_jugados || '',
             bruto: Number(play.bruto || play.total || 0),
             ganancia: Number(play.ganancia || play.ganancia_listero || play.ganancia_colector || 0),
             pagado: Number(play.pagado || play.premio || 0),
@@ -1195,8 +1195,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         for(const r of validPlays) {
           const dayKey = dayKeyOf(r.created_at);
           const dayLabel = dayLabelOf(r.created_at);
-          const lottery = r.loteria || r.loteria_nombre || 'Lotería';
-          const schedule = r.horario || r.horario_nombre || 'Horario';
+          const lottery = r.loteria || r.nombre_loteria || 'Lotería';
+          const schedule = r.horario || r.nombre_horario || 'Horario';
           const resultado = r.resultado || null;
           
           const key = `${dayKey}|${lottery}|${schedule}|${resultado || 'sin_resultado'}`;
@@ -1234,7 +1234,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             })(),
             nota: r.nota || '',
             jugada: r.play_type || '',
-            numeros: r.numeros || '',
+            numeros: r.numeros || r.numeros_jugados || '',
             bruto: Number(r.bruto || 0),
             ganancia: Number(r.ganancia_listero || 0),
             pagado: Number(r.premio || 0),
@@ -1363,10 +1363,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       return acc;
     }, {});
 
-    // Convertir a formato de groupedData
+    // Convertir a formato de groupedData - CORREGIR CAMPOS
     const groupedDataForTable = Object.entries(playsByListero).map(([listeroName, plays]) => {
-      const totalBruto = plays.reduce((sum, p) => sum + (Number(p.bruto) || 0), 0);
-      const totalPremios = plays.reduce((sum, p) => sum + (Number(p.premio) || 0), 0);
+      const totalBruto = plays.reduce((sum, p) => sum + (Number(p.monto_total) || 0), 0); // CORREGIDO
+      const totalPremios = plays.reduce((sum, p) => sum + (Number(p.monto_a_pagar) || 0), 0); // CORREGIDO
       const totalComisionColector = plays.reduce((sum, p) => sum + (Number(p.ganancia_colector) || 0), 0);
       const totalGananciaListero = plays.reduce((sum, p) => sum + (Number(p.ganancia_listero) || 0), 0);
       const totalBalanceColector = plays.reduce((sum, p) => sum + (Number(p.balance_colector) || 0), 0);
@@ -1538,7 +1538,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     // Función auxiliar para agrupar jugadas de un colector por listero
     const groupPlaysByListero = (plays) => {
       const groupedByListero = {};
-      (plays || []).forEach(play => {
+      (plays || []).forEach((play, index) => {
         const listeroKey = play.listero_username || `Listero ${play.id_listero}`;
         if (!groupedByListero[listeroKey]) {
           groupedByListero[listeroKey] = {
@@ -1553,10 +1553,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           };
         }
         
-        groupedByListero[listeroKey].bruto_total += Number(play.bruto || 0);
+        // Usar los campos correctos de la vista v_estadisticas
+        groupedByListero[listeroKey].bruto_total += Number(play.monto_total || 0);
         groupedByListero[listeroKey].ganancia_colector_total += Number(play.ganancia_colector || 0);
         groupedByListero[listeroKey].ganancia_listero_total += Number(play.ganancia_listero || 0);
-        groupedByListero[listeroKey].premios_total += Number(play.premio || 0);
+        groupedByListero[listeroKey].premios_total += Number(play.monto_a_pagar || 0);
         groupedByListero[listeroKey].balance_colector_total += Number(play.balance_colector || 0);
         groupedByListero[listeroKey].plays.push(play);
       });
@@ -1778,8 +1779,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     for(const r of validPlays) {
       const dayKey = dayKeyOf(r.created_at);
       const dayLabel = dayLabelOf(r.created_at);
-      const lottery = r.loteria || r.loteria_nombre || 'Lotería';
-      const schedule = r.horario || r.horario_nombre || 'Horario';
+      const lottery = r.loteria || r.nombre_loteria || 'Lotería';
+      const schedule = r.horario || r.nombre_horario || 'Horario';
       const resultado = r.resultado || null;
       
       const key = `${dayKey}|${lottery}|${schedule}|${resultado || 'sin_resultado'}`;
@@ -1806,7 +1807,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       
       const group = map.get(key);
       
-      // Acumular totales según el rol
+      // Acumular totales según el rol - USAR CAMPOS CORRECTOS DE v_estadisticas
       if (userRole === 'collector') {
         group.totalGanancia += Number(r.ganancia_colector || 0);
         group.totalGananciaListero += Number(r.ganancia_listero || 0);
@@ -1827,23 +1828,23 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         group.totalBalance += Number(r.balance_listero || 0);
       }
       
-      group.totalRecogido += Number(r.bruto || 0);
-      group.totalPagado += Number(r.premio || 0);
+      group.totalRecogido += Number(r.monto_total || 0); // CORREGIDO: usar monto_total
+      group.totalPagado += Number(r.monto_a_pagar || 0); // CORREGIDO: usar monto_a_pagar
       
-      // Agregar jugada individual
+      // Agregar jugada individual - USAR CAMPOS CORRECTOS
       group.plays.push({
         time: timeStr(r.created_at),
         ts: (() => {
           const d = new Date(r.created_at);
           return isNaN(d.getTime()) ? 0 : d.getTime();
         })(),
-        jugada: r.play_type || '',
-        numeros: r.numeros || '',
-        bruto: Number(r.bruto || 0),
+        jugada: r.tipo_jugada || '', // CORREGIDO: usar tipo_jugada
+        numeros: r.numeros_jugados || '', // CORREGIDO: usar numeros_jugados
+        bruto: Number(r.monto_total || 0), // CORREGIDO: usar monto_total
         ganancia: userRole === 'collector' ? Number(r.ganancia_colector || 0) : 0,
         gananciaListero: Number(r.ganancia_listero || 0),
         gananciaColector: Number(r.ganancia_colector || 0),
-        pagado: Number(r.premio || 0),
+        pagado: Number(r.monto_a_pagar || 0), // CORREGIDO: usar monto_a_pagar
         balance: userRole === 'collector' ? Number(r.balance_colector || 0) : 
                 userRole === 'admin' ? Number(r.balance_colector || 0) : 
                 Number(r.balance_listero || 0),

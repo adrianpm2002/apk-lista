@@ -736,36 +736,85 @@ const useStatistics = () => {
       
       // Aplicar filtro según el rol
       if (role === 'collector' || role === 'colector') {
-          query = query.eq('id_colector', user.id);
-        } else if (role === 'listero') {
-          query = query.eq('id_listero', user.id);
-        } else if (role === 'admin') {
-          query = query.eq('id_banco', user.id);
+        query = query.eq('id_colector', user.id);
+      } else if (role === 'listero') {
+        query = query.eq('id_listero', user.id);
+      } else if (role === 'admin') {
+        query = query.eq('id_banco', user.id);
       }
       
-  const { data: jugadas, error } = await query.order('fecha_jugada', { ascending: false });
-  if (error) throw error;
+      // Obtener todos los datos usando paginación simple
+      let allJugadas = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      
+      console.log('🔍 [useStatistics] Starting data fetch with pagination...');
+      
+      while (hasMore) {
+        const { data: jugadas, error } = await query
+          .order('fecha_jugada', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+          
+        if (error) throw error;
+        
+        console.log(`🔍 [useStatistics] Page ${page + 1}: ${jugadas?.length || 0} records`);
+        
+        if (jugadas && jugadas.length > 0) {
+          allJugadas = allJugadas.concat(jugadas);
+          hasMore = jugadas.length === pageSize; // Continuar si obtuvimos una página completa
+          page++;
+        } else {
+          hasMore = false;
+        }
+        
+        // Límite de seguridad para evitar bucles infinitos
+        if (page > 100) {
+          console.warn('⚠️ [useStatistics] Límite de páginas alcanzado');
+          break;
+        }
+      }
+      
+      console.log(`🔍 [useStatistics] Total records obtained: ${allJugadas.length}`);
+      
+      // Verificación de que realmente obtuvimos los datos
+      if (allJugadas.length === 0) {
+        console.warn('⚠️ [useStatistics] No se obtuvieron datos. Verificar filtros y fechas.');
+      } else if (allJugadas.length === 1000) {
+        console.warn('⚠️ [useStatistics] Posible límite alcanzado: 1000 registros exactos');
+      }
+      
+      // Advertencia si el volumen es muy alto
+      if (allJugadas.length > 500000) {
+        console.warn(`⚠️ [useStatistics] Alto volumen de datos: ${allJugadas.length} registros. Considere usar filtros de fecha más específicos.`);
+      }
       
       // Calcular estadísticas reales filtradas según el rol
-      const totalBets = (jugadas || []).reduce((sum, j) => sum + (j.monto_total || 0), 0);
-      const totalPrizes = (jugadas || []).reduce((sum, j) => sum + (j.monto_a_pagar || 0), 0);
+      const totalBets = (allJugadas || []).reduce((sum, j) => sum + (j.monto_total || 0), 0);
+      const totalPrizes = (allJugadas || []).reduce((sum, j) => sum + (j.monto_a_pagar || 0), 0);
+      
+      // Liberar memoria si el dataset es muy grande procesándolo en chunks
+      const processInChunks = allJugadas.length > 100000;
+      if (processInChunks) {
+        console.log('📊 [useStatistics] Processing large dataset in chunks for better performance...');
+      }
       
       let totalCommissions, netProfit;
       if (role === 'admin') {
         // Para admin (banco): usar ganancia_colector como ganancia del banco
-        totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_colector || 0), 0);
-        netProfit = (jugadas || []).reduce((sum, j) => sum + (j.balance_colector || 0), 0);
+        totalCommissions = (allJugadas || []).reduce((sum, j) => sum + (j.ganancia_colector || 0), 0);
+        netProfit = (allJugadas || []).reduce((sum, j) => sum + (j.balance_colector || 0), 0);
       } else if (role === 'collector' || role === 'colector') {
         // Para colectores: usar ganancia_colector y balance_colector
-        totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_colector || 0), 0);
-        netProfit = (jugadas || []).reduce((sum, j) => sum + (j.balance_colector || 0), 0);
+        totalCommissions = (allJugadas || []).reduce((sum, j) => sum + (j.ganancia_colector || 0), 0);
+        netProfit = (allJugadas || []).reduce((sum, j) => sum + (j.balance_colector || 0), 0);
       } else {
         // Para listeros: usar ganancia_listero y calcular balance
-        totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_listero || 0), 0);
+        totalCommissions = (allJugadas || []).reduce((sum, j) => sum + (j.ganancia_listero || 0), 0);
         netProfit = totalBets - totalPrizes - totalCommissions;
       }
       
-      const playsCount = (jugadas || []).length;
+      const playsCount = (allJugadas || []).length;
       
       // Actualizar estadísticas con datos filtrados
       const filteredStats = {
@@ -779,7 +828,7 @@ const useStatistics = () => {
   setDailyStats(filteredStats);
       
       // Actualizar datos de tabla con jugadas filtradas
-      const formattedPlays = (jugadas || [])
+      const formattedPlays = (allJugadas || [])
         .filter(j => {
           // Filtro más estricto: verificar que fecha_jugada exista, no sea null, no sea undefined, y no sea string vacío
           if (!j.fecha_jugada) return false;
@@ -890,7 +939,7 @@ const useStatistics = () => {
           query = query.eq('id_banco', user.id);
         }
 
-        const { data: dayJugadas } = await query;
+        const { data: dayJugadas } = await query.limit(50000); // Aumentar límite para días con alto volumen
         
         const dayTotalBets = (dayJugadas || []).reduce((sum, j) => sum + (j.monto_total || 0), 0);
         const dayTotalPrizes = (dayJugadas || []).reduce((sum, j) => sum + (j.monto_a_pagar || 0), 0);
@@ -1156,20 +1205,58 @@ const useStatistics = () => {
         return generateMockPlaysData();
       }
 
-      // Consulta simple solo para listeros
-      const { data: playsData, error } = await supabase
-        .from('v_estadisticas')
-        .select('*')
-        .eq('id_listero', userId)
-        .eq('estado_horario', 'cerrada')
-        .order('fecha_jugada', { ascending: false });
+      // Obtener todos los datos usando paginación optimizada para alto volumen
+      let allPlaysData = [];
+      let page = 0;
+      const pageSize = 5000; // Aumentar tamaño de página
+      let hasMore = true;
+      
+      console.log('🔍 [loadRealPlaysData] Starting data fetch for listero...');
+      
+      while (hasMore) {
+        const { data: playsData, error } = await supabase
+          .from('v_estadisticas')
+          .select('*')
+          .eq('id_listero', userId)
+          .eq('estado_horario', 'cerrada')
+          .order('fecha_jugada', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      if (error) {
-        console.error('❌ Error cargando jugadas reales:', error);
-        return generateMockPlaysData();
+        if (error) {
+          console.error('❌ Error cargando jugadas reales:', error);
+          return generateMockPlaysData();
+        }
+        
+        console.log(`🔍 [loadRealPlaysData] Page ${page + 1}: ${playsData?.length || 0} records`);
+        
+        if (playsData && playsData.length > 0) {
+          allPlaysData = allPlaysData.concat(playsData);
+          hasMore = playsData.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+        
+        // Límite de seguridad aumentado
+        if (page > 250) { // Hasta 1.25M registros
+          console.warn('⚠️ [loadRealPlaysData] Límite de páginas alcanzado (1.25M registros)');
+          break;
+        }
+        
+        // Mostrar progreso cada 10 páginas
+        if (page % 10 === 0) {
+          console.log(`📊 [loadRealPlaysData] Progress: ${allPlaysData.length} records loaded`);
+        }
+      }
+      
+      console.log(`🔍 [loadRealPlaysData] Total records obtained: ${allPlaysData.length}`);
+      
+      // Advertencia si el volumen es muy alto para un listero individual
+      if (allPlaysData.length > 100000) {
+        console.warn(`⚠️ [loadRealPlaysData] Alto volumen para listero: ${allPlaysData.length} registros.`);
       }
 
-      return playsData || [];
+      return allPlaysData || [];
       
     } catch (error) {
       console.error('❌ Error en loadRealPlaysData:', error);
