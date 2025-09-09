@@ -1194,8 +1194,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         for(const r of validPlays) {
           const dayKey = dayKeyOf(r.created_at);
           const dayLabel = dayLabelOf(r.created_at);
-          const lottery = r.loteria_nombre || r.loteria || 'Lotería';
-          const schedule = r.horario_nombre || r.horario || 'Horario';
+          const lottery = r.loteria || r.loteria_nombre || 'Lotería';
+          const schedule = r.horario || r.horario_nombre || 'Horario';
           const resultado = r.resultado || null;
           
           const key = `${dayKey}|${lottery}|${schedule}|${resultado || 'sin_resultado'}`;
@@ -1777,8 +1777,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     for(const r of validPlays) {
       const dayKey = dayKeyOf(r.created_at);
       const dayLabel = dayLabelOf(r.created_at);
-      const lottery = r.loteria_nombre || 'Lotería';
-      const schedule = r.horario_nombre || 'Horario';
+      const lottery = r.loteria || r.loteria_nombre || 'Lotería';
+      const schedule = r.horario || r.horario_nombre || 'Horario';
       const resultado = r.resultado || null;
       
       const key = `${dayKey}|${lottery}|${schedule}|${resultado || 'sin_resultado'}`;
