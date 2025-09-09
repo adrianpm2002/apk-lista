@@ -740,7 +740,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             return; // Saltar esta jugada si la fecha es inválida
           }
           
-          const dateKey = playDate.toISOString().split('T')[0]; // YYYY-MM-DD
+          // Usar fecha local en lugar de UTC
+          const year = playDate.getFullYear();
+          const month = String(playDate.getMonth() + 1).padStart(2, '0');
+          const day = String(playDate.getDate()).padStart(2, '0');
+          const dateKey = `${year}-${month}-${day}`; // YYYY-MM-DD en fecha local
           
           if (!dailyBalanceMap.has(dateKey)) {
             dailyBalanceMap.set(dateKey, {
@@ -773,7 +777,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             const date = new Date(day.date);
             const weekStart = new Date(date);
             weekStart.setDate(date.getDate() - date.getDay()); // Inicio de semana (domingo)
-            const weekKey = weekStart.toISOString().split('T')[0];
+            // Usar fecha local en lugar de UTC
+            const year = weekStart.getFullYear();
+            const month = String(weekStart.getMonth() + 1).padStart(2, '0');
+            const dayStr = String(weekStart.getDate()).padStart(2, '0');
+            const weekKey = `${year}-${month}-${dayStr}`;
             
             if (!weeklyMap.has(weekKey)) {
               weeklyMap.set(weekKey, {
@@ -963,7 +971,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               const date = new Date(day.date);
               const weekStart = new Date(date);
               weekStart.setDate(date.getDate() - date.getDay()); // Inicio de semana (domingo)
-              const weekKey = weekStart.toISOString().split('T')[0];
+              // Usar fecha local en lugar de UTC
+              const year = weekStart.getFullYear();
+              const month = String(weekStart.getMonth() + 1).padStart(2, '0');
+              const dayStr = String(weekStart.getDate()).padStart(2, '0');
+              const weekKey = `${year}-${month}-${dayStr}`;
               
               if (!weeklyMap.has(weekKey)) {
                 weeklyMap.set(weekKey, {
