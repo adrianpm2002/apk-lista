@@ -236,6 +236,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           ganancia_colector_total: plays.reduce((sum, p) => sum + (Number(p.ganancia_colector) || 0), 0),
           ganancia_listero_total: plays.reduce((sum, p) => sum + (Number(p.ganancia_listero) || 0), 0),
           premios_total: plays.reduce((sum, p) => sum + (Number(p.premio) || 0), 0),
+          // Para el banco, usar balance_colector como balance del banco
           balance_banco_total: plays.reduce((sum, p) => sum + (Number(p.balance_colector) || 0), 0),
           plays: plays
         };

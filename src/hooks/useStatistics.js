@@ -739,8 +739,9 @@ const useStatistics = () => {
           query = query.eq('id_colector', user.id);
         } else if (role === 'listero') {
           query = query.eq('id_listero', user.id);
+        } else if (role === 'admin') {
+          query = query.eq('id_banco', user.id);
       }
-      // Si es admin, no filtrar por usuario específico (puede ver todo)
       
   const { data: jugadas, error } = await query.order('fecha_jugada', { ascending: false });
   if (error) throw error;
@@ -751,9 +752,9 @@ const useStatistics = () => {
       
       let totalCommissions, netProfit;
       if (role === 'admin') {
-        // Para admin (banco): usar ganancia_banco y balance_banco (si existen), sino calcular
-        totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_banco || j.ganancia_colector || 0), 0);
-        netProfit = (jugadas || []).reduce((sum, j) => sum + (j.balance_banco || j.balance_colector || 0), 0);
+        // Para admin (banco): usar ganancia_colector como ganancia del banco
+        totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_colector || 0), 0);
+        netProfit = (jugadas || []).reduce((sum, j) => sum + (j.balance_colector || 0), 0);
       } else if (role === 'collector' || role === 'colector') {
         // Para colectores: usar ganancia_colector y balance_colector
         totalCommissions = (jugadas || []).reduce((sum, j) => sum + (j.ganancia_colector || 0), 0);
@@ -810,8 +811,10 @@ const useStatistics = () => {
         // Campos específicos según el rol
         ganancia_listero: j.ganancia_listero || 0,
         ganancia_colector: j.ganancia_colector || 0,
+        ganancia_banco: j.ganancia_colector || 0, // Para el banco, usar ganancia_colector
         balance_listero: j.balance_listero || 0,
         balance_colector: j.balance_colector || 0,
+        balance_banco: j.balance_colector || 0,   // Para el banco, usar balance_colector
         // IDs para filtrado
         id_listero: j.id_listero || null,
         id_colector: j.id_colector || null,
@@ -883,8 +886,9 @@ const useStatistics = () => {
           query = query.eq('id_colector', user.id);
         } else if (role === 'listero') {
           query = query.eq('id_listero', user.id);
+        } else if (role === 'admin') {
+          query = query.eq('id_banco', user.id);
         }
-        // Si es admin, no filtrar por usuario específico (puede ver todo)
 
         const { data: dayJugadas } = await query;
         
@@ -894,7 +898,7 @@ const useStatistics = () => {
         // Usar ganancia según el rol
         const dayTotalCommissions = (dayJugadas || []).reduce((sum, j) => {
           if (role === 'admin') {
-            return sum + (j.ganancia_banco || j.ganancia_colector || 0);
+            return sum + (j.ganancia_colector || 0);
           }
           return sum + ((role === 'colector' || role === 'collector') ? (j.ganancia_colector || 0) : (j.ganancia_listero || 0));
         }, 0);
