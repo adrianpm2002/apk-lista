@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { playToTextCommand, playToText2Command } from '../utils/playToTextCommand';
-import { parseTextMode } from '../utils/textModeParser';
 import {
   View,
   Text,

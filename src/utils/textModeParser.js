@@ -21,6 +21,27 @@ export function parseTextMode(rawText, { isLocked = false } = {}) {
       return;
     }
 
+    // Validar consistencia de separadores antes del guion
+    const beforeDash = line.split('-')[0];
+    if (beforeDash) {
+      const hasSpaces = /\s/.test(beforeDash);
+      const hasCommas = /,/.test(beforeDash);
+      const hasAsterisks = /\*/.test(beforeDash);
+      
+      const separatorCount = [hasSpaces, hasCommas, hasAsterisks].filter(Boolean).length;
+      if (separatorCount > 1) {
+        const usedSeparators = [];
+        if (hasSpaces) usedSeparators.push('espacios');
+        if (hasCommas) usedSeparators.push('comas');
+        if (hasAsterisks) usedSeparators.push('asteriscos');
+        errors.push({ 
+          line: idx + 1, 
+          message: `Separadores mixtos detectados: ${usedSeparators.join(', ')}. Use solo un tipo de separador por línea (espacios, comas o asteriscos)` 
+        });
+        return;
+      }
+    }
+
     if (line.includes('*')) {
       const [numsPart, amountPartRaw] = line.split(/-/); // un solo monto esperado
       if (!amountPartRaw) { errors.push({ line: idx + 1, message: 'Falta monto parle' }); return; }
