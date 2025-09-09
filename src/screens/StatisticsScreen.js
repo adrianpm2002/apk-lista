@@ -890,12 +890,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           const dailyBalanceMap = new Map();
           
           allPlays.forEach(play => {
-            // Validar que created_at exista y sea una fecha válida
-            if (!play.created_at) {
+            // Validar que fecha_jugada exista y sea una fecha válida
+            if (!play.fecha_jugada) {
               return; // Saltar esta jugada si no tiene fecha
             }
             
-            const playDate = new Date(play.created_at);
+            const playDate = new Date(play.fecha_jugada);
             if (isNaN(playDate.getTime())) {
               return; // Saltar esta jugada si la fecha es inválida
             }
