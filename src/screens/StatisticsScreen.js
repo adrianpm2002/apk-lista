@@ -859,7 +859,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     // Para collector y admin, usar directamente tableData.plays del hook
     let allPlays = [];
     if (userRole === 'collector' || userRole === 'colector') {
-      allPlays = tableData?.plays || [];
+      // Para colector, los datos vienen agrupados por listero, necesitamos extraer las jugadas individuales
+      const collectorData = tableData?.plays || [];
+      collectorData.forEach(listero => {
+        if (listero.plays && Array.isArray(listero.plays)) {
+          allPlays = allPlays.concat(listero.plays);
+        }
+      });
     } else if (userRole === 'admin') {
       // Para admin, extraer todas las jugadas de la estructura jerárquica
       const adminData = tableData?.plays || [];
@@ -921,8 +927,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             }
             
             const dayData = dailyBalanceMap.get(dateKey);
-            dayData.bruto += Number(play.bruto || 0);
-            dayData.pagado += Number(play.premio || 0);
+            dayData.bruto += Number(play.monto_total || 0); // CORREGIDO: usar monto_total
+            dayData.pagado += Number(play.monto_a_pagar || 0); // CORREGIDO: usar monto_a_pagar
             
             // Agregar ganancia según el rol
             if (userRole === 'collector') {
@@ -1004,8 +1010,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 // Calcular totales del período desde allPlays (datos reales)
                 const playsInPeriod = allPlays || [];
                 
-                const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.bruto) || 0), 0);
-                const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.premio) || 0), 0);
+                const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0); // CORREGIDO: usar monto_total
+                const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0); // CORREGIDO: usar monto_a_pagar
                 
                 let totalGanancia = 0;
                 let totalBalance = 0;
