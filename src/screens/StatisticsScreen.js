@@ -196,7 +196,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Cargar datos cuando el userRole esté disponible (para admin/banco)
   useEffect(() => {
     if (userRole && userRole === 'admin') {
-      console.log('🔍 [StatisticsScreen] Admin useEffect triggered, loading stats...');
       loadAllStats();
     }
   }, [userRole]);
@@ -211,7 +210,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Procesar datos de tabla para crear groupedData para admin
   useEffect(() => {
     if (userRole === 'admin' && tableData && tableData.plays) {
-      console.log('🔍 [StatisticsScreen] Processing groupedData for admin, plays count:', tableData.plays?.length);
       
       // Agrupar jugadas por colector
       const playsByColector = tableData.plays.reduce((acc, play) => {
@@ -244,7 +242,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       });
 
       setGroupedData(groupedDataForAdmin);
-      console.log('🔍 [StatisticsScreen] GroupedData set for admin, groups count:', groupedDataForAdmin.length);
       
     }
   }, [userRole, tableData]);
@@ -252,7 +249,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Cargar datos cuando cambian los filtros
   useEffect(() => {
     if (selectedPeriod !== 'custom' && currentUserId) {
-      console.log('🔍 [StatisticsScreen] Filter change useEffect triggered, period:', selectedPeriod, 'userId:', currentUserId);
       applyPeriodFilter(selectedPeriod);
     }
   }, [selectedPeriod, selectedLottery, selectedSchedule]);
@@ -1333,23 +1329,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   );
 
   // Vista de detalles para collector y admin con desplegables
-  const renderRoleBasedDetailsTab = () => {
-    console.log('🔍 [StatisticsScreen] renderRoleBasedDetailsTab called:', {
-      userRole,
-      groupedDataLength: groupedData?.length,
-      tableDataPlaysLength: tableData?.plays?.length
-    });
-    
-    return (
-      <ScrollView style={styles.tabContent}>
-        {/* Desplegable principal según el rol */}
-        {userRole === 'collector' && renderCollectorExpandableTable()}
-        {userRole === 'admin' && renderAdminExpandableTable()}
-        
-        {/* Ya no se necesita renderGroupDetails porque cada rol maneja su propia vista */}
-      </ScrollView>
-    );
-  };
+  const renderRoleBasedDetailsTab = () => (
+    <ScrollView style={styles.tabContent}>
+      {/* Desplegable principal según el rol */}
+      {userRole === 'collector' && renderCollectorExpandableTable()}
+      {userRole === 'admin' && renderAdminExpandableTable()}
+      
+      {/* Ya no se necesita renderGroupDetails porque cada rol maneja su propia vista */}
+    </ScrollView>
+  );
 
   // Nueva tabla expandible para collector (agrupa por listero)
   const renderCollectorExpandableTable = () => {
@@ -1432,8 +1420,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 60 }]}>Gan. Colector</Text>
               <Text style={[styles.excelHeaderCell, { width: 60 }]}>Gan. Listero</Text>
               <Text style={[styles.excelHeaderCell, { width: 60 }]}>Premios</Text>
-              <Text style={[styles.excelHeaderCell, { width: 70 }]}>Bal. Colector</Text>
               <Text style={[styles.excelHeaderCell, { width: 70 }]}>Bal. Listero</Text>
+              <Text style={[styles.excelHeaderCell, { width: 70 }]}>Bal. Colector</Text>
             </View>
             
             {/* Filas de listeros expandibles */}
@@ -1470,12 +1458,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     </View>
                     <View style={[styles.excelCellContainer, { width: 70 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>
-                        {fmt(listero.total_balance_colector)}
+                        {fmt(listero.total_balance_listero)}
                       </Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 70 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>
-                        {fmt(listero.total_balance_listero)}
+                        {fmt(listero.total_balance_colector)}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1522,15 +1510,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Nueva tabla expandible para admin (agrupa por colector → listero)
   const renderAdminExpandableTable = () => {
-    console.log('🔍 [StatisticsScreen] renderAdminExpandableTable called:', {
-      groupedDataExists: !!groupedData,
-      isArray: Array.isArray(groupedData),
-      length: groupedData?.length,
-      userRole,
-      tableDataExists: !!tableData,
-      tableDataPlaysLength: tableData?.plays?.length
-    });
-    
     if (!groupedData || !Array.isArray(groupedData) || groupedData.length === 0) {
       return (
         <Text style={[styles.empty, { marginTop: 16 }]}>

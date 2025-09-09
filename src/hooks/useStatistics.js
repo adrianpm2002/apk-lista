@@ -828,13 +828,6 @@ const useStatistics = () => {
         plays: formattedPlays
       }));
       
-      console.log('🔍 [useStatistics] Datos establecidos para tableData:', {
-        role,
-        playsCount: formattedPlays.length,
-        userId: user.id,
-        jugadasOriginales: jugadas?.length
-      });
-      
       // Generar datos de tendencia para el período filtrado
       await loadTrendDataForPeriod(startDate, endDate);
       
