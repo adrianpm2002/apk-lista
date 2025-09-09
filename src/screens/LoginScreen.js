@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, Platform, Modal, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Formik } from 'formik';
-import { supabase } from '../supabaseClient';
 import Svg, { Path, G } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
+import { authService } from '../services/authService';
 
 const LoginScreen = ({ navigation }) => {
   return (
@@ -37,90 +37,35 @@ const LoginContent = ({ navigation }) => {
         return;
       }
 
-      const email = `${username.toLowerCase()}@example.com`;
+      // Usar el nuevo sistema de autenticación
+      const result = await authService.login(username, password, true); // Persistencia habilitada
 
-      const { data: authData, error: loginError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (loginError) {
-        // Verificar si el usuario existe
-        const { data: userExists } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', username)
-          .maybeSingle();
-
-        if (!userExists) {
-          setFieldError('general', 'El usuario no existe.');
-        } else {
+      if (!result.success) {
+        // Verificar si el usuario existe para dar un mensaje más específico
+        if (result.error.includes('Credenciales incorrectas')) {
+          // TODO: Implementar verificación de existencia de usuario si es necesario
           setFieldError('general', 'Credenciales incorrectas.');
+        } else {
+          setFieldError('general', result.error);
         }
         setSubmitting(false);
         return;
       }
 
-      const userId = authData.user?.id;
-
-      if (!userId) {
-        setFieldError('general', 'Error interno del sistema.');
-        setSubmitting(false);
-        return;
-      }
-
-      // Obtener rol, estado activo y banco_id del perfil
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, activo, id_banco')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (profileError || !profile) {
-        console.error('Profile error:', profileError);
-        console.log('Profile data:', profile);
-        setFieldError('general', `Error al obtener el perfil del usuario: ${profileError?.message || 'Datos no encontrados'}`);
-        setSubmitting(false);
-        return;
-      }
-
-      // Verificar si el usuario está activo
-      if (profile.activo === false) {
-        // Cerrar sesión inmediatamente si el usuario está inactivo
-        await supabase.auth.signOut();
-        setFieldError('general', 'Cuenta desactivada, contacte con su administrador.');
-        setSubmitting(false);
-        return;
-      }
-
-      const userRole = profile.role;
-      
-      // Determinar el banco_id correcto según el rol
-      let bankId;
-      if (userRole === 'admin') {
-        bankId = userId; // El admin ES el banco
-      } else if (userRole === 'collector' || userRole === 'listero') {
-        bankId = profile.id_banco;
-      }
-      
-      if (!bankId) {
-        setFieldError('general', 'No se pudo determinar el banco ID.');
-        setSubmitting(false);
-        return;
-      }
+      const { profile } = result;
 
       // Configurar información del usuario en el storage local si es necesario
       // (Para este ejemplo, navegamos directamente sin precarga)
       
       // Si es admin o collector, navegar a Statistics
-      if (userRole === 'admin' || userRole === 'collector') {
+      if (profile.role === 'admin' || profile.role === 'collector') {
         setIsPreloading(true);
         // Navegación inmediata para mejor UX
         setTimeout(() => {
           setIsPreloading(false);
           navigation.navigate('Statistics');
         }, 100); // Reducido a 100ms
-      } else if (userRole === 'listero') {
+      } else if (profile.role === 'listero') {
         navigation.navigate('MainApp');
       } else {
         setFieldError('general', 'Rol de usuario no reconocido.');

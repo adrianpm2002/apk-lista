@@ -5,6 +5,7 @@ import React, { useEffect } from 'react';
 import { Platform, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
+import { AuthProvider } from './src/contexts/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
 
 export default function App() {
@@ -16,17 +17,19 @@ export default function App() {
   }, []);
 
   return (
-    <View style={styles.container}>
-      <StatusBar 
-        style="dark"
-        backgroundColor="transparent"
-        translucent={true}
-        hidden={false}
-      />
-      <NavigationContainer>
-        <AppNavigator />
-      </NavigationContainer>
-    </View>
+    <AuthProvider>
+      <View style={styles.container}>
+        <StatusBar 
+          style="dark"
+          backgroundColor="transparent"
+          translucent={true}
+          hidden={false}
+        />
+        <NavigationContainer>
+          <AppNavigator />
+        </NavigationContainer>
+      </View>
+    </AuthProvider>
   );
 }
 
