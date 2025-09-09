@@ -594,11 +594,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
     return (
       <View style={styles.inlineFiltersWrapper}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.inlineFiltersContent}
-        >
+        <View style={styles.inlineFiltersContent}>
         {compactOptions.map(opt => (
           <TouchableOpacity
             key={opt.value}
@@ -619,7 +615,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             </Text>
           </TouchableOpacity>
         ))}
-        </ScrollView>
+        </View>
       </View>
     );
   };
@@ -657,9 +653,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
     return (
       <View style={styles.compactFiltersPanel}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScrollView}>
+        <View style={styles.filtersContainer}>
           {compactPeriodOptions.map(opt => renderChip(opt.value, selectedPeriod, setSelectedPeriod, opt.label))}
-        </ScrollView>
+        </View>
 
         {/* Rango personalizado */}
         {selectedPeriod === 'custom' && (
@@ -860,19 +856,22 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Vista de gráficos para collector y admin (ahora usa balance diario como listero)
   const renderRoleBasedChartsTab = () => {
-    // Para collector, usar directamente tableData.plays del hook
+    // Para collector y admin, usar directamente tableData.plays del hook
     let allPlays = [];
     if (userRole === 'collector' || userRole === 'colector') {
       allPlays = tableData?.plays || [];
-    } else {
-      // Para admin, obtener todas las jugadas desde groupedData
-      if (groupedData && Array.isArray(groupedData)) {
-        groupedData.forEach(group => {
-          if (group.plays && Array.isArray(group.plays)) {
-            allPlays = allPlays.concat(group.plays);
-          }
-        });
-      }
+    } else if (userRole === 'admin') {
+      // Para admin, extraer todas las jugadas de la estructura jerárquica
+      const adminData = tableData?.plays || [];
+      adminData.forEach(colector => {
+        if (colector.listeros && Array.isArray(colector.listeros)) {
+          colector.listeros.forEach(listero => {
+            if (listero.plays && Array.isArray(listero.plays)) {
+              allPlays = allPlays.concat(listero.plays);
+            }
+          });
+        }
+      });
     }
 
     return (
@@ -1998,6 +1997,11 @@ const styles = StyleSheet.create({
   filtersScrollView: {
     flexGrow: 0,
   },
+  filtersContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
   filterChipCompact: {
     backgroundColor: '#f8f9fa',
     borderWidth: 1,
@@ -2006,6 +2010,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginRight: 8,
+    marginBottom: 4, // Agregar margen inferior para cuando se envuelvan
   },
   filterChipCompactActive: {
     backgroundColor: '#27AE60',
@@ -2170,11 +2175,12 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   inlineFiltersWrapper: {
-    maxWidth: 200, // Limitar ancho para que no compita con las pestañas
+    flexGrow: 1, // Permitir que crezca para usar más espacio
   },
   inlineFiltersContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap', // Permitir que se envuelvan a la siguiente línea
   },
   inlineFilterChip: {
     backgroundColor: '#f8f9fa',
@@ -2183,7 +2189,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    marginLeft: 6,
+    marginRight: 6,
+    marginBottom: 4, // Agregar margen inferior para cuando se envuelvan
   },
   inlineFilterChipActive: {
     backgroundColor: '#27AE60',
