@@ -59,7 +59,7 @@ const PlaysRecordView = ({ navigation, groupData, title, sidebarVisible, setSide
   const calcularTotales = () => {
     const jugadas = groupData.jugadas || [];
     
-    const totalBruto = jugadas.reduce((sum, jugada) => sum + (Number(jugada.bruto) || Number(jugada.total) || 0), 0);
+    const totalBruto = jugadas.reduce((sum, jugada) => sum + (Number(jugada.bruto) || 0), 0);
     const totalPremios = jugadas.reduce((sum, jugada) => sum + (Number(jugada.pagado) || 0), 0);
     const totalGanancia = jugadas.reduce((sum, jugada) => sum + (Number(jugada.ganancia) || 0), 0);
     const totalBalance = jugadas.reduce((sum, jugada) => sum + (Number(jugada.balance) || 0), 0);
@@ -136,7 +136,7 @@ const PlaysRecordView = ({ navigation, groupData, title, sidebarVisible, setSide
                 
                 <View style={styles.playAmounts}>
                   <Text style={styles.amountItem}>
-                    💰 Total: {formatMoney(jugada.bruto || jugada.total)}
+                    💰 Total: {formatMoney(jugada.bruto)}
                   </Text>
                   {jugada.ganancia !== undefined && (
                     <Text style={styles.amountItem}>
