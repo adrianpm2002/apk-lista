@@ -913,22 +913,30 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               return; // Saltar esta jugada si la fecha es inválida
             }
             
-            const dateKey = playDate.toISOString().split('T')[0]; // YYYY-MM-DD
+            // Debug: Log para ver las fechas que se están procesando
+            // Usar fecha local en lugar de UTC para evitar problemas de zona horaria
+            const year = playDate.getFullYear();
+            const month = String(playDate.getMonth() + 1).padStart(2, '0');
+            const day = String(playDate.getDate()).padStart(2, '0');
+            const dateKey = `${year}-${month}-${day}`; // YYYY-MM-DD en fecha local
             
             if (!dailyBalanceMap.has(dateKey)) {
+              console.log(`📅 [renderRoleBasedChartsTab] Creating new day: ${dateKey} from original: ${play.fecha_jugada}`);
               dailyBalanceMap.set(dateKey, {
                 date: dateKey,
                 d: new Date(playDate.getFullYear(), playDate.getMonth(), playDate.getDate()),
                 bruto: 0,
                 pagado: 0,
                 ganancia: 0,
-                balance: 0
+                balance: 0,
+                playCount: 0 // Para debuggear
               });
             }
             
             const dayData = dailyBalanceMap.get(dateKey);
             dayData.bruto += Number(play.monto_total || 0); // CORREGIDO: usar monto_total
             dayData.pagado += Number(play.monto_a_pagar || 0); // CORREGIDO: usar monto_a_pagar
+            dayData.playCount++; // Para debuggear
             
             // Agregar ganancia según el rol
             if (userRole === 'collector') {
@@ -996,6 +1004,27 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             profit: day.balance, // El gráfico usa 'profit' pero mostramos balance
             label: labelFormat(day.d)
           }));
+          
+          // Debug: Log para verificar datos
+          console.log('📊 [renderRoleBasedChartsTab] Debug data:', {
+            allPlaysCount: allPlays.length,
+            dailyDataCount: dailyData.length,
+            displayDataCount: displayData.length,
+            seriesCount: series.length,
+            dailyBreakdown: dailyData.map(d => ({ 
+              date: d.date, 
+              balance: d.balance, 
+              playCount: d.playCount,
+              bruto: d.bruto,
+              ganancia: d.ganancia 
+            })),
+            series: series.map(s => ({ date: s.date, profit: s.profit, label: s.label }))
+          });
+          
+          // Para un solo día, asegurar que el gráfico tenga contexto
+          if (series.length === 1) {
+            console.log('📊 [renderRoleBasedChartsTab] Single day detected, ensuring proper display');
+          }
           
           return (
             <View>
