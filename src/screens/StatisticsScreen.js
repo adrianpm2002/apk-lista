@@ -1281,7 +1281,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                           <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalPagado)}</Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 100 }]}>
-                          <Text style={styles.excelCell} numberOfLines={1}>
+                          <Text style={getBalanceTextStyle(balance, styles.excelCell)} numberOfLines={1}>
                             {fmt(balance)}
                           </Text>
                         </View>
