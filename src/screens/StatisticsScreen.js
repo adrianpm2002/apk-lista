@@ -78,9 +78,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           return;
         }
         
-        // Permitir acceso a listeros y colectores
-        if (profile.role !== 'listero' && profile.role !== 'colector' && profile.role !== 'collector') {
-          console.error('❌ [StatisticsScreen] Solo listeros y colectores pueden acceder a estadísticas');
+        // Permitir acceso a listeros, colectores y administradores
+        if (profile.role !== 'listero' && profile.role !== 'colector' && profile.role !== 'collector' && profile.role !== 'admin') {
+          console.error('❌ [StatisticsScreen] Solo listeros, colectores y administradores pueden acceder a estadísticas');
           return;
         }
         
@@ -106,12 +106,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [datePickerType, setDatePickerType] = useState('start');
   
   // Estados para modales
-  const [filtersVisible, setFiltersVisible] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   
   // Estados para datos
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('charts');
+  const [activeTab, setActiveTab] = useState('charts'); // Por defecto en gráficas
   const [chartHeight, setChartHeight] = useState(240);
   // Estado de expansión para grupos en Detalles (debe estar a nivel de componente para mantener el orden de hooks)
   const [expandedGroups, setExpandedGroups] = useState(new Set());
@@ -159,6 +158,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Opciones de períodos
   const periodOptions = [
     { label: 'Hoy', value: 'today' },
+    { label: 'Ayer', value: 'yesterday' },
     { label: 'Mes pasado', value: 'lastMonth' },
     { label: 'Últimos 7 días', value: 'last7days' },
     { label: 'Últimos 30 días', value: 'last30days' },
@@ -174,6 +174,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Cargar datos iniciales
   useEffect(() => {
     loadInitialData();
+    // Aplicar configuración por defecto: 7 días para gráficas (pestaña por defecto)
+    applyPeriodFilter('last7days');
   }, []);
 
   // Aplicar filtros iniciales cuando se cargue el usuario
@@ -538,8 +540,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   };
 
-  // Renderizar header con filtros y sidebar toggle
-  const contentRef = useRef(null);
+  // Renderizar header con sidebar toggle
   const renderHeader = () => (
     <View style={styles.header}>
       <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
@@ -551,19 +552,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         </Text>
         
         <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => setFiltersVisible(v=>{
-            const next = !v; 
-            if(next){ setTimeout(()=> contentRef.current?.scrollTo({ y: 0, animated: true }), 0); }
-            return next;
-          })}
-        >
-          <Text style={styles.filterButtonText}>
-            🔍 Filtros
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
           style={styles.exportButton}
           onPress={() => setShowExportModal(true)}
         >
@@ -573,111 +561,159 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     </View>
   );
 
-  // Renderizar tabs de navegación
+  // Renderizar tabs de navegación con filtros a la derecha
   const renderTabs = () => (
     <View style={styles.tabsContainer}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {tabs.map(tab => (
-          <React.Fragment key={tab.id}>
-            <TouchableOpacity
-              style={[
-                styles.tab,
-                activeTab === tab.id && styles.activeTab,
-              ]}
-              onPress={() => setActiveTab(tab.id)}
-            >
-              <Text style={styles.tabIcon}>{tab.icon}</Text>
-              <Text style={[
-                styles.tabText,
-                activeTab === tab.id && styles.activeTabText,
-              ]}>
-                {tab.title}
-              </Text>
-            </TouchableOpacity>
+      <View style={styles.tabsRowContainer}>
+        {/* Pestañas a la izquierda */}
+        <View style={styles.tabsLeftSection}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {tabs.map(tab => (
+              <React.Fragment key={tab.id}>
+                <TouchableOpacity
+                  style={[
+                    styles.tab,
+                    activeTab === tab.id && styles.activeTab,
+                  ]}
+                  onPress={() => {
+                    setActiveTab(tab.id);
+                    // Aplicar filtros por defecto según la pestaña
+                    if (tab.id === 'charts') {
+                      setSelectedPeriod('last7days');
+                      applyPeriodFilter('last7days');
+                    } else if (tab.id === 'details') {
+                      setSelectedPeriod('today');
+                      applyPeriodFilter('today');
+                    }
+                  }}
+                >
+                  <Text style={styles.tabIcon}>{tab.icon}</Text>
+                  <Text style={[
+                    styles.tabText,
+                    activeTab === tab.id && styles.activeTabText,
+                  ]}>
+                    {tab.title}
+                  </Text>
+                </TouchableOpacity>
 
-            {tab.id === 'details' && (
-              <View></View>
-            )}
-          </React.Fragment>
-        ))}
-      </ScrollView>
+                {tab.id === 'details' && (
+                  <View></View>
+                )}
+              </React.Fragment>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Filtros a la derecha */}
+        <View style={styles.tabsRightSection}>
+          {renderCompactFilters()}
+        </View>
+      </View>
     </View>
   );
 
   // Renderizar contenido del tab de resumen
 
-  // Panel de filtros inline
+  // Filtros compactos para la línea de pestañas
+  const renderCompactFilters = () => {
+    const compactOptions = [
+      { label: 'Hoy', value: 'today' },
+      { label: 'Ayer', value: 'yesterday' },
+      { label: '7d', value: 'last7days' },
+      { label: '30d', value: 'last30days' },
+      { label: 'Mes', value: 'month' },
+    ];
+
+    return (
+      <View style={styles.inlineFiltersWrapper}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.inlineFiltersContent}
+        >
+        {compactOptions.map(opt => (
+          <TouchableOpacity
+            key={opt.value}
+            style={[
+              styles.inlineFilterChip,
+              selectedPeriod === opt.value && styles.inlineFilterChipActive,
+            ]}
+            onPress={() => {
+              setSelectedPeriod(opt.value);
+              applyPeriodFilter(opt.value);
+            }}
+          >
+            <Text style={[
+              styles.inlineFilterChipText,
+              selectedPeriod === opt.value && styles.inlineFilterChipTextActive,
+            ]}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  // Filtros completos siempre visibles (mantener para expandir si es necesario)
   const renderInlineFilters = () => {
     const renderChip = (value, current, setter, label) => (
       <TouchableOpacity
         key={`${label}-${value}`}
         style={[
-          styles.filterChip,
-          current === value && styles.filterChipActive,
+          styles.filterChipCompact,
+          current === value && styles.filterChipCompactActive,
         ]}
-        onPress={() => setter(value)}
+        onPress={() => {
+          setter(value);
+          applyPeriodFilter(value);
+        }}
       >
         <Text style={[
-          styles.filterChipText,
-          current === value && styles.filterChipTextActive,
+          styles.filterChipCompactText,
+          current === value && styles.filterChipCompactTextActive,
         ]}>{label}</Text>
       </TouchableOpacity>
     );
 
+    // Opciones de filtros más comunes
+    const compactPeriodOptions = [
+      { label: 'Hoy', value: 'today' },
+      { label: 'Ayer', value: 'yesterday' },
+      { label: '7 días', value: 'last7days' },
+      { label: '30 días', value: 'last30days' },
+      { label: 'Este mes', value: 'month' },
+      { label: 'Personalizado', value: 'custom' },
+    ];
+
     return (
-      <View style={styles.filtersPanel}>
-        {/* Selector de período (chips) */}
-        <Text style={styles.panelLabel}>Período</Text>
-        <View style={styles.chipsRow}>
-          {periodOptions.map(opt => renderChip(opt.value, selectedPeriod, setSelectedPeriod, opt.label))}
-        </View>
+      <View style={styles.compactFiltersPanel}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScrollView}>
+          {compactPeriodOptions.map(opt => renderChip(opt.value, selectedPeriod, setSelectedPeriod, opt.label))}
+        </ScrollView>
 
         {/* Rango personalizado */}
         {selectedPeriod === 'custom' && (
-          <View style={styles.dateSectionCompact}>
+          <View style={styles.customDateRow}>
             <TouchableOpacity
-              style={styles.dateButton}
+              style={styles.compactDateButton}
               onPress={() => { setDatePickerType('start'); setShowDatePicker(true); }}
             >
-              <Text style={styles.dateButtonText}>
-                Desde: {startDate.toLocaleDateString()}
+              <Text style={styles.compactDateButtonText}>
+                📅 {startDate.toLocaleDateString()}
               </Text>
             </TouchableOpacity>
+            <Text style={styles.dateRangeSeparator}>→</Text>
             <TouchableOpacity
-              style={styles.dateButton}
+              style={styles.compactDateButton}
               onPress={() => { setDatePickerType('end'); setShowDatePicker(true); }}
             >
-              <Text style={styles.dateButtonText}>
-                Hasta: {endDate.toLocaleDateString()}
+              <Text style={styles.compactDateButtonText}>
+                📅 {endDate.toLocaleDateString()}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.applyButton} onPress={applyCustomFilters}>
-              <Text style={styles.applyButtonText}>Aplicar</Text>
-            </TouchableOpacity>
           </View>
-        )}
-
-        {/* Filtro de Lotería deshabilitado - usando solo datos reales filtrados por usuario */}
-        {false && (
-          <>
-            {/* Lotería (chips) */}
-            <Text style={styles.panelLabel}>Lotería</Text>
-            <View style={styles.chipsRow}>
-              {renderChip('all', selectedLottery, setSelectedLottery, 'Todas')}
-              {lotteries.map(l => renderChip(l.id.toString(), selectedLottery, setSelectedLottery, l.name))}
-            </View>
-
-            {/* Horario (chips) - solo si hay lotería específica */}
-            {selectedLottery !== 'all' && (
-              <>
-                <Text style={styles.panelLabel}>Horario</Text>
-                <View style={styles.chipsRow}>
-                  {renderChip('all', selectedSchedule, setSelectedSchedule, 'Todos')}
-                  {lotterySchedules.map(h => renderChip(h.id, selectedSchedule, setSelectedSchedule, h.name))}
-                </View>
-              </>
-            )}
-          </>
         )}
       </View>
     );
@@ -687,6 +723,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const getChartTitle = () => {
     const titleMap = {
       'today': 'Ganancias vs Pérdidas (Hoy)',
+      'yesterday': 'Ganancias vs Pérdidas (Ayer)',
       'lastMonth': 'Ganancias vs Pérdidas (Mes pasado)',
       'last7days': 'Ganancias vs Pérdidas (Últimos 7 días)',
       'last30days': 'Ganancias vs Pérdidas (Últimos 30 días)',
@@ -2016,7 +2053,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       {renderTabs()}
       
       <ScrollView
-        ref={contentRef}
         style={styles.content}
         refreshControl={
           <RefreshControl
@@ -2027,7 +2063,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           />
         }
       >
-        {filtersVisible && renderInlineFilters()}
         {renderActiveTabContent()}
       </ScrollView>
 
@@ -2058,6 +2093,67 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 const styles = StyleSheet.create({
   filtersPanel:{ backgroundColor:'#F8F9FA', borderWidth:1, borderColor:'#E1E8E3', borderRadius:10, padding:8, margin:8 },
   filtersPanelDark:{ backgroundColor:'#2C3E50', borderColor:'#5D6D7E' },
+  
+  // Estilos para filtros compactos siempre visibles
+  compactFiltersPanel: {
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  filtersScrollView: {
+    flexGrow: 0,
+  },
+  filterChipCompact: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 8,
+  },
+  filterChipCompactActive: {
+    backgroundColor: '#27AE60',
+    borderColor: '#27AE60',
+  },
+  filterChipCompactText: {
+    fontSize: 12,
+    color: '#6c757d',
+    fontWeight: '500',
+  },
+  filterChipCompactTextActive: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  customDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  compactDateButton: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flex: 1,
+  },
+  compactDateButtonText: {
+    fontSize: 12,
+    color: '#495057',
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  dateRangeSeparator: {
+    color: '#6c757d',
+    marginHorizontal: 8,
+    fontSize: 14,
+  },
+  
   panelLabel:{ fontSize:11, fontWeight:'700', color:'#2D5016', marginTop:4, marginBottom:4 },
   panelLabelDark:{ color:'#ECF0F1' },
   chipsRow:{ flexDirection:'row', flexWrap:'wrap', marginBottom:6 },
@@ -2167,6 +2263,47 @@ const styles = StyleSheet.create({
   tabsContainerDark: {
     backgroundColor: '#2c3e50',
     borderBottomColor: '#34495e',
+  },
+  tabsRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: 12,
+  },
+  tabsLeftSection: {
+    flex: 1,
+  },
+  tabsRightSection: {
+    flexShrink: 0,
+  },
+  inlineFiltersWrapper: {
+    maxWidth: 200, // Limitar ancho para que no compita con las pestañas
+  },
+  inlineFiltersContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inlineFilterChip: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginLeft: 6,
+  },
+  inlineFilterChipActive: {
+    backgroundColor: '#27AE60',
+    borderColor: '#27AE60',
+  },
+  inlineFilterChipText: {
+    fontSize: 10,
+    color: '#6c757d',
+    fontWeight: '500',
+  },
+  inlineFilterChipTextActive: {
+    color: '#ffffff',
+    fontWeight: '600',
   },
   tab: {
     paddingHorizontal: 20,

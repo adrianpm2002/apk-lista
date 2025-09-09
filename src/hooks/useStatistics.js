@@ -735,13 +735,12 @@ const useStatistics = () => {
         .eq('estado_horario', 'cerrada');
       
       // Aplicar filtro según el rol
-      if (role === 'admin') {
-          query = query.eq('id_banco', user.id);
-        } else if (role === 'collector') {
+      if (role === 'collector' || role === 'colector') {
           query = query.eq('id_colector', user.id);
-        } else {
+        } else if (role === 'listero') {
           query = query.eq('id_listero', user.id);
       }
+      // Si es admin, no filtrar por usuario específico (puede ver todo)
       
   const { data: jugadas, error } = await query.order('fecha_jugada', { ascending: false });
   if (error) throw error;
@@ -882,9 +881,10 @@ const useStatistics = () => {
 
         if (role === 'colector' || role === 'collector') {
           query = query.eq('id_colector', user.id);
-        } else {
+        } else if (role === 'listero') {
           query = query.eq('id_listero', user.id);
         }
+        // Si es admin, no filtrar por usuario específico (puede ver todo)
 
         const { data: dayJugadas } = await query;
         
@@ -893,6 +893,9 @@ const useStatistics = () => {
         
         // Usar ganancia según el rol
         const dayTotalCommissions = (dayJugadas || []).reduce((sum, j) => {
+          if (role === 'admin') {
+            return sum + (j.ganancia_banco || j.ganancia_colector || 0);
+          }
           return sum + ((role === 'colector' || role === 'collector') ? (j.ganancia_colector || 0) : (j.ganancia_listero || 0));
         }, 0);
         
