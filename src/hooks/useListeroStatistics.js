@@ -77,7 +77,7 @@ export const useListeroStatistics = () => {
       // Obtener todos los datos usando paginación optimizada
       let allPlaysData = [];
       let page = 0;
-      const pageSize = 5000; // Tamaño de página optimizado
+      const pageSize = 1000; // Tamaño de página que coincide con el límite real de Supabase
       let hasMore = true;
       
       while (hasMore) {
@@ -107,7 +107,9 @@ export const useListeroStatistics = () => {
         
         if (playsData && playsData.length > 0) {
           allPlaysData = allPlaysData.concat(playsData);
-          hasMore = playsData.length === pageSize;
+          // CORECCIÓN: Si obtienes exactamente 1000 registros (límite de Supabase), puede haber más
+          // Solo parar cuando obtengas menos de 1000 registros
+          hasMore = playsData.length === 1000; // Continuar si se obtuvieron exactamente 1000 registros
           page++;
         } else {
           hasMore = false;

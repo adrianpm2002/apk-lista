@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 
 // Constantes para configuración
@@ -17,6 +17,10 @@ export const useAdminStatistics = () => {
     startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 días atrás
     endDate: new Date()
   });
+
+  // Control de concurrencia para evitar múltiples llamadas simultáneas
+  const loadingRef = useRef(false);
+  const abortControllerRef = useRef(null);
 
   // Función específica para cargar datos de ADMIN con agrupación jerárquica completa
   const loadAdminPlaysData = async (userId, filters = {}) => {
@@ -41,16 +45,19 @@ export const useAdminStatistics = () => {
         };
       }
 
-      // Obtener todos los datos usando paginación optimizada (SIN filtro por usuario - ADMIN ve todo)
+      // Obtener todos los datos usando paginación optimizada (filtrar por id_banco del admin)
       let allPlaysData = [];
       let page = 0;
-      const pageSize = 5000; // Tamaño de página optimizado
+      const pageSize = 1000; // Tamaño de página que coincide con el límite real de Supabase
       let hasMore = true;
+      
+      console.log(`🔍 [loadAdminPlaysData] Starting pagination for userId: ${userId}, pageSize: ${pageSize}`);
       
       while (hasMore) {
         let query = supabase
           .from('v_estadisticas')
           .select('*')
+          .eq('id_banco', userId) // ADMIN filtra por su id_banco
           .eq('estado_horario', 'cerrada')
           .order('fecha_jugada', { ascending: false });
 
@@ -69,13 +76,18 @@ export const useAdminStatistics = () => {
           return [];
         }
         
-        console.log(`🔍 [loadAdminPlaysData] Page ${page + 1}: ${playsData?.length || 0} records`);
+        console.log(`🔍 [loadAdminPlaysData] User ${userId} - Page ${page + 1}: ${playsData?.length || 0} records`);
+        console.log(`🔍 [loadAdminPlaysData] Page ${page + 1} range: ${page * pageSize} to ${(page + 1) * pageSize - 1}`);
         
         if (playsData && playsData.length > 0) {
           allPlaysData = allPlaysData.concat(playsData);
-          hasMore = playsData.length === pageSize;
+          // CORRIGIENDO: Si obtienes exactamente 1000 registros (límite de Supabase), continuar
+          const shouldContinue = playsData.length === 1000;
+          console.log(`🔍 [loadAdminPlaysData] Page ${page + 1}: length=${playsData.length}, shouldContinue=${shouldContinue}`);
+          hasMore = shouldContinue;
           page++;
         } else {
+          console.log(`🔍 [loadAdminPlaysData] Page ${page + 1}: No records, stopping pagination`);
           hasMore = false;
         }
         
@@ -87,11 +99,11 @@ export const useAdminStatistics = () => {
         
         // Mostrar progreso cada 10 páginas
         if (page % 10 === 0) {
-          console.log(`📊 [loadAdminPlaysData] Progress: ${allPlaysData.length} records loaded`);
+          console.log(`📊 [loadAdminPlaysData] User ${userId} - Progress: ${allPlaysData.length} records loaded`);
         }
       }
       
-      console.log(`🔍 [loadAdminPlaysData] Total records obtained: ${allPlaysData.length}`);
+      console.log(`🔍 [loadAdminPlaysData] User ${userId} - Total records obtained: ${allPlaysData.length}`);
 
       return allPlaysData || [];
       
@@ -102,12 +114,14 @@ export const useAdminStatistics = () => {
   };
 
   // Función para agrupar datos por estructura jerárquica completa: Colectores -> Listeros -> Loterías/Horarios
+  // Función para agrupar datos por estructura jerárquica: Colectores -> Listeros -> Loterías/Horarios
+  // (El admin solo ve su banco, por lo que no necesitamos la capa de bancos)
   const groupDataForAdmin = (rawData) => {
     if (!rawData || rawData.length === 0) {
       return [];
     }
 
-    // Agrupar por colector
+    // Agrupar directamente por colector (el admin solo ve su banco)
     const collectorGroups = {};
     
     rawData.forEach(record => {
@@ -122,7 +136,7 @@ export const useAdminStatistics = () => {
           total_bruto: 0,
           total_premio: 0,
           total_ganancia_colector: 0,
-          balance_banco: 0,
+          balance_colector: 0,
           raw_plays: []
         };
       }
@@ -202,7 +216,7 @@ export const useAdminStatistics = () => {
       collector.total_bruto = collector.raw_plays.reduce((sum, play) => sum + (play.monto_total || 0), 0);
       collector.total_premio = collector.raw_plays.reduce((sum, play) => sum + (play.monto_a_pagar || 0), 0);
       collector.total_ganancia_colector = collector.raw_plays.reduce((sum, play) => sum + (play.ganancia_colector || 0), 0);
-      collector.balance_banco = collector.raw_plays.reduce((sum, play) => sum + (play.balance_colector || 0), 0);
+      collector.balance_colector = collector.raw_plays.reduce((sum, play) => sum + (play.balance_colector || 0), 0);
     });
 
     return Object.values(collectorGroups);
@@ -238,7 +252,7 @@ export const useAdminStatistics = () => {
         plays: groupedData
       }));
       
-      console.log('✅ [loadPlaysData-Admin] Datos agrupados establecidos:', groupedData.length, 'colectores');
+      console.log('✅ [loadPlaysData-Admin] Datos agrupados establecidos:', groupedData.length, 'bancos');
       
       return groupedData;
       

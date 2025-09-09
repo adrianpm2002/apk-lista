@@ -56,21 +56,46 @@ export async function getListeroStatsFromView(listeroId, { from, to } = {}) {
     
     const { startStr, endStr } = buildRangeStrings(from, to);
     
-    const { data, error } = await supabase
-      .from('v_estadisticas')
-      .select('*')
-      .eq('id_listero', listeroId)
-      .eq('estado_horario', 'cerrada')
-      .gte('fecha_jugada', startStr)
-      .lte('fecha_jugada', endStr)
-      .order('fecha_jugada', { ascending: false });
+    // Obtener todos los datos usando paginación optimizada
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000; // Tamaño de página que coincide con el límite real de Supabase
+    let hasMore = true;
+    
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('v_estadisticas')
+        .select('*')
+        .eq('id_listero', listeroId)
+        .eq('estado_horario', 'cerrada')
+        .gte('fecha_jugada', startStr)
+        .lte('fecha_jugada', endStr)
+        .order('fecha_jugada', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-    if (error) {
-      console.error('[listeroStatsService] Error consultando v_estadisticas:', error);
-      throw error;
+      if (error) {
+        console.error('[listeroStatsService] Error consultando v_estadisticas:', error);
+        throw error;
+      }
+      
+        console.log(`[listeroStatsService] Page ${page + 1}: ${data?.length || 0} records`);
+        
+        if (data && data.length > 0) {
+          allData = allData.concat(data);
+          // CORECCIÓN: Si obtienes exactamente 1000 registros (límite de Supabase), puede haber más
+          hasMore = data.length === 1000; // Continuar si se obtuvieron exactamente 1000 registros
+          page++;
+        } else {
+          hasMore = false;
+        }      // Límite de seguridad
+      if (page > 250) {
+        console.warn('[listeroStatsService] Límite de páginas alcanzado');
+        break;
+      }
     }
 
-    console.log('[listeroStatsService] v_estadisticas returned rows:', (data || []).length);
+    console.log('[listeroStatsService] v_estadisticas returned total rows:', allData.length);
+    const data = allData;
 
     // Agrupar por fecha, lotería, horario, resultado
     const groups = {};
@@ -128,28 +153,52 @@ export async function getListeroPlayDetailsFromView(listeroId, fecha_jugada, nom
       listeroId, fecha_jugada, nombre_loteria, nombre_horario 
     });
 
-    // Obtener todas las jugadas del día específico, lotería y horario
+    // Obtener todas las jugadas del día específico, lotería y horario usando paginación
     const startOfDay = new Date(fecha_jugada);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(fecha_jugada);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const { data, error } = await supabase
-      .from('v_estadisticas')
-      .select('*')
-      .eq('id_listero', listeroId)
-      .eq('nombre_loteria', nombre_loteria)
-      .eq('nombre_horario', nombre_horario)
-      .gte('fecha_jugada', startOfDay.toISOString())
-      .lte('fecha_jugada', endOfDay.toISOString())
-      .order('fecha_jugada', { ascending: false });
+    let allData = [];
+    let page = 0;
+    const pageSize = 5000;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('v_estadisticas')
+        .select('*')
+        .eq('id_listero', listeroId)
+        .eq('nombre_loteria', nombre_loteria)
+        .eq('nombre_horario', nombre_horario)
+        .gte('fecha_jugada', startOfDay.toISOString())
+        .lte('fecha_jugada', endOfDay.toISOString())
+        .order('fecha_jugada', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-    if (error) {
-      console.error('[listeroStatsService] Error consultando v_estadisticas para detalles:', error);
-      throw error;
+      if (error) {
+        console.error('[listeroStatsService] Error consultando v_estadisticas para detalles:', error);
+        throw error;
+      }
+      
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        // CORECCIÓN: Si obtienes exactamente 1000 registros (límite de Supabase), puede haber más
+        hasMore = data.length === 1000; // Continuar si se obtuvieron exactamente 1000 registros
+        page++;
+      } else {
+        hasMore = false;
+      }
+      
+      // Límite de seguridad
+      if (page > 50) {
+        console.warn('[listeroStatsService] Límite de páginas alcanzado para detalles');
+        break;
+      }
     }
 
-    console.log('[listeroStatsService] v_estadisticas detalles returned rows:', (data || []).length);
+    console.log('[listeroStatsService] v_estadisticas detalles returned total rows:', allData.length);
+    const data = allData;
 
     // Mapear a formato esperado
     const jugadas = (data || []).map(row => {
@@ -445,27 +494,53 @@ export async function getDailyStats(listeroId, { from, to, lotteryId=null, sched
     // Construir query para v_statistics_complete
     const { startStr, endStr } = buildRangeStrings(from, to);
     
-    let query = supabase
-      .from('v_statistics_complete')
-      .select('*')
-      .eq('id_listero', listeroId)
-      .gte('created_at', startStr)
-      .lte('created_at', endStr);
+    // Obtener todos los datos usando paginación
+    let allStatsData = [];
+    let page = 0;
+    const pageSize = 5000;
+    let hasMore = true;
+    
+    while (hasMore) {
+      let query = supabase
+        .from('v_statistics_complete')
+        .select('*')
+        .eq('id_listero', listeroId)
+        .gte('created_at', startStr)
+        .lte('created_at', endStr)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-    // Aplicar filtros opcionales
-    if (lotteryId) {
-      query = query.eq('loteria_id', lotteryId);
-    }
-    if (scheduleId) {
-      query = query.eq('horario_id', scheduleId);
+      // Aplicar filtros opcionales
+      if (lotteryId) {
+        query = query.eq('loteria_id', lotteryId);
+      }
+      if (scheduleId) {
+        query = query.eq('horario_id', scheduleId);
+      }
+
+      const { data: statsData, error } = await query;
+
+      if (error) {
+        console.error('Error consultando v_statistics_complete:', error);
+        throw error;
+      }
+      
+      if (statsData && statsData.length > 0) {
+        allStatsData = allStatsData.concat(statsData);
+        // CORECCIÓN: Si obtienes exactamente 1000 registros (límite de Supabase), puede haber más
+        hasMore = statsData.length === 1000; // Continuar si se obtuvieron exactamente 1000 registros
+        page++;
+      } else {
+        hasMore = false;
+      }
+      
+      // Límite de seguridad
+      if (page > 250) {
+        console.warn('[getDailyStats] Límite de páginas alcanzado');
+        break;
+      }
     }
 
-    const { data: statsData, error } = await query;
-
-    if (error) {
-      console.error('Error consultando v_statistics_complete:', error);
-      throw error;
-    }
+    const statsData = allStatsData;
 
     // Agrupar por día y calcular totales
     const groupedByDay = (statsData || []).reduce((acc, row) => {
@@ -627,28 +702,54 @@ export async function getPlaysDetails(listeroId, { from, to, lotteryId=null, sch
     // Construir query para v_statistics_complete
     const { startStr, endStr } = buildRangeStrings(from, to);
     
-    let query = supabase
-      .from('v_statistics_complete')
-      .select('*')
-      .eq('id_listero', listeroId)
-      .gte('created_at', startStr)
-      .lte('created_at', endStr)
-      .order('created_at', { ascending: false });
+    // Obtener todos los datos usando paginación
+    let allStatsData = [];
+    let page = 0;
+    const pageSize = 5000;
+    let hasMore = true;
+    
+    while (hasMore) {
+      let query = supabase
+        .from('v_statistics_complete')
+        .select('*')
+        .eq('id_listero', listeroId)
+        .gte('created_at', startStr)
+        .lte('created_at', endStr)
+        .order('created_at', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-    // Aplicar filtros opcionales
-    if (lotteryId) {
-      query = query.eq('loteria_id', lotteryId);
-    }
-    if (scheduleId) {
-      query = query.eq('horario_id', scheduleId);
+      // Aplicar filtros opcionales
+      if (lotteryId) {
+        query = query.eq('loteria_id', lotteryId);
+      }
+      if (scheduleId) {
+        query = query.eq('horario_id', scheduleId);
+      }
+
+      const { data: statsData, error } = await query;
+
+      if (error) {
+        console.error('Error consultando v_statistics_complete para detalles:', error);
+        throw error;
+      }
+      
+      if (statsData && statsData.length > 0) {
+        allStatsData = allStatsData.concat(statsData);
+        // CORECCIÓN: Si obtienes exactamente 1000 registros (límite de Supabase), puede haber más
+        hasMore = statsData.length === 1000; // Continuar si se obtuvieron exactamente 1000 registros
+        page++;
+      } else {
+        hasMore = false;
+      }
+      
+      // Límite de seguridad
+      if (page > 250) {
+        console.warn('[getPlaysDetails] Límite de páginas alcanzado');
+        break;
+      }
     }
 
-    const { data: statsData, error } = await query;
-
-    if (error) {
-      console.error('Error consultando v_statistics_complete para detalles:', error);
-      throw error;
-    }
+    const statsData = allStatsData;
 
     // Filtrar por hoy si es necesario
     const todayStr = toLocalDateStr(new Date());

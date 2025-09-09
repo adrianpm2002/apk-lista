@@ -210,40 +210,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Procesar datos de tabla para crear groupedData para admin
   useEffect(() => {
     if (userRole === 'admin' && tableData && tableData.plays) {
-      
-      // Agrupar jugadas por colector
-      const playsByColector = tableData.plays.reduce((acc, play) => {
-        const colectorName = play.colector_username || `Colector ${play.id_colector}`;
-        if (!acc[colectorName]) {
-          acc[colectorName] = {
-            id_colector: play.id_colector,
-            colector_username: colectorName,
-            plays: []
-          };
-        }
-        acc[colectorName].plays.push(play);
-        return acc;
-      }, {});
-
-      // Convertir a formato de groupedData con totales calculados
-      const groupedDataForAdmin = Object.values(playsByColector).map(colector => {
-        const plays = colector.plays;
-        
-        return {
-          id_colector: colector.id_colector,
-          colector_username: colector.colector_username,
-          bruto_total: plays.reduce((sum, p) => sum + (Number(p.bruto) || 0), 0),
-          ganancia_colector_total: plays.reduce((sum, p) => sum + (Number(p.ganancia_colector) || 0), 0),
-          ganancia_listero_total: plays.reduce((sum, p) => sum + (Number(p.ganancia_listero) || 0), 0),
-          premios_total: plays.reduce((sum, p) => sum + (Number(p.premio) || 0), 0),
-          // Para el banco, usar balance_colector como balance del banco
-          balance_banco_total: plays.reduce((sum, p) => sum + (Number(p.balance_colector) || 0), 0),
-          plays: plays
-        };
-      });
-
-      setGroupedData(groupedDataForAdmin);
-      
+      // Ya no necesitamos procesar los datos aquí, vienen estructurados del hook useAdminStatistics
+      // Los datos ya están agrupados por banco -> colector -> listero
+      setGroupedData(tableData.plays);
     }
   }, [userRole, tableData]);
 
@@ -1342,10 +1311,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Nueva tabla expandible para collector (SEGUNDA CAPA - agrupa por lotería y horario)
   const renderCollectorExpandableTable = () => {
-    // Para colectores, usar directamente tableData.plays del hook
-    const allPlays = tableData?.plays || [];
+    // Para colectores, usar directamente los datos agrupados del hook (ya vienen agrupados por listero)
+    const collectorData = tableData?.plays || [];
     
-    if (!allPlays || allPlays.length === 0) {
+    if (!collectorData || collectorData.length === 0) {
       return (
         <Text style={[styles.empty, { marginTop: 16 }]}>
           Sin datos para mostrar en el período seleccionado
@@ -1361,36 +1330,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       else next.add(key); 
       return next; 
     });
-
-    // Función auxiliar para agrupar jugadas de un colector por listero
-    const groupPlaysByListero = (plays) => {
-      const groupedByListero = {};
-      (plays || []).forEach((play, index) => {
-        const listeroKey = play.listero_username || `Listero ${play.id_listero}`;
-        if (!groupedByListero[listeroKey]) {
-          groupedByListero[listeroKey] = {
-            listero_username: listeroKey,
-            id_listero: play.id_listero,
-            bruto_total: 0,
-            ganancia_colector_total: 0,
-            ganancia_listero_total: 0,
-            premios_total: 0,
-            balance_colector_total: 0,
-            plays: []
-          };
-        }
-        
-        // Usar los campos correctos de la vista v_estadisticas
-        groupedByListero[listeroKey].bruto_total += Number(play.monto_total || 0);
-        groupedByListero[listeroKey].ganancia_colector_total += Number(play.ganancia_colector || 0);
-        groupedByListero[listeroKey].ganancia_listero_total += Number(play.ganancia_listero || 0);
-        groupedByListero[listeroKey].premios_total += Number(play.monto_a_pagar || 0);
-        groupedByListero[listeroKey].balance_colector_total += Number(play.balance_colector || 0);
-        groupedByListero[listeroKey].plays.push(play);
-      });
-
-      return Object.values(groupedByListero);
-    };
 
     const fmt = (n) => {
       const num = Number(n) || 0;
@@ -1417,8 +1356,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             </View>
             
             {/* Filas de listeros expandibles */}
-            {groupPlaysByListero(allPlays).map((listero, listeroIndex) => {
-              const listeroKey = `listero_${listero.id_listero}`;
+            {collectorData.map((listero, listeroIndex) => {
+              const listeroKey = `listero_${listero.id}`;
               const openListero = expanded.has(listeroKey);
               
               return (
@@ -1434,23 +1373,23 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       </Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 100 }]}>
-                      <Text style={styles.excelCell} numberOfLines={2}>{listero.listero_username}</Text>
+                      <Text style={styles.excelCell} numberOfLines={2}>{listero.listero_name}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 85 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.bruto_total)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_bruto)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 90 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.ganancia_colector_total)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_ganancia_colector)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 90 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.ganancia_listero_total)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_ganancia_listero)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 85 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.premios_total)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_premio)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 90 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>
-                        {fmt(listero.balance_colector_total)}
+                        {fmt(listero.balance_colector)}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1496,8 +1435,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   );
 
   // Nueva tabla expandible para admin (agrupa por colector → listero)
+  // Nueva tabla expandible para admin (TRES CAPAS - agrupa por colector -> listero -> lotería/horario)
   const renderAdminExpandableTable = () => {
-    if (!groupedData || !Array.isArray(groupedData) || groupedData.length === 0) {
+    // Para admin, usar directamente los datos agrupados por colector del hook
+    const adminData = tableData?.plays || [];
+    
+    if (!adminData || adminData.length === 0) {
       return (
         <Text style={[styles.empty, { marginTop: 16 }]}>
           Sin datos de colectores para mostrar
@@ -1521,36 +1464,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       return next; 
     });
 
-    // Función auxiliar para agrupar jugadas de un colector por listero
-    const groupPlaysByListero = (plays) => {
-      const groupedByListero = {};
-      (plays || []).forEach((play, index) => {
-        const listeroKey = play.listero_username || `Listero ${play.id_listero}`;
-        if (!groupedByListero[listeroKey]) {
-          groupedByListero[listeroKey] = {
-            listero_username: listeroKey,
-            id_listero: play.id_listero,
-            bruto_total: 0,
-            ganancia_colector_total: 0,
-            ganancia_listero_total: 0,
-            premios_total: 0,
-            balance_colector_total: 0,
-            plays: []
-          };
-        }
-        
-        // Usar los campos correctos de la vista v_estadisticas
-        groupedByListero[listeroKey].bruto_total += Number(play.monto_total || 0);
-        groupedByListero[listeroKey].ganancia_colector_total += Number(play.ganancia_colector || 0);
-        groupedByListero[listeroKey].ganancia_listero_total += Number(play.ganancia_listero || 0);
-        groupedByListero[listeroKey].premios_total += Number(play.monto_a_pagar || 0);
-        groupedByListero[listeroKey].balance_colector_total += Number(play.balance_colector || 0);
-        groupedByListero[listeroKey].plays.push(play);
-      });
-
-      return Object.values(groupedByListero);
-    };
-
     return (
       <View style={{ paddingHorizontal: 4, marginTop: 2 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
@@ -1561,14 +1474,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Colector</Text>
               <Text style={[styles.excelHeaderCell, { width: 85 }]}>Bruto</Text>
               <Text style={[styles.excelHeaderCell, { width: 90 }]}>Gan. Colector</Text>
-              <Text style={[styles.excelHeaderCell, { width: 90 }]}>Gan. Listeros</Text>
               <Text style={[styles.excelHeaderCell, { width: 85 }]}>Premios</Text>
               <Text style={[styles.excelHeaderCell, { width: 90 }]}>Balance</Text>
             </View>
             
             {/* Filas de colectores expandibles */}
-            {groupedData.map((colector, colectorIndex) => {
-              const colectorKey = `colector_${colector.id_colector}`;
+            {adminData.map((colector, colectorIndex) => {
+              const colectorKey = `colector_${colector.id}`;
               const openColector = expanded.has(colectorKey);
               
               return (
@@ -1584,23 +1496,20 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       </Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 100 }]}>
-                      <Text style={styles.excelCell} numberOfLines={2}>{colector.colector_username}</Text>
+                      <Text style={styles.excelCell} numberOfLines={2}>{colector.collector_name}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 85 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.bruto_total)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.total_bruto)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 90 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.ganancia_colector_total)}</Text>
-                    </View>
-                    <View style={[styles.excelCellContainer, { width: 90 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.ganancia_listero_total)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.total_ganancia_colector)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 85 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.premios_total)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.total_premio)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 90 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>
-                        {fmt(colector.balance_banco_total)}
+                        {fmt(colector.balance_colector)}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1608,20 +1517,19 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                   {/* Contenido expandido - listeros del colector */}
                   {openColector && (
                     <View style={styles.expandedContent}>
-                      {/* Sub-tabla de listeros */}
+                      {/* Sub-header para listeros */}
                       <View style={[styles.excelHeaderRow, styles.subHeader]}>
                         <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
                         <Text style={[styles.excelHeaderCell, { width: 100 }]}>Listero</Text>
                         <Text style={[styles.excelHeaderCell, { width: 85 }]}>Bruto</Text>
-                        <Text style={[styles.excelHeaderCell, { width: 90 }]}>Gan. Colector</Text>
-                        <Text style={[styles.excelHeaderCell, { width: 90 }]}>Gan. Listeros</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 90 }]}>Gan. Listero</Text>
                         <Text style={[styles.excelHeaderCell, { width: 85 }]}>Premios</Text>
                         <Text style={[styles.excelHeaderCell, { width: 90 }]}>Balance</Text>
                       </View>
                       
                       {/* Filas de listeros expandibles */}
-                      {groupPlaysByListero(colector.plays).map((listero, listeroIndex) => {
-                        const listeroKey = `${colectorKey}_listero_${listero.id_listero}`;
+                      {(colector.listeros || []).map((listero, listeroIndex) => {
+                        const listeroKey = `${colectorKey}_listero_${listero.id}`;
                         const openListero = expanded.has(listeroKey);
                         
                         return (
@@ -1637,23 +1545,20 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                                 </Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 100 }]}>
-                                <Text style={styles.excelCell} numberOfLines={2}>{listero.listero_username}</Text>
+                                <Text style={styles.excelCell} numberOfLines={2}>{listero.listero_name}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 85 }]}>
-                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.bruto_total)}</Text>
+                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_bruto)}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 90 }]}>
-                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.ganancia_colector_total)}</Text>
-                              </View>
-                              <View style={[styles.excelCellContainer, { width: 90 }]}>
-                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.ganancia_listero_total)}</Text>
+                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_ganancia_listero)}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 85 }]}>
-                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.premios_total)}</Text>
+                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_premio)}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 90 }]}>
                                 <Text style={styles.excelCell} numberOfLines={1}>
-                                  {fmt(listero.balance_colector_total)}
+                                  {fmt(listero.balance_listero)}
                                 </Text>
                               </View>
                             </TouchableOpacity>

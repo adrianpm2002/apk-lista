@@ -257,13 +257,11 @@ const useStatistics = () => {
       // Para listero, usar plays directamente
       plays: userRole === 'listero' ? (activeStats.tableData?.plays || []) : 
              userRole === 'collector' || userRole === 'colector' ? 
-               // Para collector: devolver las jugadas sin procesar para que renderCollectorExpandableTable las agrupe
-               (activeStats.tableData?.plays || []).flatMap(listero => listero.plays || []) : 
+               // Para collector: devolver la estructura agrupada por listero
+               (activeStats.tableData?.plays || []) : 
              userRole === 'admin' ? 
-               // Para admin: devolver las jugadas sin procesar para que renderAdminExpandableTable las agrupe  
-               (activeStats.tableData?.plays || []).flatMap(collector => 
-                 collector.listeros?.flatMap(listero => listero.plays || []) || []
-               ) : []
+               // Para admin: devolver la estructura jerárquica completa (bancos -> colectores -> listeros)
+               (activeStats.tableData?.plays || []) : []
     },
     
     // Datos básicos (mock para compatibilidad)
