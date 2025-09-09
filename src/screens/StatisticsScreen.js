@@ -1341,8 +1341,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Listero</Text>
               <Text style={[styles.excelHeaderCell, { width: 85 }]}>Bruto</Text>
-              <Text style={[styles.excelHeaderCell, { width: 90 }]}>Gan. Colector</Text>
               <Text style={[styles.excelHeaderCell, { width: 90 }]}>Gan. Listeros</Text>
+              <Text style={[styles.excelHeaderCell, { width: 90 }]}>Gan. Colector</Text>
               <Text style={[styles.excelHeaderCell, { width: 85 }]}>Premios</Text>
               <Text style={[styles.excelHeaderCell, { width: 90 }]}>Balance</Text>
             </View>
@@ -1371,10 +1371,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_bruto)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 90 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_ganancia_colector)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_ganancia_listero)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 90 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_ganancia_listero)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_ganancia_colector)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 85 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_premio)}</Text>
@@ -1516,7 +1516,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                         <Text style={[styles.excelHeaderCell, { width: 85 }]}>Bruto</Text>
                         <Text style={[styles.excelHeaderCell, { width: 90 }]}>Gan. Listero</Text>
                         <Text style={[styles.excelHeaderCell, { width: 85 }]}>Premios</Text>
-                        <Text style={[styles.excelHeaderCell, { width: 90 }]}>Balance</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 90 }]}>Bal. Listero</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 90 }]}>Bal. Colector</Text>
                       </View>
                       
                       {/* Filas de listeros expandibles */}
@@ -1551,6 +1552,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                               <View style={[styles.excelCellContainer, { width: 90 }]}>
                                 <Text style={styles.excelCell} numberOfLines={1}>
                                   {fmt(listero.balance_listero)}
+                                </Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 90 }]}>
+                                <Text style={styles.excelCell} numberOfLines={1}>
+                                  {fmt(listero.balance_colector)}
                                 </Text>
                               </View>
                             </TouchableOpacity>
@@ -1777,8 +1783,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                   <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bal. Colector</Text>
                 </>
               ) : userRole === 'admin' ? (
-                // Para admin, no mostrar columna de balance
-                <></>
+                <>
+                  <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bal. Listero</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 60 }]}>Bal. Colector</Text>
+                </>
               ) : (
                 <Text style={[styles.excelHeaderCell, { width: 60 }]}>Balance</Text>
               )}
@@ -1848,8 +1856,18 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                         </View>
                       </>
                     ) : userRole === 'admin' ? (
-                      // Para admin, no mostrar celda de balance
-                      <></>
+                      <>
+                        <View style={[styles.excelCellContainer, { width: 60 }]}>
+                          <Text style={styles.excelCell} numberOfLines={1}>
+                            {fmt(g.totalBalanceListero || 0)}
+                          </Text>
+                        </View>
+                        <View style={[styles.excelCellContainer, { width: 60 }]}>
+                          <Text style={styles.excelCell} numberOfLines={1}>
+                            {fmt(g.totalBalanceColector || 0)}
+                          </Text>
+                        </View>
+                      </>
                     ) : (
                       <View style={[styles.excelCellContainer, { width: 60 }]}>
                         <Text style={styles.excelCell} numberOfLines={1}>
