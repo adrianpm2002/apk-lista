@@ -545,14 +545,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                   ]}
                   onPress={() => {
                     setActiveTab(tab.id);
-                    // Aplicar filtros por defecto según la pestaña
-                    if (tab.id === 'charts') {
-                      setSelectedPeriod('last7days');
-                      applyPeriodFilter('last7days');
-                    } else if (tab.id === 'details') {
-                      setSelectedPeriod('today');
-                      applyPeriodFilter('today');
-                    }
+                    // El filtro de fecha se mantiene igual para ambas pestañas
                   }}
                 >
                   <Text style={styles.tabIcon}>{tab.icon}</Text>
