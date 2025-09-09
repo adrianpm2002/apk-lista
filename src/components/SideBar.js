@@ -13,18 +13,17 @@ import {
   TextInput,
   BackHandler,
   StatusBar,
-  Switch,
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import ChangePasswordModal from './ChangePasswordModal';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { getAccessibilityProps } from '../utils/accessibilityUtils';
-import { authService } from '../services/authService';
-import { secureStorage } from '../utils/storage';
+import { useAuth } from '../contexts/AuthContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
+  const { signOut } = useAuth();
 
   const sidebarWidth = screenWidth * 0.75;
   // Inicializar slideAnim con validación
@@ -217,26 +216,12 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
   const handleLogout = () => {
     const proceed = async () => {
       try {
-        // Usar el servicio de autenticación para logout
-        await authService.logout(false); // No limpiar preferencia persistente
-        Alert.alert('Sesión', 'Sesión cerrada exitosamente');
+        await signOut();
       } catch (e) {
         console.error('Error al cerrar sesión:', e);
-        // Mostrar error pero continuar con la navegación
-        Alert.alert('Error', 'Error al cerrar sesión, redirigiendo...');
+        // ignorar error de signOut para no bloquear la navegación
       }
-      
       handleClose();
-      
-      if (navigation && navigation.reset) {
-        // Usar reset en lugar de navigate para prevenir navegación hacia atrás
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Login' }],
-        });
-      } else if (navigation && navigation.navigate) {
-        navigation.navigate('Login');
-      }
     };
 
     if (Platform.OS === 'web') {
@@ -259,39 +244,22 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
   const [currentFontSize, setCurrentFontSize] = useState('mediano'); // 'pequeno', 'mediano', 'grande'
   const [keepSessionActive, setKeepSessionActive] = useState(false);
 
-  // Cargar preferencia de sesión persistente al montar el componente
-  useEffect(() => {
-    const loadPersistentSessionPreference = async () => {
-      try {
-        const isPersistentEnabled = await secureStorage.isPersistentSessionEnabled();
-        setKeepSessionActive(isPersistentEnabled);
-      } catch (error) {
-        console.error('Error al cargar preferencia de sesión persistente:', error);
-      }
-    };
-
-    loadPersistentSessionPreference();
-  }, []);
-
   // Función para manejar "Mantener sesión iniciada"
-  const handleKeepSessionToggle = async (newValue) => {
-    try {
-      // Usar el servicio de autenticación para manejar el cambio
-      await authService.onPersistentSessionToggle(newValue);
-      setKeepSessionActive(newValue);
-      
-      if (!newValue) {
-        // Si se desactivó, solo mostrar mensaje informativo
-        Alert.alert('Sesión Persistente', 'Sesión persistente desactivada. Tu sesión actual continuará activa.');
-      } else {
-        Alert.alert('Sesión Persistente', 'Sesión persistente activada. Tu sesión se mantendrá en futuras aperturas de la app.');
-      }
-    } catch (error) {
-      console.error('Error al cambiar sesión persistente:', error);
-      Alert.alert('Error', 'No se pudo cambiar la configuración de sesión persistente');
-      // Revertir el estado en caso de error
-      setKeepSessionActive(!newValue);
-    }
+  const handleKeepSessionPress = () => {
+    Alert.alert(
+      'Mantener sesión iniciada',
+      `Actualmente: ${keepSessionActive ? 'Activado' : 'Desactivado'}`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: keepSessionActive ? 'Desactivar' : 'Activar', 
+          onPress: () => {
+            setKeepSessionActive(!keepSessionActive);
+            console.log(`Sesión permanente ${!keepSessionActive ? 'activada' : 'desactivada'}`);
+          }
+        }
+      ]
+    );
   };
 
   // Función para manejar "Tamaño de letra"
@@ -438,7 +406,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                 }
               ]}>
                 {/* Mantener sesión iniciada */}
-                <View style={[
+                <Pressable style={[
                   styles.settingOption,
                   Platform.OS === 'android' && {
                     backgroundColor: '#FFFFFF',
@@ -448,7 +416,7 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                     paddingVertical: 8,
                     paddingHorizontal: 10
                   }
-                ]}>
+                ]} onPress={handleKeepSessionPress}>
                   <Text style={[styles.settingIcon, { fontSize: 14 }]}>🔐</Text>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, Platform.OS === 'android' && { color: '#000000', fontSize: 13 }]}>
@@ -458,14 +426,8 @@ const configOptions = role ? (roleOptionsMap[role] || basicOptions) : basicOptio
                       {keepSessionActive ? 'Activado' : 'Desactivado'}
                     </Text>
                   </View>
-                  <Switch
-                    value={keepSessionActive}
-                    onValueChange={handleKeepSessionToggle}
-                    trackColor={{ false: '#E0E0E0', true: '#27AE60' }}
-                    thumbColor={keepSessionActive ? '#fff' : '#fff'}
-                    style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-                  />
-                </View>
+                  <Text style={[styles.settingArrow, { fontSize: 12 }]}>▶</Text>
+                </Pressable>
 
                 {/* Tamaño de letra */}
                 <Pressable style={[

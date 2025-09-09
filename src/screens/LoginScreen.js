@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, Modal, ActivityIndicator, TouchableOpacity, Switch } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, Modal, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Formik } from 'formik';
 import { supabase } from '../supabaseClient';
 import Svg, { Path, G } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
-import { authService } from '../services/authService';
-import { secureStorage } from '../utils/storage';
+import { useAuth } from '../contexts/AuthContext';
 
 const LoginScreen = ({ navigation }) => {
   return (
@@ -20,21 +19,7 @@ const LoginScreen = ({ navigation }) => {
 const LoginContent = ({ navigation }) => {
   const [isPreloading, setIsPreloading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [keepSessionActive, setKeepSessionActive] = useState(false);
-  
-  // Cargar preferencia de sesión persistente al montar el componente
-  useEffect(() => {
-    const loadPersistentSessionPreference = async () => {
-      try {
-        const isPersistentEnabled = await secureStorage.isPersistentSessionEnabled();
-        setKeepSessionActive(isPersistentEnabled);
-      } catch (error) {
-        console.error('Error al cargar preferencia de sesión persistente:', error);
-      }
-    };
-
-    loadPersistentSessionPreference();
-  }, []);
+  const { signIn } = useAuth();
   
   const validateForm = (values) => {
     const errors = {};
@@ -54,49 +39,98 @@ const LoginContent = ({ navigation }) => {
         return;
       }
 
-      // Usar el nuevo servicio de autenticación
-      const result = await authService.login(username, password, keepSessionActive);
+      const email = `${username.toLowerCase()}@example.com`;
 
-      if (!result.success) {
-        // Verificar si el usuario existe para dar un mensaje más específico
-        const email = `${username.toLowerCase()}@example.com`;
-        const { data: userExists } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', username)
-          .maybeSingle();
+      setIsPreloading(true);
 
-        if (!userExists) {
-          setFieldError('general', 'El usuario no existe.');
-        } else {
-          setFieldError('general', result.error || 'Credenciales incorrectas.');
-        }
+      // Usar la función signIn del contexto
+      const { user: authUser } = await signIn(email, password);
+
+      if (!authUser) {
+        setFieldError('general', 'Error interno del sistema.');
         setSubmitting(false);
+        setIsPreloading(false);
         return;
       }
 
-      const { profile } = result;
+      // Verificar si el usuario existe en la base de datos
+      const { data: userExists } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', username)
+        .maybeSingle();
+
+      if (!userExists) {
+        await supabase.auth.signOut();
+        setFieldError('general', 'El usuario no existe.');
+        setSubmitting(false);
+        setIsPreloading(false);
+        return;
+      }
+
+      // Obtener rol, estado activo y banco_id del perfil
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, activo, id_banco')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      if (profileError || !profile) {
+        console.error('Profile error:', profileError);
+        console.log('Profile data:', profile);
+        await supabase.auth.signOut();
+        setFieldError('general', `Error al obtener el perfil del usuario: ${profileError?.message || 'Datos no encontrados'}`);
+        setSubmitting(false);
+        setIsPreloading(false);
+        return;
+      }
+
+      // Verificar si el usuario está activo
+      if (profile.activo === false) {
+        // Cerrar sesión inmediatamente si el usuario está inactivo
+        await supabase.auth.signOut();
+        setFieldError('general', 'Cuenta desactivada, contacte con su administrador.');
+        setSubmitting(false);
+        setIsPreloading(false);
+        return;
+      }
+
       const userRole = profile.role;
       
-      // Si es admin o collector, navegar a Statistics
-      if (userRole === 'admin' || userRole === 'collector') {
-        setIsPreloading(true);
-        // Navegación inmediata para mejor UX
-        setTimeout(() => {
-          setIsPreloading(false);
-          navigation.navigate('Statistics');
-        }, 100); // Reducido a 100ms
-      } else if (userRole === 'listero') {
-        navigation.navigate('MainApp');
-      } else {
-        setFieldError('general', 'Rol de usuario no reconocido.');
+      // Determinar el banco_id correcto según el rol
+      let bankId;
+      if (userRole === 'admin') {
+        bankId = authUser.id; // El admin ES el banco
+      } else if (userRole === 'collector' || userRole === 'listero') {
+        bankId = profile.id_banco;
       }
+      
+      if (!bankId) {
+        await supabase.auth.signOut();
+        setFieldError('general', 'No se pudo determinar el banco ID.');
+        setSubmitting(false);
+        setIsPreloading(false);
+        return;
+      }
+
+      // Navegación basada en el rol del usuario
+      setTimeout(() => {
+        setIsPreloading(false);
+        if (userRole === 'admin' || userRole === 'collector') {
+          navigation.navigate('Statistics');
+        } else if (userRole === 'listero') {
+          navigation.navigate('MainApp');
+        } else {
+          setFieldError('general', 'Rol de usuario no reconocido.');
+        }
+      }, 100);
       
       setSubmitting(false);
     } catch (error) {
       console.error('Login error details:', error);
-      setFieldError('general', `Error inesperado: ${error.message}`);
+      setFieldError('general', error.message || 'Error inesperado durante el inicio de sesión.');
       setSubmitting(false);
+      setIsPreloading(false);
     }
   };
 
@@ -191,17 +225,7 @@ const LoginContent = ({ navigation }) => {
                 </View>
               )}
 
-              {/* Mantener sesión iniciada */}
-              <View style={styles.rememberMeContainer}>
-                <Switch
-                  value={keepSessionActive}
-                  onValueChange={(value) => setKeepSessionActive(value)}
-                  trackColor={{ false: '#E0E0E0', true: '#27AE60' }}
-                  thumbColor={keepSessionActive ? '#fff' : '#fff'}
-                  style={styles.switch}
-                />
-                <Text style={styles.rememberMeText}>Mantener sesión iniciada</Text>
-              </View>
+              {/* Eliminado Recordarme y Olvidaste tu contraseña */}
 
               <Pressable 
                 style={({ pressed }) => [
@@ -354,21 +378,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     textAlign: 'left',
-  },
-  rememberMeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  switch: {
-    marginRight: 12,
-    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
-  },
-  rememberMeText: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
   },
   modalOverlay: {
     flex: 1,

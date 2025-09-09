@@ -1,97 +1,145 @@
-import React, { createContext, useContext } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
-import { useAuth } from '../hooks/useAuth';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../supabaseClient';
 
-// Crear el contexto de autenticación
-const AuthContext = createContext(null);
+const AuthContext = createContext({});
 
-/**
- * Proveedor del contexto de autenticación
- */
-export const AuthProvider = ({ children }) => {
-  const authValue = useAuth();
-
-  return (
-    <AuthContext.Provider value={authValue}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-/**
- * Hook para usar el contexto de autenticación
- */
-export const useAuthContext = () => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
-  
   if (!context) {
-    throw new Error('useAuthContext debe usarse dentro de un AuthProvider');
+    throw new Error('useAuth debe ser usado dentro de AuthProvider');
   }
-  
   return context;
 };
 
-/**
- * HOC para proteger rutas que requieren autenticación
- */
-export const withAuth = (WrappedComponent) => {
-  return (props) => {
-    const { isAuthenticated, loading, userRole } = useAuthContext();
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-    // Mostrar pantalla de carga mientras se verifica la autenticación
-    if (loading) {
-      return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#27AE60" />
-          <Text style={{ marginTop: 10 }}>Verificando autenticación...</Text>
-        </View>
-      );
+  // Función para guardar la sesión en AsyncStorage
+  const saveSession = async (session) => {
+    try {
+      if (session) {
+        await AsyncStorage.setItem('@supabase_session', JSON.stringify(session));
+      } else {
+        await AsyncStorage.removeItem('@supabase_session');
+      }
+    } catch (error) {
+      console.error('Error al guardar la sesión:', error);
     }
+  };
 
-    // Si no está autenticado, no renderizar el componente
-    if (!isAuthenticated) {
-      return null; // O redirigir al login
+  // Función para cargar la sesión desde AsyncStorage
+  const loadSession = async () => {
+    try {
+      const sessionString = await AsyncStorage.getItem('@supabase_session');
+      if (sessionString) {
+        const savedSession = JSON.parse(sessionString);
+        
+        // Verificar si la sesión no ha expirado
+        if (savedSession.expires_at && new Date(savedSession.expires_at * 1000) > new Date()) {
+          // Restaurar la sesión en Supabase
+          await supabase.auth.setSession({
+            access_token: savedSession.access_token,
+            refresh_token: savedSession.refresh_token
+          });
+          return savedSession;
+        } else {
+          // La sesión ha expirado, eliminarla
+          await AsyncStorage.removeItem('@supabase_session');
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar la sesión:', error);
     }
+    return null;
+  };
 
-    // Pasar la información de autenticación como props
-    return (
-      <WrappedComponent 
-        {...props} 
-        userRole={userRole}
-        isAuthenticated={isAuthenticated}
-      />
+  // Función para inicializar la autenticación
+  const initializeAuth = async () => {
+    try {
+      setLoading(true);
+
+      // Intentar cargar sesión guardada
+      const savedSession = await loadSession();
+      
+      if (savedSession) {
+        // Si hay una sesión guardada válida, obtener el usuario actual
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (!error && user) {
+          setUser(user);
+          setSession(savedSession);
+        } else {
+          // Si hay error al obtener el usuario, limpiar la sesión guardada
+          await AsyncStorage.removeItem('@supabase_session');
+        }
+      }
+    } catch (error) {
+      console.error('Error al inicializar autenticación:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Configurar listener para cambios de autenticación
+  useEffect(() => {
+    // Inicializar la autenticación al cargar el componente
+    initializeAuth();
+
+    // Escuchar cambios en el estado de autenticación
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        // Guardar o eliminar la sesión según el evento
+        if (event === 'SIGNED_IN' && session) {
+          await saveSession(session);
+        } else if (event === 'SIGNED_OUT') {
+          await AsyncStorage.removeItem('@supabase_session');
+        } else if (event === 'TOKEN_REFRESHED' && session) {
+          await saveSession(session);
+        }
+        
+        setLoading(false);
+      }
     );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Función para iniciar sesión
+  const signIn = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    
+    if (error) throw error;
+    return data;
   };
-};
 
-/**
- * HOC para proteger rutas según el rol del usuario
- */
-export const withRole = (allowedRoles) => (WrappedComponent) => {
-  return (props) => {
-    const { isAuthenticated, loading, userRole } = useAuthContext();
-
-    if (loading) {
-      return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#27AE60" />
-          <Text style={{ marginTop: 10 }}>Verificando permisos...</Text>
-        </View>
-      );
-    }
-
-    if (!isAuthenticated || !allowedRoles.includes(userRole)) {
-      return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, color: '#e74c3c' }}>
-            No tienes permisos para acceder a esta pantalla
-          </Text>
-        </View>
-      );
-    }
-
-    return <WrappedComponent {...props} userRole={userRole} />;
+  // Función para cerrar sesión
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    
+    // Limpiar datos locales
+    setUser(null);
+    setSession(null);
+    await AsyncStorage.removeItem('@supabase_session');
   };
-};
 
-export default AuthContext;
+  const value = {
+    user,
+    session,
+    loading,
+    signIn,
+    signOut,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};

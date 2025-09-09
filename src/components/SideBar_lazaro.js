@@ -14,10 +14,12 @@ import {
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import ChangePasswordModal from './ChangePasswordModal';
+import { useAuth } from '../contexts/AuthContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const SideBar = ({ isVisible, onClose, onOptionSelect, isDarkMode, onToggleDarkMode, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
+  const { signOut } = useAuth();
 
   const sidebarWidth = screenWidth * 0.75;
   const slideAnim = useRef(new Animated.Value(-sidebarWidth)).current;
@@ -149,14 +151,12 @@ const configOptions = roleOptionsMap[role] || [];
   const handleLogout = () => {
     const proceed = async () => {
       try {
-        await supabase.auth.signOut();
+        await signOut();
       } catch (e) {
+        console.error('Error al cerrar sesión:', e);
         // ignorar error de signOut para no bloquear la navegación
       }
       handleClose();
-      if (navigation && navigation.navigate) {
-        navigation.navigate('Login');
-      }
     };
 
     if (Platform.OS === 'web') {

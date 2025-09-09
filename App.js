@@ -5,7 +5,7 @@ import React, { useEffect } from 'react';
 import { Platform, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
-import AppNavigator from './src/navigation/AppNavigator';
+import AuthNavigator from './src/navigation/AuthNavigator';
 import { DarkModeProvider } from './src/contexts/UnifiedDarkModeContext';
 import { AuthProvider } from './src/contexts/AuthContext';
 
@@ -28,7 +28,7 @@ export default function App() {
             hidden={false}
           />
           <NavigationContainer>
-            <AppNavigator />
+            <AuthNavigator />
           </NavigationContainer>
         </View>
       </DarkModeProvider>

@@ -1,7 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Platform } from 'react-native';
-import SplashScreen from '../screens/SplashScreen';
 import LoginScreen from '../screens/LoginScreen';
 import MainAppScreen from '../screens/MainAppScreen';
 import CreateUserScreen from '../screens/CreateUserScreen';
@@ -19,7 +18,7 @@ const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => (
   <Stack.Navigator
-    initialRouteName="Splash"
+    initialRouteName="Login"
     screenOptions={{
       headerStyle: {
         backgroundColor: '#F8F9FA',
@@ -29,13 +28,6 @@ const AppNavigator = () => (
         fontWeight: '600',
       },
     }}>
-    <Stack.Screen 
-      name="Splash" 
-      component={SplashScreen}
-      options={{
-        headerShown: false,
-      }}
-    />
     <Stack.Screen 
       name="Login" 
       component={LoginScreen}
