@@ -1458,7 +1458,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                   {/* Contenido expandido - grupos de fecha/lotería/horario */}
                   {openListero && (
                     <View style={[styles.expandedContent, { backgroundColor: '#F1F3F4' }]}>
-                      {renderGroupedPlaysTable(listero.plays || [])}
+                      {(() => {
+                        console.log('🔍 [renderCollectorExpandableTable] Expandiendo listero:', listero.listero_username);
+                        console.log('🔍 [renderCollectorExpandableTable] Plays del listero:', listero.plays?.length || 0);
+                        console.log('🔍 [renderCollectorExpandableTable] Primera jugada del listero:', listero.plays?.[0]);
+                        return renderGroupedPlaysTable(listero.plays || []);
+                      })()}
                     </View>
                   )}
                 </View>
@@ -1729,6 +1734,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Función auxiliar para renderizar tabla de jugadas agrupadas
   const renderGroupedPlaysTable = (plays) => {
+    console.log('🔍 [renderGroupedPlaysTable] === INICIO ===');
+    console.log('🔍 [renderGroupedPlaysTable] Plays recibidos:', plays?.length || 0);
+    console.log('🔍 [renderGroupedPlaysTable] UserRole:', userRole);
+    console.log('🔍 [renderGroupedPlaysTable] Primer play:', plays?.[0]);
+    console.log('🔍 [renderGroupedPlaysTable] Campos del primer play:', plays?.[0] ? Object.keys(plays[0]) : 'No hay plays');
+    
     // Helpers para formateo
     const dayKeyOf = (ts) => { 
       const d = new Date(ts); 
@@ -1760,11 +1771,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     const map = new Map();
     
     // Filtrar registros con fechas válidas antes de procesarlos
-    const validPlays = plays.filter(r => r.created_at);
+    const validPlays = plays.filter(r => r.fecha_jugada || r.created_at);
+    
+    console.log('🔍 [renderGroupedPlaysTable] Plays válidos después de filtro de fecha:', validPlays.length);
     
     for(const r of validPlays) {
-      const dayKey = dayKeyOf(r.created_at);
-      const dayLabel = dayLabelOf(r.created_at);
+      // Usar fecha_jugada como campo principal de fecha (de v_estadisticas)
+      const fechaJugada = r.fecha_jugada || r.created_at;
+      const dayKey = dayKeyOf(fechaJugada);
+      const dayLabel = dayLabelOf(fechaJugada);
       const lottery = r.loteria || r.nombre_loteria || 'Lotería';
       const schedule = r.horario || r.nombre_horario || 'Horario';
       const resultado = r.resultado || null;
@@ -1819,9 +1834,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       
       // Agregar jugada individual - USAR CAMPOS CORRECTOS
       group.plays.push({
-        time: timeStr(r.created_at),
+        time: timeStr(fechaJugada), // Usar la fecha correcta
         ts: (() => {
-          const d = new Date(r.created_at);
+          const d = new Date(fechaJugada);
           return isNaN(d.getTime()) ? 0 : d.getTime();
         })(),
         jugada: r.tipo_jugada || '', // CORREGIDO: usar tipo_jugada
@@ -1842,6 +1857,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     // Ordenar grupos
     let groups = Array.from(map.values())
       .sort((a,b) => (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
+
+    console.log('🔍 [renderGroupedPlaysTable] Grupos creados:', groups.length);
+    console.log('🔍 [renderGroupedPlaysTable] Primer grupo:', groups[0]);
 
     // Ordenar jugadas dentro de cada grupo
     groups.forEach(g => {
