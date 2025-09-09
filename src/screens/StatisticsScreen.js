@@ -1562,7 +1562,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                                 </Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 110 }]}>
-                                <Text style={styles.excelCell} numberOfLines={1}>
+                                <Text style={getBalanceTextStyle(listero.balance_colector, styles.excelCell)} numberOfLines={1}>
                                   {fmt(listero.balance_colector)}
                                 </Text>
                               </View>
