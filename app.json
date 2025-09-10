@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "APK Lista Clean",
-    "slug": "apk-lista-clean-new",
+    "name": "APK Lista Clean New",
+    "slug": "apk-lista-clean-adrian-new",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -22,7 +22,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.lazaroadrian0803.apklistaclean",
+      "package": "com.adrianpm.apklistaclean",
       "permissions": [
         "WRITE_EXTERNAL_STORAGE",
         "READ_EXTERNAL_STORAGE"
@@ -38,7 +38,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "add1f3af-3653-4f39-9c61-237c2b07b6ab"
+        "projectId": "83929415-67d9-4199-8f74-4d86a5ec37dd"
       }
     }
   }
