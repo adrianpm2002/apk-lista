@@ -26,12 +26,7 @@
       "permissions": [
         "WRITE_EXTERNAL_STORAGE",
         "READ_EXTERNAL_STORAGE"
-      ],
-      "statusBarStyle": "dark-content",
-      "statusBarTranslucent": true,
-      "statusBarHidden": false,
-      "navigationBarStyle": "dark-content",
-      "softwareKeyboardLayoutMode": "pan"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

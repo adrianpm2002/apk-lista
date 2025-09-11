@@ -33,8 +33,7 @@ class AuthService {
       console.log('Intentando restaurar sesión con refresh token...');
 
       // Intentar renovar la sesión usando el refresh token
-      const { data, error } = await supabase.auth.setSession({
-        access_token: '',  // No necesario para refresh
+      const { data, error } = await supabase.auth.refreshSession({
         refresh_token: refreshToken
       });
 
@@ -44,7 +43,8 @@ class AuthService {
         
         // Si el refresh token es inválido, limpiar credenciales
         if (error.message.includes('refresh_token_not_found') || 
-            error.message.includes('invalid refresh token')) {
+            error.message.includes('invalid refresh token') ||
+            error.message.includes('Auth session missing')) {
           console.log('Refresh token inválido, limpiando credenciales...');
           await secureStorage.clearStoredCredentials();
         }
@@ -211,6 +211,26 @@ class AuthService {
       };
     } catch (error) {
       console.error('Error inesperado al obtener perfil:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Obtiene la sesión actual de Supabase
+   * @returns {Promise<Object|null>} Sesión actual o null
+   */
+  async getCurrentSession() {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('Error obteniendo sesión actual:', error);
+        return null;
+      }
+      
+      return session;
+    } catch (error) {
+      console.error('Error inesperado obteniendo sesión:', error);
       return null;
     }
   }
