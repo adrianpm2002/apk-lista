@@ -8,11 +8,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import { AuthProvider } from './src/contexts/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
 
-// Debug AsyncStorage en desarrollo (solo Android)
-if (__DEV__ && Platform.OS === 'android') {
-  import('./src/utils/debugAsyncStorage');
-}
-
 export default function App() {
   useEffect(() => {
     if (Platform.OS === 'android') {
