@@ -1,0 +1,1835 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, Alert, Modal, StyleSheet, TextInput, FlatList, TouchableOpacity, Switch, Platform, ScrollView, BackHandler } from 'react-native';
+import { Picker } from '../components/PickerWrapper';
+import DropdownPicker from '../components/DropdownPicker';
+import { SideBar, SideBarToggle } from '../components/SideBar';
+import { supabase } from '../supabaseClient';
+import { adminResetPasswordByUsername } from '../utils/adminUtils';
+import { createShadowStyle } from '../utils/shadowUtils';
+import { createCommonDarkStyles, createFormDarkStyles, DarkTheme, LightTheme } from '../utils/darkModeStyles';
+import { useDarkMode } from '../contexts/UnifiedDarkModeContext';
+
+// Orden canónico unificado de jugadas en toda la app
+const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
+
+// Componente Button personalizado para evitar warnings de pointerEvents
+const CustomButton = ({ title, onPress, disabled = false, color = '#007AFF', style }) => (
+  <TouchableOpacity
+    onPress={onPress}
+    disabled={disabled}
+    style={[
+      {
+        backgroundColor: disabled ? '#ccc' : color,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 6,
+        marginVertical: 4,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 44,
+      },
+      style
+    ]}
+  >
+    <Text style={{
+      color: disabled ? '#999' : '#fff',
+      fontSize: 16,
+      fontWeight: '600'
+    }}>
+      {title}
+    </Text>
+  </TouchableOpacity>
+);
+
+const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
+  // Estados locales
+  const [userRole, setUserRole] = useState(null);
+  
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
+  
+  // Crear estilos adaptativos para modo oscuro
+  const commonStyles = createCommonDarkStyles(isDarkMode);
+  const formStyles = createFormDarkStyles(isDarkMode);
+  
+  const [users, setUsers] = useState([]);
+  const [hierarchicalUsers, setHierarchicalUsers] = useState([]);
+  const [expandedCollectors, setExpandedCollectors] = useState(new Set());
+  const [modalVisible, setModalVisible] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('');
+  const [selectedCollector, setSelectedCollector] = useState('');
+  // Uso actualizado: se guarda id_precio como JSONB con {loteria_id: ganancia_id, loteria_nombre: nombre} en profiles
+  // Ganancias disponibles (tabla precio) y selección (solo colector asigna a listeros)
+  const [gainOptions, setGainOptions] = useState([]); // [{id,nombre,precios}]
+  const [availableLotteries, setAvailableLotteries] = useState([]); // [{id, nombre}]
+  const [selectedLotteryGains, setSelectedLotteryGains] = useState({}); // {lotteryId: gainId}
+  const [selectedGainDetail, setSelectedGainDetail] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentBankId, setCurrentBankId] = useState(null);
+  const [updatingUsers, setUpdatingUsers] = useState(new Set()); // Para tracking de actualizaciones
+  const [activePlayTypes, setActivePlayTypes] = useState([]); // jugadas activas del banco
+  const [enableSpecificLimits, setEnableSpecificLimits] = useState(false); // toggle crear listero
+  const [limitsValues, setLimitsValues] = useState({}); // valores ingresados para limites específicos
+  // Estado para reset de contraseña (solo admin)
+  const [resetModalVisible, setResetModalVisible] = useState(false);
+  const [resetTargetUser, setResetTargetUser] = useState(null);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetPassword2, setResetPassword2] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+  
+  // Estado para modal de ganancia
+  const [gainModalVisible, setGainModalVisible] = useState(false);
+  const [gainTargetUser, setGainTargetUser] = useState(null);
+
+  // Función para obtener el perfil del usuario actual
+  const fetchUserProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+        
+        const { data: profile } = await supabase.from('profiles').select('role, id_banco').eq('id', user.id).single();
+        if (profile) {
+          if (profile.role !== 'admin' && profile.role !== 'collector') {
+            Alert.alert('No Autorizado', 'Solo administradores o colectores autorizados');
+            return;
+          }
+          
+          setUserRole(profile.role);
+          const bankId = profile.role === 'admin' ? user.id : profile.id_banco;
+          setCurrentBankId(bankId);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+
+  const createHierarchicalStructure = useCallback((userData) => {
+    const hierarchical = [];
+    const collectors = userData.filter(user => user.role === 'collector');
+    const listeros = userData.filter(user => user.role === 'listero');
+    
+    // Solo procesar collectors y listeros - ignorar administradores
+    collectors.forEach(collector => {
+      const collectorListeros = listeros.filter(listero => listero.id_collector === collector.id);
+      
+      hierarchical.push({
+        ...collector,
+        type: 'collector',
+        level: 0,
+        hasListeros: collectorListeros.length > 0,
+        isExpanded: expandedCollectors.has(collector.id)
+      });
+      
+      if (expandedCollectors.has(collector.id)) {
+        collectorListeros.forEach(listero => {
+          hierarchical.push({
+            ...listero,
+            type: 'listero',
+            level: 1,
+            parentCollector: collector.username
+          });
+        });
+      }
+    });
+    
+    // Agregar listeros sin collector asignado O cuyo collector no está en la lista (fallback)
+    const orphanListeros = listeros.filter(listero => !listero.id_collector || !collectors.some(c => c.id === listero.id_collector));
+    orphanListeros.forEach(listero => {
+      hierarchical.push({
+        ...listero,
+        type: 'listero',
+        level: collectors.some(c => c.id === listero.id_collector) ? 1 : 0
+      });
+    });
+    
+    setHierarchicalUsers(hierarchical);
+  }, [expandedCollectors]);
+
+  const fetchUsers = useCallback(async () => {
+    if (!currentBankId) return;
+    if (userRole === 'collector' && !currentUserId) {
+      return;
+    }
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username, role, id_banco, id_collector, activo, id_precio, limite_especifico')
+      .eq('id_banco', currentBankId)
+      .order('role', { ascending: false })
+      .order('username');
+    if (error) {
+      console.error('Error fetching users:', error);
+      return;
+    }
+    
+    if (userRole === 'collector') {
+      const onlyListeros = (data || []).filter(u => (u.role === 'listero') && u.id_collector === currentUserId);
+      setUsers(onlyListeros);
+      setHierarchicalUsers(onlyListeros.map(u => ({ ...u, type: 'listero', level: 0 })));
+      return;
+    }
+    // Filtrar administradores - solo mostrar colectores y listeros
+    const filteredData = (data || []).filter(u => u.role !== 'admin');
+    setUsers(filteredData);
+    createHierarchicalStructure(filteredData);
+  }, [currentBankId, userRole, currentUserId, createHierarchicalStructure]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(fetchUserProfile, 10);
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  useEffect(() => {
+    if (currentBankId) {
+      fetchUsers();
+      fetchActivePlayTypes();
+    }
+  }, [currentBankId, fetchUsers]);
+
+  // Asegurar recarga cuando se determina el rol (collector) después de haber seteado bankId
+  useEffect(() => {
+    if (currentBankId) {
+      fetchUsers();
+    }
+  }, [userRole, currentBankId, currentUserId, fetchUsers]);
+
+  const fetchActivePlayTypes = useCallback(async () => {
+    if (!currentBankId) return;
+    try {
+      const { data, error } = await supabase
+        .from('jugadas_activas')
+        .select('jugadas')
+        .eq('id_banco', currentBankId)
+        .maybeSingle();
+      if (error && error.code !== 'PGRST116') { // ignorar no rows
+        console.error('Error cargando jugadas activas:', error);
+        return;
+      }
+      const jugadas = data?.jugadas || { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
+      const actives = Object.keys(jugadas).filter(k => jugadas[k]);
+      // Ordenar según orden canónico
+      actives.sort((a,b) => {
+        const ia = JUGADA_ORDER.indexOf(a);
+        const ib = JUGADA_ORDER.indexOf(b);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+      });
+      setActivePlayTypes(actives);
+      setLimitsValues(prev => {
+        const draft = { ...prev };
+        actives.forEach(j => { if (draft[j] === undefined) draft[j] = ''; });
+        return draft;
+      });
+    } catch (e) {
+      console.error('Excepción fetchActivePlayTypes:', e);
+    }
+  }, [currentBankId]);
+
+  // Cargar configuraciones de precio válidas: exactamente mismas jugadas activas
+  const fetchValidGains = useCallback(async () => {
+    if (!currentBankId) return;
+    try {
+      const { data, error } = await supabase
+        .from('precio')
+        .select('id, nombre, precios, id_banco, id_loteria')
+        .eq('id_banco', currentBankId);
+      if (error) { console.error('Error precio:', error); return; }
+      if (userRole === 'collector') {
+        const actSet = new Set(activePlayTypes);
+        const filtered = (data||[]).filter(cfg => {
+          if (!cfg || !cfg.precios || typeof cfg.precios !== 'object') return false;
+            const keys = Object.keys(cfg.precios);
+            if (keys.length !== actSet.size) return false;
+            for (const k of keys) {
+              if (!actSet.has(k)) return false;
+              const v = cfg.precios[k];
+              if (!v || typeof v !== 'object') return false;
+              const req = ['limited','regular','listeroPct','collectorPct'];
+              for (const r of req) { if (!(r in v)) return false; }
+            }
+            for (const a of actSet) { if (!(a in cfg.precios)) return false; }
+            return true;
+        });
+        setGainOptions(filtered);
+      } else {
+        // Admin: mostrar todas para poder resolver nombres incluso si no encajan exactamente con jugadas activas actuales
+        setGainOptions(data || []);
+      }
+    } catch (e) {
+      console.error('Excepción fetchValidGains:', e);
+    }
+  }, [userRole, currentBankId, activePlayTypes]);
+
+  useEffect(() => { fetchValidGains(); }, [fetchValidGains]);
+
+  // Cargar loterías disponibles para el banco
+  const fetchAvailableLotteries = useCallback(async () => {
+    if (!currentBankId) return;
+    try {
+      const { data, error } = await supabase
+        .from('loteria')
+        .select('id, nombre')
+        .eq('id_banco', currentBankId)
+        .order('nombre', { ascending: true });
+      
+      if (error) {
+        console.error('Error loading lotteries:', error);
+        return;
+      }
+      
+      setAvailableLotteries(data || []);
+    } catch (e) {
+      console.error('Excepción fetchAvailableLotteries:', e);
+    }
+  }, [currentBankId]);
+
+  useEffect(() => { fetchAvailableLotteries(); }, [fetchAvailableLotteries]);
+
+  // Recrear estructura jerárquica cuando cambien los usuarios
+  useEffect(() => {
+    if (users.length === 0) return;
+    if (userRole === 'collector') {
+      // Para collector, la lista es plana de sus listeros; reflejar cambios (ej. activo) inmediatamente
+      setHierarchicalUsers(users.map(u => ({ ...u, type: 'listero', level: 0 })));
+    } else {
+      createHierarchicalStructure(users);
+    }
+  }, [users, createHierarchicalStructure, userRole]);
+
+  // ========== ANDROID BACK HANDLER ==========
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        Alert.alert(
+          'Cerrar Aplicación',
+          '¿Estás seguro de que quieres salir?',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Salir', onPress: () => BackHandler.exitApp() }
+          ]
+        );
+        return true; // Prevenir navegación hacia atrás
+      });
+
+      return () => backHandler.remove();
+    }
+  }, []);
+
+  const handleCreateOrUpdate = async () => {
+    try {
+      // Forzar role listero si collector
+      const effectiveRole = userRole === 'collector' ? 'listero' : role;
+
+      if (!username || (!isEditing && !password) || !effectiveRole) {
+        Alert.alert('Error', 'Todos los campos son obligatorios.');
+        return;
+      }
+
+      if (username.includes('@')) {
+        Alert.alert('Error', 'El nombre de usuario no debe contener "@".');
+        return;
+      }
+      if (userRole !== 'collector' && effectiveRole === 'listero' && !selectedCollector) {
+        Alert.alert('Error', 'Debes seleccionar un colector.');
+        return;
+      }
+      // Validación de ganancias no obligatoria para listeros del colector
+
+      const fakeEmail = `${username.toLowerCase()}@example.com`;
+
+      if (isEditing && editingUser) {
+        let refreshedAfterEdit = false;
+        // Usar método directo de actualización (más confiable)
+        try {
+          const directUpdate = {
+            username,
+            role: effectiveRole,
+            id_collector: userRole === 'collector' ? currentUserId : (selectedCollector || null),
+            id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? buildGainsData() : (editingUser.id_precio || null),
+            activo: editingUser.activo !== undefined ? editingUser.activo : true
+          };
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update(directUpdate)
+            .eq('id', editingUser.id);
+          if (updateError) {
+            console.error('Update error:', updateError);
+            return Alert.alert('Error al actualizar', `Error: ${updateError.message}`);
+          }
+        } catch (error) {
+          console.error('Error updating user:', error);
+          return Alert.alert('Error al actualizar', 'Error general de actualización');
+        }
+        // 2. Aplicar límites específicos si corresponde
+        if (effectiveRole === 'listero' && userRole !== 'collector') {
+          try {
+            if (enableSpecificLimits) {
+              const limitsObj = {};
+              activePlayTypes.forEach(pt => {
+                const val = limitsValues[pt];
+                if (val && !isNaN(val)) {
+                  const num = parseInt(val, 10);
+                  if (num > 0) limitsObj[pt] = num;
+                }
+              });
+              const { error: upErr } = await supabase
+                .from('profiles')
+                .update({ limite_especifico: Object.keys(limitsObj).length ? limitsObj : null })
+                .eq('id', editingUser.id);
+              if (upErr) console.error('Error actualizando limites especificos:', upErr);
+            } else {
+              const { error: clearErr } = await supabase
+                .from('profiles')
+                .update({ limite_especifico: null })
+                .eq('id', editingUser.id);
+              if (clearErr) console.error('Error limpiando limites especificos:', clearErr);
+            }
+          } catch (ee) {
+            console.error('Excepción límites específicos edición:', ee);
+          }
+        }
+        // Refresh inmediato para reflejar cambios
+        try {
+          await fetchUsers();
+          refreshedAfterEdit = true;
+        } catch {}
+        Alert.alert('Éxito', 'Usuario actualizado correctamente');
+      } else {
+        // Verificar si ya existe un usuario con ese username
+        const { data: existingUsers, error: checkError } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('username', username);
+
+        if (checkError) {
+          console.error('Check Error:', checkError);
+          return Alert.alert('Error', 'Error al verificar usuario existente');
+        }
+
+        if (existingUsers && existingUsers.length > 0) {
+          return Alert.alert('Error', 'Ya existe un usuario con ese nombre. Por favor elige otro nombre.');
+        }
+
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: fakeEmail,
+          password,
+        });
+
+        if (signUpError) {
+          console.error('SignUp Error:', signUpError);
+          if (signUpError.message.includes('User already registered')) {
+            return Alert.alert('Error', 'Ya existe un usuario con ese nombre. Por favor elige otro nombre.');
+          }
+          return Alert.alert('Error al registrar', signUpError.message);
+        }
+
+        const newUserId = signUpData.user?.id;
+
+        if (newUserId) {
+          let id_banco = currentBankId;
+          let id_collector = null;
+          if (effectiveRole === 'collector') {
+            id_collector = null;
+          } else if (effectiveRole === 'listero') {
+            id_collector = userRole === 'collector' ? currentUserId : selectedCollector;
+          }
+
+          const insertData = {
+             id: newUserId,
+             username,
+             role: effectiveRole,
+             id_banco,
+             id_collector,
+             id_precio: (userRole === 'collector' && effectiveRole === 'listero') ? buildGainsData() : null,
+           }; // sin ganancia
+
+          console.log('Creating listero with data:', insertData);
+
+          if (effectiveRole === 'listero' && enableSpecificLimits && userRole !== 'collector') {
+            const limitsObj = {};
+            activePlayTypes.forEach(pt => {
+              const val = limitsValues[pt];
+              if (val && !isNaN(val)) {
+                const num = parseInt(val, 10);
+                if (num > 0) limitsObj[pt] = num;
+              }
+            });
+            if (Object.keys(limitsObj).length > 0) {
+              insertData.limite_especifico = limitsObj; // JSONB
+            }
+          }
+
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert(insertData, { returning: 'minimal' });
+
+          if (insertError) {
+            console.error('Insert Error:', insertError);
+            await supabase.auth.admin.deleteUser(newUserId);
+            return Alert.alert('Error al guardar perfil', insertError.message);
+          }
+
+          Alert.alert('Éxito', 'Usuario creado');
+        }
+      }
+
+      setModalVisible(false);
+      clearForm();
+      // Evitar doble fetch si ya se hizo refresh tras edición
+      if (!(isEditing && editingUser)) {
+        fetchUsers();
+      }
+    } catch (error) {
+      console.error('Unexpected Error:', error);
+      Alert.alert('Error inesperado', error.message || 'Ocurrió un problema inesperado.');
+    }
+  };
+
+  const handleDelete = useCallback((id) => {
+    const executeDeletion = async () => {
+      const userToDelete = users.find(u => u.id === id);
+      const isCollector = userToDelete?.role === 'collector';
+      
+      // Si es colector, encontrar listeros asociados para actualización local
+      let affectedListeros = [];
+      if (isCollector) {
+        affectedListeros = users.filter(u => u.role === 'listero' && u.id_collector === id);
+      }
+
+      // Eliminación optimista local
+      setUsers(prev => {
+        const filtered = prev.filter(u => u.id !== id);
+        
+        // Si era colector, actualizar listeros asociados localmente
+        if (isCollector && affectedListeros.length > 0) {
+          return filtered.map(user => {
+            if (user.role === 'listero' && user.id_collector === id) {
+              return {
+                ...user,
+                id_collector: null,
+                activo: false // Deshabilitar automáticamente
+              };
+            }
+            return user;
+          });
+        }
+        
+        return filtered;
+      });
+      
+      // Si estaba expandido quitarlo
+      setExpandedCollectors(prev => {
+        if (prev.has(id)) {
+          const n = new Set(prev);
+            n.delete(id);
+            return n;
+        }
+        return prev;
+      });
+      // Recalcular estructura rápidamente con el estado actualizado (esperar siguiente tick)
+      setTimeout(() => {
+        createHierarchicalStructure(
+          (prevUsersRef => prevUsersRef)(users.filter(u => u.id !== id))
+        );
+      }, 0);
+
+      try {
+        // Si es colector, primero actualizar listeros asociados
+        if (isCollector && affectedListeros.length > 0) {
+          const { error: listeroUpdateError } = await supabase
+            .from('profiles')
+            .update({ 
+              id_collector: null,
+              activo: false 
+            })
+            .eq('id_collector', id)
+            .eq('role', 'listero');
+            
+          if (listeroUpdateError) {
+            console.error('Error updating associated listeros:', listeroUpdateError);
+          }
+        }
+
+        // Eliminar el usuario
+        const { data, error } = await supabase.rpc('delete_user_complete', { user_id: id });
+        if (error) throw error;
+        if (data && data.success === false) {
+          throw new Error(data.message || data.error || 'Fallo al eliminar');
+        }
+        
+        // Mostrar mensaje específico si era colector con listeros
+        if (isCollector && affectedListeros.length > 0) {
+          Alert.alert(
+            'Colector eliminado', 
+            `Se eliminó el colector y se deshabilitaron ${affectedListeros.length} listero(s) asociado(s).`
+          );
+        }
+        
+      } catch (e) {
+        console.error('Delete Error:', e);
+        Alert.alert('Error', e.message || 'No se pudo eliminar. Refrescando.');
+        // Re-sincronizar lista real
+      } finally {
+        fetchUsers();
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('¿Eliminar definitivamente este usuario?')) {
+        executeDeletion();
+      }
+    } else {
+      Alert.alert(
+        'Eliminar Usuario',
+        '¿Eliminar definitivamente este usuario?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Eliminar', style: 'destructive', onPress: executeDeletion }
+        ]
+      );
+    }
+  }, [users, fetchUsers, createHierarchicalStructure]);
+
+  const handleToggleActive = async (userId, currentStatus) => {
+    // Permitir a collector solo sobre sus listeros
+    if (userRole === 'collector') {
+      const target = users.find(u => u.id === userId);
+      if (!target || target.role !== 'listero' || target.id_collector !== currentUserId) {
+        Alert.alert('Acción no permitida', 'Solo puedes cambiar estado de tus listeros.');
+        return;
+      }
+    }
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+
+    const newStatus = !currentStatus;
+    const action = newStatus ? 'activar' : 'desactivar';
+    const isCollector = targetUser.role === 'collector';
+    const isListero = targetUser.role === 'listero';
+
+    // Bloqueo: no permitir activar listero si su colector está inactivo
+    if (isListero && newStatus) {
+      const parentCollector = users.find(u => u.id === targetUser.id_collector);
+      if (parentCollector && parentCollector.activo === false) {
+        Alert.alert('Acción no permitida', 'No puedes activar un listero cuyo colector está inactivo.');
+        return;
+      }
+    }
+
+    // IDs afectados (cascade si colector)
+    let affectedIds = [userId];
+    if (isCollector) {
+      const collectorListeros = users.filter(u => u.id_collector === userId && u.role === 'listero');
+      affectedIds = [userId, ...collectorListeros.map(l => l.id)];
+    }
+
+    // Marcar todos como en actualización
+    setUpdatingUsers(prev => new Set([...prev, ...affectedIds]));
+
+    // Actualización local optimista
+    setUsers(prev => {
+      const updated = prev.map(u => (
+        affectedIds.includes(u.id) ? { ...u, activo: newStatus } : u
+      ));
+      // Si collector, también actualizar hierarchicalUsers inmediatamente
+      if (userRole === 'collector') {
+        setHierarchicalUsers(updated.map(u => ({ ...u, type: 'listero', level: 0 })));
+      }
+      return updated;
+    });
+
+    try {
+      if (isCollector) {
+        // Actualizar colector y listeros vinculados en cascada
+        const { error: cascadeError } = await supabase
+          .from('profiles')
+          .update({ activo: newStatus })
+          .in('id', affectedIds);
+
+        if (cascadeError) throw cascadeError;
+      } else {
+        // Actualización simple para listero / admin
+        const { error: singleError } = await supabase
+          .from('profiles')
+          .update({ activo: newStatus })
+          .eq('id', userId);
+        if (singleError) throw singleError;
+      }
+    } catch (err) {
+      console.error('Error toggle activo:', err);
+      Alert.alert('Error', `No se pudo ${action} el usuario: ${err.message}`);
+      // Revertir local
+      setUsers(prev => {
+        const reverted = prev.map(u => (
+          affectedIds.includes(u.id) ? { ...u, activo: currentStatus } : u
+        ));
+        if (userRole === 'collector') {
+          setHierarchicalUsers(reverted.map(u => ({ ...u, type: 'listero', level: 0 })));
+        }
+        return reverted;
+      });
+      fetchUsers();
+    } finally {
+      // Limpiar updating set
+      setUpdatingUsers(prev => {
+        const newSet = new Set(prev);
+        affectedIds.forEach(id => newSet.delete(id));
+        return newSet;
+      });
+    }
+  };
+
+  const toggleCollectorExpansion = (collectorId) => {
+    const newExpanded = new Set(expandedCollectors);
+    if (newExpanded.has(collectorId)) {
+      newExpanded.delete(collectorId);
+    } else {
+      newExpanded.add(collectorId);
+    }
+    setExpandedCollectors(newExpanded);
+    // Solo recrear estructura si hay datos
+    if (users.length > 0) {
+      createHierarchicalStructure(users);
+    }
+  };
+
+  const openEditModal = (user) => {
+    setIsEditing(true);
+    setEditingUser(user);
+    setUsername(user.username);
+    if (userRole === 'collector') {
+      setRole('listero');
+      setSelectedCollector(currentUserId);
+    } else {
+      setRole(user.role);
+      setSelectedCollector(user.id_collector || '');
+    }
+    if (user.role === 'listero') {
+      const raw = user.limite_especifico;
+      if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) {
+        setEnableSpecificLimits(userRole === 'collector' ? false : true);
+        setLimitsValues(prev => {
+          const draft = { ...prev };
+          Object.entries(raw).forEach(([k,v]) => { draft[k] = v?.toString?.() || `${v}`; });
+          return draft;
+        });
+      } else {
+        setEnableSpecificLimits(false);
+      }
+      if (userRole === 'collector') {
+        // Inicializar selecciones por lotería desde el id_precio (formato JSONB)
+        const initialSelections = {};
+        if (user.id_precio && typeof user.id_precio === 'object') {
+          Object.keys(user.id_precio).forEach(key => {
+            if (key.endsWith('_id')) {
+              const cleanLotteryId = key.replace('_id', '');
+              initialSelections[cleanLotteryId] = user.id_precio[key];
+            }
+          });
+        }
+        setSelectedLotteryGains(initialSelections);
+      }
+    } else {
+      setEnableSpecificLimits(false);
+    }
+    setModalVisible(true);
+  };
+
+  // Abrir modal de cambio de contraseña (solo admin)
+  const openResetPasswordModal = (user) => {
+    if (userRole !== 'admin') return;
+    setResetTargetUser(user);
+    setResetPassword('');
+    setResetPassword2('');
+    setResetModalVisible(true);
+  };
+
+  // Abrir modal de asignación de ganancia (solo colector)
+  const openGainModal = (user) => {
+    if (userRole !== 'collector') return;
+    setGainTargetUser(user);
+    
+    // Inicializar selecciones por lotería desde el id_precio (formato JSONB)
+    const initialSelections = {};
+    if (user.id_precio && typeof user.id_precio === 'object') {
+      // Formato nuevo: {loteria_id: ganancia_id, ...}
+      Object.keys(user.id_precio).forEach(key => {
+        if (key.endsWith('_id')) {
+          const cleanLotteryId = key.replace('_id', '');
+          initialSelections[cleanLotteryId] = user.id_precio[key];
+        }
+      });
+    }
+    setSelectedLotteryGains(initialSelections);
+    setGainModalVisible(true);
+  };
+
+  // Abrir modal de ganancia para nuevo usuario
+  const openGainModalForNewUser = () => {
+    setGainTargetUser(null); // No hay usuario objetivo, es para creación
+    // Las selecciones ya están en selectedLotteryGains
+    setGainModalVisible(true);
+  };
+
+  // Manejar selección de ganancia para una lotería específica
+  const handleLotteryGainSelection = (lotteryId, gainId) => {
+    setSelectedLotteryGains(prev => {
+      const newState = {
+        ...prev,
+        [lotteryId]: gainId || null
+      };
+      return newState;
+    });
+  };
+
+  // Convertir selecciones de lotería-ganancia al formato JSONB
+  const buildGainsData = () => {
+    const gainsData = {};
+    for (const [lotteryId, gainId] of Object.entries(selectedLotteryGains)) {
+      if (gainId) {
+        const lottery = availableLotteries.find(l => l.id === lotteryId);
+        if (lottery) {
+          gainsData[`${lotteryId}_id`] = gainId;
+          gainsData[`${lotteryId}_nombre`] = lottery.nombre;
+        }
+      }
+    }
+    return Object.keys(gainsData).length > 0 ? gainsData : null;
+  };
+
+  // Confirmar cambio de contraseña usando método directo simplificado
+  const handleConfirmResetPassword = async () => {
+    try {
+      if (!resetTargetUser) return;
+      const pwd = (resetPassword || '').trim();
+      const pwd2 = (resetPassword2 || '').trim();
+      if (pwd.length < 6) {
+        Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres.');
+        return;
+      }
+      if (pwd !== pwd2) {
+        Alert.alert('Error', 'Las contraseñas no coinciden.');
+        return;
+      }
+      setIsResetting(true);
+      
+      // Método directo: establecer contraseña temporal en el perfil
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          temp_password: pwd,
+          temp_password_created: new Date().toISOString()
+        })
+        .eq('id', resetTargetUser.id);
+
+      if (updateError) {
+        throw new Error('Error al establecer contraseña temporal: ' + updateError.message);
+      }
+      
+      Alert.alert(
+        'Contraseña Temporal Establecida', 
+        `Se ha establecido una contraseña temporal para ${resetTargetUser.username}.\n\nEl usuario deberá usar esta nueva contraseña en su próximo login y cambiarla desde Configuración > Cambiar Contraseña.`
+      );
+      setResetModalVisible(false);
+    } catch (e) {
+      console.error('Reset password error:', e);
+      let errorMessage = 'No se pudo establecer la contraseña temporal.';
+      
+      if (e.message) {
+        errorMessage = e.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsResetting(false);
+      setResetPassword('');
+      setResetPassword2('');
+    }
+  };
+
+  // Función para asignar ganancia a listero
+  const handleAssignGain = async () => {
+    // Validar que al menos una lotería tenga ganancia asignada
+    const hasAnySelection = Object.values(selectedLotteryGains).some(gainId => gainId);
+    if (!hasAnySelection) {
+      Alert.alert('Error', 'Asigna al menos una ganancia para una lotería');
+      return;
+    }
+
+    // Si no hay usuario objetivo, solo cerrar el modal (es para nuevo usuario)
+    if (!gainTargetUser) {
+      setGainModalVisible(false);
+      return;
+    }
+
+    try {
+      // Construir el objeto JSONB con el formato: {loteria_id: ganancia_id, loteria_nombre: nombre}
+      const gainsData = {};
+      
+      for (const [lotteryId, gainId] of Object.entries(selectedLotteryGains)) {
+        if (gainId) {
+          const lottery = availableLotteries.find(l => l.id === lotteryId);
+          if (lottery) {
+            gainsData[`${lotteryId}_id`] = gainId;
+            gainsData[`${lotteryId}_nombre`] = lottery.nombre;
+          }
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ id_precio: gainsData })
+        .eq('id', gainTargetUser.id)
+        .select('id_precio');
+
+      if (error) {
+        throw error;
+      }
+
+      Alert.alert('Éxito', 'Ganancias asignadas correctamente');
+      setGainModalVisible(false);
+      setSelectedLotteryGains({});
+      fetchUsers();
+    } catch (error) {
+      console.error('Error asignando ganancias:', error);
+      Alert.alert('Error', 'No se pudieron asignar las ganancias');
+    }
+  };
+
+  // Optimizar filtros con useMemo
+  const collectors = useMemo(() => 
+    users.filter(u => u.role === 'collector'), 
+    [users]
+  );
+
+  const clearForm = () => {
+    setUsername('');
+    setPassword('');
+    setRole('');
+    setSelectedCollector('');
+    setSelectedLotteryGains({});
+    setSelectedGainDetail(null);
+    setIsEditing(false);
+    setEditingUser(null);
+    setEnableSpecificLimits(false);
+  };
+
+  // Función para obtener el texto de las ganancias seleccionadas
+  const getSelectedGainsText = () => {
+    const hasAnySelection = Object.values(selectedLotteryGains).some(gainId => gainId);
+    if (!hasAnySelection) {
+      return 'Seleccionar Ganancias por Lotería';
+    }
+
+    const selectedItems = [];
+    for (const [lotteryId, gainId] of Object.entries(selectedLotteryGains)) {
+      if (gainId) {
+        const lottery = availableLotteries.find(l => l.id === lotteryId);
+        const gain = gainOptions.find(g => g.id === gainId && g.id_loteria === lotteryId);
+        if (lottery && gain) {
+          selectedItems.push(`${lottery.nombre}: ${gain.nombre}`);
+        }
+      }
+    }
+
+    if (selectedItems.length === 0) return 'Seleccionar Ganancias por Lotería';
+    if (selectedItems.length === 1) return selectedItems[0];
+    if (selectedItems.length <= 2) return selectedItems.join(', ');
+    return `${selectedItems.length} loterías configuradas`;
+  };
+
+  const renderUserItem = ({ item }) => {
+    const isAdmin = item.type === 'user' && item.role === 'admin';
+    const isCollector = item.type === 'collector';
+    const isListero = item.type === 'listero';
+    const isExpanded = expandedCollectors.has(item.id);
+    const isUpdating = updatingUsers.has(item.id);
+    const parentCollectorInactive = isListero && item.id_collector ? (users.find(u => u.id === item.id_collector)?.activo === false) : false;
+    const canToggleActive = userRole !== 'collector' || (userRole === 'collector' && isListero && item.id_collector === currentUserId);
+    
+    // No renderizar administradores
+    if (isAdmin || item.role === 'admin') {
+      return null;
+    }
+    
+    // Collector card
+    if (isCollector) {
+      return (
+        <View style={[styles.userCard, styles.collectorCard, { backgroundColor: isDarkMode ? '#2c3e50' : '#fff' }]}>
+          <TouchableOpacity 
+            style={styles.collectorHeader}
+            onPress={() => toggleCollectorExpansion(item.id)}
+          >
+            <View style={styles.userNameContainer}>
+              <Text 
+                style={[styles.username, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
+                📊 {item.username}
+              </Text>
+              <Text style={[styles.userRole, { color: isDarkMode ? '#3498db' : '#3498db' }]}>
+                Colector • {item.activo ? 'Habilitado' : 'Deshabilitado'}
+              </Text>
+            </View>
+            <Text style={[styles.expandIcon, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+              {isExpanded ? '▼' : '▶'}
+            </Text>
+          </TouchableOpacity>
+          
+          {userRole === 'admin' && (
+            <View style={styles.buttonRow}>
+              <View style={styles.toggleContainer}>
+                <Switch
+                  style={styles.toggleSwitch}
+                  value={item.activo}
+                  onValueChange={() => handleToggleActive(item.id, item.activo)}
+                  trackColor={{ false: '#e74c3c', true: '#27ae60' }}
+                  thumbColor={item.activo ? '#fff' : '#fff'}
+                />
+                <Text style={styles.toggleLabel}>
+                  {item.activo ? 'ON' : 'OFF'}
+                </Text>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => openEditModal(item)}
+              >
+                <Text style={styles.buttonText}>Editar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={() => openResetPasswordModal(item)}
+              >
+                <Text style={styles.buttonText}>Contraseña</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDelete(item.id)}
+              >
+                <Text style={styles.buttonText}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      );
+    }
+    
+    // Listero card
+    if (isListero) {
+      const isOrphan = item.level === 0; // Listero sin colector asignado
+      
+      return (
+        <View style={[
+          styles.userCard,
+          isOrphan ? styles.orphanListeroCard : styles.listeroCard,
+          { backgroundColor: isDarkMode ? (isOrphan ? '#7f8c8d' : '#34495e') : (isOrphan ? '#e9ecef' : '#f8f9fa') }
+        ]}>
+          <View style={styles.userNameContainer}>
+            <Text 
+              style={[styles.listeroName, { color: isDarkMode ? '#ecf0f1' : '#2c3e50' }]}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
+              {isOrphan ? '🔗' : '└── 📝'} {item.username}
+            </Text>
+            <Text style={[styles.userRole, { color: isDarkMode ? (isOrphan ? '#f39c12' : '#95a5a6') : (isOrphan ? '#f39c12' : '#6c757d') }]}>
+              Listero • {item.activo ? 'Habilitado' : 'Deshabilitado'} {isOrphan ? '• Sin colector' : ''}
+            </Text>
+            
+            {/* Información adicional del listero */}
+            <Text style={[styles.userDetails, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+              {(() => {
+                const gainsData = item.id_precio;
+                if (!gainsData || typeof gainsData !== 'object') return '💰 Sin ganancias configuradas';
+                
+                const lotteryGainPairs = [];
+                
+                // Obtener todos los IDs de lotería únicos
+                const lotteryIds = new Set();
+                Object.keys(gainsData).forEach(key => {
+                  if (key.endsWith('_id')) {
+                    const lotteryId = key.replace('_id', '');
+                    lotteryIds.add(lotteryId);
+                  }
+                });
+                
+                // Para cada lotería, obtener su nombre y el nombre de la ganancia
+                lotteryIds.forEach(lotteryId => {
+                  const lotteryName = gainsData[`${lotteryId}_nombre`];
+                  const gainId = gainsData[`${lotteryId}_id`];
+                  
+                  if (lotteryName && gainId) {
+                    // Buscar el nombre de la ganancia en gainOptions
+                    const gain = gainOptions.find(g => g.id === gainId);
+                    const gainName = gain ? gain.nombre : `ID: ${gainId}`;
+                    lotteryGainPairs.push(`${lotteryName}: ${gainName}`);
+                  }
+                });
+                
+                if (lotteryGainPairs.length === 0) return '💰 Sin ganancias configuradas';
+                if (lotteryGainPairs.length === 1) return `💰 ${lotteryGainPairs[0]}`;
+                if (lotteryGainPairs.length <= 3) return `💰 ${lotteryGainPairs.join(' | ')}`;
+                return `💰 ${lotteryGainPairs.length} ganancias configuradas`;
+              })()}
+            </Text>
+            
+            <Text style={[styles.userDetails, { color: isDarkMode ? '#bdc3c7' : '#7f8c8d' }]}>
+              {(() => {
+                const raw = item.limite_especifico;
+                if (!raw || (typeof raw === 'object' && Object.keys(raw).length === 0)) return '🛑 Sin límites específicos';
+                let entries = Object.entries(raw).filter(([k]) => activePlayTypes.includes(k));
+                entries.sort((a,b) => {
+                  const ia = JUGADA_ORDER.indexOf(a[0]);
+                  const ib = JUGADA_ORDER.indexOf(b[0]);
+                  return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+                });
+                if (entries.length === 0) return '🛑 Sin límites específicos';
+                return '🔒 ' + entries.map(([k,v]) => `${k}: ${v}`).join(', ');
+              })()}
+            </Text>
+          </View>
+          
+          {canToggleActive && (
+            <View style={styles.buttonRow}>
+              <View style={styles.toggleContainer}>
+                <Switch
+                  style={styles.toggleSwitch}
+                  value={item.activo}
+                  onValueChange={() => handleToggleActive(item.id, item.activo)}
+                  trackColor={{ false: '#e74c3c', true: '#27ae60' }}
+                  thumbColor={item.activo ? '#fff' : '#fff'}
+                />
+                <Text style={styles.toggleLabel}>
+                  {item.activo ? 'ON' : 'OFF'}
+                </Text>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => openEditModal(item)}
+              >
+                <Text style={styles.buttonText}>Editar</Text>
+              </TouchableOpacity>
+              
+              {userRole === 'collector' && (
+                <TouchableOpacity
+                  style={styles.gainButton}
+                  onPress={() => openGainModal(item)}
+                >
+                  <Text style={styles.buttonText}>Ganancia</Text>
+                </TouchableOpacity>
+              )}
+              
+              {userRole === 'admin' && (
+                <TouchableOpacity
+                  style={styles.resetButton}
+                  onPress={() => openResetPasswordModal(item)}
+                >
+                  <Text style={styles.buttonText}>Contraseña</Text>
+                </TouchableOpacity>
+              )}
+              
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDelete(item.id)}
+              >
+                <Text style={styles.buttonText}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      );
+    }
+    
+    return null;
+  };
+
+  return (
+    <View style={[styles.container, commonStyles.container]}>
+      <View style={[styles.customHeader, commonStyles.header]}>
+        <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
+        <Text style={[styles.headerTitle, commonStyles.textPrimary]}>Usuarios</Text>
+      </View>
+
+      <View style={[styles.content, commonStyles.containerSecondary]}>
+  <CustomButton title={userRole === 'collector' ? 'Crear Listero' : 'Crear Usuario'} onPress={() => { clearForm(); if (userRole==='collector'){ setRole('listero'); setSelectedCollector(currentUserId);} setModalVisible(true); }} />
+
+        {userRole === 'collector' && hierarchicalUsers.length === 0 && (
+          <Text style={[styles.emptyListText, commonStyles.textSecondary]}>No tienes listeros asignados todavía.</Text>
+        )}
+        
+        {/* Solo mostrar Collectors y Listeros */}
+        <FlatList
+          data={hierarchicalUsers}
+          keyExtractor={(item) => `${item.id}-${item.type}`}
+          renderItem={renderUserItem}
+          ListFooterComponent={<View style={{ height: 40 }} />}
+        />
+
+        <Modal visible={modalVisible} animationType="slide">
+          <View style={[styles.modalContent, commonStyles.modalContent]}>
+            <Text style={[styles.modalTitle, commonStyles.textPrimary]}>{isEditing ? (userRole==='collector' ? 'Editar Listero' : 'Editar Usuario') : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')}</Text>
+
+            <ScrollView 
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+            >
+              <TextInput
+                placeholder="Nombre de usuario"
+                value={username}
+                onChangeText={setUsername}
+                style={[styles.input, formStyles.inputField]}
+                placeholderTextColor={isDarkMode ? '#7f8c8d' : '#95a5a6'}
+              />
+
+              {!isEditing && (
+                <TextInput
+                  placeholder="Contraseña"
+                  secureTextEntry
+                  value={password}
+                  onChangeText={setPassword}
+                  style={styles.input}
+                />
+              )}
+
+              {userRole !== 'collector' && (
+                <>
+                  <Text>Rol:</Text>
+                  <Picker
+                    selectedValue={role}
+                    onValueChange={setRole}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Selecciona un rol" value="" />
+                    <Picker.Item label="Colector" value="collector" />
+                    <Picker.Item label="Listero" value="listero" />
+                  </Picker>
+                </>
+              )}
+
+              {role === 'listero' && userRole !== 'collector' && (
+                <>
+                  <Text>Seleccionar colector:</Text>
+                  <Picker
+                    selectedValue={selectedCollector}
+                    onValueChange={setSelectedCollector}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Selecciona un colector" value="" />
+                    {collectors.map((col) => (
+                      <Picker.Item key={col.id} label={col.username} value={col.id} />
+                    ))}
+                  </Picker>
+
+                  {/* Botón para seleccionar ganancias por lotería */}
+                  <TouchableOpacity
+                    style={[styles.gainSelectionButton, { backgroundColor: isDarkMode ? '#34495e' : '#3498db' }]}
+                    onPress={openGainModalForNewUser}
+                  >
+                    <Text style={[styles.gainSelectionButtonText, { color: '#fff' }]}>
+                      {getSelectedGainsText()}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.limitsToggleRow}>
+                    <Text style={styles.limitsToggleLabel}>Límites específicos</Text>
+                    <Switch value={enableSpecificLimits} onValueChange={setEnableSpecificLimits} />
+                  </View>
+                  {enableSpecificLimits && (
+                    <View style={styles.limitsContainer}>
+                      {activePlayTypes.length === 0 && (
+                        <Text style={styles.limitsHint}>No hay jugadas activas.</Text>
+                      )}
+                      {activePlayTypes.map(pt => (
+                        <View key={pt} style={styles.limitInputRow}>
+                          <Text style={styles.limitPlayType}>{pt}</Text>
+                          <TextInput
+                            placeholder="Limite"
+                            keyboardType="numeric"
+                            value={limitsValues[pt] || ''}
+                            onChangeText={val => setLimitsValues(prev => ({ ...prev, [pt]: val.replace(/[^0-9]/g,'') }))}
+                            style={styles.limitInput}
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </>
+              )}
+
+              <CustomButton title={isEditing ? 'Guardar Cambios' : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')} onPress={handleCreateOrUpdate} />
+              <CustomButton title="Cancelar" color="#666" onPress={() => setModalVisible(false)} />
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Modal para cambiar contraseña (solo admin) */}
+        <Modal visible={resetModalVisible} animationType="fade">
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Cambiar contraseña</Text>
+            <ScrollView 
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+            >
+              <Text style={{ marginBottom: 8 }}>Usuario: {resetTargetUser?.username}</Text>
+              <TextInput
+                placeholder="Nueva contraseña"
+                secureTextEntry
+                value={resetPassword}
+                onChangeText={setResetPassword}
+                style={styles.input}
+              />
+              <TextInput
+                placeholder="Confirmar contraseña"
+                secureTextEntry
+                value={resetPassword2}
+                onChangeText={setResetPassword2}
+                style={styles.input}
+              />
+              <CustomButton title={isResetting ? 'Actualizando…' : 'Actualizar'} disabled={isResetting} onPress={handleConfirmResetPassword} />
+              <CustomButton title="Cancelar" color="#666" onPress={() => setResetModalVisible(false)} />
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Modal para asignar ganancia (solo colector) */}
+        <Modal visible={gainModalVisible} animationType="fade">
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Asignar Ganancias por Lotería</Text>
+            <ScrollView 
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+            >
+              <Text style={{ marginBottom: 16, fontWeight: '600' }}>Usuario: {gainTargetUser?.username}</Text>
+              
+              {availableLotteries.length === 0 ? (
+                <Text style={{ textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
+                  No hay loterías disponibles
+                </Text>
+              ) : (
+                availableLotteries.map(lottery => (
+                  <View key={lottery.id} style={{ marginBottom: 20 }}>
+                    <Text style={{ fontWeight: '600', marginBottom: 8, fontSize: 16 }}>
+                      {lottery.nombre}
+                    </Text>
+                    <DropdownPicker
+                      label="Seleccionar Ganancia"
+                      value={(() => {
+                        const gainId = selectedLotteryGains[lottery.id];
+                        if (!gainId) return "";
+                        const selectedGain = gainOptions.find(g => g.id === gainId && g.id_loteria === lottery.id);
+                        return selectedGain ? selectedGain.nombre : "";
+                      })()}
+                      onSelect={(selectedItem) => {
+                        const gainId = selectedItem.value;
+                        handleLotteryGainSelection(lottery.id, gainId === "" ? null : gainId);
+                      }}
+                      options={[
+                        { id: "none", label: 'Sin ganancia', value: "" },
+                        ...gainOptions
+                          .filter(gain => gain.id_loteria === lottery.id)
+                          .map(gain => ({
+                            id: gain.id,
+                            label: gain.nombre,
+                            value: gain.id
+                          }))
+                      ]}
+                      placeholder="Selecciona una ganancia..."
+                    />
+                  </View>
+                ))
+              )}
+              
+              <View style={{ marginTop: 20 }}>
+                <CustomButton 
+                  title={gainTargetUser ? "Asignar Ganancias" : "Confirmar Selección"} 
+                  onPress={handleAssignGain} 
+                />
+                <CustomButton 
+                  title="Cancelar" 
+                  color="#666" 
+                  onPress={() => {
+                    setGainModalVisible(false);
+                    setSelectedLotteryGains({});
+                  }} 
+                />
+              </View>
+            </ScrollView>
+          </View>
+        </Modal>
+      </View>
+
+      <SideBar
+        isVisible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        navigation={navigation}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={toggleDarkMode}
+        onModeVisibilityChange={onModeVisibilityChange}
+        role={userRole}
+      />
+    </View>
+  );
+};
+
+export default CreateUserScreen;
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FDF5',
+  },
+  customHeader: {
+    height: 100,
+    backgroundColor: '#F8F9FA',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    ...createShadowStyle({
+      color: '#000',
+      offsetY: 2,
+      opacity: 0.1,
+      radius: 2,
+      elevation: 4,
+    }),
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
+  sidebarButton: {
+    marginRight: 16,
+    marginLeft: 4,
+    marginBottom: 4,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
+    flex: 1,
+    textAlign: 'center',
+    marginRight: 44,
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+    marginTop: 100,
+    backgroundColor: '#fff',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    marginBottom: 15,
+    borderRadius: 5,
+    backgroundColor: '#fff',
+  },
+  picker: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    marginBottom: 15,
+    backgroundColor: '#fff',
+  },
+  userItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e8e8e8',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginVertical: 2,
+  },
+  listeroItem: {
+    marginLeft: 20,
+    borderLeftWidth: 2,
+    borderLeftColor: '#3498db',
+    backgroundColor: '#f8f9fa',
+  },
+  listeroConnector: {
+    color: '#3498db',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginRight: 8,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  listeroInfo: {
+    paddingLeft: 10,
+  },
+  expandButton: {
+    marginRight: 8,
+    padding: 4,
+  },
+  expandIcon: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  userText: { 
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#2c3e50',
+  },
+  userTextInactive: {
+    color: '#95a5a6',
+    textDecorationLine: 'line-through',
+  },
+  collectorText: {
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+  listeroText: {
+    color: '#7f8c8d',
+    fontWeight: '400',
+  },
+  userStatus: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  statusActive: {
+    color: '#27ae60',
+  },
+  statusInactive: {
+    color: '#e74c3c',
+  },
+  userGanancia: {
+    fontSize: 12,
+    marginTop: 2,
+    color: '#f39c12',
+    fontWeight: '600',
+  },
+  userLimits: {
+    fontSize: 11,
+    marginTop: 2,
+    color: '#8e44ad',
+    fontWeight: '600',
+  },
+  userControls: {
+    alignItems: 'center',
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  blockedContainer: {
+    backgroundColor: '#fff5f5',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  blockedBadge: {
+    color: '#e03131',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  switchLabel: {
+    fontSize: 12,
+    marginRight: 8,
+    color: '#7f8c8d',
+    fontWeight: '500',
+  },
+  buttonRow: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  editButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+    backgroundColor: '#f39c12',
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resetButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+    backgroundColor: '#9b59b6',
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+    backgroundColor: '#e74c3c',
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gainButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+    backgroundColor: '#27ae60',
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: { 
+    color: '#fff', 
+    fontWeight: 'bold',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  toggleContainer: {
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  toggleSwitch: {
+    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
+  },
+  toggleLabel: {
+    fontSize: 10,
+    color: '#666',
+    marginTop: 2,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#F8FDF5',
+  },
+  modalScrollView: {
+    flex: 1,
+  },
+  modalScrollContent: {
+    paddingBottom: 40, // Espacio extra para que los botones sean visibles
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  limitsToggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  limitsToggleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+  limitsContainer: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 15,
+    backgroundColor: '#fafafa',
+  },
+  limitsHint: {
+    fontSize: 12,
+    color: '#7f8c8c',
+    fontStyle: 'italic',
+  },
+  limitInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  limitPlayType: {
+    width: 70,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#34495e',
+  },
+  limitInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#fff',
+  },
+  emptyListText: {
+    textAlign: 'center',
+    marginVertical: 20,
+    color: '#7f8c8d',
+    fontSize: 14,
+    fontStyle: 'italic'
+  },
+
+  // Nuevos estilos para layout expandible mejorado
+  userCard: {
+    backgroundColor: '#fff',
+    padding: Platform.OS === 'android' ? 16 : 15,
+    marginBottom: 10,
+    marginHorizontal: Platform.OS === 'android' ? 2 : 0,
+    borderRadius: 12,
+    flexDirection: 'column',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  collectorCard: {
+    backgroundColor: '#fff',
+    marginBottom: 10,
+    marginHorizontal: Platform.OS === 'android' ? 2 : 0,
+    borderRadius: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  collectorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Platform.OS === 'android' ? 16 : 15,
+  },
+  expandIcon: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 10,
+    minWidth: 20,
+    textAlign: 'center',
+  },
+  listeroCard: {
+    backgroundColor: '#f8f9fa',
+    marginLeft: 20,
+    marginRight: 5,
+    marginBottom: 5,
+    borderRadius: 8,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#3498db',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  listeroName: {
+    fontSize: Platform.OS === 'android' ? 16 : 16,
+    fontWeight: '600',
+    lineHeight: Platform.OS === 'android' ? 22 : 24,
+    marginBottom: 2,
+  },
+  listeroActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 6,
+    marginTop: 8,
+  },
+  smallActionButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 32,
+    minHeight: 32,
+  },
+  smallActionButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  orphanListeroCard: {
+    backgroundColor: '#e9ecef',
+    padding: Platform.OS === 'android' ? 16 : 15,
+    marginBottom: 10,
+    marginHorizontal: Platform.OS === 'android' ? 2 : 0,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f39c12',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  userNameContainer: {
+    width: '100%',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: Platform.OS === 'android' ? 1.5 : 1,
+    borderBottomColor: Platform.OS === 'android' ? '#e8e8e8' : '#f0f0f0',
+  },
+  username: {
+    fontSize: Platform.OS === 'android' ? 18 : 18,
+    fontWeight: 'bold',
+    lineHeight: Platform.OS === 'android' ? 24 : 26,
+    flexWrap: 'wrap',
+    textAlign: 'left',
+    marginBottom: 4,
+  },
+  userRole: {
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  userDetails: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  gainSelectionButton: {
+    padding: 12,
+    borderRadius: 8,
+    marginVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gainSelectionButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+});

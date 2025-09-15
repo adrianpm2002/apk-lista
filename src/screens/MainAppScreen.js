@@ -17,9 +17,9 @@ const MainAppScreen = ({ navigation, route }) => {
   const [currentMode, setCurrentMode] = useState('Visual');
   const [visibleModes, setVisibleModes] = useState({
     visual: true,
-  text: true,
-  text2: true,
-  // OCULTO PARA BUILD - vault: true,
+    text: true,
+    text2: true,
+    vault: true,
   });
 
   // Eliminado el chequeo de isLoading ya que el nuevo contexto no lo tiene
@@ -47,13 +47,13 @@ const MainAppScreen = ({ navigation, route }) => {
       { key: 'visual', mode: 'Visual' },
       { key: 'text', mode: 'Texto' },
       { key: 'text2', mode: 'Texto2' },
-      // OCULTO PARA BUILD - { key: 'vault', mode: 'Vault' },
+      { key: 'vault', mode: 'Vault' },
     ];
     const currentKey =
       currentMode === 'Visual' ? 'visual' :
       currentMode === 'Texto' ? 'text' :
       currentMode === 'Texto2' ? 'text2' :
-      // OCULTO PARA BUILD - currentMode === 'Vault' ? 'vault' : 
+      currentMode === 'Vault' ? 'vault' : 
       null;
 
     if (currentKey && visibleModes[currentKey]) return; // el actual es visible
@@ -127,7 +127,7 @@ const MainAppScreen = ({ navigation, route }) => {
   {/* Mode Selector movido a los headers de cada pantalla */}
       
       {/* Renderizar solo la pantalla del modo actual si está visible */}
-      {currentMode === 'Visual' && visibleModes.visual ? (
+  {currentMode === 'Visual' && visibleModes.visual ? (
         <VisualModeScreen 
           navigation={navigation} 
           route={visualRoute}
@@ -154,8 +154,6 @@ const MainAppScreen = ({ navigation, route }) => {
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
-      ) : null}
-      {/* OCULTO PARA BUILD - VaultModeScreen
       ) : currentMode === 'Vault' && visibleModes.vault ? (
         <VaultModeScreen
           navigation={navigation}
@@ -165,7 +163,7 @@ const MainAppScreen = ({ navigation, route }) => {
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
         />
-      */}
+      ) : null}
     </View>
   );
 };
