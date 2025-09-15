@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
-import { SideBarToggle } from '../components/SideBar';
+import { SideBar, SideBarToggle } from '../components/SideBar';
 import ModeSelector from '../components/ModeSelector';
 import PricingInfoButton from '../components/PricingInfoButton';
 import NotificationsButton from '../components/NotificationsButton';
@@ -544,6 +544,16 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           <Text style={styles.actionButtonText}>Enviar</Text>
         </TouchableOpacity>
       </View>
+      <SideBar
+        isVisible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        onOptionSelect={() => {}}
+        isDarkMode={isDarkMode}
+        navigation={navigation}
+        onModeVisibilityChange={onModeVisibilityChange}
+        visibleModes={visibleModes}
+        role="listero"
+      />
     </View>
   );
 };
