@@ -235,7 +235,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           </View>
           <View style={styles.rightButtonsGroup} pointerEvents="box-none">
             <PricingInfoButton />
-            <NotificationsButton />
+            {/* <NotificationsButton /> */}
           </View>
         </View>
       </View>
