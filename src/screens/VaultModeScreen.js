@@ -598,7 +598,7 @@ const styles = StyleSheet.create({
   },
   gridContainer: {
     flex: 1,
-    paddingTop: 80, // Espacio para la barra superior
+    paddingTop: 120, // Espacio para la barra superior (ajustado)
     paddingHorizontal: 10,
     paddingBottom: 10,
   },
