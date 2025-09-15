@@ -1067,7 +1067,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FDF5',
+    backgroundColor: '#f0f8ff',
   },
   headerFloating: {
     position: 'absolute',
