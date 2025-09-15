@@ -632,8 +632,7 @@ const configOptions = role ? roleOptionsMap[role] : null;
                   </View>
                 </Pressable>
 
-                {/* OCULTO PARA BUILD - Modo Vault */}
-                {/* 
+                {/* Modo Vault */}
                 <Pressable
                   style={[
                     styles.modeOption,
@@ -660,7 +659,6 @@ const configOptions = role ? roleOptionsMap[role] : null;
                     {visibleModes.vault && <Text style={styles.checkmark}>✓</Text>}
                   </View>
                 </Pressable>
-                */}
               </View>
 
               <View style={styles.modeModalButtons}>
