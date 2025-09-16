@@ -335,7 +335,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   };
 
   return (
-  <View style={[styles.container, isDarkMode && styles.containerDark, { minHeight: '100vh' }]}> 
+  <View style={[styles.container, { minHeight: '100vh' }]}> 
       {/* Barra de navegación superior */}
       <View style={styles.headerFloating} pointerEvents="box-none">
         <View style={styles.inlineHeaderRow} pointerEvents="box-none">
@@ -344,7 +344,6 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
             <ModeSelector 
               currentMode={currentMode || 'Vault'} 
               onModeChange={onModeChange} 
-              isDarkMode={isDarkMode} 
               visibleModes={visibleModes} 
             />
           </View>
@@ -422,9 +421,9 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         <View style={styles.gridContainer}>
           {/* Las tres columnas sin encabezados separados, ocupando todo el ancho */}
           <View style={styles.contentRow}>
-            <View style={[styles.cell, isDarkMode && styles.cellDark]}>
+            <View style={styles.cell}>
               {/* Título dentro de la lista */}
-              <Text style={[styles.headerTextInside, isDarkMode && styles.cellTextDark]}>
+              <Text style={styles.headerTextInside}>
                 Fijos y corridos
               </Text>
               {/* Mostrar jugadas de fijos y corridos */}
@@ -443,32 +442,31 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                     onLongPress={() => seleccionarJugada(id)}
                     delayLongPress={500}
                   >
-                    <Text style={[
+                    <Text style={[ 
                       styles.numeroText, 
-                      isDarkMode && styles.cellTextDark,
                       tieneError && styles.textoError,
                       estaEnviada && styles.textoEnviado
                     ]}>
                       {jugada.numero}
                     </Text>
                     <View style={styles.circleContainer}>
-                      <View style={[
+                      <View style={[ 
                         styles.circle,
                         tieneError && styles.circleError,
                         estaEnviada && styles.circleEnviado
                       ]}>
-                        <Text style={[
+                        <Text style={[ 
                           styles.circleText,
                           tieneError && styles.textoError,
                           estaEnviada && styles.textoEnviado
                         ]}>{jugada.fijo}</Text>
                       </View>
-                      <View style={[
+                      <View style={[ 
                         styles.circle,
                         tieneError && styles.circleError,
                         estaEnviada && styles.circleEnviado
                       ]}>
-                        <Text style={[
+                        <Text style={[ 
                           styles.circleText,
                           tieneError && styles.textoError,
                           estaEnviada && styles.textoEnviado
@@ -481,43 +479,43 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               {/* Inputs para agregar números dentro de la lista */}
               <View style={styles.inputContainerInsideList}>
                 <TextInput
-                  style={[styles.input, isDarkMode && styles.inputDark]}
+                  style={styles.input}
                   placeholder="#"
-                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                  placeholderTextColor="#7f8c8d"
                   value={numero}
                   onChangeText={setNumero}
                   keyboardType="numeric"
                   maxLength={3}
                 />
                 <TextInput
-                  style={[styles.input, isDarkMode && styles.inputDark]}
+                  style={styles.input}
                   placeholder="$"
-                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                  placeholderTextColor="#7f8c8d"
                   value={fijo}
                   onChangeText={setFijo}
                   keyboardType="numeric"
                   maxLength={2}
                 />
                 <TextInput
-                  style={[styles.input, isDarkMode && styles.inputDark]}
+                  style={styles.input}
                   placeholder="$"
-                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                  placeholderTextColor="#7f8c8d"
                   value={corrido}
                   onChangeText={setCorrido}
                   keyboardType="numeric"
                   maxLength={2}
                 />
                 <TouchableOpacity 
-                  style={[styles.addButton, isDarkMode && styles.addButtonDark]}
+                  style={styles.addButton}
                   onPress={agregarJugada}
                 >
                   <Text style={styles.addButtonText}>+</Text>
                 </TouchableOpacity>
               </View>
             </View>
-            <View style={[styles.cell, isDarkMode && styles.cellDark]}>
+            <View style={styles.cell}>
               {/* Título dentro de la lista */}
-              <Text style={[styles.headerTextInside, isDarkMode && styles.cellTextDark]}>
+              <Text style={styles.headerTextInside}>
                 Parles
               </Text>
               {/* Mostrar jugadas de parles */}
@@ -540,7 +538,6 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                       {jugada.numeros.map((num, numIndex) => (
                         <Text key={numIndex} style={[
                           styles.numeroParleText, 
-                          isDarkMode && styles.cellTextDark,
                           tieneError && styles.textoError,
                           estaEnviada && styles.textoEnviado
                         ]}>
@@ -548,14 +545,13 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                         </Text>
                       ))}
                     </View>
-                    <View style={[
+                    <View style={[ 
                       styles.circleOutline,
                       tieneError && styles.circleError,
                       estaEnviada && styles.circleEnviado
                     ]}>
                       <Text style={[
                         styles.circleOutlineText, 
-                        isDarkMode && styles.cellTextDark,
                         tieneError && styles.textoError,
                         estaEnviada && styles.textoEnviado
                       ]}>
@@ -569,23 +565,23 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               <View style={styles.inputContainerInsideList}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
                   <TextInput
-                    style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                    style={[styles.input, styles.inputHorizontal]}
                     placeholder="#"
-                    placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                    placeholderTextColor="#7f8c8d"
                     value={parleInput}
                     onChangeText={manejarParleInput}
                     keyboardType="numeric"
                   />
                   <TextInput
-                    style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                    style={[styles.input, styles.inputHorizontal]}
                     placeholder="$"
-                    placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                    placeholderTextColor="#7f8c8d"
                     value={precioParle}
                     onChangeText={setPrecioParle}
                     keyboardType="numeric"
                   />
                   <TouchableOpacity 
-                    style={[styles.addButton, isDarkMode && styles.addButtonDark]}
+                    style={styles.addButton}
                     onPress={agregarParle}
                   >
                     <Text style={styles.addButtonText}>+</Text>
@@ -599,14 +595,14 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                     </Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={[styles.candadoLabel, isDarkMode && styles.cellTextDark]}>
+                <Text style={styles.candadoLabel}>
                   {candadoAbierto ? 'Precio total' : 'Precio individual'}
                 </Text>
               </View>
             </View>
-            <View style={[styles.cell, isDarkMode && styles.cellDark]}>
+            <View style={styles.cell}>
               {/* Título dentro de la lista */}
-              <Text style={[styles.headerTextInside, isDarkMode && styles.cellTextDark]}>
+              <Text style={styles.headerTextInside}>
                 Centenas
               </Text>
               {/* Mostrar jugadas de centenas */}
@@ -625,22 +621,20 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                     onLongPress={() => seleccionarJugada(id)}
                     delayLongPress={500}
                   >
-                    <Text style={[
+                    <Text style={[ 
                       styles.numeroCentenaText, 
-                      isDarkMode && styles.cellTextDark,
                       tieneError && styles.textoError,
                       estaEnviada && styles.textoEnviado
                     ]}>
                       {jugada.numero}
                     </Text>
-                    <View style={[
+                    <View style={[ 
                       styles.circleOutline,
                       tieneError && styles.circleError,
                       estaEnviada && styles.circleEnviado
                     ]}>
                       <Text style={[
                         styles.circleOutlineText, 
-                        isDarkMode && styles.cellTextDark,
                         tieneError && styles.textoError,
                         estaEnviada && styles.textoEnviado
                       ]}>
@@ -653,24 +647,24 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               {/* Inputs para agregar centenas dentro de la lista */}
               <View style={styles.inputContainerInsideList}>
                 <TextInput
-                  style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                  style={[styles.input, styles.inputHorizontal]}
                   placeholder="#"
-                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                  placeholderTextColor="#7f8c8d"
                   value={centenaNumero}
                   onChangeText={manejarCentenaNumero}
                   keyboardType="numeric"
                   maxLength={3}
                 />
                 <TextInput
-                  style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                  style={[styles.input, styles.inputHorizontal]}
                   placeholder="$"
-                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                  placeholderTextColor="#7f8c8d"
                   value={centenaPrecio}
                   onChangeText={setCentenaPrecio}
                   keyboardType="numeric"
                 />
                 <TouchableOpacity 
-                  style={[styles.addButton, isDarkMode && styles.addButtonDark]}
+                  style={styles.addButton}
                   onPress={agregarCentena}
                 >
                   <Text style={styles.addButtonText}>+</Text>
@@ -678,18 +672,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               </View>
             </View>
           </View>
-          {/* Inputs */}
-          <View style={styles.inputRow}>
-            <View style={[styles.cell, isDarkMode && styles.cellDark]}>
-              {/* Eliminado: Inputs para fijos y corridos debajo de la lista */}
-            </View>
-            <View style={[styles.cell, isDarkMode && styles.cellDark]}>
-              {/* Eliminado: Inputs para parles debajo de la lista */}
-            </View>
-            <View style={[styles.cell, isDarkMode && styles.cellDark]}>
-              {/* Eliminado: Inputs para centenas debajo de la lista */}
-            </View>
-          </View>
+          {/* Eliminadas View vacías de inputs debajo de las listas */}
         </View>
         {/* Botones de acción */}
         <View style={styles.actionButtonsContainer}>
@@ -852,11 +835,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
-  inputDark: {
-    backgroundColor: '#2c3e50',
-    borderColor: '#4a6278',
-    color: '#ecf0f1',
-  },
+  // inputDark eliminado
   addButton: {
     width: 40,
     height: 40,
@@ -866,9 +845,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 5,
   },
-  addButtonDark: {
-    backgroundColor: '#2980b9',
-  },
+  // addButtonDark eliminado
   addButtonText: {
     color: '#ffffff',
     fontSize: 20,
