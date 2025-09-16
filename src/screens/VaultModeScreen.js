@@ -759,7 +759,8 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 5,
     paddingHorizontal: 0,
-    paddingBottom: 0, // Eliminar padding inferior para pegar las listas a los botones
+    paddingBottom: 0,
+    marginBottom: 0, // Eliminar margen inferior
   },
   contentRow: {
     flex: 3, // Mayor espacio para mostrar jugadas
@@ -1043,10 +1044,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingHorizontal: 20,
-    paddingVertical: 10, // Reducir padding vertical para pegar más los botones
+    paddingVertical: 0, // Sin padding vertical
     backgroundColor: '#f8f9fa',
     borderTopWidth: 1,
     borderTopColor: '#dee2e6',
+    marginTop: 0, // Sin margen superior
   },
   actionButton: {
     flex: 1,
