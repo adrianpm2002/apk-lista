@@ -8,6 +8,8 @@ import { SideBar, SideBarToggle } from '../components/SideBar';
 import ModeSelector from '../components/ModeSelector';
 import PricingInfoButton from '../components/PricingInfoButton';
 import NotificationsButton from '../components/NotificationsButton';
+import BatteryButton from '../components/BatteryButton';
+import ListButton from '../components/ListButton';
 
 const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -267,22 +269,23 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       const id = generarIdJugada('fijo', index);
       return jugadasEnviadas.has(id);
     });
-    
     const nuevasParles = jugadasParles.filter((_, index) => {
       const id = generarIdJugada('parle', index);
       return jugadasEnviadas.has(id);
     });
-    
     const nuevasCentenas = jugadasCentenas.filter((_, index) => {
       const id = generarIdJugada('centena', index);
       return jugadasEnviadas.has(id);
     });
-    
     setJugadasFijosYCorridos(nuevasFijosYCorridos);
     setJugadasParles(nuevasParles);
     setJugadasCentenas(nuevasCentenas);
     setJugadasConError(new Set());
     setJugadasSeleccionadas(new Set());
+    // Limpiar lotería, horario y nota
+    setSelectedLotteries([]);
+    setSelectedSchedules({});
+    setNote('');
   };
   
   // Función para enviar jugadas
@@ -731,6 +734,24 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               {jugadasSeleccionadas.size > 0 ? 'Eliminar' : 'Borrar'}
             </Text>
           </TouchableOpacity>
+          {/* Botón de batería */}
+          <BatteryButton
+            bankId={bankId}
+            selectedLotteries={selectedLotteries}
+            selectedSchedules={selectedSchedules}
+            selectedPlayTypes={[]}
+            lotteryOptions={lotteries}
+            scheduleOptionsMap={scheduleOptionsMap}
+            getScheduleLabel={(id) => {
+              const lot = lotteries.find(l => l.value === id);
+              const sch = scheduleOptionsMap[id]?.find(s => s.value === selectedSchedules[id]);
+              return sch ? sch.label : '';
+            }}
+            playTypeLabels={{ fijo:'fijo', corrido:'corrido', centena:'centena', parle:'parle', tripleta:'tripleta' }}
+            animationProps={{ scaleFrom:0.9, duration:180 }}
+          />
+          {/* Botón de registros diarios */}
+          <ListButton currentMode={currentMode} onOptionSelect={(option) => console.log('List option:', option)} />
           <TouchableOpacity 
             style={[styles.actionButton, styles.sendButton]}
             onPress={enviarJugadas}
