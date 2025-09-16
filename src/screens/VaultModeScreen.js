@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import DropdownPicker from '../components/DropdownPicker';
+import MultiSelectDropdown from '../components/MultiSelectDropdown';
+import InputField from '../components/InputField';
+import { supabase } from '../supabaseClient';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import ModeSelector from '../components/ModeSelector';
 import PricingInfoButton from '../components/PricingInfoButton';
@@ -7,6 +11,117 @@ import NotificationsButton from '../components/NotificationsButton';
 
 const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
+
+
+  // Estados para loterías, horarios y nota (con lógica real de VisualModeScreen)
+  const [selectedLotteries, setSelectedLotteries] = useState([]); // values de loterías
+  const [selectedSchedules, setSelectedSchedules] = useState({}); // { lotteryValue: scheduleValue }
+  const [scheduleOptionsMap, setScheduleOptionsMap] = useState({}); // { lotteryValue: [{label,value}] }
+  const [lotteries, setLotteries] = useState([]); // opciones de loterías
+  const [note, setNote] = useState('');
+  const [lotteryError, setLotteryError] = useState(false);
+  const [lotteryErrorMessage, setLotteryErrorMessage] = useState('');
+  const [scheduleError, setScheduleError] = useState(false);
+  const [showFieldErrors, setShowFieldErrors] = useState(false);
+  const [bankId, setBankId] = useState(null);
+
+  // Cargar banco (id_banco) y luego loterías
+  React.useEffect(() => {
+    const loadContext = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).single();
+        if (!profile) return;
+        const bId = profile.role === 'admin' ? user.id : profile.id_banco;
+        setBankId(bId);
+      } catch (e) { /* silencioso */ }
+    };
+    loadContext();
+  }, []);
+
+  // Cargar loterías cuando tengamos bankId
+  React.useEffect(() => {
+    if (!bankId) return;
+    const loadData = async () => {
+      try {
+        const { data: lots } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
+        setLotteries((lots || []).map(l => ({ label: l.nombre, value: l.id })));
+      } catch (e) { /* ignore */ }
+    };
+    loadData();
+  }, [bankId]);
+
+  // Cargar horarios de todas las loterías del banco
+  React.useEffect(() => {
+    if (!bankId || lotteries.length === 0) return;
+    let cancelled = false;
+    const loadAllSchedules = async () => {
+      try {
+        const lotIds = lotteries.map(l => l.value);
+        const { data: rows } = await supabase
+          .from('horario')
+          .select('id,nombre,id_loteria,hora_inicio,hora_fin')
+          .in('id_loteria', lotIds)
+          .order('nombre');
+        if (cancelled) return;
+        const now = new Date();
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        const isOpen = (hi, hf) => {
+          if (!hi || !hf) return false;
+          const [shi, smi] = hi.split(':');
+          const [shf, smf] = hf.split(':');
+          const start = parseInt(shi, 10) * 60 + parseInt(smi || '0', 10);
+          const end = parseInt(shf, 10) * 60 + parseInt(smf || '0', 10);
+          if (start === end) return true;
+          if (end > start) return nowMinutes >= start && nowMinutes < end;
+          return (nowMinutes >= start) || (nowMinutes < end);
+        };
+        const grouped = {};
+        (rows || [])
+          .filter(r => isOpen(r.hora_inicio, r.hora_fin))
+          .forEach(r => {
+            const key = r.id_loteria;
+            if (!grouped[key]) grouped[key] = [];
+            const horaInicio = r.hora_inicio ? r.hora_inicio.substring(0, 5) : '';
+            const horaFin = r.hora_fin ? r.hora_fin.substring(0, 5) : '';
+            const labelConHoras = horaInicio && horaFin ? `${r.nombre} (${horaInicio} - ${horaFin})` : r.nombre;
+            grouped[key].push({ label: labelConHoras, value: r.id });
+          });
+        setScheduleOptionsMap(grouped);
+        setSelectedSchedules(prev => {
+          const next = { ...prev };
+          Object.keys(next).forEach(lv => { if (!grouped[lv] || !grouped[lv].some(o => o.value === next[lv])) delete next[lv]; });
+          return next;
+        });
+      } catch (e) { /* ignore */ }
+    };
+    loadAllSchedules();
+    return () => { cancelled = true; };
+  }, [bankId, lotteries]);
+
+  // Handler para selección de loterías (máx 3)
+  const handleSelectLotteries = (values) => {
+    let next = values;
+    if (values.length > 3) next = values.slice(0, 3);
+    // Podar horarios de loterías deseleccionadas
+    setSelectedSchedules(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(k => { if (!next.includes(k)) delete updated[k]; });
+      // Para cada lotería nueva, seleccionar automáticamente el primer horario disponible
+      next.forEach(lotteryId => {
+        if (!updated[lotteryId]) {
+          const availableSchedules = scheduleOptionsMap[lotteryId] || [];
+          if (availableSchedules.length > 0) updated[lotteryId] = availableSchedules[0].value;
+        }
+      });
+      return updated;
+    });
+    setSelectedLotteries(next);
+  };
+
+  // Loterías que actualmente carecen de horario (para marcar error individual)
+  const missingScheduleSet = new Set(scheduleError ? selectedLotteries.filter(lv => !selectedSchedules[lv]) : []);
   
   // Estados para los inputs de fijos y corridos
   const [numero, setNumero] = useState('');
@@ -220,7 +335,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   };
 
   return (
-    <View style={[styles.container, isDarkMode && styles.containerDark]}>
+  <View style={[styles.container, isDarkMode && styles.containerDark, { minHeight: '100vh' }]}> 
       {/* Barra de navegación superior */}
       <View style={styles.headerFloating} pointerEvents="box-none">
         <View style={styles.inlineHeaderRow} pointerEvents="box-none">
@@ -239,311 +354,342 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           </View>
         </View>
       </View>
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-      {/* Grid de 3x3 */}
-      <View style={styles.gridContainer}>
-        {/* Fila 1 - Encabezados */}
-        <View style={styles.headerRow}>
-          <View style={[styles.headerCell, isDarkMode && styles.cellDark]}>
-            <Text style={[styles.headerText, isDarkMode && styles.cellTextDark]}>
-              Fijos y corridos
-            </Text>
+
+  <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      {/* Controles de lotería, horario y nota (idénticos a VisualModeScreen, ahora dentro del ScrollView) */}
+      <View style={{ paddingHorizontal: 16, marginTop: 110, marginBottom: 10 }}>
+        <MultiSelectDropdown
+          label="Seleccionar Loterías"
+          selectedValues={selectedLotteries}
+          onSelect={handleSelectLotteries}
+          options={lotteries}
+          placeholder="Seleccionar loterías"
+          hasError={lotteryError}
+          errorMessage={lotteryErrorMessage}
+        />
+        {selectedLotteries.length > 0 && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+            {selectedLotteries.map(lv => (
+              <View key={lv} style={{ flex: 1, minWidth: 160, maxWidth: 220, marginRight: 8, marginBottom: 8 }}>
+                <DropdownPicker
+                  label={`Seleccionar Horario (${lotteries.find(l=>l.value===lv)?.label || lv})`}
+                  value={selectedSchedules[lv] && (scheduleOptionsMap[lv]?.find(s=>s.value===selectedSchedules[lv])?.label || selectedSchedules[lv])}
+                  onSelect={item => setSelectedSchedules(prev => ({ ...prev, [lv]: item.value || item }))}
+                  options={scheduleOptionsMap[lv] || []}
+                  placeholder={scheduleOptionsMap[lv]? 'Seleccionar horario':'Sin horarios'}
+                  hasError={missingScheduleSet.has(lv)}
+                />
+              </View>
+            ))}
           </View>
-          <View style={[styles.headerCell, isDarkMode && styles.cellDark]}>
-            <Text style={[styles.headerText, isDarkMode && styles.cellTextDark]}>
-              Parles
-            </Text>
-          </View>
-          <View style={[styles.headerCell, isDarkMode && styles.cellDark]}>
-            <Text style={[styles.headerText, isDarkMode && styles.cellTextDark]}>
-              Centenas
-            </Text>
-          </View>
+        )}
+        <View style={{ marginTop: 10 }}>
+          <InputField
+            label="Nota"
+            value={note}
+            onChangeText={setNote}
+            placeholder="Nombre o nota"
+            inputStyle={{ minHeight: 40 }}
+            hasError={showFieldErrors && !note.trim()}
+          />
         </View>
-        
-        {/* Fila 2 - Mostrar jugadas */}
-        <View style={styles.contentRow}>
-          <View style={[styles.cell, isDarkMode && styles.cellDark]}>
-            {/* Mostrar jugadas de fijos y corridos */}
-            {jugadasFijosYCorridos.map((jugada, index) => {
-              const id = generarIdJugada('fijo', index);
-              const tieneError = jugadasConError.has(id);
-              const estaEnviada = jugadasEnviadas.has(id);
-              const estaSeleccionada = jugadasSeleccionadas.has(id);
-              
-              return (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.jugadaContainer,
-                    estaSeleccionada && styles.jugadaSeleccionada
-                  ]}
-                  onLongPress={() => seleccionarJugada(id)}
-                  delayLongPress={500}
-                >
-                  <Text style={[
-                    styles.numeroText, 
-                    isDarkMode && styles.cellTextDark,
-                    tieneError && styles.textoError,
-                    estaEnviada && styles.textoEnviado
-                  ]}>
-                    {jugada.numero}
-                  </Text>
-                  <View style={styles.circleContainer}>
-                    <View style={[
-                      styles.circle,
-                      tieneError && styles.circleError,
-                      estaEnviada && styles.circleEnviado
-                    ]}>
-                      <Text style={[
-                        styles.circleText,
-                        tieneError && styles.textoError,
-                        estaEnviada && styles.textoEnviado
-                      ]}>{jugada.fijo}</Text>
-                    </View>
-                    <View style={[
-                      styles.circle,
-                      tieneError && styles.circleError,
-                      estaEnviada && styles.circleEnviado
-                    ]}>
-                      <Text style={[
-                        styles.circleText,
-                        tieneError && styles.textoError,
-                        estaEnviada && styles.textoEnviado
-                      ]}>{jugada.corrido}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+      </View>
+        <View style={styles.gridContainer}>
+          {/* Fila 1 - Encabezados */}
+          <View style={styles.headerRow}>
+            <View style={[styles.headerCell, isDarkMode && styles.cellDark]}>
+              <Text style={[styles.headerText, isDarkMode && styles.cellTextDark]}>
+                Fijos y corridos
+              </Text>
+            </View>
+            <View style={[styles.headerCell, isDarkMode && styles.cellDark]}>
+              <Text style={[styles.headerText, isDarkMode && styles.cellTextDark]}>
+                Parles
+              </Text>
+            </View>
+            <View style={[styles.headerCell, isDarkMode && styles.cellDark]}>
+              <Text style={[styles.headerText, isDarkMode && styles.cellTextDark]}>
+                Centenas
+              </Text>
+            </View>
           </View>
-          <View style={[styles.cell, isDarkMode && styles.cellDark]}>
-            {/* Mostrar jugadas de parles */}
-            {jugadasParles.map((jugada, index) => {
-              const id = generarIdJugada('parle', index);
-              const tieneError = jugadasConError.has(id);
-              const estaEnviada = jugadasEnviadas.has(id);
-              const estaSeleccionada = jugadasSeleccionadas.has(id);
-              
-              return (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.parleContainer,
-                    estaSeleccionada && styles.jugadaSeleccionada
-                  ]}
-                  onLongPress={() => seleccionarJugada(id)}
-                  delayLongPress={500}
-                >
-                  <View style={styles.numerosParleContainer}>
-                    {jugada.numeros.map((num, numIndex) => (
-                      <Text key={numIndex} style={[
-                        styles.numeroParleText, 
+          {/* Fila 2 - Mostrar jugadas */}
+          <View style={styles.contentRow}>
+            <View style={[styles.cell, isDarkMode && styles.cellDark]}>
+              {/* Mostrar jugadas de fijos y corridos */}
+              {jugadasFijosYCorridos.map((jugada, index) => {
+                const id = generarIdJugada('fijo', index);
+                const tieneError = jugadasConError.has(id);
+                const estaEnviada = jugadasEnviadas.has(id);
+                const estaSeleccionada = jugadasSeleccionadas.has(id);
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.jugadaContainer,
+                      estaSeleccionada && styles.jugadaSeleccionada
+                    ]}
+                    onLongPress={() => seleccionarJugada(id)}
+                    delayLongPress={500}
+                  >
+                    <Text style={[
+                      styles.numeroText, 
+                      isDarkMode && styles.cellTextDark,
+                      tieneError && styles.textoError,
+                      estaEnviada && styles.textoEnviado
+                    ]}>
+                      {jugada.numero}
+                    </Text>
+                    <View style={styles.circleContainer}>
+                      <View style={[
+                        styles.circle,
+                        tieneError && styles.circleError,
+                        estaEnviada && styles.circleEnviado
+                      ]}>
+                        <Text style={[
+                          styles.circleText,
+                          tieneError && styles.textoError,
+                          estaEnviada && styles.textoEnviado
+                        ]}>{jugada.fijo}</Text>
+                      </View>
+                      <View style={[
+                        styles.circle,
+                        tieneError && styles.circleError,
+                        estaEnviada && styles.circleEnviado
+                      ]}>
+                        <Text style={[
+                          styles.circleText,
+                          tieneError && styles.textoError,
+                          estaEnviada && styles.textoEnviado
+                        ]}>{jugada.corrido}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={[styles.cell, isDarkMode && styles.cellDark]}>
+              {/* Mostrar jugadas de parles */}
+              {jugadasParles.map((jugada, index) => {
+                const id = generarIdJugada('parle', index);
+                const tieneError = jugadasConError.has(id);
+                const estaEnviada = jugadasEnviadas.has(id);
+                const estaSeleccionada = jugadasSeleccionadas.has(id);
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.parleContainer,
+                      estaSeleccionada && styles.jugadaSeleccionada
+                    ]}
+                    onLongPress={() => seleccionarJugada(id)}
+                    delayLongPress={500}
+                  >
+                    <View style={styles.numerosParleContainer}>
+                      {jugada.numeros.map((num, numIndex) => (
+                        <Text key={numIndex} style={[
+                          styles.numeroParleText, 
+                          isDarkMode && styles.cellTextDark,
+                          tieneError && styles.textoError,
+                          estaEnviada && styles.textoEnviado
+                        ]}>
+                          {num}
+                        </Text>
+                      ))}
+                    </View>
+                    <View style={[
+                      styles.circleOutline,
+                      tieneError && styles.circleError,
+                      estaEnviada && styles.circleEnviado
+                    ]}>
+                      <Text style={[
+                        styles.circleOutlineText, 
                         isDarkMode && styles.cellTextDark,
                         tieneError && styles.textoError,
                         estaEnviada && styles.textoEnviado
                       ]}>
-                        {num}
+                        ${jugada.precioIndividual.toFixed(2)}
                       </Text>
-                    ))}
-                  </View>
-                  <View style={[
-                    styles.circleOutline,
-                    tieneError && styles.circleError,
-                    estaEnviada && styles.circleEnviado
-                  ]}>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={[styles.cell, isDarkMode && styles.cellDark]}>
+              {/* Mostrar jugadas de centenas */}
+              {jugadasCentenas.map((jugada, index) => {
+                const id = generarIdJugada('centena', index);
+                const tieneError = jugadasConError.has(id);
+                const estaEnviada = jugadasEnviadas.has(id);
+                const estaSeleccionada = jugadasSeleccionadas.has(id);
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.centenaContainer,
+                      estaSeleccionada && styles.jugadaSeleccionada
+                    ]}
+                    onLongPress={() => seleccionarJugada(id)}
+                    delayLongPress={500}
+                  >
                     <Text style={[
-                      styles.circleOutlineText, 
+                      styles.numeroCentenaText, 
                       isDarkMode && styles.cellTextDark,
                       tieneError && styles.textoError,
                       estaEnviada && styles.textoEnviado
                     ]}>
-                      ${jugada.precioIndividual.toFixed(2)}
+                      {jugada.numero}
                     </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <View style={[styles.cell, isDarkMode && styles.cellDark]}>
-            {/* Mostrar jugadas de centenas */}
-            {jugadasCentenas.map((jugada, index) => {
-              const id = generarIdJugada('centena', index);
-              const tieneError = jugadasConError.has(id);
-              const estaEnviada = jugadasEnviadas.has(id);
-              const estaSeleccionada = jugadasSeleccionadas.has(id);
-              
-              return (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.centenaContainer,
-                    estaSeleccionada && styles.jugadaSeleccionada
-                  ]}
-                  onLongPress={() => seleccionarJugada(id)}
-                  delayLongPress={500}
-                >
-                  <Text style={[
-                    styles.numeroCentenaText, 
-                    isDarkMode && styles.cellTextDark,
-                    tieneError && styles.textoError,
-                    estaEnviada && styles.textoEnviado
-                  ]}>
-                    {jugada.numero}
-                  </Text>
-                  <View style={[
-                    styles.circleOutline,
-                    tieneError && styles.circleError,
-                    estaEnviada && styles.circleEnviado
-                  ]}>
-                    <Text style={[
-                      styles.circleOutlineText, 
-                      isDarkMode && styles.cellTextDark,
-                      tieneError && styles.textoError,
-                      estaEnviada && styles.textoEnviado
+                    <View style={[
+                      styles.circleOutline,
+                      tieneError && styles.circleError,
+                      estaEnviada && styles.circleEnviado
                     ]}>
-                      ${jugada.precio.toFixed(2)}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-        
-        {/* Fila 3 - Inputs */}
-        <View style={styles.inputRow}>
-          <View style={[styles.cell, isDarkMode && styles.cellDark]}>
-            {/* Inputs para fijos y corridos */}
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[styles.input, isDarkMode && styles.inputDark]}
-                placeholder="#"
-                placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
-                value={numero}
-                onChangeText={setNumero}
-                keyboardType="numeric"
-                maxLength={3}
-              />
-              <TextInput
-                style={[styles.input, isDarkMode && styles.inputDark]}
-                placeholder="$"
-                placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
-                value={fijo}
-                onChangeText={setFijo}
-                keyboardType="numeric"
-                maxLength={2}
-              />
-              <TextInput
-                style={[styles.input, isDarkMode && styles.inputDark]}
-                placeholder="$"
-                placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
-                value={corrido}
-                onChangeText={setCorrido}
-                keyboardType="numeric"
-                maxLength={2}
-              />
-              <TouchableOpacity 
-                style={[styles.addButton, isDarkMode && styles.addButtonDark]}
-                onPress={agregarJugada}
-              >
-                <Text style={styles.addButtonText}>+</Text>
-              </TouchableOpacity>
+                      <Text style={[
+                        styles.circleOutlineText, 
+                        isDarkMode && styles.cellTextDark,
+                        tieneError && styles.textoError,
+                        estaEnviada && styles.textoEnviado
+                      ]}>
+                        ${jugada.precio.toFixed(2)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
-          <View style={[styles.cell, isDarkMode && styles.cellDark]}>
-            {/* Inputs para parles - horizontales */}
-            <View style={styles.inputContainer}>
-              <View style={styles.parleInputsHorizontal}>
+          {/* Fila 3 - Inputs */}
+          <View style={styles.inputRow}>
+            <View style={[styles.cell, isDarkMode && styles.cellDark]}>
+              {/* Inputs para fijos y corridos */}
+              <View style={styles.inputContainer}>
                 <TextInput
-                  style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                  style={[styles.input, isDarkMode && styles.inputDark]}
                   placeholder="#"
                   placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
-                  value={parleInput}
-                  onChangeText={manejarParleInput}
-                  keyboardType="numeric"
-                />
-                <TextInput
-                  style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
-                  placeholder="$"
-                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
-                  value={precioParle}
-                  onChangeText={setPrecioParle}
-                  keyboardType="numeric"
-                />
-              </View>
-              <TouchableOpacity 
-                style={[styles.addButton, isDarkMode && styles.addButtonDark]}
-                onPress={agregarParle}
-              >
-                <Text style={styles.addButtonText}>+</Text>
-              </TouchableOpacity>
-              <View style={styles.candadoSection}>
-                <TouchableOpacity 
-                  style={styles.candadoButton}
-                  onPress={() => setCandadoAbierto(!candadoAbierto)}
-                >
-                  <Text style={styles.candadoText}>
-                    {candadoAbierto ? '🔓' : '🔒'}
-                  </Text>
-                </TouchableOpacity>
-                <Text style={[styles.candadoLabel, isDarkMode && styles.cellTextDark]}>
-                  {candadoAbierto ? 'Precio total' : 'Precio individual'}
-                </Text>
-              </View>
-            </View>
-          </View>
-          <View style={[styles.cell, isDarkMode && styles.cellDark]}>
-            {/* Inputs para centenas - horizontales */}
-            <View style={styles.inputContainer}>
-              <View style={styles.centenaInputsHorizontal}>
-                <TextInput
-                  style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
-                  placeholder="#"
-                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
-                  value={centenaNumero}
-                  onChangeText={manejarCentenaNumero}
+                  value={numero}
+                  onChangeText={setNumero}
                   keyboardType="numeric"
                   maxLength={3}
                 />
                 <TextInput
-                  style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                  style={[styles.input, isDarkMode && styles.inputDark]}
                   placeholder="$"
                   placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
-                  value={centenaPrecio}
-                  onChangeText={setCentenaPrecio}
+                  value={fijo}
+                  onChangeText={setFijo}
                   keyboardType="numeric"
+                  maxLength={2}
                 />
+                <TextInput
+                  style={[styles.input, isDarkMode && styles.inputDark]}
+                  placeholder="$"
+                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                  value={corrido}
+                  onChangeText={setCorrido}
+                  keyboardType="numeric"
+                  maxLength={2}
+                />
+                <TouchableOpacity 
+                  style={[styles.addButton, isDarkMode && styles.addButtonDark]}
+                  onPress={agregarJugada}
+                >
+                  <Text style={styles.addButtonText}>+</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity 
-                style={[styles.addButton, isDarkMode && styles.addButtonDark]}
-                onPress={agregarCentena}
-              >
-                <Text style={styles.addButtonText}>+</Text>
-              </TouchableOpacity>
+            </View>
+            <View style={[styles.cell, isDarkMode && styles.cellDark]}>
+              {/* Inputs para parles - horizontales */}
+              <View style={styles.inputContainer}>
+                <View style={styles.parleInputsHorizontal}>
+                  <TextInput
+                    style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                    placeholder="#"
+                    placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                    value={parleInput}
+                    onChangeText={manejarParleInput}
+                    keyboardType="numeric"
+                  />
+                  <TextInput
+                    style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                    placeholder="$"
+                    placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                    value={precioParle}
+                    onChangeText={setPrecioParle}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <TouchableOpacity 
+                  style={[styles.addButton, isDarkMode && styles.addButtonDark]}
+                  onPress={agregarParle}
+                >
+                  <Text style={styles.addButtonText}>+</Text>
+                </TouchableOpacity>
+                <View style={styles.candadoSection}>
+                  <TouchableOpacity 
+                    style={styles.candadoButton}
+                    onPress={() => setCandadoAbierto(!candadoAbierto)}
+                  >
+                    <Text style={styles.candadoText}>
+                      {candadoAbierto ? '🔓' : '🔒'}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.candadoLabel, isDarkMode && styles.cellTextDark]}>
+                    {candadoAbierto ? 'Precio total' : 'Precio individual'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <View style={[styles.cell, isDarkMode && styles.cellDark]}>
+              {/* Inputs para centenas - horizontales */}
+              <View style={styles.inputContainer}>
+                <View style={styles.centenaInputsHorizontal}>
+                  <TextInput
+                    style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                    placeholder="#"
+                    placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                    value={centenaNumero}
+                    onChangeText={manejarCentenaNumero}
+                    keyboardType="numeric"
+                    maxLength={3}
+                  />
+                  <TextInput
+                    style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                    placeholder="$"
+                    placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                    value={centenaPrecio}
+                    onChangeText={setCentenaPrecio}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <TouchableOpacity 
+                  style={[styles.addButton, isDarkMode && styles.addButtonDark]}
+                  onPress={agregarCentena}
+                >
+                  <Text style={styles.addButtonText}>+</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
-      </View>
-      
-      {/* Botones de acción */}
-      <View style={styles.actionButtonsContainer}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.deleteButton]}
-          onPress={jugadasSeleccionadas.size > 0 ? borrarSeleccionadas : borrarTodoNegro}
-        >
-          <Text style={styles.actionButtonText}>
-            {jugadasSeleccionadas.size > 0 ? 'Eliminar' : 'Borrar'}
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.sendButton]}
-          onPress={enviarJugadas}
-        >
-          <Text style={styles.actionButtonText}>Enviar</Text>
-        </TouchableOpacity>
-      </View>
+        {/* Botones de acción */}
+        <View style={styles.actionButtonsContainer}>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.deleteButton]}
+            onPress={jugadasSeleccionadas.size > 0 ? borrarSeleccionadas : borrarTodoNegro}
+          >
+            <Text style={styles.actionButtonText}>
+              {jugadasSeleccionadas.size > 0 ? 'Eliminar' : 'Borrar'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.sendButton]}
+            onPress={enviarJugadas}
+          >
+            <Text style={styles.actionButtonText}>Enviar</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
       <SideBar
         isVisible={sidebarVisible}
@@ -562,7 +708,8 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: '#f0f8ff' 
+    backgroundColor: '#f0f8ff',
+    minHeight: '100vh',
   },
   containerDark: { 
     backgroundColor: '#2c3e50' 
@@ -609,7 +756,7 @@ const styles = StyleSheet.create({
   },
   gridContainer: {
     flex: 1,
-    paddingTop: 120, // Espacio para la barra superior (ajustado)
+    paddingTop: 90, // Menos espacio para la barra superior
     paddingHorizontal: 10,
     paddingBottom: 10,
   },
@@ -638,7 +785,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerText: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: 'bold',
     color: '#2c3e50',
     textAlign: 'center',
