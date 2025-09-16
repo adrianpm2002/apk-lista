@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import ModeSelector from '../components/ModeSelector';
 import PricingInfoButton from '../components/PricingInfoButton';
@@ -239,7 +239,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           </View>
         </View>
       </View>
-      
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
       {/* Grid de 3x3 */}
       <View style={styles.gridContainer}>
         {/* Fila 1 - Encabezados */}
@@ -544,6 +544,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           <Text style={styles.actionButtonText}>Enviar</Text>
         </TouchableOpacity>
       </View>
+      </ScrollView>
       <SideBar
         isVisible={sidebarVisible}
         onClose={() => setSidebarVisible(false)}
