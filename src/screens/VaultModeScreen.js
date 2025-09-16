@@ -420,27 +420,13 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         )}
       </View>
         <View style={styles.gridContainer}>
-          {/* Fila 1 - Encabezados */}
-          <View style={styles.headerRow}>
-            <View style={[styles.headerCell, isDarkMode && styles.cellDark]}>
-              <Text style={[styles.headerText, isDarkMode && styles.cellTextDark]}>
-                Fijos y corridos
-              </Text>
-            </View>
-            <View style={[styles.headerCell, isDarkMode && styles.cellDark]}>
-              <Text style={[styles.headerText, isDarkMode && styles.cellTextDark]}>
-                Parles
-              </Text>
-            </View>
-            <View style={[styles.headerCell, isDarkMode && styles.cellDark]}>
-              <Text style={[styles.headerText, isDarkMode && styles.cellTextDark]}>
-                Centenas
-              </Text>
-            </View>
-          </View>
-          {/* Fila 2 - Mostrar jugadas */}
+          {/* Las tres columnas sin encabezados separados, ocupando todo el ancho */}
           <View style={styles.contentRow}>
             <View style={[styles.cell, isDarkMode && styles.cellDark]}>
+              {/* Título dentro de la lista */}
+              <Text style={[styles.headerTextInside, isDarkMode && styles.cellTextDark]}>
+                Fijos y corridos
+              </Text>
               {/* Mostrar jugadas de fijos y corridos */}
               {jugadasFijosYCorridos.map((jugada, index) => {
                 const id = generarIdJugada('fijo', index);
@@ -494,6 +480,10 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               })}
             </View>
             <View style={[styles.cell, isDarkMode && styles.cellDark]}>
+              {/* Título dentro de la lista */}
+              <Text style={[styles.headerTextInside, isDarkMode && styles.cellTextDark]}>
+                Parles
+              </Text>
               {/* Mostrar jugadas de parles */}
               {jugadasParles.map((jugada, index) => {
                 const id = generarIdJugada('parle', index);
@@ -541,6 +531,10 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               })}
             </View>
             <View style={[styles.cell, isDarkMode && styles.cellDark]}>
+              {/* Título dentro de la lista */}
+              <Text style={[styles.headerTextInside, isDarkMode && styles.cellTextDark]}>
+                Centenas
+              </Text>
               {/* Mostrar jugadas de centenas */}
               {jugadasCentenas.map((jugada, index) => {
                 const id = generarIdJugada('centena', index);
@@ -584,7 +578,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               })}
             </View>
           </View>
-          {/* Fila 3 - Inputs */}
+          {/* Inputs */}
           <View style={styles.inputRow}>
             <View style={[styles.cell, isDarkMode && styles.cellDark]}>
               {/* Inputs para fijos y corridos */}
@@ -781,14 +775,9 @@ const styles = StyleSheet.create({
   },
   gridContainer: {
     flex: 1,
-    paddingTop: 90, // Menos espacio para la barra superior
-    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingHorizontal: 0,
     paddingBottom: 10,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    height: 50, // Altura fija pequeña para encabezados
-    marginBottom: 10,
   },
   contentRow: {
     flex: 3, // Mayor espacio para mostrar jugadas
@@ -799,21 +788,16 @@ const styles = StyleSheet.create({
     flex: 2, // Espacio para inputs
     flexDirection: 'row',
   },
-  headerCell: {
-    flex: 1,
-    backgroundColor: '#e3f2fd',
-    marginHorizontal: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E6EA',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerText: {
-    fontSize: 11,
+  headerTextInside: {
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#2c3e50',
     textAlign: 'center',
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E6EA',
+    width: '100%',
   },
   row: {
     flex: 1,
@@ -823,11 +807,12 @@ const styles = StyleSheet.create({
   cell: {
     flex: 1,
     backgroundColor: '#ffffff',
-    marginHorizontal: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E6EA',
-    justifyContent: 'center',
+    marginHorizontal: 0,
+    borderRadius: 0,
+    borderWidth: 0,
+    borderRightWidth: 1,
+    borderRightColor: '#E2E6EA',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     minHeight: 100,
     padding: 10,
