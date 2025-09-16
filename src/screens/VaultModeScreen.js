@@ -355,9 +355,13 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         </View>
       </View>
 
-  <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+  <ScrollView
+    style={{ flex: 1, marginTop: 100 }}
+    contentContainerStyle={{ flexGrow: 1 }}
+    keyboardShouldPersistTaps="handled"
+  >
       {/* Controles de lotería, horario y nota (idénticos a VisualModeScreen, ahora dentro del ScrollView) */}
-      <View style={{ paddingHorizontal: 8, marginTop: 100, marginBottom: 6 }}>
+      <View style={{ paddingHorizontal: 8, marginTop: 10, marginBottom: 6 }}>
         <MultiSelectDropdown
           label="Loterías"
           selectedValues={selectedLotteries}
