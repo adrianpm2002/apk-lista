@@ -149,11 +149,12 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   
   // Función para agregar una jugada de fijos y corridos
   const agregarJugada = () => {
-    if (numero && fijo && corrido) {
+    // Solo permitir números de dos dígitos
+    if (numero.length === 2 && (fijo || corrido)) {
       const nuevaJugada = {
         numero: numero,
-        fijo: fijo,
-        corrido: corrido
+        fijo: fijo || '',
+        corrido: corrido || ''
       };
       setJugadasFijosYCorridos([...jugadasFijosYCorridos, nuevaJugada]);
       // Limpiar inputs
@@ -483,9 +484,9 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   placeholder="#"
                   placeholderTextColor="#7f8c8d"
                   value={numero}
-                  onChangeText={setNumero}
+                  onChangeText={text => setNumero(text.replace(/\D/g, '').slice(0, 2))}
                   keyboardType="numeric"
-                  maxLength={3}
+                  maxLength={2}
                 />
                 <TextInput
                   style={styles.input}
