@@ -152,15 +152,14 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   const [centenaNumero, setCentenaNumero] = useState('');
   const [centenaPrecio, setCentenaPrecio] = useState('');
   
-  // Estado para almacenar las jugadas enviadas
+  // Estados para almacenar las jugadas
   const [jugadasFijosYCorridos, setJugadasFijosYCorridos] = useState([]);
   const [jugadasParles, setJugadasParles] = useState([]);
   const [jugadasCentenas, setJugadasCentenas] = useState([]);
+  const [nextId, setNextId] = useState(1); // Contador para IDs únicos
   
   // Estados para manejar errores y estados de jugadas
   const [jugadasConError, setJugadasConError] = useState(new Set());
-  const [jugadasEnviadas, setJugadasEnviadas] = useState(new Set());
-  const [jugadasSeleccionadas, setJugadasSeleccionadas] = useState(new Set());
   
   // Estados para manejo de inserción y feedback
   const [isInserting, setIsInserting] = useState(false);
@@ -179,17 +178,42 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     loadUserId();
   }, []);
   
+  // Función para limpiar completamente la pantalla
+  const limpiarPantalla = () => {
+    setJugadasFijosYCorridos([]);
+    setJugadasParles([]);
+    setJugadasCentenas([]);
+    setNote('');
+    setSelectedLotteries([]);
+    setSelectedSchedules({});
+    setJugadasConError(new Set());
+    setInsertFeedback(null);
+    setLimitViolations([]);
+    setLotteryError(false);
+    setScheduleError(false);
+    setShowFieldErrors(false);
+    setNumero('');
+    setFijo('');
+    setCorrido('');
+    setParleInput('');
+    setPrecioParle('');
+    setCentenaNumero('');
+    setCentenaPrecio('');
+  };
+  
   // Función para agregar una jugada de fijos y corridos
   const agregarJugada = () => {
     // Extraer todos los números de dos dígitos
     const numerosArray = (numero.match(/\d{2}/g) || []);
     if (numerosArray.length > 0 && (fijo || corrido)) {
       const nuevasJugadas = numerosArray.map(num => ({
+        id: nextId + numerosArray.indexOf(num), // ID único
         numero: num,
         fijo: fijo || '',
         corrido: corrido || ''
       }));
       setJugadasFijosYCorridos([...jugadasFijosYCorridos, ...nuevasJugadas]);
+      setNextId(nextId + numerosArray.length);
       // Limpiar inputs
       setNumero('');
       setFijo('');
@@ -217,12 +241,14 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         const precio = parseFloat(precioParle);
         // Lógica corregida: candado abierto = precio individual, candado cerrado = precio total
         const nuevasJugadas = numerosArray.map(num => ({
+          id: nextId + numerosArray.indexOf(num), // ID único
           numeros: [num],
           precioIndividual: candadoAbierto ? precio : precio / numerosArray.length,
           precioTotal: candadoAbierto ? precio * numerosArray.length : precio,
           esPrecioTotal: !candadoAbierto
         }));
         setJugadasParles([...jugadasParles, ...nuevasJugadas]);
+        setNextId(nextId + numerosArray.length);
         // Limpiar inputs
         setParleInput('');
         setPrecioParle('');
@@ -244,78 +270,16 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     const numerosArray = (centenaNumero.replace(/\D/g, '').match(/.{3}/g) || []);
     if (numerosArray.length > 0 && centenaPrecio) {
       const nuevasCentenas = numerosArray.map(num => ({
+        id: nextId + numerosArray.indexOf(num), // ID único
         numero: num,
         precio: centenaPrecio
       }));
       setJugadasCentenas([...jugadasCentenas, ...nuevasCentenas]);
+      setNextId(nextId + numerosArray.length);
       // Limpiar inputs
       setCentenaNumero('');
       setCentenaPrecio('');
     }
-  };
-  
-  // Función para generar ID único de jugada
-  const generarIdJugada = (tipo, index) => `${tipo}-${index}`;
-  
-  // Función para manejar selección de jugadas (long press)
-  const seleccionarJugada = (id) => {
-    const nuevasSeleccionadas = new Set(jugadasSeleccionadas);
-    if (nuevasSeleccionadas.has(id)) {
-      nuevasSeleccionadas.delete(id);
-    } else {
-      nuevasSeleccionadas.add(id);
-    }
-    setJugadasSeleccionadas(nuevasSeleccionadas);
-  };
-  
-  // Función para borrar jugadas seleccionadas
-  const borrarSeleccionadas = () => {
-    // Borrar solo jugadas en negro (no enviadas)
-    const nuevasFijosYCorridos = jugadasFijosYCorridos.filter((_, index) => {
-      const id = generarIdJugada('fijo', index);
-      return !jugadasSeleccionadas.has(id) || jugadasEnviadas.has(id);
-    });
-    
-    const nuevasParles = jugadasParles.filter((_, index) => {
-      const id = generarIdJugada('parle', index);
-      return !jugadasSeleccionadas.has(id) || jugadasEnviadas.has(id);
-    });
-    
-    const nuevasCentenas = jugadasCentenas.filter((_, index) => {
-      const id = generarIdJugada('centena', index);
-      return !jugadasSeleccionadas.has(id) || jugadasEnviadas.has(id);
-    });
-    
-    setJugadasFijosYCorridos(nuevasFijosYCorridos);
-    setJugadasParles(nuevasParles);
-    setJugadasCentenas(nuevasCentenas);
-    setJugadasSeleccionadas(new Set());
-  };
-  
-  // Función para borrar todo lo negro
-  const borrarTodoNegro = () => {
-    // Mantener solo las jugadas enviadas (verdes)
-    const nuevasFijosYCorridos = jugadasFijosYCorridos.filter((_, index) => {
-      const id = generarIdJugada('fijo', index);
-      return jugadasEnviadas.has(id);
-    });
-    const nuevasParles = jugadasParles.filter((_, index) => {
-      const id = generarIdJugada('parle', index);
-      return jugadasEnviadas.has(id);
-    });
-    const nuevasCentenas = jugadasCentenas.filter((_, index) => {
-      const id = generarIdJugada('centena', index);
-      return jugadasEnviadas.has(id);
-    });
-    setJugadasFijosYCorridos(nuevasFijosYCorridos);
-    setJugadasParles(nuevasParles);
-    setJugadasCentenas(nuevasCentenas);
-    setJugadasConError(new Set());
-    setJugadasSeleccionadas(new Set());
-    // Limpiar lotería, horario y nota
-    setSelectedLotteries([]);
-    setSelectedSchedules({});
-    setNote('');
   };
   
   // Función para enviar jugadas
@@ -390,63 +354,54 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       
       // Agregar jugadas de fijos y corridos
       jugadasFijosYCorridos.forEach(jugada => {
-        const id = generarIdJugada('fijo', jugadasFijosYCorridos.indexOf(jugada));
-        if (!jugadasEnviadas.has(id)) {
-          if (jugada.fijo && parseFloat(jugada.fijo) > 0) {
-            payloads.push({
-              id_listero: userId,
-              id_horario,
-              jugada: 'fijo',
-              numeros: jugada.numero,
-              nota: note?.trim() || null,
-              monto_unitario: parseFloat(jugada.fijo),
-              monto_total: parseFloat(jugada.fijo),
-            });
-          }
-          if (jugada.corrido && parseFloat(jugada.corrido) > 0) {
-            payloads.push({
-              id_listero: userId,
-              id_horario,
-              jugada: 'corrido',
-              numeros: jugada.numero,
-              nota: note?.trim() || null,
-              monto_unitario: parseFloat(jugada.corrido),
-              monto_total: parseFloat(jugada.corrido),
-            });
-          }
+        if (jugada.fijo && parseFloat(jugada.fijo) > 0) {
+          payloads.push({
+            id_listero: userId,
+            id_horario,
+            jugada: 'fijo',
+            numeros: jugada.numero,
+            nota: note?.trim() || null,
+            monto_unitario: parseFloat(jugada.fijo),
+            monto_total: parseFloat(jugada.fijo)
+          });
+        }
+        if (jugada.corrido && parseFloat(jugada.corrido) > 0) {
+          payloads.push({
+            id_listero: userId,
+            id_horario,
+            jugada: 'corrido',
+            numeros: jugada.numero,
+            nota: note?.trim() || null,
+            monto_unitario: parseFloat(jugada.corrido),
+            monto_total: parseFloat(jugada.corrido)
+          });
         }
       });
       
       // Agregar jugadas de parles
       jugadasParles.forEach(jugada => {
-        const id = generarIdJugada('parle', jugadasParles.indexOf(jugada));
-        if (!jugadasEnviadas.has(id)) {
-          payloads.push({
-            id_listero: userId,
-            id_horario,
-            jugada: 'parle',
-            numeros: jugada.numeros.join(','),
-            nota: note?.trim() || null,
-            monto_unitario: jugada.precioIndividual,
-            monto_total: jugada.precioTotal,
-          });
-        }
+        payloads.push({
+          id_listero: userId,
+          id_horario,
+          jugada: 'parle',
+          numeros: jugada.numeros.join(','),
+          nota: note?.trim() || null,
+          monto_unitario: jugada.precioIndividual,
+          monto_total: jugada.precioTotal
+        });
       });
       
       // Agregar jugadas de centenas
       jugadasCentenas.forEach(jugada => {
-        const id = generarIdJugada('centena', jugadasCentenas.indexOf(jugada));
-        if (!jugadasEnviadas.has(id)) {
-          payloads.push({
-            id_listero: userId,
-            id_horario,
-            jugada: 'centena',
-            numeros: jugada.numero,
-            nota: note?.trim() || null,
-            monto_unitario: parseFloat(jugada.precio),
-            monto_total: parseFloat(jugada.precio),
-          });
-        }
+        payloads.push({
+          id_listero: userId,
+          id_horario,
+          jugada: 'centena',
+          numeros: jugada.numero,
+          nota: note?.trim() || null,
+          monto_unitario: parseFloat(jugada.precio),
+          monto_total: parseFloat(jugada.precio)
+        });
       });
     });
 
@@ -483,7 +438,10 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       const violations = checkInstructionsLimits(tempInstructions, horarios, ctx);
       if(violations.length){
         setLimitViolations(violations);
-        setInsertFeedback({ success:0, fail:payloads.length, duplicates:[], blocked:true });
+        setInsertFeedback({ 
+          type: 'error',
+          message: `Se encontraron ${violations.length} violación(es) de límites. Revisa las restricciones.`
+        });
         return; // aborta inserción
       }
       
@@ -491,48 +449,33 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       setIsInserting(true);
       const successes = [];
       const failures = [];
-      const nuevasEnviadas = new Set(jugadasEnviadas);
       
       for(const p of payloads){
-        const { data, error } = await supabase.from('jugada').insert(p).select('id').single();
+        const { data, error } = await supabase.from('jugada').insert({
+          id_listero: p.id_listero,
+          id_horario: p.id_horario,
+          jugada: p.jugada,
+          numeros: p.numeros,
+          nota: p.nota,
+          monto_unitario: p.monto_unitario,
+          monto_total: p.monto_total
+        }).select('id').single();
+        
         if(error){
           const msg = (error.message||'').toLowerCase();
           const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || error.code==='23505';
           failures.push({ p, error, isDuplicate });
         } else {
           successes.push(data.id);
-          
-          // Marcar jugadas como enviadas
-          if (p.jugada === 'fijo' || p.jugada === 'corrido') {
-            jugadasFijosYCorridos.forEach((jugada, index) => {
-              if (jugada.numero === p.numeros) {
-                const id = generarIdJugada('fijo', index);
-                nuevasEnviadas.add(id);
-              }
-            });
-          } else if (p.jugada === 'parle') {
-            jugadasParles.forEach((jugada, index) => {
-              if (jugada.numeros.join(',') === p.numeros) {
-                const id = generarIdJugada('parle', index);
-                nuevasEnviadas.add(id);
-              }
-            });
-          } else if (p.jugada === 'centena') {
-            jugadasCentenas.forEach((jugada, index) => {
-              if (jugada.numero === p.numeros) {
-                const id = generarIdJugada('centena', index);
-                nuevasEnviadas.add(id);
-              }
-            });
-          }
         }
       }
       
-      setJugadasEnviadas(nuevasEnviadas);
-      setJugadasConError(new Set()); // Limpiar errores previos
-      
       if(failures.length === 0){
-        // Limpiar inputs después del envío exitoso
+        // ¡ÉXITO TOTAL! Limpiar toda la pantalla automáticamente
+        setJugadasFijosYCorridos([]);
+        setJugadasParles([]);
+        setJugadasCentenas([]);
+        setNote('');
         setNumero('');
         setFijo('');
         setCorrido('');
@@ -540,27 +483,27 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         setPrecioParle('');
         setCentenaNumero('');
         setCentenaPrecio('');
+        setJugadasConError(new Set());
         setShowFieldErrors(false);
-      }
-      
-      if(failures.length){
-        const duplicateFails = failures.filter(f=>f.isDuplicate);
+        
         setInsertFeedback({ 
-          success: successes.length, 
-          fail: failures.length, 
-          duplicates: duplicateFails.map(f=>({ 
-            jugada: f.p.jugada, 
-            numeros: f.p.numeros, 
-            nota: f.p.nota, 
-            horario: f.p.id_horario 
-          })) 
+          type: 'success',
+          message: `${successes.length} jugada(s) enviada(s) exitosamente.`
         });
       } else {
-        setInsertFeedback({ success: successes.length, fail: 0, duplicates: [] });
+        // Hubo algunos errores
+        const duplicateFails = failures.filter(f=>f.isDuplicate);
+        setInsertFeedback({ 
+          type: 'warning',
+          message: `${successes.length} exitosa(s), ${failures.length} fallida(s)${duplicateFails.length ? ` (${duplicateFails.length} duplicada(s))` : ''}.`
+        });
       }
     } catch(err){
       console.error('Error general insertando jugadas', err);
-      setInsertFeedback({ success: 0, fail: payloads.length || 1, duplicates: [] });
+      setInsertFeedback({ 
+        type: 'error',
+        message: 'Error inesperado al enviar jugadas. Intenta nuevamente.'
+      });
     } finally { 
       setIsInserting(false); 
     }
@@ -659,59 +602,25 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                 Fijos y corridos
               </Text>
               {/* Mostrar jugadas de fijos y corridos */}
-              {jugadasFijosYCorridos.map((jugada, index) => {
-                const id = generarIdJugada('fijo', index);
-                const tieneError = jugadasConError.has(id);
-                const estaEnviada = jugadasEnviadas.has(id);
-                const estaSeleccionada = jugadasSeleccionadas.has(id);
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.jugadaContainer,
-                      estaSeleccionada && styles.jugadaSeleccionada
-                    ]}
-                    onLongPress={() => seleccionarJugada(id)}
-                    delayLongPress={500}
-                  >
-                    <Text style={[
-                      styles.numeroText,
-                      tieneError && styles.textoError,
-                      estaEnviada && styles.textoEnviado
-                    ]}>
-                      {jugada.numero}
-                    </Text>
-                    <View style={styles.circleContainer}>
-                      <View style={[
-                        styles.circle,
-                        tieneError && styles.circleError,
-                        estaEnviada && styles.circleEnviado
-                      ]}>
-                        <Text style={[
-                          styles.circleText,
-                          tieneError && styles.textoError,
-                          estaEnviada && styles.textoEnviado
-                        ]}>
-                          {jugada.fijo ? `$${jugada.fijo}` : ''}
-                        </Text>
-                      </View>
-                      <View style={[
-                        styles.circle,
-                        tieneError && styles.circleError,
-                        estaEnviada && styles.circleEnviado
-                      ]}>
-                        <Text style={[
-                          styles.circleText,
-                          tieneError && styles.textoError,
-                          estaEnviada && styles.textoEnviado
-                        ]}>
-                          {jugada.corrido ? `$${jugada.corrido}` : ''}
-                        </Text>
-                      </View>
+              {jugadasFijosYCorridos.map((jugada, index) => (
+                <View key={jugada.id} style={styles.jugadaContainer}>
+                  <Text style={styles.numeroText}>
+                    {jugada.numero}
+                  </Text>
+                  <View style={styles.circleContainer}>
+                    <View style={styles.circle}>
+                      <Text style={styles.circleText}>
+                        {jugada.fijo ? `$${jugada.fijo}` : ''}
+                      </Text>
                     </View>
-                  </TouchableOpacity>
-                );
-              })}
+                    <View style={styles.circle}>
+                      <Text style={styles.circleText}>
+                        {jugada.corrido ? `$${jugada.corrido}` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
               {/* Inputs para agregar números dentro de la lista */}
               <View style={styles.inputContainerInsideList}>
                 <TextInput
@@ -771,46 +680,20 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                 Parles
               </Text>
               {/* Mostrar jugadas de parles uno al lado del otro como fijos y corridos */}
-              {jugadasParles.map((jugada, index) => {
-                const id = generarIdJugada('parle', index);
-                const tieneError = jugadasConError.has(id);
-                const estaEnviada = jugadasEnviadas.has(id);
-                const estaSeleccionada = jugadasSeleccionadas.has(id);
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.jugadaContainer,
-                      estaSeleccionada && styles.jugadaSeleccionada
-                    ]}
-                    onLongPress={() => seleccionarJugada(id)}
-                    delayLongPress={500}
-                  >
-                    <Text style={[
-                      styles.numeroText,
-                      tieneError && styles.textoError,
-                      estaEnviada && styles.textoEnviado
-                    ]}>
-                      {jugada.numeros[0]}
-                    </Text>
-                    <View style={styles.circleContainer}>
-                      <View style={[
-                        styles.circleOutline,
-                        tieneError && styles.circleError,
-                        estaEnviada && styles.circleEnviado
-                      ]}>
-                        <Text style={[
-                          styles.circleOutlineText,
-                          tieneError && styles.textoError,
-                          estaEnviada && styles.textoEnviado
-                        ]}>
-                          ${jugada.precioIndividual}
-                        </Text>
-                      </View>
+              {jugadasParles.map((jugada, index) => (
+                <View key={jugada.id} style={styles.jugadaContainer}>
+                  <Text style={styles.numeroText}>
+                    {jugada.numeros[0]}
+                  </Text>
+                  <View style={styles.circleContainer}>
+                    <View style={styles.circleOutline}>
+                      <Text style={styles.circleOutlineText}>
+                        ${jugada.precioIndividual}
+                      </Text>
                     </View>
-                  </TouchableOpacity>
-                );
-              })}
+                  </View>
+                </View>
+              ))}
               {/* Inputs para agregar parles dentro de la lista */}
               <View style={styles.inputContainerInsideList}>
                 <View style={{ flexDirection: 'column', alignItems: 'center', width: '100%', gap: 8 }}>
@@ -870,43 +753,19 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               </Text>
               {/* Mostrar jugadas de centenas */}
               {jugadasCentenas.map((jugada, index) => {
-                const id = generarIdJugada('centena', index);
-                const tieneError = jugadasConError.has(id);
-                const estaEnviada = jugadasEnviadas.has(id);
-                const estaSeleccionada = jugadasSeleccionadas.has(id);
                 const precioNum = Number(jugada.precio);
                 const precioStr = Number.isInteger(precioNum) ? precioNum.toString() : precioNum.toFixed(2);
                 return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.centenaContainer,
-                      estaSeleccionada && styles.jugadaSeleccionada
-                    ]}
-                    onLongPress={() => seleccionarJugada(id)}
-                    delayLongPress={500}
-                  >
-                    <Text style={[
-                      styles.numeroCentenaText, 
-                      tieneError && styles.textoError,
-                      estaEnviada && styles.textoEnviado
-                    ]}>
+                  <View key={jugada.id} style={styles.centenaContainer}>
+                    <Text style={styles.numeroCentenaText}>
                       {jugada.numero}
                     </Text>
-                    <View style={[
-                      styles.circleOutline,
-                      tieneError && styles.circleError,
-                      estaEnviada && styles.circleEnviado
-                    ]}>
-                      <Text style={[
-                        styles.circleOutlineText, 
-                        tieneError && styles.textoError,
-                        estaEnviada && styles.textoEnviado
-                      ]}>
+                    <View style={styles.circleOutline}>
+                      <Text style={styles.circleOutlineText}>
                         ${precioStr}
                       </Text>
                     </View>
-                  </TouchableOpacity>
+                  </View>
                 );
               })}
               {/* Inputs para agregar centenas dentro de la lista */}
@@ -957,10 +816,10 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         <View style={styles.actionButtonsContainer}>
           <TouchableOpacity 
             style={[styles.actionButton, styles.deleteButton]}
-            onPress={jugadasSeleccionadas.size > 0 ? borrarSeleccionadas : borrarTodoNegro}
+            onPress={limpiarPantalla}
           >
             <Text style={styles.actionButtonText}>
-              {jugadasSeleccionadas.size > 0 ? 'Eliminar' : 'Borrar'}
+              Borrar
             </Text>
           </TouchableOpacity>
           {/* Botón de batería */}
@@ -994,14 +853,31 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       </ScrollView>
       
       {/* Banner de feedback para inserción */}
+      {limitViolations.length > 0 && (
+        <FeedbackBanner
+          type="blocked"
+          message="Límites excedidos"
+          details={limitViolations.slice(0,10).map(v=> {
+            const usado = v.usado || 0;
+            const intento = v.intento || 0;
+            const total = usado + intento;
+            const exceso = total - v.permitido;
+            return `${v.numero} (${v.jugada}): excede ${exceso}`;
+          })}
+          onClose={()=> setLimitViolations([])}
+          style={{ top:70 }}
+        />
+      )}
       {insertFeedback && (
         <FeedbackBanner
-          insertFeedback={insertFeedback}
-          limitViolations={limitViolations}
+          type={insertFeedback.blocked ? 'blocked' : (insertFeedback.fail ? (insertFeedback.success ? 'warning':'error') : 'success')}
+          message={insertFeedback.blocked ? 'Límites excedidos' : insertFeedback.fail ? `${insertFeedback.success} guardada(s), ${insertFeedback.fail} fallida(s)` : `${insertFeedback.success} jugada(s) guardada(s)`}
+          details={insertFeedback.blocked ? 'Revise los límites de números' : insertFeedback.duplicates?.length ? insertFeedback.duplicates.slice(0,8).map(d=> `Dup: ${d.jugada} [${d.numeros}]`) : undefined}
           onClose={() => {
             setInsertFeedback(null);
             setLimitViolations([]);
           }}
+          style={{ top: limitViolations.length? 120:70 }}
         />
       )}
       
