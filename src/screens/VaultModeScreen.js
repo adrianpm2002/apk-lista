@@ -170,8 +170,8 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     // Eliminar espacios y caracteres no numéricos
     const numeros = text.replace(/\D/g, '');
     
-    // Agregar espacios cada 2 dígitos
-    const numerosConEspacios = numeros.replace(/(.{2})/g, '$1 ').trim();
+    // Agregar espacios cada 4 dígitos
+    const numerosConEspacios = numeros.replace(/(.{4})/g, '$1 ').trim();
     
     setParleInput(numerosConEspacios);
   };
@@ -179,22 +179,18 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   // Función para agregar parles
   const agregarParle = () => {
     if (parleInput && precioParle) {
-      // Extraer números individuales (cada par de dígitos)
-      const numerosArray = parleInput.match(/.{1,2}/g) || [];
-      const numerosCompletos = numerosArray.filter(num => num.length === 2);
-      
-      if (numerosCompletos.length > 0) {
+      // Extraer números individuales (cada grupo de 4 dígitos)
+      const numerosArray = (parleInput.replace(/\D/g, '').match(/.{4}/g) || []);
+      if (numerosArray.length > 0) {
         const precio = parseFloat(precioParle);
-        const precioIndividual = candadoAbierto ? precio / numerosCompletos.length : precio;
-        
-        const nuevaJugadaParle = {
-          numeros: numerosCompletos,
+        const precioIndividual = candadoAbierto ? precio / numerosArray.length : precio;
+        const nuevasJugadas = numerosArray.map(num => ({
+          numeros: [num],
           precioIndividual: precioIndividual,
-          precioTotal: candadoAbierto ? precio : precio * numerosCompletos.length,
+          precioTotal: candadoAbierto ? precio : precio * numerosArray.length,
           esPrecioTotal: candadoAbierto
-        };
-        
-        setJugadasParles([...jugadasParles, nuevaJugadaParle]);
+        }));
+        setJugadasParles([...jugadasParles, ...nuevasJugadas]);
         // Limpiar inputs
         setParleInput('');
         setPrecioParle('');
@@ -592,11 +588,14 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                     placeholderTextColor="#7f8c8d"
                     value={parleInput}
                     onChangeText={text => {
-                      let clean = text.replace(/\D/g, '').slice(0, 4);
-                      setParleInput(clean);
+                      // Solo dígitos, máximo 20 caracteres
+                      let clean = text.replace(/\D/g, '').slice(0, 20);
+                      // Insertar espacio cada 4 dígitos
+                      let formatted = clean.replace(/(.{4})/g, '$1 ').trim();
+                      setParleInput(formatted);
                     }}
                     keyboardType="numeric"
-                    maxLength={4}
+                    maxLength={24} // 20 dígitos + 4 espacios
                   />
                   <TextInput
                     style={styles.input}
