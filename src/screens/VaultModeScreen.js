@@ -493,18 +493,16 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   placeholder="$"
                   placeholderTextColor="#7f8c8d"
                   value={fijo}
-                  onChangeText={setFijo}
+                  onChangeText={text => setFijo(text.replace(/[^\d,]/g, ''))}
                   keyboardType="numeric"
-                  maxLength={2}
                 />
                 <TextInput
                   style={styles.input}
                   placeholder="$"
                   placeholderTextColor="#7f8c8d"
                   value={corrido}
-                  onChangeText={setCorrido}
+                  onChangeText={text => setCorrido(text.replace(/[^\d,]/g, ''))}
                   keyboardType="numeric"
-                  maxLength={2}
                 />
                 <TouchableOpacity 
                   style={styles.addButton}
