@@ -443,35 +443,39 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                     onLongPress={() => seleccionarJugada(id)}
                     delayLongPress={500}
                   >
-                    <Text style={[ 
-                      styles.numeroText, 
+                    <Text style={[
+                      styles.numeroText,
                       tieneError && styles.textoError,
                       estaEnviada && styles.textoEnviado
                     ]}>
                       {jugada.numero}
                     </Text>
                     <View style={styles.circleContainer}>
-                      <View style={[ 
+                      <View style={[
                         styles.circle,
                         tieneError && styles.circleError,
                         estaEnviada && styles.circleEnviado
                       ]}>
-                        <Text style={[ 
+                        <Text style={[
                           styles.circleText,
                           tieneError && styles.textoError,
                           estaEnviada && styles.textoEnviado
-                        ]}>{jugada.fijo}</Text>
+                        ]}>
+                          {jugada.fijo ? `$${jugada.fijo}` : ''}
+                        </Text>
                       </View>
-                      <View style={[ 
+                      <View style={[
                         styles.circle,
                         tieneError && styles.circleError,
                         estaEnviada && styles.circleEnviado
                       ]}>
-                        <Text style={[ 
+                        <Text style={[
                           styles.circleText,
                           tieneError && styles.textoError,
                           estaEnviada && styles.textoEnviado
-                        ]}>{jugada.corrido}</Text>
+                        ]}>
+                          {jugada.corrido ? `$${jugada.corrido}` : ''}
+                        </Text>
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -870,7 +874,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   circle: {
-    width: 24,
+    minWidth: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 1.5,
@@ -878,6 +882,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 6, // Permite que el círculo se estire horizontalmente
   },
   circleText: {
     color: '#000000',
