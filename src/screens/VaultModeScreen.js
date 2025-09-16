@@ -504,7 +504,13 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   placeholder="$"
                   placeholderTextColor="#7f8c8d"
                   value={fijo}
-                  onChangeText={text => setFijo(text.replace(/[^\d,]/g, ''))}
+                  onChangeText={text => {
+                    let clean = text.replace(/[^\d.,]/g, '').replace(/,/g, '.');
+                    // Permitir solo un punto decimal
+                    const parts = clean.split('.');
+                    if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
+                    setFijo(clean);
+                  }}
                   keyboardType="numeric"
                 />
                 <TextInput
@@ -512,7 +518,13 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   placeholder="$"
                   placeholderTextColor="#7f8c8d"
                   value={corrido}
-                  onChangeText={text => setCorrido(text.replace(/[^\d,]/g, ''))}
+                  onChangeText={text => {
+                    let clean = text.replace(/[^\d.,]/g, '').replace(/,/g, '.');
+                    // Permitir solo un punto decimal
+                    const parts = clean.split('.');
+                    if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
+                    setCorrido(clean);
+                  }}
                   keyboardType="numeric"
                 />
                 <TouchableOpacity 
