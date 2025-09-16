@@ -149,14 +149,15 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   
   // Función para agregar una jugada de fijos y corridos
   const agregarJugada = () => {
-    // Solo permitir números de dos dígitos
-    if (numero.length === 2 && (fijo || corrido)) {
-      const nuevaJugada = {
-        numero: numero,
+    // Extraer todos los números de dos dígitos
+    const numerosArray = (numero.match(/\d{2}/g) || []);
+    if (numerosArray.length > 0 && (fijo || corrido)) {
+      const nuevasJugadas = numerosArray.map(num => ({
+        numero: num,
         fijo: fijo || '',
         corrido: corrido || ''
-      };
-      setJugadasFijosYCorridos([...jugadasFijosYCorridos, nuevaJugada]);
+      }));
+      setJugadasFijosYCorridos([...jugadasFijosYCorridos, ...nuevasJugadas]);
       // Limpiar inputs
       setNumero('');
       setFijo('');
@@ -488,9 +489,15 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   placeholder="#"
                   placeholderTextColor="#7f8c8d"
                   value={numero}
-                  onChangeText={text => setNumero(text.replace(/\D/g, '').slice(0, 2))}
+                  onChangeText={text => {
+                    // Solo dígitos, máximo 20 caracteres
+                    let clean = text.replace(/\D/g, '').slice(0, 20);
+                    // Insertar espacio cada dos dígitos
+                    let formatted = clean.replace(/(.{2})/g, '$1 ').trim();
+                    setNumero(formatted);
+                  }}
                   keyboardType="numeric"
-                  maxLength={2}
+                  maxLength={29} // 20 dígitos + 9 espacios
                 />
                 <TextInput
                   style={styles.input}
