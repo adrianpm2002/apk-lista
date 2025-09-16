@@ -870,9 +870,8 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       )}
       {insertFeedback && (
         <FeedbackBanner
-          type={insertFeedback.blocked ? 'blocked' : (insertFeedback.fail ? (insertFeedback.success ? 'warning':'error') : 'success')}
-          message={insertFeedback.blocked ? 'Límites excedidos' : insertFeedback.fail ? `${insertFeedback.success} guardada(s), ${insertFeedback.fail} fallida(s)` : `${insertFeedback.success} jugada(s) guardada(s)`}
-          details={insertFeedback.blocked ? 'Revise los límites de números' : insertFeedback.duplicates?.length ? insertFeedback.duplicates.slice(0,8).map(d=> `Dup: ${d.jugada} [${d.numeros}]`) : undefined}
+          type={insertFeedback.type}
+          message={insertFeedback.message}
           onClose={() => {
             setInsertFeedback(null);
             setLimitViolations([]);
