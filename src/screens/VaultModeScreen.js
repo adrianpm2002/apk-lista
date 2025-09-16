@@ -10,6 +10,9 @@ import PricingInfoButton from '../components/PricingInfoButton';
 import NotificationsButton from '../components/NotificationsButton';
 import BatteryButton from '../components/BatteryButton';
 import ListButton from '../components/ListButton';
+import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
+import { validateScheduleById } from '../utils/scheduleValidator';
+import FeedbackBanner from '../components/FeedbackBanner';
 
 const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -125,6 +128,16 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   // Loterías que actualmente carecen de horario (para marcar error individual)
   const missingScheduleSet = new Set(scheduleError ? selectedLotteries.filter(lv => !selectedSchedules[lv]) : []);
   
+  // Función para obtener etiqueta del horario
+  const getScheduleLabel = (scheduleId) => {
+    for (const lotteryId in scheduleOptionsMap) {
+      const schedules = scheduleOptionsMap[lotteryId] || [];
+      const schedule = schedules.find(s => s.value === scheduleId);
+      if (schedule) return schedule.label;
+    }
+    return '';
+  };
+  
   // Estados para los inputs de fijos y corridos
   const [numero, setNumero] = useState('');
   const [fijo, setFijo] = useState('');
@@ -148,6 +161,23 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   const [jugadasConError, setJugadasConError] = useState(new Set());
   const [jugadasEnviadas, setJugadasEnviadas] = useState(new Set());
   const [jugadasSeleccionadas, setJugadasSeleccionadas] = useState(new Set());
+  
+  // Estados para manejo de inserción y feedback
+  const [isInserting, setIsInserting] = useState(false);
+  const [insertFeedback, setInsertFeedback] = useState(null);
+  const [limitViolations, setLimitViolations] = useState([]);
+  const [userId, setUserId] = useState(null);
+  
+  // Cargar userId
+  React.useEffect(() => {
+    const loadUserId = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) setUserId(user.id);
+      } catch (e) { /* silencioso */ }
+    };
+    loadUserId();
+  }, []);
   
   // Función para agregar una jugada de fijos y corridos
   const agregarJugada = () => {
@@ -289,51 +319,250 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   };
   
   // Función para enviar jugadas
-  const enviarJugadas = () => {
-    const nuevasEnviadas = new Set(jugadasEnviadas);
-    const nuevosErrores = new Set();
+  const enviarJugadas = async () => {
+    if (isInserting) return; // prevenir doble toque
     
-    // Simular validación (ejemplo: precio mayor a 15000 da error)
-    jugadasFijosYCorridos.forEach((jugada, index) => {
-      const id = generarIdJugada('fijo', index);
-      if (!jugadasEnviadas.has(id)) {
-        const precioTotal = parseFloat(jugada.fijo) + parseFloat(jugada.corrido);
-        if (precioTotal > 15000) {
-          nuevosErrores.add(id);
-        } else {
-          nuevasEnviadas.add(id);
+    // Limpiar feedback previo
+    setInsertFeedback(null);
+    setLimitViolations([]);
+    
+    // Validar que el horario seleccionado sigue abierto
+    const selectedLottery = selectedLotteries[0];
+    const selectedScheduleId = selectedSchedules[selectedLottery];
+    
+    if (selectedScheduleId) {
+      const isOpen = await validateScheduleById(selectedScheduleId);
+      if (!isOpen) {
+        Alert.alert(
+          'Horario Cerrado', 
+          'El horario seleccionado ya está cerrado. Por favor, selecciona un horario abierto para enviar jugadas.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+    
+    // Resetear errores
+    setLotteryError(false);
+    setScheduleError(false);
+    setShowFieldErrors(false);
+    setLotteryErrorMessage('');
+
+    // Validar campos requeridos
+    let hasErrors = false;
+
+    if (!selectedLotteries.length) {
+      setLotteryError(true);
+      setLotteryErrorMessage('Debe seleccionar al menos una lotería');
+      hasErrors = true;
+    }
+
+    // Validar que cada lotería seleccionada tenga un horario asignado
+    const missingSchedules = selectedLotteries.filter(lv => !selectedSchedules[lv]);
+    if (missingSchedules.length > 0) {
+      setScheduleError(true);
+      hasErrors = true;
+    }
+
+    // Validar que haya jugadas para enviar
+    const totalJugadas = jugadasFijosYCorridos.length + jugadasParles.length + jugadasCentenas.length;
+    if (totalJugadas === 0) {
+      Alert.alert('Error', 'No hay jugadas para enviar');
+      hasErrors = true;
+    }
+
+    if (hasErrors) {
+      setShowFieldErrors(true);
+      setTimeout(() => {
+        setLotteryError(false);
+        setScheduleError(false);
+        setLotteryErrorMessage('');
+        setShowFieldErrors(false);
+      }, 3000);
+      return;
+    }
+
+    // Preparar payloads para inserción
+    const payloads = [];
+    
+    selectedLotteries.forEach(lv => {
+      const id_horario = selectedSchedules[lv];
+      
+      // Agregar jugadas de fijos y corridos
+      jugadasFijosYCorridos.forEach(jugada => {
+        const id = generarIdJugada('fijo', jugadasFijosYCorridos.indexOf(jugada));
+        if (!jugadasEnviadas.has(id)) {
+          if (jugada.fijo && parseFloat(jugada.fijo) > 0) {
+            payloads.push({
+              id_listero: userId,
+              id_horario,
+              jugada: 'fijo',
+              numeros: jugada.numero,
+              nota: note?.trim() || null,
+              monto_unitario: parseFloat(jugada.fijo),
+              monto_total: parseFloat(jugada.fijo),
+            });
+          }
+          if (jugada.corrido && parseFloat(jugada.corrido) > 0) {
+            payloads.push({
+              id_listero: userId,
+              id_horario,
+              jugada: 'corrido',
+              numeros: jugada.numero,
+              nota: note?.trim() || null,
+              monto_unitario: parseFloat(jugada.corrido),
+              monto_total: parseFloat(jugada.corrido),
+            });
+          }
+        }
+      });
+      
+      // Agregar jugadas de parles
+      jugadasParles.forEach(jugada => {
+        const id = generarIdJugada('parle', jugadasParles.indexOf(jugada));
+        if (!jugadasEnviadas.has(id)) {
+          payloads.push({
+            id_listero: userId,
+            id_horario,
+            jugada: 'parle',
+            numeros: jugada.numeros.join(','),
+            nota: note?.trim() || null,
+            monto_unitario: jugada.precioIndividual,
+            monto_total: jugada.precioTotal,
+          });
+        }
+      });
+      
+      // Agregar jugadas de centenas
+      jugadasCentenas.forEach(jugada => {
+        const id = generarIdJugada('centena', jugadasCentenas.indexOf(jugada));
+        if (!jugadasEnviadas.has(id)) {
+          payloads.push({
+            id_listero: userId,
+            id_horario,
+            jugada: 'centena',
+            numeros: jugada.numero,
+            nota: note?.trim() || null,
+            monto_unitario: parseFloat(jugada.precio),
+            monto_total: parseFloat(jugada.precio),
+          });
+        }
+      });
+    });
+
+    if (!payloads.length) return;
+
+    // Validar que todos los horarios seleccionados siguen abiertos
+    const uniqueScheduleIds = [...new Set(payloads.map(p => p.id_horario))];
+    for (const scheduleId of uniqueScheduleIds) {
+      if (scheduleId) {
+        const isOpen = await validateScheduleById(scheduleId);
+        if (!isOpen) {
+          Alert.alert(
+            'Horario Cerrado', 
+            'Uno o más horarios seleccionados ya están cerrados. Por favor, selecciona horarios abiertos para enviar jugadas.',
+            [{ text: 'OK' }]
+          );
+          return;
         }
       }
-    });
-    
-    jugadasParles.forEach((jugada, index) => {
-      const id = generarIdJugada('parle', index);
-      if (!jugadasEnviadas.has(id)) {
-        if (jugada.precioTotal > 15000) {
-          nuevosErrores.add(id);
+    }
+
+    try {
+      // Verificación de capacidad usando util compartido
+      const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
+      const ctx = await fetchLimitsContext(horarios, userId);
+      
+      // Adaptar payloads a formato de instrucciones temporales para reusar checkInstructionsLimits
+      const tempInstructions = payloads.map(p=> ({ 
+        playType: p.jugada, 
+        numbers: p.numeros.split(',').filter(Boolean), 
+        amountEach: p.monto_unitario 
+      }));
+      
+      const violations = checkInstructionsLimits(tempInstructions, horarios, ctx);
+      if(violations.length){
+        setLimitViolations(violations);
+        setInsertFeedback({ success:0, fail:payloads.length, duplicates:[], blocked:true });
+        return; // aborta inserción
+      }
+      
+      // Insertar (sin violaciones)
+      setIsInserting(true);
+      const successes = [];
+      const failures = [];
+      const nuevasEnviadas = new Set(jugadasEnviadas);
+      
+      for(const p of payloads){
+        const { data, error } = await supabase.from('jugada').insert(p).select('id').single();
+        if(error){
+          const msg = (error.message||'').toLowerCase();
+          const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || error.code==='23505';
+          failures.push({ p, error, isDuplicate });
         } else {
-          nuevasEnviadas.add(id);
+          successes.push(data.id);
+          
+          // Marcar jugadas como enviadas
+          if (p.jugada === 'fijo' || p.jugada === 'corrido') {
+            jugadasFijosYCorridos.forEach((jugada, index) => {
+              if (jugada.numero === p.numeros) {
+                const id = generarIdJugada('fijo', index);
+                nuevasEnviadas.add(id);
+              }
+            });
+          } else if (p.jugada === 'parle') {
+            jugadasParles.forEach((jugada, index) => {
+              if (jugada.numeros.join(',') === p.numeros) {
+                const id = generarIdJugada('parle', index);
+                nuevasEnviadas.add(id);
+              }
+            });
+          } else if (p.jugada === 'centena') {
+            jugadasCentenas.forEach((jugada, index) => {
+              if (jugada.numero === p.numeros) {
+                const id = generarIdJugada('centena', index);
+                nuevasEnviadas.add(id);
+              }
+            });
+          }
         }
       }
-    });
-    
-    jugadasCentenas.forEach((jugada, index) => {
-      const id = generarIdJugada('centena', index);
-      if (!jugadasEnviadas.has(id)) {
-        if (jugada.precio > 15000) {
-          nuevosErrores.add(id);
-        } else {
-          nuevasEnviadas.add(id);
-        }
+      
+      setJugadasEnviadas(nuevasEnviadas);
+      setJugadasConError(new Set()); // Limpiar errores previos
+      
+      if(failures.length === 0){
+        // Limpiar inputs después del envío exitoso
+        setNumero('');
+        setFijo('');
+        setCorrido('');
+        setParleInput('');
+        setPrecioParle('');
+        setCentenaNumero('');
+        setCentenaPrecio('');
+        setShowFieldErrors(false);
       }
-    });
-    
-    setJugadasEnviadas(nuevasEnviadas);
-    setJugadasConError(nuevosErrores);
-    
-    // Mostrar alerta si hay errores
-    if (nuevosErrores.size > 0) {
-      alert(`${nuevosErrores.size} jugada(s) exceden el límite de $15,000. Aparecen en rojo para que puedas eliminarlas.`);
+      
+      if(failures.length){
+        const duplicateFails = failures.filter(f=>f.isDuplicate);
+        setInsertFeedback({ 
+          success: successes.length, 
+          fail: failures.length, 
+          duplicates: duplicateFails.map(f=>({ 
+            jugada: f.p.jugada, 
+            numeros: f.p.numeros, 
+            nota: f.p.nota, 
+            horario: f.p.id_horario 
+          })) 
+        });
+      } else {
+        setInsertFeedback({ success: successes.length, fail: 0, duplicates: [] });
+      }
+    } catch(err){
+      console.error('Error general insertando jugadas', err);
+      setInsertFeedback({ success: 0, fail: payloads.length || 1, duplicates: [] });
+    } finally { 
+      setIsInserting(false); 
     }
   };
 
@@ -742,24 +971,40 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
             selectedPlayTypes={[]}
             lotteryOptions={lotteries}
             scheduleOptionsMap={scheduleOptionsMap}
-            getScheduleLabel={(id) => {
-              const lot = lotteries.find(l => l.value === id);
-              const sch = scheduleOptionsMap[id]?.find(s => s.value === selectedSchedules[id]);
-              return sch ? sch.label : '';
-            }}
+            getScheduleLabel={getScheduleLabel}
             playTypeLabels={{ fijo:'fijo', corrido:'corrido', centena:'centena', parle:'parle', tripleta:'tripleta' }}
             animationProps={{ scaleFrom:0.9, duration:180 }}
           />
           {/* Botón de registros diarios */}
           <ListButton currentMode={currentMode} onOptionSelect={(option) => console.log('List option:', option)} />
           <TouchableOpacity 
-            style={[styles.actionButton, styles.sendButton]}
+            style={[
+              styles.actionButton, 
+              styles.sendButton,
+              isInserting && styles.disabledButton
+            ]}
             onPress={enviarJugadas}
+            disabled={isInserting}
           >
-            <Text style={styles.actionButtonText}>Enviar</Text>
+            <Text style={styles.actionButtonText}>
+              {isInserting ? 'Insertando...' : 'Enviar'}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+      
+      {/* Banner de feedback para inserción */}
+      {insertFeedback && (
+        <FeedbackBanner
+          insertFeedback={insertFeedback}
+          limitViolations={limitViolations}
+          onClose={() => {
+            setInsertFeedback(null);
+            setLimitViolations([]);
+          }}
+        />
+      )}
+      
       <SideBar
         isVisible={sidebarVisible}
         onClose={() => setSidebarVisible(false)}
@@ -1137,6 +1382,9 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });
 
