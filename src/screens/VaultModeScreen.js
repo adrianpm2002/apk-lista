@@ -361,7 +361,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     keyboardShouldPersistTaps="handled"
   >
       {/* Controles de lotería, horario y nota (idénticos a VisualModeScreen, ahora dentro del ScrollView) */}
-      <View style={{ paddingHorizontal: 8, marginTop: 10, marginBottom: 6 }}>
+      <View style={{ paddingHorizontal: 8, marginTop: 10, marginBottom: 3 }}>
         <MultiSelectDropdown
           label="Loterías"
           selectedValues={selectedLotteries}
@@ -775,7 +775,7 @@ const styles = StyleSheet.create({
   },
   gridContainer: {
     flex: 1,
-    paddingTop: 10,
+    paddingTop: 5,
     paddingHorizontal: 0,
     paddingBottom: 10,
   },
@@ -873,25 +873,25 @@ const styles = StyleSheet.create({
   jugadaContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
     width: '100%',
     justifyContent: 'space-between',
   },
   numeroText: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#000000',
     flex: 1,
   },
   circleContainer: {
     flexDirection: 'row',
-    gap: 5,
+    gap: 3,
   },
   circle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
     borderColor: '#000000',
     backgroundColor: 'transparent',
     justifyContent: 'center',
@@ -899,42 +899,42 @@ const styles = StyleSheet.create({
   },
   circleText: {
     color: '#000000',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: 'bold',
   },
   // Estilos para parles
   parleContainer: {
     flexDirection: 'column',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
     width: '100%',
   },
   numerosParleContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 5,
-    marginBottom: 5,
+    gap: 3,
+    marginBottom: 3,
   },
   numeroParleText: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#000000',
   },
   circleOutline: {
-    minWidth: 40,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 2,
+    minWidth: 32,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
     borderColor: '#000000',
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
   circleOutlineText: {
     color: '#000000',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: 'bold',
   },
   parleInput: {
@@ -1028,12 +1028,12 @@ const styles = StyleSheet.create({
   centenaContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
     width: '100%',
     justifyContent: 'space-between',
   },
   numeroCentenaText: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#000000',
     flex: 1,
