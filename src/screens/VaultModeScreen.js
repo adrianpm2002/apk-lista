@@ -183,12 +183,12 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       const numerosArray = (parleInput.replace(/\D/g, '').match(/.{4}/g) || []);
       if (numerosArray.length > 0) {
         const precio = parseFloat(precioParle);
-        const precioIndividual = candadoAbierto ? precio / numerosArray.length : precio;
+        // Lógica corregida: candado abierto = precio individual, candado cerrado = precio total
         const nuevasJugadas = numerosArray.map(num => ({
           numeros: [num],
-          precioIndividual: precioIndividual,
-          precioTotal: candadoAbierto ? precio : precio * numerosArray.length,
-          esPrecioTotal: candadoAbierto
+          precioIndividual: candadoAbierto ? precio : precio / numerosArray.length,
+          precioTotal: candadoAbierto ? precio * numerosArray.length : precio,
+          esPrecioTotal: !candadoAbierto
         }));
         setJugadasParles([...jugadasParles, ...nuevasJugadas]);
         // Limpiar inputs
@@ -502,9 +502,9 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   value={fijo}
                   onChangeText={text => {
                     let clean = text.replace(/[^\d.,]/g, '').replace(/,/g, '.');
-                    // Permitir solo un punto decimal
                     const parts = clean.split('.');
                     if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
+                    if (parts[1]) clean = parts[0] + '.' + parts[1].slice(0, 2);
                     setFijo(clean);
                   }}
                   keyboardType="numeric"
@@ -516,9 +516,9 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   value={corrido}
                   onChangeText={text => {
                     let clean = text.replace(/[^\d.,]/g, '').replace(/,/g, '.');
-                    // Permitir solo un punto decimal
                     const parts = clean.split('.');
                     if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
+                    if (parts[1]) clean = parts[0] + '.' + parts[1].slice(0, 2);
                     setCorrido(clean);
                   }}
                   keyboardType="numeric"
@@ -536,7 +536,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               <Text style={styles.headerTextInside}>
                 Parles
               </Text>
-              {/* Mostrar jugadas de parles */}
+              {/* Mostrar jugadas de parles uno al lado del otro como fijos y corridos */}
               {jugadasParles.map((jugada, index) => {
                 const id = generarIdJugada('parle', index);
                 const tieneError = jugadasConError.has(id);
@@ -546,35 +546,33 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   <TouchableOpacity
                     key={index}
                     style={[
-                      styles.parleContainer,
+                      styles.jugadaContainer,
                       estaSeleccionada && styles.jugadaSeleccionada
                     ]}
                     onLongPress={() => seleccionarJugada(id)}
                     delayLongPress={500}
                   >
-                    <View style={styles.numerosParleContainer}>
-                      {jugada.numeros.map((num, numIndex) => (
-                        <Text key={numIndex} style={[
-                          styles.numeroParleText, 
+                    <Text style={[
+                      styles.numeroText,
+                      tieneError && styles.textoError,
+                      estaEnviada && styles.textoEnviado
+                    ]}>
+                      {jugada.numeros[0]}
+                    </Text>
+                    <View style={styles.circleContainer}>
+                      <View style={[
+                        styles.circleOutline,
+                        tieneError && styles.circleError,
+                        estaEnviada && styles.circleEnviado
+                      ]}>
+                        <Text style={[
+                          styles.circleOutlineText,
                           tieneError && styles.textoError,
                           estaEnviada && styles.textoEnviado
                         ]}>
-                          {num}
+                          ${jugada.precioIndividual}
                         </Text>
-                      ))}
-                    </View>
-                    <View style={[ 
-                      styles.circleOutline,
-                      tieneError && styles.circleError,
-                      estaEnviada && styles.circleEnviado
-                    ]}>
-                      <Text style={[
-                        styles.circleOutlineText, 
-                        tieneError && styles.textoError,
-                        estaEnviada && styles.textoEnviado
-                      ]}>
-                        ${jugada.precioIndividual.toFixed(2)}
-                      </Text>
+                      </View>
                     </View>
                   </TouchableOpacity>
                 );
@@ -606,6 +604,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                       let clean = text.replace(/[^\d.,]/g, '').replace(/,/g, '.');
                       const parts = clean.split('.');
                       if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
+                      if (parts[1]) clean = parts[0] + '.' + parts[1].slice(0, 2);
                       setPrecioParle(clean);
                     }}
                     keyboardType="numeric"
@@ -619,7 +618,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                     </Text>
                   </TouchableOpacity>
                   <Text style={styles.candadoLabel}>
-                    {candadoAbierto ? 'Precio total' : 'Precio individual'}
+                    {candadoAbierto ? 'Precio individual' : 'Precio total'}
                   </Text>
                   <TouchableOpacity 
                     style={styles.addButton}
@@ -695,6 +694,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                       let clean = text.replace(/[^\d.,]/g, '').replace(/,/g, '.');
                       const parts = clean.split('.');
                       if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
+                      if (parts[1]) clean = parts[0] + '.' + parts[1].slice(0, 2);
                       setCentenaPrecio(clean);
                     }}
                     keyboardType="numeric"
