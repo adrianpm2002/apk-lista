@@ -603,7 +603,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               </Text>
               {/* Mostrar jugadas de fijos y corridos */}
               {jugadasFijosYCorridos.map((jugada, index) => (
-                <View key={jugada.id} style={styles.jugadaContainer}>
+                <View key={`fijo-${index}`} style={styles.jugadaContainer}>
                   <Text style={styles.numeroText}>
                     {jugada.numero}
                   </Text>
@@ -681,7 +681,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               </Text>
               {/* Mostrar jugadas de parles uno al lado del otro como fijos y corridos */}
               {jugadasParles.map((jugada, index) => (
-                <View key={jugada.id} style={styles.jugadaContainer}>
+                <View key={`parle-${index}`} style={styles.jugadaContainer}>
                   <Text style={styles.numeroText}>
                     {jugada.numeros[0]}
                   </Text>
@@ -756,7 +756,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                 const precioNum = Number(jugada.precio);
                 const precioStr = Number.isInteger(precioNum) ? precioNum.toString() : precioNum.toFixed(2);
                 return (
-                  <View key={jugada.id} style={styles.centenaContainer}>
+                  <View key={`centena-${index}`} style={styles.centenaContainer}>
                     <Text style={styles.numeroCentenaText}>
                       {jugada.numero}
                     </Text>
