@@ -357,42 +357,63 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
 
   <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
       {/* Controles de lotería, horario y nota (idénticos a VisualModeScreen, ahora dentro del ScrollView) */}
-      <View style={{ paddingHorizontal: 16, marginTop: 110, marginBottom: 10 }}>
+      <View style={{ paddingHorizontal: 8, marginTop: 100, marginBottom: 6 }}>
         <MultiSelectDropdown
-          label="Seleccionar Loterías"
+          label="Loterías"
           selectedValues={selectedLotteries}
           onSelect={handleSelectLotteries}
           options={lotteries}
           placeholder="Seleccionar loterías"
           hasError={lotteryError}
           errorMessage={lotteryErrorMessage}
+          style={{ minHeight: 36, fontSize: 13 }}
         />
         {selectedLotteries.length > 0 && (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-            {selectedLotteries.map(lv => (
-              <View key={lv} style={{ flex: 1, minWidth: 160, maxWidth: 220, marginRight: 8, marginBottom: 8 }}>
-                <DropdownPicker
-                  label={`Seleccionar Horario (${lotteries.find(l=>l.value===lv)?.label || lv})`}
-                  value={selectedSchedules[lv] && (scheduleOptionsMap[lv]?.find(s=>s.value===selectedSchedules[lv])?.label || selectedSchedules[lv])}
-                  onSelect={item => setSelectedSchedules(prev => ({ ...prev, [lv]: item.value || item }))}
-                  options={scheduleOptionsMap[lv] || []}
-                  placeholder={scheduleOptionsMap[lv]? 'Seleccionar horario':'Sin horarios'}
-                  hasError={missingScheduleSet.has(lv)}
+          <View style={{ flexDirection: selectedLotteries.length === 1 ? 'row' : 'column', alignItems: 'flex-start', gap: 6, marginTop: 6 }}>
+            {/* Horarios */}
+            <View style={{ flexDirection: 'row', flex: selectedLotteries.length === 1 ? 1 : undefined, gap: 6 }}>
+              {selectedLotteries.map(lv => (
+                <View key={lv} style={{ minWidth: 110, maxWidth: 150, marginRight: 4, marginBottom: 4 }}>
+                  <DropdownPicker
+                    label={''}
+                    value={selectedSchedules[lv] && (scheduleOptionsMap[lv]?.find(s=>s.value===selectedSchedules[lv])?.label || selectedSchedules[lv])}
+                    onSelect={item => setSelectedSchedules(prev => ({ ...prev, [lv]: item.value || item }))}
+                    options={scheduleOptionsMap[lv] || []}
+                    placeholder={scheduleOptionsMap[lv]? 'Horario':'Sin horarios'}
+                    hasError={missingScheduleSet.has(lv)}
+                    style={{ minHeight: 32, fontSize: 13 }}
+                  />
+                </View>
+              ))}
+            </View>
+            {/* Nota */}
+            {selectedLotteries.length === 1 ? (
+              <View style={{ flex: 1, minWidth: 80, maxWidth: 120, marginLeft: 4 }}>
+                <InputField
+                  label={''}
+                  value={note}
+                  onChangeText={setNote}
+                  placeholder="Nota"
+                  inputStyle={{ minHeight: 32, fontSize: 13, paddingHorizontal: 6 }}
+                  hasError={showFieldErrors && !note.trim()}
+                  style={{ marginTop: 0, marginBottom: 0 }}
                 />
               </View>
-            ))}
+            ) : (
+              <View style={{ width: '100%', marginTop: 4 }}>
+                <InputField
+                  label={''}
+                  value={note}
+                  onChangeText={setNote}
+                  placeholder="Nota"
+                  inputStyle={{ minHeight: 32, fontSize: 13, paddingHorizontal: 6 }}
+                  hasError={showFieldErrors && !note.trim()}
+                  style={{ marginTop: 0, marginBottom: 0 }}
+                />
+              </View>
+            )}
           </View>
         )}
-        <View style={{ marginTop: 10 }}>
-          <InputField
-            label="Nota"
-            value={note}
-            onChangeText={setNote}
-            placeholder="Nombre o nota"
-            inputStyle={{ minHeight: 40 }}
-            hasError={showFieldErrors && !note.trim()}
-          />
-        </View>
       </View>
         <View style={styles.gridContainer}>
           {/* Fila 1 - Encabezados */}
