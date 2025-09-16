@@ -478,6 +478,42 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   </TouchableOpacity>
                 );
               })}
+              {/* Inputs para agregar números dentro de la lista */}
+              <View style={styles.inputContainerInsideList}>
+                <TextInput
+                  style={[styles.input, isDarkMode && styles.inputDark]}
+                  placeholder="#"
+                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                  value={numero}
+                  onChangeText={setNumero}
+                  keyboardType="numeric"
+                  maxLength={3}
+                />
+                <TextInput
+                  style={[styles.input, isDarkMode && styles.inputDark]}
+                  placeholder="$"
+                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                  value={fijo}
+                  onChangeText={setFijo}
+                  keyboardType="numeric"
+                  maxLength={2}
+                />
+                <TextInput
+                  style={[styles.input, isDarkMode && styles.inputDark]}
+                  placeholder="$"
+                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                  value={corrido}
+                  onChangeText={setCorrido}
+                  keyboardType="numeric"
+                  maxLength={2}
+                />
+                <TouchableOpacity 
+                  style={[styles.addButton, isDarkMode && styles.addButtonDark]}
+                  onPress={agregarJugada}
+                >
+                  <Text style={styles.addButtonText}>+</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             <View style={[styles.cell, isDarkMode && styles.cellDark]}>
               {/* Título dentro de la lista */}
@@ -529,6 +565,44 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   </TouchableOpacity>
                 );
               })}
+              {/* Inputs para agregar parles dentro de la lista */}
+              <View style={styles.inputContainerInsideList}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
+                  <TextInput
+                    style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                    placeholder="#"
+                    placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                    value={parleInput}
+                    onChangeText={manejarParleInput}
+                    keyboardType="numeric"
+                  />
+                  <TextInput
+                    style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                    placeholder="$"
+                    placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                    value={precioParle}
+                    onChangeText={setPrecioParle}
+                    keyboardType="numeric"
+                  />
+                  <TouchableOpacity 
+                    style={[styles.addButton, isDarkMode && styles.addButtonDark]}
+                    onPress={agregarParle}
+                  >
+                    <Text style={styles.addButtonText}>+</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.candadoButton}
+                    onPress={() => setCandadoAbierto(!candadoAbierto)}
+                  >
+                    <Text style={styles.candadoText}>
+                      {candadoAbierto ? '🔓' : '🔒'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={[styles.candadoLabel, isDarkMode && styles.cellTextDark]}>
+                  {candadoAbierto ? 'Precio total' : 'Precio individual'}
+                </Text>
+              </View>
             </View>
             <View style={[styles.cell, isDarkMode && styles.cellDark]}>
               {/* Título dentro de la lista */}
@@ -576,6 +650,32 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   </TouchableOpacity>
                 );
               })}
+              {/* Inputs para agregar centenas dentro de la lista */}
+              <View style={styles.inputContainerInsideList}>
+                <TextInput
+                  style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                  placeholder="#"
+                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                  value={centenaNumero}
+                  onChangeText={manejarCentenaNumero}
+                  keyboardType="numeric"
+                  maxLength={3}
+                />
+                <TextInput
+                  style={[styles.input, styles.inputHorizontal, isDarkMode && styles.inputDark]}
+                  placeholder="$"
+                  placeholderTextColor={isDarkMode ? '#95a5a6' : '#7f8c8d'}
+                  value={centenaPrecio}
+                  onChangeText={setCentenaPrecio}
+                  keyboardType="numeric"
+                />
+                <TouchableOpacity 
+                  style={[styles.addButton, isDarkMode && styles.addButtonDark]}
+                  onPress={agregarCentena}
+                >
+                  <Text style={styles.addButtonText}>+</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
           {/* Inputs */}
@@ -835,6 +935,12 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     gap: 8,
+  },
+  inputContainerInsideList: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
   },
   input: {
     width: '90%',
