@@ -585,29 +585,32 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               })}
               {/* Inputs para agregar parles dentro de la lista */}
               <View style={styles.inputContainerInsideList}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
+                <View style={{ flexDirection: 'column', alignItems: 'center', width: '100%', gap: 8 }}>
                   <TextInput
-                    style={[styles.input, styles.inputHorizontal]}
+                    style={styles.input}
                     placeholder="#"
                     placeholderTextColor="#7f8c8d"
                     value={parleInput}
-                    onChangeText={manejarParleInput}
+                    onChangeText={text => {
+                      let clean = text.replace(/\D/g, '').slice(0, 4);
+                      setParleInput(clean);
+                    }}
                     keyboardType="numeric"
+                    maxLength={4}
                   />
                   <TextInput
-                    style={[styles.input, styles.inputHorizontal]}
+                    style={styles.input}
                     placeholder="$"
                     placeholderTextColor="#7f8c8d"
                     value={precioParle}
-                    onChangeText={setPrecioParle}
+                    onChangeText={text => {
+                      let clean = text.replace(/[^\d.,]/g, '').replace(/,/g, '.');
+                      const parts = clean.split('.');
+                      if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
+                      setPrecioParle(clean);
+                    }}
                     keyboardType="numeric"
                   />
-                  <TouchableOpacity 
-                    style={styles.addButton}
-                    onPress={agregarParle}
-                  >
-                    <Text style={styles.addButtonText}>+</Text>
-                  </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.candadoButton}
                     onPress={() => setCandadoAbierto(!candadoAbierto)}
@@ -616,10 +619,16 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                       {candadoAbierto ? '🔓' : '🔒'}
                     </Text>
                   </TouchableOpacity>
+                  <Text style={styles.candadoLabel}>
+                    {candadoAbierto ? 'Precio total' : 'Precio individual'}
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.addButton}
+                    onPress={agregarParle}
+                  >
+                    <Text style={styles.addButtonText}>+</Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.candadoLabel}>
-                  {candadoAbierto ? 'Precio total' : 'Precio individual'}
-                </Text>
               </View>
             </View>
             <View style={styles.cell}>
@@ -668,29 +677,36 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               })}
               {/* Inputs para agregar centenas dentro de la lista */}
               <View style={styles.inputContainerInsideList}>
-                <TextInput
-                  style={[styles.input, styles.inputHorizontal]}
-                  placeholder="#"
-                  placeholderTextColor="#7f8c8d"
-                  value={centenaNumero}
-                  onChangeText={manejarCentenaNumero}
-                  keyboardType="numeric"
-                  maxLength={3}
-                />
-                <TextInput
-                  style={[styles.input, styles.inputHorizontal]}
-                  placeholder="$"
-                  placeholderTextColor="#7f8c8d"
-                  value={centenaPrecio}
-                  onChangeText={setCentenaPrecio}
-                  keyboardType="numeric"
-                />
-                <TouchableOpacity 
-                  style={styles.addButton}
-                  onPress={agregarCentena}
-                >
-                  <Text style={styles.addButtonText}>+</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'column', alignItems: 'center', width: '100%', gap: 8 }}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="#"
+                    placeholderTextColor="#7f8c8d"
+                    value={centenaNumero}
+                    onChangeText={manejarCentenaNumero}
+                    keyboardType="numeric"
+                    maxLength={3}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="$"
+                    placeholderTextColor="#7f8c8d"
+                    value={centenaPrecio}
+                    onChangeText={text => {
+                      let clean = text.replace(/[^\d.,]/g, '').replace(/,/g, '.');
+                      const parts = clean.split('.');
+                      if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
+                      setCentenaPrecio(clean);
+                    }}
+                    keyboardType="numeric"
+                  />
+                  <TouchableOpacity 
+                    style={styles.addButton}
+                    onPress={agregarCentena}
+                  >
+                    <Text style={styles.addButtonText}>+</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
