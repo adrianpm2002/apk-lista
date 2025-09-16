@@ -208,12 +208,14 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   
   // Función para agregar centenas
   const agregarCentena = () => {
-    if (centenaNumero.length === 3 && centenaPrecio) {
-      const nuevaCentena = {
-        numero: centenaNumero,
-        precio: parseFloat(centenaPrecio)
-      };
-      setJugadasCentenas([...jugadasCentenas, nuevaCentena]);
+    // Extraer todos los números de tres dígitos
+    const numerosArray = (centenaNumero.replace(/\D/g, '').match(/.{3}/g) || []);
+    if (numerosArray.length > 0 && centenaPrecio) {
+      const nuevasCentenas = numerosArray.map(num => ({
+        numero: num,
+        precio: centenaPrecio
+      }));
+      setJugadasCentenas([...jugadasCentenas, ...nuevasCentenas]);
       // Limpiar inputs
       setCentenaNumero('');
       setCentenaPrecio('');
@@ -640,6 +642,8 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                 const tieneError = jugadasConError.has(id);
                 const estaEnviada = jugadasEnviadas.has(id);
                 const estaSeleccionada = jugadasSeleccionadas.has(id);
+                const precioNum = Number(jugada.precio);
+                const precioStr = Number.isInteger(precioNum) ? precioNum.toString() : precioNum.toFixed(2);
                 return (
                   <TouchableOpacity
                     key={index}
@@ -650,14 +654,14 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                     onLongPress={() => seleccionarJugada(id)}
                     delayLongPress={500}
                   >
-                    <Text style={[ 
+                    <Text style={[
                       styles.numeroCentenaText, 
                       tieneError && styles.textoError,
                       estaEnviada && styles.textoEnviado
                     ]}>
                       {jugada.numero}
                     </Text>
-                    <View style={[ 
+                    <View style={[
                       styles.circleOutline,
                       tieneError && styles.circleError,
                       estaEnviada && styles.circleEnviado
@@ -667,7 +671,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                         tieneError && styles.textoError,
                         estaEnviada && styles.textoEnviado
                       ]}>
-                        ${jugada.precio.toFixed(2)}
+                        ${precioStr}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -681,9 +685,15 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                     placeholder="#"
                     placeholderTextColor="#7f8c8d"
                     value={centenaNumero}
-                    onChangeText={manejarCentenaNumero}
+                    onChangeText={text => {
+                      // Solo dígitos, máximo 18 caracteres (6 centenas)
+                      let clean = text.replace(/\D/g, '').slice(0, 18);
+                      // Insertar espacio cada 3 dígitos
+                      let formatted = clean.replace(/(.{3})/g, '$1 ').trim();
+                      setCentenaNumero(formatted);
+                    }}
                     keyboardType="numeric"
-                    maxLength={3}
+                    maxLength={23} // 18 dígitos + 5 espacios
                   />
                   <TextInput
                     style={styles.input}
