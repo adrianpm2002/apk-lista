@@ -9,9 +9,6 @@ const formatDateForQuery = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-// Constantes para configuración
-const USE_MOCK_DATA = false;
-
 export const useListeroStatistics = () => {
   // Estados básicos
   const [isLoading, setIsLoading] = useState(false);
@@ -20,44 +17,11 @@ export const useListeroStatistics = () => {
     plays: []
   });
   
-  // Estado para el rango de fechas (últimos 7 días por defecto)
+  // Estado para el rango de fechas (hoy por defecto)
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 días atrás
-    endDate: new Date()
+    startDate: new Date(new Date().setHours(0, 0, 0, 0)), // Hoy 00:00:00
+    endDate: new Date(new Date().setHours(23, 59, 59, 999)) // Hoy 23:59:59
   });
-
-  // Función para generar datos mock para desarrollo
-  const generateMockPlaysData = () => {
-    const mockData = [];
-    const lotteries = ['Caribe', 'Primera', 'Jaguey'];
-    const schedules = ['8:00 AM', '12:00 PM', '3:00 PM', '7:00 PM'];
-    
-    for (let i = 0; i < 20; i++) {
-      const date = new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000);
-      mockData.push({
-        id: `mock_${i}`,
-        created_at: date.toISOString(), // Mock data - mantenemos ISO para compatibilidad con BD
-        fecha: date.toLocaleDateString('es-ES'),
-        hora: date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-        loteria: lotteries[Math.floor(Math.random() * lotteries.length)],
-        horario: schedules[Math.floor(Math.random() * schedules.length)],
-        jugada: ['Fijo', 'Corrido', 'Centena'][Math.floor(Math.random() * 3)],
-        numeros: ['12', '34', '567'][Math.floor(Math.random() * 3)],
-        monto: Math.floor(Math.random() * 1000) + 100,
-        nota: i % 3 === 0 ? 'Nota de ejemplo' : '',
-        play_type: ['Fijo', 'Corrido', 'Centena'][Math.floor(Math.random() * 3)],
-        bruto: Math.floor(Math.random() * 1000) + 100,
-        resultado: Math.random() > 0.8 ? 'Ganó' : 'Perdió',
-        premio: Math.random() > 0.8 ? Math.floor(Math.random() * 5000) + 1000 : 0,
-        pagado: Math.random() > 0.8 ? Math.floor(Math.random() * 5000) + 1000 : 0,
-        ganancia: Math.floor(Math.random() * 200) - 100,
-        balance: Math.floor(Math.random() * 1000),
-        id_listero: userId,
-        listero_username: 'listero_mock'
-      });
-    }
-    return mockData;
-  };
 
   // Función específica para cargar datos de LISTERO
   const loadListeroPlaysData = async (userId, filters = {}) => {
@@ -159,14 +123,13 @@ export const useListeroStatistics = () => {
       
       setIsLoading(true);
       
-      let playsData = [];
-      
-      if (USE_MOCK_DATA || !userId) {
-        console.log('🔍 [loadPlaysData-Listero] Usando datos mock');
-        playsData = generateMockPlaysData();
-      } else {
-        playsData = await loadListeroPlaysData(userId, filters);
+      if (!userId) {
+        console.log('❌ [loadPlaysData-Listero] No userId disponible');
+        setIsLoading(false);
+        return;
       }
+      
+      const playsData = await loadListeroPlaysData(userId, filters);
       
       // Transformar datos para compatibilidad con componentes
       const formattedPlays = (playsData || [])
@@ -219,14 +182,11 @@ export const useListeroStatistics = () => {
       
     } catch (error) {
       console.error('❌ Error cargando jugadas listero:', error);
-      // Fallback a datos mock
-      const mockData = generateMockPlaysData();
       setTableData(prev => ({
         ...prev,
-        plays: mockData
+        plays: []
       }));
-      console.log('🔄 [loadPlaysData-Listero] Fallback a mock data:', mockData.length);
-      return mockData;
+      return [];
     } finally {
       setIsLoading(false);
     }
@@ -258,7 +218,7 @@ export const useListeroStatistics = () => {
   // Efecto para cargar datos cuando se obtiene el userId
   useEffect(() => {
     console.log('🔄 [useListeroStatistics] userId cambió:', userId);
-    if (userId && !USE_MOCK_DATA && !isLoading) {
+    if (userId && !isLoading) {
       console.log('📊 [useListeroStatistics] Cargando datos iniciales...');
       loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
     }
@@ -267,7 +227,7 @@ export const useListeroStatistics = () => {
   // Efecto para recargar cuando cambie el rango de fechas
   useEffect(() => {
     console.log('🔄 [useListeroStatistics] Rango de fechas cambió');
-    if (userId && !USE_MOCK_DATA && !isLoading) {
+    if (userId && !isLoading) {
       console.log('📊 [useListeroStatistics] Recargando por cambio de fechas...');
       const timeoutId = setTimeout(() => {
         loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });

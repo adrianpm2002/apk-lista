@@ -103,7 +103,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   }, []); // Solo ejecutar una vez al montar el componente
   
   // Estados para filtros
-  const [selectedPeriod, setSelectedPeriod] = useState('last7days');
+  const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
   const [selectedLottery, setSelectedLottery] = useState('all');
@@ -181,8 +181,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Cargar datos iniciales
   useEffect(() => {
     loadInitialData();
-    // Aplicar configuración por defecto: 7 días para gráficas (pestaña por defecto)
-    applyPeriodFilter('last7days');
+    // Aplicar configuración por defecto: hoy para gráficas (pestaña por defecto)
+    applyPeriodFilter('today');
   }, []);
 
   // Aplicar filtros iniciales cuando se cargue el usuario

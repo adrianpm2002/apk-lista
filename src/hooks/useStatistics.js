@@ -216,8 +216,8 @@ const useStatistics = () => {
     console.log('🔄 [useStatistics-compat] loadAllStats called');
     if (activeStats.loadPlaysData) {
       return activeStats.loadPlaysData({
-        startDate: activeStats.dateRange?.startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        endDate: activeStats.dateRange?.endDate || new Date()
+        startDate: activeStats.dateRange?.startDate || new Date(new Date().setHours(0, 0, 0, 0)),
+        endDate: activeStats.dateRange?.endDate || new Date(new Date().setHours(23, 59, 59, 999))
       });
     }
   };
@@ -264,18 +264,9 @@ const useStatistics = () => {
                (activeStats.tableData?.plays || []) : []
     },
     
-    // Datos básicos (mock para compatibilidad)
-    lotteries: [
-      { id: '1', name: 'Caribe' },
-      { id: '2', name: 'Primera' },
-      { id: '3', name: 'Jaguey' }
-    ],
-    schedules: [
-      { id: '1', name: '8:00 AM' },
-      { id: '2', name: '12:00 PM' },
-      { id: '3', name: '3:00 PM' },
-      { id: '4', name: '7:00 PM' }
-    ],
+    // Datos básicos - solo se muestran si hay datos reales
+    lotteries: [],
+    schedules: [],
 
     // Funciones
     loadAllStats,

@@ -1,23 +1,10 @@
-// Utilidades para estadísticas del listero
+// Utilidades para estadísticas del listero - datos mock eliminados
 
-export const mockPlays = [
-  // Dos loterías, tres horarios, últimos 7 días
-  // Lotería A
-  { id:1, date:'2025-08-17', lottery:'Lotería A', schedule:'Matutino', numbers:'12,34,56', amount:100, paid:0, collected:300, result:'1234', note:'Cliente 1' },
-  { id:2, date:'2025-08-17', lottery:'Lotería A', schedule:'Vespertino', numbers:'78,90', amount:200, paid:400, collected:400, result:'7890', note:'' },
-  { id:3, date:'2025-08-18', lottery:'Lotería A', schedule:'Nocturno', numbers:'00,11', amount:150, paid:0, collected:300, result:'0011', note:'' },
-  { id:4, date:'2025-08-19', lottery:'Lotería A', schedule:'Matutino', numbers:'22,33,44', amount:50, paid:0, collected:150, result:'2233', note:'' },
-  // Lotería B
-  { id:5, date:'2025-08-17', lottery:'Lotería B', schedule:'Matutino', numbers:'12,13,14', amount:100, paid:0, collected:300, result:'0000', note:'' },
-  { id:6, date:'2025-08-18', lottery:'Lotería B', schedule:'Vespertino', numbers:'77', amount:500, paid:2000, collected:500, result:'7777', note:'Ganador' },
-  { id:7, date:'2025-08-19', lottery:'Lotería B', schedule:'Nocturno', numbers:'88,99', amount:120, paid:0, collected:240, result:'8899', note:'' },
-  { id:8, date:'2025-08-20', lottery:'Lotería B', schedule:'Vespertino', numbers:'45,54', amount:80, paid:0, collected:160, result:'4554', note:'' },
-];
-
-export const last7DaysSummary = () => {
-  // Genera serie diaria de recogido vs pagado
+// Funciones de utilidad para estadísticas sin datos mock
+export const last7DaysSummary = (plays = []) => {
+  // Genera serie diaria de recogido vs pagado desde datos reales
   const byDay = new Map();
-  mockPlays.forEach(p=>{
+  plays.forEach(p=>{
     if(!byDay.has(p.date)) byDay.set(p.date, { date:p.date, collected:0, paid:0, net:0 });
     const d = byDay.get(p.date);
     d.collected += Number(p.collected||0);
@@ -27,27 +14,27 @@ export const last7DaysSummary = () => {
   return Array.from(byDay.values()).sort((a,b)=> a.date.localeCompare(b.date));
 };
 
-export const groupByLottery = () => {
+export const groupByLottery = (plays = []) => {
   const groups = new Map();
-  mockPlays.forEach(p=>{
+  plays.forEach(p=>{
     if(!groups.has(p.lottery)) groups.set(p.lottery, { id:p.lottery, title:p.lottery, rows:[] });
     groups.get(p.lottery).rows.push(p);
   });
   return Array.from(groups.values());
 };
 
-export const groupBySchedule = () => {
+export const groupBySchedule = (plays = []) => {
   const groups = new Map();
-  mockPlays.forEach(p=>{
+  plays.forEach(p=>{
     if(!groups.has(p.schedule)) groups.set(p.schedule, { id:p.schedule, title:p.schedule, rows:[] });
     groups.get(p.schedule).rows.push(p);
   });
   return Array.from(groups.values());
 };
 
-export const quickKPIs = () => {
-  const collected = mockPlays.reduce((s,p)=> s + (p.collected||0), 0);
-  const paid = mockPlays.reduce((s,p)=> s + (p.paid||0), 0);
+export const quickKPIs = (plays = []) => {
+  const collected = plays.reduce((s,p)=> s + (p.collected||0), 0);
+  const paid = plays.reduce((s,p)=> s + (p.paid||0), 0);
   const net = collected - paid;
   return { collected, paid, net };
 };

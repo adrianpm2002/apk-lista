@@ -9,9 +9,6 @@ const formatDateForQuery = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-// Constantes para configuración
-const USE_MOCK_DATA = false;
-
 export const useAdminStatistics = () => {
   // Estados básicos
   const [isLoading, setIsLoading] = useState(false);
@@ -20,10 +17,10 @@ export const useAdminStatistics = () => {
     plays: []
   });
   
-  // Estado para el rango de fechas (últimos 7 días por defecto)
+  // Estado para el rango de fechas (hoy por defecto)
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 días atrás
-    endDate: new Date()
+    startDate: new Date(new Date().setHours(0, 0, 0, 0)), // Hoy 00:00:00
+    endDate: new Date(new Date().setHours(23, 59, 59, 999)) // Hoy 23:59:59
   });
 
   // Control de concurrencia para evitar múltiples llamadas simultáneas
@@ -348,7 +345,7 @@ export const useAdminStatistics = () => {
   // Efecto para cargar datos cuando se obtiene el userId
   useEffect(() => {
     console.log('🔄 [useAdminStatistics] userId cambió:', userId);
-    if (userId && !USE_MOCK_DATA && !isLoading) {
+    if (userId && !isLoading) {
       console.log('📊 [useAdminStatistics] Cargando datos iniciales...');
       loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
     }
@@ -357,7 +354,7 @@ export const useAdminStatistics = () => {
   // Efecto para recargar cuando cambie el rango de fechas
   useEffect(() => {
     console.log('🔄 [useAdminStatistics] Rango de fechas cambió');
-    if (userId && !USE_MOCK_DATA && !isLoading) {
+    if (userId && !isLoading) {
       console.log('📊 [useAdminStatistics] Recargando por cambio de fechas...');
       const timeoutId = setTimeout(() => {
         loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
