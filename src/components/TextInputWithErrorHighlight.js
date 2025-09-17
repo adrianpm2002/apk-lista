@@ -103,6 +103,8 @@ const TextInputWithErrorHighlight = ({
             styles.input,
             isFocused && styles.inputFocused,
             hasError && styles.inputError,
+            // Agregar paddingRight cuando hay botones overlay para evitar superposición
+            overlayButtons.length > 0 && styles.inputWithOverlayButtons,
             inputStyle,
           ]}
           value={value}
@@ -177,6 +179,9 @@ const styles = StyleSheet.create({
     borderColor: '#E74C3C',
     borderWidth: 2,
     backgroundColor: '#FDEDEC',
+  },
+  inputWithOverlayButtons: {
+    paddingRight: 50, // Espacio para los botones overlay (evita superposición del texto)
   },
   badgeContainer: {
     position: 'absolute',
