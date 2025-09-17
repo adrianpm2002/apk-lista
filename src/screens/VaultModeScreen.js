@@ -492,11 +492,13 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           message: `${successes.length} jugada(s) enviada(s) exitosamente.`
         });
       } else {
-        // Hubo algunos errores
+        // Hubo algunos errores - extraer mensajes del servidor
+        const serverErrors = failures.map(f => f.error.message).filter(Boolean);
         const duplicateFails = failures.filter(f=>f.isDuplicate);
         setInsertFeedback({ 
           type: 'warning',
-          message: `${successes.length} exitosa(s), ${failures.length} fallida(s)${duplicateFails.length ? ` (${duplicateFails.length} duplicada(s))` : ''}.`
+          message: `${successes.length} exitosa(s), ${failures.length} fallida(s)${duplicateFails.length ? ` (${duplicateFails.length} duplicada(s))` : ''}.`,
+          serverError: serverErrors.length ? serverErrors.join(' | ') : undefined
         });
       }
     } catch(err){
@@ -873,6 +875,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         <FeedbackBanner
           type={insertFeedback.type}
           message={insertFeedback.message}
+          details={insertFeedback.serverError ? [`Servidor: ${insertFeedback.serverError}`] : undefined}
           onClose={() => {
             setInsertFeedback(null);
             setLimitViolations([]);

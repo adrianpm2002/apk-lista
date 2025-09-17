@@ -558,15 +558,25 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
             });
           }
         }
-        let success=0; let fail=0; let blockedViolations=[];
+        let success=0; let fail=0; let blockedViolations=[]; let errMsgs=[];
         for(const playData of playsToSave){
           const result = await submitPlayWithConfirmation(playData);
-          if(result.success) success++; else { fail++; if(result.limitViolations) blockedViolations = blockedViolations.concat(result.limitViolations); }
+          if(result.success) {
+            success++; 
+          } else { 
+            fail++; 
+            if(result.limitViolations) {
+              blockedViolations = blockedViolations.concat(result.limitViolations);
+            }
+            if(result.message) {
+              errMsgs.push(result.message);
+            }
+          }
         }
         if(blockedViolations.length){
           setLimitViolations(blockedViolations.map(v=> ({ numero:v.number, jugada:v.limitType || v.jugada || '', permitido:v.limit, usado:v.current })));
         }
-  setInsertFeedback({ success, fail, duplicates:[], edit:false });
+        setInsertFeedback({ success, fail, duplicates:[], edit:false, serverError: errMsgs.length ? errMsgs.join(' | ') : undefined });
         if(success){
           setPlays(''); setCalculatedAmount(0); setTotal(0); setParsedInstructions([]);
           // Mantener la nota después del envío exitoso
@@ -851,13 +861,14 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         <FeedbackBanner
           type={insertFeedback.blocked ? 'blocked' : (insertFeedback.fail ? (insertFeedback.success ? 'warning' : 'error') : 'success')}
           message={insertFeedback.blocked ? `${t('edit.blocked')}: ${t('edit.blocked.detail')}` : `${t('banner.inserted')}: ${insertFeedback.success}  ${t('banner.fail')}: ${insertFeedback.fail}`}
-          details={limitViolations.length ? limitViolations.slice(0,10).map(v=> {
+          details={(limitViolations.length ? limitViolations.slice(0,10).map(v=> {
             const usado = v.usado || 0;
             const intento = v.intento || 0;
             const total = usado + intento;
             const exceso = total - v.permitido;
             return `${v.numero} (${v.jugada}): excede ${exceso}`;
-          }) : undefined}
+          }) : [])
+            .concat(insertFeedback.serverError ? [`Servidor: ${insertFeedback.serverError}`] : [])}
           onClose={()=> setInsertFeedback(null)}
           style={{ top: verifyFeedback ? 120 : 70 }}
         />

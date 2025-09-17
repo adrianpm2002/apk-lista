@@ -573,7 +573,13 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       }
       if(failures.length){
         const duplicateFails = failures.filter(f=>f.isDuplicate);
-        setInsertFeedback({ success:successes.length, fail:failures.length, duplicates: duplicateFails.map(f=>({ jugada:f.p.jugada, numeros:f.p.numeros, nota:f.p.nota, horario:f.p.id_horario })) });
+        const serverErrors = failures.map(f => f.error.message).filter(Boolean);
+        setInsertFeedback({ 
+          success:successes.length, 
+          fail:failures.length, 
+          duplicates: duplicateFails.map(f=>({ jugada:f.p.jugada, numeros:f.p.numeros, nota:f.p.nota, horario:f.p.id_horario })),
+          serverError: serverErrors.length ? serverErrors.join(' | ') : undefined
+        });
         // Feedback detallado ya en banner insertFeedback
       } else {
         setInsertFeedback({ success:successes.length, fail:0, duplicates:[] });
@@ -845,7 +851,9 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           <FeedbackBanner
             type={insertFeedback.blocked ? 'blocked' : (insertFeedback.fail ? (insertFeedback.success ? 'warning':'error') : 'success')}
             message={insertFeedback.blocked ? t('edit.blocked') : insertFeedback.fail ? `${insertFeedback.success} guardada(s), ${insertFeedback.fail} fallida(s)` : `${insertFeedback.success} jugada(s) guardada(s)`}
-            details={insertFeedback.blocked ? t('edit.blocked.detail') : insertFeedback.duplicates?.length ? insertFeedback.duplicates.slice(0,8).map(d=> `Dup: ${d.jugada} [${d.numeros}]`) : undefined}
+            details={(insertFeedback.blocked ? [t('edit.blocked.detail')] : [])
+              .concat(insertFeedback.duplicates?.length ? insertFeedback.duplicates.slice(0,8).map(d=> `Dup: ${d.jugada} [${d.numeros}]`) : [])
+              .concat(insertFeedback.serverError ? [`Servidor: ${insertFeedback.serverError}`] : [])}
             onClose={()=> setInsertFeedback(null)}
             style={{ top: (limitViolations.length? 120:70) + (isEditing? 50:0) }}
           />
