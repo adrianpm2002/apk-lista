@@ -424,11 +424,10 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     }
 
     try {
-      // Verificación de capacidad usando util compartido
+      // Solo verificación de límites (duplicados manejados por BD)
       const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
       const ctx = await fetchLimitsContext(horarios, userId);
       
-      // Adaptar payloads a formato de instrucciones temporales para reusar checkInstructionsLimits
       const tempInstructions = payloads.map(p=> ({ 
         playType: p.jugada, 
         numbers: p.numeros.split(',').filter(Boolean), 
@@ -442,10 +441,10 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           type: 'error',
           message: `Se encontraron ${violations.length} violación(es) de límites. Revisa las restricciones.`
         });
-        return; // aborta inserción
+        return;
       }
       
-      // Insertar (sin violaciones)
+      // Inserción directa - duplicados detectados por trigger BD
       setIsInserting(true);
       const successes = [];
       const failures = [];
@@ -462,8 +461,10 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         }).select('id').single();
         
         if(error){
-          const msg = (error.message||'').toLowerCase();
-          const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || error.code==='23505';
+          // Tu trigger enviará: "Jugada duplicada no permitida en el mismo día"
+          const isDuplicate = error.message?.includes('Jugada duplicada') || 
+                             error.message?.includes('duplicada') || 
+                             error.code === '23505';
           failures.push({ p, error, isDuplicate });
         } else {
           successes.push(data.id);
