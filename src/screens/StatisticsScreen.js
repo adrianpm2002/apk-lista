@@ -325,13 +325,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await loadAllStats();
+      // Reaplicar el período actual para recalcular start/end y sincronizar filtros
+      await applyPeriodFilter(selectedPeriod);
     } catch (error) {
       Alert.alert('Error', 'No se pudieron actualizar las estadísticas');
     } finally {
       setRefreshing(false);
     }
-  }, [loadAllStats]);
+  }, [selectedPeriod]);
 
   // Manejar exportación
   const handleExport = async (format) => {
@@ -668,7 +669,17 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Vista de gráficos para listero (vista original)
   const renderListeroChartsTab = () => (
-    <ScrollView style={styles.tabContent}>
+    <ScrollView
+      style={styles.tabContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={['#27AE60']}
+          tintColor="#27AE60"
+        />
+      }
+    >
       {/* Debug: Mostrar información de chartData */}
       {!chartData?.trends || chartData.trends.length === 0 ? (
         <View style={[styles.kpiCard, { backgroundColor: '#f8f9fa' }]}>
@@ -848,7 +859,17 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
 
     return (
-      <ScrollView style={styles.tabContent}>
+      <ScrollView
+        style={styles.tabContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#27AE60']}
+            tintColor="#27AE60"
+          />
+        }
+      >
         {/* KPIs principales del hook - ocultar para colectores y admin */}
         {kpiData && kpiData.length > 0 && userRole !== 'collector' && userRole !== 'colector' && userRole !== 'admin' && (
           <View style={styles.kpiGrid}>
@@ -1125,7 +1146,17 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Vista de detalles para listero (vista original)
   const renderListeroDetailsTab = () => (
-    <ScrollView style={styles.tabContent}>
+    <ScrollView
+      style={styles.tabContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={['#27AE60']}
+          tintColor="#27AE60"
+        />
+      }
+    >
       {(()=>{
         if(!tableData?.plays || tableData.plays.length === 0) return (
           <Text style={[styles.empty, { marginTop: 16 }]}>
@@ -1305,7 +1336,17 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Vista de detalles para collector y admin con desplegables
   const renderRoleBasedDetailsTab = () => (
-    <ScrollView style={styles.tabContent}>
+    <ScrollView
+      style={styles.tabContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={['#27AE60']}
+          tintColor="#27AE60"
+        />
+      }
+    >
       {/* Desplegable principal según el rol */}
       {userRole === 'collector' && renderCollectorExpandableTable()}
       {userRole === 'admin' && renderAdminExpandableTable()}
@@ -1968,19 +2009,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       {renderHeader()}
       {renderTabs()}
       
-      <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#27AE60']}
-            tintColor="#27AE60"
-          />
-        }
-      >
+      <View style={styles.content}>
         {renderActiveTabContent()}
-      </ScrollView>
+      </View>
 
   {/* Modal de exportación */}
   {renderExportModal()}

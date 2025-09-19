@@ -228,7 +228,12 @@ const useStatistics = () => {
 
   const applyFilters = async (filters = {}) => {
     if (activeStats.loadPlaysData) {
-      return activeStats.loadPlaysData(filters);
+      // Si recibimos startDate/endDate, sincronizar el rango en el hook activo
+      const { startDate, endDate, ...rest } = filters || {};
+      if (startDate && endDate && typeof activeStats.updateDateRange === 'function') {
+        activeStats.updateDateRange(startDate, endDate);
+      }
+      return activeStats.loadPlaysData({ startDate, endDate, ...rest });
     }
   };
 
