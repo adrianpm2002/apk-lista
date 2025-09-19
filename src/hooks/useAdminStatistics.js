@@ -9,7 +9,8 @@ const formatDateForQuery = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-export const useAdminStatistics = () => {
+export const useAdminStatistics = (options = {}) => {
+  const { enabled = true } = options;
   // Estados básicos
   const [isLoading, setIsLoading] = useState(false);
   const [userId, setUserId] = useState(null);
@@ -35,7 +36,7 @@ export const useAdminStatistics = () => {
         return [];
       }
 
-      console.log('🔍 [loadAdminPlaysData] Starting data fetch for admin...');
+  // inicio de carga (silencioso)
 
       const { startDate, endDate } = filters;
       
@@ -56,7 +57,7 @@ export const useAdminStatistics = () => {
       const pageSize = 1000; // Tamaño de página que coincide con el límite real de Supabase
       let hasMore = true;
       
-      console.log(`🔍 [loadAdminPlaysData] Starting pagination for userId: ${userId}, pageSize: ${pageSize}`);
+  // inicio paginación (silencioso)
       
       while (hasMore) {
         let query = supabase
@@ -81,18 +82,15 @@ export const useAdminStatistics = () => {
           return [];
         }
         
-        console.log(`🔍 [loadAdminPlaysData] User ${userId} - Page ${page + 1}: ${playsData?.length || 0} records`);
-        console.log(`🔍 [loadAdminPlaysData] Page ${page + 1} range: ${page * pageSize} to ${(page + 1) * pageSize - 1}`);
+  // progreso por página (silencioso)
         
         if (playsData && playsData.length > 0) {
           allPlaysData = allPlaysData.concat(playsData);
           // CORRIGIENDO: Si obtienes exactamente 1000 registros (límite de Supabase), continuar
           const shouldContinue = playsData.length === 1000;
-          console.log(`🔍 [loadAdminPlaysData] Page ${page + 1}: length=${playsData.length}, shouldContinue=${shouldContinue}`);
           hasMore = shouldContinue;
           page++;
         } else {
-          console.log(`🔍 [loadAdminPlaysData] Page ${page + 1}: No records, stopping pagination`);
           hasMore = false;
         }
         
@@ -103,12 +101,9 @@ export const useAdminStatistics = () => {
         }
         
         // Mostrar progreso cada 10 páginas
-        if (page % 10 === 0) {
-          console.log(`📊 [loadAdminPlaysData] User ${userId} - Progress: ${allPlaysData.length} records loaded`);
-        }
+        // progreso cada 10 páginas (omitido)
       }
-      
-      console.log(`🔍 [loadAdminPlaysData] User ${userId} - Total records obtained: ${allPlaysData.length}`);
+      // total obtenido (silencioso)
 
       return allPlaysData || [];
       
@@ -232,19 +227,18 @@ export const useAdminStatistics = () => {
   // Función principal para cargar datos de jugadas del admin
   const loadPlaysData = async (filters = {}) => {
     try {
-      console.log('🔍 [loadPlaysData-Admin] === INICIO ===');
-      console.log('🔍 [loadPlaysData-Admin] Filters:', filters);
+  // inicio carga (silencioso)
       
       // Prevenir ejecuciones concurrentes
       if (isLoading) {
-        console.log('🔄 [loadPlaysData-Admin] Ya está cargando, abortando...');
+        // ya cargando, abortar (silencioso)
         return;
       }
       
       setIsLoading(true);
       
       if (!userId) {
-        console.log('❌ [loadPlaysData-Admin] No userId disponible');
+        // no hay userId (silencioso)
         setIsLoading(false);
         return;
       }
@@ -259,7 +253,7 @@ export const useAdminStatistics = () => {
         plays: groupedData
       }));
       
-      console.log('✅ [loadPlaysData-Admin] Datos agrupados establecidos:', groupedData.length, 'bancos');
+  // datos agrupados establecidos (silencioso)
       
       return groupedData;
       
@@ -326,12 +320,11 @@ export const useAdminStatistics = () => {
 
   // Efecto para cargar usuario autenticado
   useEffect(() => {
-    console.log('🔄 [useAdminStatistics] Cargando usuario...');
+    if (!enabled) return; // no inicializar cuando está deshabilitado
     const loadUserData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          console.log('👤 [useAdminStatistics] Usuario encontrado:', user.id);
           setUserId(user.id);
         }
       } catch (error) {
@@ -340,29 +333,27 @@ export const useAdminStatistics = () => {
     };
 
     loadUserData();
-  }, []);
+  }, [enabled]);
 
   // Efecto para cargar datos cuando se obtiene el userId
   useEffect(() => {
-    console.log('🔄 [useAdminStatistics] userId cambió:', userId);
+    if (!enabled) return;
     if (userId && !isLoading) {
-      console.log('📊 [useAdminStatistics] Cargando datos iniciales...');
       loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
     }
-  }, [userId]);
+  }, [userId, enabled]);
 
   // Efecto para recargar cuando cambie el rango de fechas
   useEffect(() => {
-    console.log('🔄 [useAdminStatistics] Rango de fechas cambió');
+    if (!enabled) return;
     if (userId && !isLoading) {
-      console.log('📊 [useAdminStatistics] Recargando por cambio de fechas...');
       const timeoutId = setTimeout(() => {
         loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
       }, 300); // Debounce de 300ms
       
       return () => clearTimeout(timeoutId);
     }
-  }, [dateRange.startDate, dateRange.endDate]);
+  }, [dateRange.startDate, dateRange.endDate, enabled]);
 
   return {
     // Estados

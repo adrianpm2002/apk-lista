@@ -10,10 +10,10 @@ const useStatistics = () => {
   const [userRole, setUserRole] = useState(null);
   const [userId, setUserId] = useState(null);
   
-  // Hooks específicos por rol
-  const listeroStats = useListeroStatistics();
-  const collectorStats = useCollectorStatistics();
-  const adminStats = useAdminStatistics();
+  // Hooks específicos por rol (siempre montados, pero con gating por "enabled")
+  const listeroStats = useListeroStatistics({ enabled: userRole === 'listero' });
+  const collectorStats = useCollectorStatistics({ enabled: userRole === 'collector' || userRole === 'colector' });
+  const adminStats = useAdminStatistics({ enabled: userRole === 'admin' });
 
   // Detectar el rol del usuario
   useEffect(() => {
@@ -31,10 +31,9 @@ const useStatistics = () => {
         if (!error && profile) {
           setUserRole(profile.role || 'listero');
           setUserId(user.id);
-          console.log('🔍 [useStatistics-compat] Rol detectado:', profile.role);
         }
       } catch (error) {
-        console.error('❌ Error detectando rol:', error);
+        // Mantener fallback silencioso a 'listero' si hay error
         setUserRole('listero');
       }
     };
@@ -213,7 +212,6 @@ const useStatistics = () => {
 
   // Funciones de compatibilidad
   const loadAllStats = async () => {
-    console.log('🔄 [useStatistics-compat] loadAllStats called');
     if (activeStats.loadPlaysData) {
       return activeStats.loadPlaysData({
         startDate: activeStats.dateRange?.startDate || new Date(new Date().setHours(0, 0, 0, 0)),
@@ -223,21 +221,18 @@ const useStatistics = () => {
   };
 
   const loadPlaysData = async (filters = {}) => {
-    console.log('🔄 [useStatistics-compat] loadPlaysData called with filters:', filters);
     if (activeStats.loadPlaysData) {
       return activeStats.loadPlaysData(filters);
     }
   };
 
   const applyFilters = async (filters = {}) => {
-    console.log('🔄 [useStatistics-compat] applyFilters called with filters:', filters);
     if (activeStats.loadPlaysData) {
       return activeStats.loadPlaysData(filters);
     }
   };
 
   const clearData = () => {
-    console.log('🔄 [useStatistics-compat] clearData called');
     // No hacer nada por ahora, los hooks individuales manejan su estado
   };
 
@@ -274,10 +269,15 @@ const useStatistics = () => {
     applyFilters,
     clearData,
 
-    // Funciones adicionales específicas por rol
-    updateDateRange: activeStats.updateDateRange,
-    getBankBalance: activeStats.getBankBalance,
-    getTotals: activeStats.getTotals
+    // Funciones adicionales específicas por rol (con fallbacks seguros)
+    updateDateRange: activeStats.updateDateRange || (() => {}),
+    getBankBalance: activeStats.getBankBalance || (() => 0),
+    getTotals: activeStats.getTotals || (() => ({
+      total_bruto: 0,
+      total_premio: 0,
+      total_ganancia_colector: 0,
+      balance_banco: 0
+    }))
   };
 };
 

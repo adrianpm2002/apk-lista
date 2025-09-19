@@ -9,7 +9,8 @@ const formatDateForQuery = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-export const useListeroStatistics = () => {
+export const useListeroStatistics = (options = {}) => {
+  const { enabled = true } = options;
   // Estados básicos
   const [isLoading, setIsLoading] = useState(false);
   const [userId, setUserId] = useState(null);
@@ -31,7 +32,7 @@ export const useListeroStatistics = () => {
         return [];
       }
 
-      console.log('🔍 [loadListeroPlaysData] Starting data fetch for listero...');
+  // inicio de carga (silencioso)
 
       const { startDate, endDate } = filters;
       
@@ -75,7 +76,7 @@ export const useListeroStatistics = () => {
           return [];
         }
         
-        console.log(`🔍 [loadListeroPlaysData] Page ${page + 1}: ${playsData?.length || 0} records`);
+  // progreso de páginas (silencioso)
         
         if (playsData && playsData.length > 0) {
           allPlaysData = allPlaysData.concat(playsData);
@@ -94,12 +95,9 @@ export const useListeroStatistics = () => {
         }
         
         // Mostrar progreso cada 10 páginas
-        if (page % 10 === 0) {
-          console.log(`📊 [loadListeroPlaysData] Progress: ${allPlaysData.length} records loaded`);
-        }
+        // progreso cada 10 páginas (omitido)
       }
-      
-      console.log(`🔍 [loadListeroPlaysData] Total records obtained: ${allPlaysData.length}`);
+      // total obtenido (silencioso)
 
       return allPlaysData || [];
       
@@ -112,19 +110,18 @@ export const useListeroStatistics = () => {
   // Función principal para cargar datos de jugadas del listero
   const loadPlaysData = async (filters = {}) => {
     try {
-      console.log('🔍 [loadPlaysData-Listero] === INICIO ===');
-      console.log('🔍 [loadPlaysData-Listero] Filters:', filters);
+  // inicio carga (silencioso)
       
       // Prevenir ejecuciones concurrentes
       if (isLoading) {
-        console.log('🔄 [loadPlaysData-Listero] Ya está cargando, abortando...');
+        // ya cargando, abortar (silencioso)
         return;
       }
       
       setIsLoading(true);
       
       if (!userId) {
-        console.log('❌ [loadPlaysData-Listero] No userId disponible');
+        // no hay userId (silencioso)
         setIsLoading(false);
         return;
       }
@@ -176,7 +173,7 @@ export const useListeroStatistics = () => {
         plays: formattedPlays
       }));
       
-      console.log('✅ [loadPlaysData-Listero] Datos establecidos:', formattedPlays.length, 'registros');
+  // datos establecidos (silencioso)
       
       return formattedPlays;
       
@@ -199,12 +196,11 @@ export const useListeroStatistics = () => {
 
   // Efecto para cargar usuario autenticado
   useEffect(() => {
-    console.log('🔄 [useListeroStatistics] Cargando usuario...');
+    if (!enabled) return; // no inicializar cuando está deshabilitado
     const loadUserData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          console.log('👤 [useListeroStatistics] Usuario encontrado:', user.id);
           setUserId(user.id);
         }
       } catch (error) {
@@ -213,29 +209,27 @@ export const useListeroStatistics = () => {
     };
 
     loadUserData();
-  }, []);
+  }, [enabled]);
 
   // Efecto para cargar datos cuando se obtiene el userId
   useEffect(() => {
-    console.log('🔄 [useListeroStatistics] userId cambió:', userId);
+    if (!enabled) return;
     if (userId && !isLoading) {
-      console.log('📊 [useListeroStatistics] Cargando datos iniciales...');
       loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
     }
-  }, [userId]);
+  }, [userId, enabled]);
 
   // Efecto para recargar cuando cambie el rango de fechas
   useEffect(() => {
-    console.log('🔄 [useListeroStatistics] Rango de fechas cambió');
+    if (!enabled) return;
     if (userId && !isLoading) {
-      console.log('📊 [useListeroStatistics] Recargando por cambio de fechas...');
       const timeoutId = setTimeout(() => {
         loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
       }, 300); // Debounce de 300ms
       
       return () => clearTimeout(timeoutId);
     }
-  }, [dateRange.startDate, dateRange.endDate]);
+  }, [dateRange.startDate, dateRange.endDate, enabled]);
 
   return {
     // Estados
