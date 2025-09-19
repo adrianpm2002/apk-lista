@@ -33,8 +33,6 @@ export const AuthProvider = ({ children }) => {
 
     // Agregar listener para cambios de estado de autenticación
     const handleAuthStateChange = (event, session) => {
-      console.log('AuthContext: Estado de auth cambió:', event);
-      
       if (event === 'SIGNED_IN' && session) {
         setSession(session);
         setUser(session.user);
@@ -82,8 +80,14 @@ export const AuthProvider = ({ children }) => {
 
     // Cleanup
     return () => {
-      sessionMonitor.removeListener(handleAuthStateChange);
-      sessionMonitor.stopMonitoring();
+      try {
+        if (handleAuthStateChange) {
+          sessionMonitor.removeListener(handleAuthStateChange);
+        }
+        sessionMonitor.stopMonitoring();
+      } catch (error) {
+        console.error('Error en cleanup de AuthContext:', error);
+      }
     };
   }, []);
 

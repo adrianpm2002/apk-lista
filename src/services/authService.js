@@ -12,11 +12,11 @@ class AuthService {
    */
   async restoreSessionIfNeeded() {
     try {
-      console.log('Verificando si restaurar sesión...');
+      // console.log('Verificando si restaurar sesión...');
 
       // Verificar si la sesión persistente está habilitada
       const isPersistentEnabled = await secureStorage.isPersistentSessionEnabled();
-      console.log('Sesión persistente habilitada:', isPersistentEnabled);
+      // console.log('Sesión persistente habilitada:', isPersistentEnabled);
 
       if (!isPersistentEnabled) {
         console.log('Sesión persistente deshabilitada');
@@ -30,7 +30,7 @@ class AuthService {
         return null;
       }
 
-      console.log('Intentando restaurar sesión con refresh token...');
+        // console.log('Intentando restaurar sesión con refresh token...');
 
       // Intentar renovar la sesión usando el refresh token
       const { data, error } = await supabase.auth.refreshSession({
@@ -57,7 +57,7 @@ class AuthService {
         return null;
       }
 
-      console.log('Sesión renovada exitosamente');
+        // console.log('Sesión renovada exitosamente');
 
       // Obtener perfil del usuario restaurado
       const userProfile = await this.getUserProfile(data.session.user.id);
@@ -87,7 +87,7 @@ class AuthService {
         restoredAt: new Date().toISOString()
       });
 
-      console.log(`Sesión restaurada para usuario ${userProfile.role}`);
+      // console.log(`Sesión restaurada para usuario ${userProfile.role}`);
 
       return {
         success: true,

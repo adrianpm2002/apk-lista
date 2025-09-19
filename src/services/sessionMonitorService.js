@@ -17,24 +17,27 @@ class SessionMonitorService {
    */
   startMonitoring() {
     if (this.isMonitoring) {
-      console.log('El monitoreo de sesión ya está activo');
       return;
     }
 
-    console.log('Iniciando monitoreo de sesión...');
-    this.isMonitoring = true;
+    try {
+      this.isMonitoring = true;
 
-    // Escuchar cambios en el estado de autenticación
-    this.authStateSubscription = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log(`Estado de autenticación cambió: ${event}`);
-        
-        await this.handleAuthStateChange(event, session);
-        
-        // Notificar a todos los listeners
-        this.notifyListeners(event, session);
-      }
-    );
+      // Escuchar cambios en el estado de autenticación
+      this.authStateSubscription = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          await this.handleAuthStateChange(event, session);
+          
+          // Notificar a todos los listeners
+          this.notifyListeners(event, session);
+        }
+      );
+
+    } catch (error) {
+      console.error('Error al iniciar monitoreo de sesión:', error);
+      this.isMonitoring = false;
+      this.authStateSubscription = null;
+    }
   }
 
   /**
@@ -45,11 +48,28 @@ class SessionMonitorService {
       return;
     }
 
-    console.log('Deteniendo monitoreo de sesión...');
     this.isMonitoring = false;
 
+    // Verificar si existe la suscripción antes de intentar cancelarla
     if (this.authStateSubscription) {
-      this.authStateSubscription.subscription.unsubscribe();
+      try {
+        // Diferentes versiones de Supabase pueden retornar diferentes estructuras
+        if (typeof this.authStateSubscription.unsubscribe === 'function') {
+          // Versión nueva - retorna objeto con método unsubscribe directo
+          this.authStateSubscription.unsubscribe();
+        } else if (this.authStateSubscription.subscription && 
+                   typeof this.authStateSubscription.subscription.unsubscribe === 'function') {
+          // Versión anterior - retorna objeto con propiedad subscription
+          this.authStateSubscription.subscription.unsubscribe();
+        } else if (typeof this.authStateSubscription === 'function') {
+          // Algunas versiones retornan directamente la función de cleanup
+          this.authStateSubscription();
+        } else {
+          console.warn('Estructura de suscripción no reconocida:', this.authStateSubscription);
+        }
+      } catch (error) {
+        console.error('Error al cancelar suscripción de auth state:', error);
+      }
       this.authStateSubscription = null;
     }
 
@@ -77,11 +97,9 @@ class SessionMonitorService {
           break;
         
         case 'PASSWORD_RECOVERY':
-          console.log('Recuperación de contraseña iniciada');
           break;
         
         default:
-          console.log(`Evento de autenticación no manejado: ${event}`);
           break;
       }
     } catch (error) {
@@ -96,15 +114,12 @@ class SessionMonitorService {
   async handleSignedIn(session) {
     if (!session) return;
 
-    console.log('Usuario autenticado, actualizando datos...');
-    
     // Verificar si la sesión persistente está habilitada
     const isPersistentEnabled = await secureStorage.isPersistentSessionEnabled();
     
     if (isPersistentEnabled && session.refresh_token) {
       // Actualizar el refresh token almacenado
       await secureStorage.saveRefreshToken(session.refresh_token);
-      console.log('Refresh token actualizado en almacenamiento seguro');
     }
 
     // Obtener y guardar información del perfil del usuario
@@ -124,8 +139,6 @@ class SessionMonitorService {
    * Maneja el evento de cierre de sesión
    */
   async handleSignedOut() {
-    console.log('Usuario desautenticado, limpiando datos locales...');
-    
     // No limpiar la preferencia de sesión persistente al cerrar sesión
     // Solo limpiar las credenciales y datos de sesión
     await secureStorage.clearStoredCredentials();
@@ -138,13 +151,10 @@ class SessionMonitorService {
   async handleTokenRefreshed(session) {
     if (!session) return;
 
-    console.log('Token renovado, actualizando almacenamiento...');
-    
     const isPersistentEnabled = await secureStorage.isPersistentSessionEnabled();
     
     if (isPersistentEnabled && session.refresh_token) {
       await secureStorage.saveRefreshToken(session.refresh_token);
-      console.log('Refresh token actualizado tras renovación');
     }
 
     // Actualizar timestamp de última actividad
