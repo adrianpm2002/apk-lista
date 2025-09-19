@@ -570,7 +570,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       { label: 'Ayer', value: 'yesterday' },
       { label: '7d', value: 'last7days' },
       { label: '30d', value: 'last30days' },
-      { label: 'Mes', value: 'month' },
+      { label: 'Mes pasado', value: 'lastMonth' },
     ];
 
     return (
@@ -628,7 +628,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       { label: 'Ayer', value: 'yesterday' },
       { label: '7 días', value: 'last7days' },
       { label: '30 días', value: 'last30days' },
-      { label: 'Este mes', value: 'month' },
+      { label: 'Mes pasado', value: 'lastMonth' },
     ];
 
     return (
