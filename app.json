@@ -1,11 +1,12 @@
 {
   "expo": {
-  "name": "Cloud",
+    "name": "Cloud",
     "slug": "apk-lista-clean-adrian-new",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "apk-lista-clean",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -15,7 +16,8 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.adrianpm.apklistaclean"
     },
     "android": {
       "adaptiveIcon": {
@@ -29,12 +31,16 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "extra": {
       "eas": {
         "projectId": "83929415-67d9-4199-8f74-4d86a5ec37dd"
       }
-    }
+    },
+    "plugins": [
+      "expo-splash-screen"
+    ]
   }
 }
