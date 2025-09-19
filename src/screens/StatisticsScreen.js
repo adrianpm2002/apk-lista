@@ -16,7 +16,7 @@ import useStatistics from '../hooks/useStatistics';
 import { supabase } from '../supabaseClient';
 import StatisticsChart from '../components/StatisticsChart';
 import DataTable from '../components/DataTable';
-import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
+// DateTimePickerWrapper eliminado: no se usará rango personalizado
 import DropdownPicker from '../components/DropdownPicker';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import ScreenWrapper from '../components/ScreenWrapper';
@@ -109,8 +109,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [selectedLottery, setSelectedLottery] = useState('all');
   const [selectedSchedule, setSelectedSchedule] = useState('all');
   const [lotterySchedules, setLotterySchedules] = useState([]); // horarios de la lotería seleccionada
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [datePickerType, setDatePickerType] = useState('start');
+  // Estados de DatePicker eliminados (no se usa rango personalizado)
   
   // Estados para modales
   const [showExportModal, setShowExportModal] = useState(false);
@@ -169,7 +168,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     { label: 'Mes pasado', value: 'lastMonth' },
     { label: 'Últimos 7 días', value: 'last7days' },
     { label: 'Últimos 30 días', value: 'last30days' },
-    { label: 'Personalizado', value: 'custom' },
   ];
 
   // Tabs de navegación
@@ -321,14 +319,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     // El hook useStatistics ya maneja toda la carga de datos
   };
 
-  // Aplicar filtros personalizados
-  const applyCustomFilters = () => {
-    applyFilters({
-      startDate,
-      endDate
-    });
-  // noop: modal eliminado
-  };
+  // Rango personalizado eliminado
 
   // Manejar refresh - simplificado sin cache
   const onRefresh = useCallback(async () => {
@@ -503,17 +494,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   };
 
-  // Manejar selección de fecha
-  const handleDateChange = (event, selectedDate) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      if (datePickerType === 'start') {
-        setStartDate(selectedDate);
-      } else {
-        setEndDate(selectedDate);
-      }
-    }
-  };
+  // Rango personalizado eliminado: no hay handler de DatePicker
 
   // Renderizar header con sidebar toggle
   const renderHeader = () => (
@@ -648,7 +629,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       { label: '7 días', value: 'last7days' },
       { label: '30 días', value: 'last30days' },
       { label: 'Este mes', value: 'month' },
-      { label: 'Personalizado', value: 'custom' },
     ];
 
     return (
@@ -657,28 +637,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           {compactPeriodOptions.map(opt => renderChip(opt.value, selectedPeriod, setSelectedPeriod, opt.label))}
         </View>
 
-        {/* Rango personalizado */}
-        {selectedPeriod === 'custom' && (
-          <View style={styles.customDateRow}>
-            <TouchableOpacity
-              style={styles.compactDateButton}
-              onPress={() => { setDatePickerType('start'); setShowDatePicker(true); }}
-            >
-              <Text style={styles.compactDateButtonText}>
-                📅 {startDate.toLocaleDateString()}
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.dateRangeSeparator}>→</Text>
-            <TouchableOpacity
-              style={styles.compactDateButton}
-              onPress={() => { setDatePickerType('end'); setShowDatePicker(true); }}
-            >
-              <Text style={styles.compactDateButtonText}>
-                📅 {endDate.toLocaleDateString()}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Rango personalizado eliminado */}
       </View>
     );
   };
@@ -691,7 +650,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       'lastMonth': 'Ganancias vs Pérdidas (Mes pasado)',
       'last7days': 'Ganancias vs Pérdidas (Últimos 7 días)',
       'last30days': 'Ganancias vs Pérdidas (Últimos 30 días)',
-      'custom': 'Ganancias vs Pérdidas (Período personalizado)',
+  // 'custom': 'Ganancias vs Pérdidas (Período personalizado)', // eliminado
     };
     return titleMap[selectedPeriod] || 'Ganancias vs Pérdidas';
   };
@@ -2026,15 +1985,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   {/* Modal de exportación */}
   {renderExportModal()}
 
-      {/* DatePicker */}
-      {showDatePicker && (
-        <DateTimePickerWrapper
-          value={datePickerType === 'start' ? startDate : endDate}
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
-        />
-      )}
+      {/* DatePicker eliminado */}
 
       <SideBarWrapper
         isVisible={sidebarVisible}
