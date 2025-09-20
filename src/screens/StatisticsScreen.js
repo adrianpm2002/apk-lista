@@ -167,7 +167,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     { label: 'Ayer', value: 'yesterday' },
     { label: 'Mes pasado', value: 'lastMonth' },
     { label: 'Últimos 7 días', value: 'last7days' },
-    { label: 'Últimos 30 días', value: 'last30days' },
+  { label: 'Este mes', value: 'last30days' },
   ];
 
   // Tabs de navegación
@@ -570,7 +570,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       { label: 'Hoy', value: 'today' },
       { label: 'Ayer', value: 'yesterday' },
       { label: '7d', value: 'last7days' },
-      { label: '30d', value: 'last30days' },
+  { label: 'Este mes', value: 'last30days' },
       { label: 'Mes pasado', value: 'lastMonth' },
     ];
 
@@ -628,7 +628,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       { label: 'Hoy', value: 'today' },
       { label: 'Ayer', value: 'yesterday' },
       { label: '7 días', value: 'last7days' },
-      { label: '30 días', value: 'last30days' },
+  { label: 'Este mes', value: 'last30days' },
       { label: 'Mes pasado', value: 'lastMonth' },
     ];
 
