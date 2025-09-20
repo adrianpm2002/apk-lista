@@ -32,11 +32,8 @@ export const useListeroStatistics = (options = {}) => {
         return [];
       }
 
-  // inicio de carga (silencioso)
-
       const { startDate, endDate } = filters;
       
-      // Formatear fechas si están disponibles
       let dateFilters = {};
       if (startDate && endDate) {
         const startStr = formatDateForQuery(startDate) + ' 00:00:00';
@@ -47,7 +44,6 @@ export const useListeroStatistics = (options = {}) => {
         };
       }
 
-      // Obtener todos los datos usando paginación optimizada
       let allPlaysData = [];
       let page = 0;
       const pageSize = 1000; // Tamaño de página que coincide con el límite real de Supabase
@@ -61,7 +57,6 @@ export const useListeroStatistics = (options = {}) => {
           .eq('estado_horario', 'cerrada')
           .order('fecha_jugada', { ascending: false });
 
-        // Aplicar filtros de fecha si están disponibles
         if (dateFilters.startStr && dateFilters.endStr) {
           query = query
             .gte('fecha_jugada', dateFilters.startStr)
@@ -76,28 +71,19 @@ export const useListeroStatistics = (options = {}) => {
           return [];
         }
         
-  // progreso de páginas (silencioso)
-        
         if (playsData && playsData.length > 0) {
           allPlaysData = allPlaysData.concat(playsData);
-          // CORECCIÓN: Si obtienes exactamente 1000 registros (límite de Supabase), puede haber más
-          // Solo parar cuando obtengas menos de 1000 registros
           hasMore = playsData.length === 1000; // Continuar si se obtuvieron exactamente 1000 registros
           page++;
         } else {
           hasMore = false;
         }
         
-        // Límite de seguridad para evitar bucles infinitos
         if (page > 250) { // Hasta 1.25M registros
           console.warn('⚠️ [loadListeroPlaysData] Límite de páginas alcanzado (1.25M registros)');
           break;
         }
-        
-        // Mostrar progreso cada 10 páginas
-        // progreso cada 10 páginas (omitido)
       }
-      // total obtenido (silencioso)
 
       return allPlaysData || [];
       
@@ -110,18 +96,14 @@ export const useListeroStatistics = (options = {}) => {
   // Función principal para cargar datos de jugadas del listero
   const loadPlaysData = async (filters = {}) => {
     try {
-  // inicio carga (silencioso)
-      
       // Prevenir ejecuciones concurrentes
       if (isLoading) {
-        // ya cargando, abortar (silencioso)
         return;
       }
       
       setIsLoading(true);
       
       if (!userId) {
-        // no hay userId (silencioso)
         setIsLoading(false);
         return;
       }
@@ -173,8 +155,6 @@ export const useListeroStatistics = (options = {}) => {
         plays: formattedPlays
       }));
       
-  // datos establecidos (silencioso)
-      
       return formattedPlays;
       
     } catch (error) {
@@ -196,7 +176,7 @@ export const useListeroStatistics = (options = {}) => {
 
   // Efecto para cargar usuario autenticado
   useEffect(() => {
-    if (!enabled) return; // no inicializar cuando está deshabilitado
+    if (!enabled) return;
     const loadUserData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -225,7 +205,7 @@ export const useListeroStatistics = (options = {}) => {
     if (userId && !isLoading) {
       const timeoutId = setTimeout(() => {
         loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
-      }, 300); // Debounce de 300ms
+  }, 300);
       
       return () => clearTimeout(timeoutId);
     }
