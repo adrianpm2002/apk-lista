@@ -38,10 +38,12 @@ const TextInputWithErrorHighlight = ({
       css += `
         .editor-line:nth-child(${lineNumber}) {
           background-color: rgba(255, 182, 182, 0.25) !important;
-          border-left: 3px solid #FF7F7F !important;
           padding-left: 9px !important;
-          margin: 1px 0 !important;
+          margin: 0 !important;
           border-radius: 3px !important;
+          height: 22.4px !important;
+          display: flex !important;
+          align-items: center !important;
         }
       `;
     });
@@ -188,12 +190,13 @@ const TextInputWithErrorHighlight = ({
                     className="editor-line"
                     style={{
                       backgroundColor: hasLineError ? 'rgba(255, 182, 182, 0.25)' : 'transparent',
-                      borderLeft: hasLineError ? '3px solid #FF7F7F' : '3px solid transparent',
                       paddingLeft: '6px',
-                      margin: '1px 0',
+                      margin: '0',
                       borderRadius: '3px',
-                      minHeight: '22px',
                       lineHeight: '1.4',
+                      height: '22.4px', // 16px (fontSize) * 1.4 (lineHeight) = altura exacta
+                      display: 'flex',
+                      alignItems: 'center',
                     }}
                   >
                     {line || '\u00A0'}
