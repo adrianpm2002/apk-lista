@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, Platform } from 'react-native';
 
 const TextInputWithErrorHighlight = ({
@@ -18,6 +18,36 @@ const TextInputWithErrorHighlight = ({
   ...otherProps
 }) => {
   const [isFocused, setIsFocused] = useState(false);
+  const editorRef = useRef(null);
+  const overlayRef = useRef(null);
+
+  // Sincronizar scroll entre textarea y overlay
+  const handleScroll = (e) => {
+    if (overlayRef.current && editorRef.current) {
+      overlayRef.current.scrollTop = e.target.scrollTop;
+      overlayRef.current.scrollLeft = e.target.scrollLeft;
+    }
+  };
+
+  // Generar CSS dinámico para las líneas con errores
+  const generateDynamicCSS = () => {
+    if (!errorLines.length) return '';
+    
+    let css = '<style>';
+    errorLines.forEach(lineNumber => {
+      css += `
+        .editor-line:nth-child(${lineNumber}) {
+          background-color: rgba(255, 182, 182, 0.25) !important;
+          border-left: 3px solid #FF7F7F !important;
+          padding-left: 9px !important;
+          margin: 1px 0 !important;
+          border-radius: 3px !important;
+        }
+      `;
+    });
+    css += '</style>';
+    return css;
+  };
 
   const handlePaste = async () => {
     try {
@@ -81,6 +111,126 @@ const TextInputWithErrorHighlight = ({
     });
   }
 
+  // Renderizar el editor según la plataforma
+  const renderEditor = () => {
+    if (Platform.OS === 'web') {
+      // Para web, usar textarea con overlay CSS para resaltado de errores
+      return (
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          {/* CSS dinámico para errores */}
+          {errorLines.length > 0 && (
+            <div dangerouslySetInnerHTML={{ __html: generateDynamicCSS() }} />
+          )}
+          
+          <textarea
+            ref={editorRef}
+            value={value || ''}
+            onChange={(e) => {
+              if (onChangeText) {
+                onChangeText(e.target.value);
+              }
+            }}
+            onScroll={handleScroll}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            placeholder={placeholder}
+            style={{
+              width: '100%',
+              minHeight: '120px',
+              border: `${isFocused ? 2 : 1.5}px solid ${isFocused ? '#3498DB' : (hasError ? '#E74C3C' : '#D5DBDB')}`,
+              borderRadius: '8px',
+              padding: '14px 12px',
+              paddingRight: overlayButtons.length > 0 ? '50px' : '12px',
+              fontSize: '16px',
+              fontFamily: 'monospace',
+              color: '#2C3E50',
+              backgroundColor: hasError ? '#FDEDEC' : '#FFFFFF',
+              resize: 'vertical',
+              outline: 'none',
+              lineHeight: '1.4',
+              boxSizing: 'border-box',
+              ...inputStyle,
+            }}
+            {...otherProps}
+          />
+          
+          {/* Overlay para mostrar líneas con errores */}
+          {errorLines.length > 0 && value && (
+            <div 
+              ref={overlayRef}
+              style={{
+                position: 'absolute',
+                top: '0',
+                left: '0',
+                right: '0',
+                bottom: '0',
+                pointerEvents: 'none',
+                zIndex: 1,
+                fontFamily: 'monospace',
+                fontSize: '16px',
+                lineHeight: '1.4',
+                color: 'transparent',
+                whiteSpace: 'pre-wrap',
+                overflow: 'hidden',
+                padding: '14px 12px',
+                paddingRight: overlayButtons.length > 0 ? '50px' : '12px',
+                border: '1.5px solid transparent',
+                borderRadius: '8px',
+                boxSizing: 'border-box',
+              }}
+            >
+              {value.split('\n').map((line, index) => {
+                const lineNumber = index + 1;
+                const hasLineError = errorLines.includes(lineNumber);
+                return (
+                  <div 
+                    key={index}
+                    className="editor-line"
+                    style={{
+                      backgroundColor: hasLineError ? 'rgba(255, 182, 182, 0.25)' : 'transparent',
+                      borderLeft: hasLineError ? '3px solid #FF7F7F' : '3px solid transparent',
+                      paddingLeft: '6px',
+                      margin: '1px 0',
+                      borderRadius: '3px',
+                      minHeight: '22px',
+                      lineHeight: '1.4',
+                    }}
+                  >
+                    {line || '\u00A0'}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Para React Native nativo, usar TextInput normal con indicadores visuales
+    return (
+      <TextInput
+        style={[
+          styles.input,
+          isFocused && styles.inputFocused,
+          hasError && styles.inputError,
+          overlayButtons.length > 0 && styles.inputWithOverlayButtons,
+          // Agregar indicador visual cuando hay errores
+          errorLines.length > 0 && styles.inputWithErrors,
+          inputStyle,
+        ]}
+        value={value}
+        onChangeText={onChangeText}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        placeholder={placeholder}
+        placeholderTextColor="#7F8C8D"
+        multiline
+        textAlignVertical="top"
+        {...otherProps}
+      />
+    );
+  };
+
   return (
     <View style={[styles.container, style]}>
       {!pasteButtonOverlay && (
@@ -98,25 +248,7 @@ const TextInputWithErrorHighlight = ({
       )}
 
       <View style={styles.inputWrapper}>
-        <TextInput
-          style={[
-            styles.input,
-            isFocused && styles.inputFocused,
-            hasError && styles.inputError,
-            // Agregar paddingRight cuando hay botones overlay para evitar superposición
-            overlayButtons.length > 0 && styles.inputWithOverlayButtons,
-            inputStyle,
-          ]}
-          value={value}
-          onChangeText={onChangeText}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          placeholder={placeholder}
-          placeholderTextColor="#7F8C8D"
-          multiline
-          textAlignVertical="top"
-          {...otherProps}
-        />
+        {renderEditor()}
 
         {/* Mostrar badges de duplicados */}
         {renderDuplicateBadges()}
@@ -170,6 +302,7 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     minHeight: 120,
     textAlignVertical: 'top',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   inputFocused: {
     borderColor: '#3498DB',
@@ -182,6 +315,12 @@ const styles = StyleSheet.create({
   },
   inputWithOverlayButtons: {
     paddingRight: 50, // Espacio para los botones overlay (evita superposición del texto)
+  },
+  inputWithErrors: {
+    // Para React Native, usar borde izquierdo como indicador de errores
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF7F7F',
+    paddingLeft: 8,
   },
   badgeContainer: {
     position: 'absolute',
