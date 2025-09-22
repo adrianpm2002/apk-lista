@@ -278,43 +278,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Aplicar filtro de período
   const applyPeriodFilter = (period) => {
-  // ...
-    const now = new Date();
-    let start, end;
-
-    switch (period) {
-      case 'today':
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-        break;
-      case 'yesterday':
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
-        break;
-      case 'lastMonth':
-        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-        break;
-      case 'last7days':
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
-        end = new Date();
-        break;
-      case 'last30days':
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
-        end = new Date();
-        break;
-      default:
-        return;
-    }
-
-  setStartDate(start);
-  setEndDate(end);
+    console.log(`🔄 [StatisticsScreen] Aplicando filtro de período: ${period}`);
     
+    // En lugar de calcular fechas, pasar el período directamente
     const filterParams = {
-      startDate: start,
-      endDate: end
+      period: period  // Pasar el período directamente
     };
     
+    setSelectedPeriod(period);
     applyFilters(filterParams);
     // El hook useStatistics ya maneja toda la carga de datos
   };
