@@ -34,7 +34,7 @@ export const useAdminStatistics = (options = {}) => {
       case 'today':
         return { viewName: 'v_estadisticas_hoy_cerradas', isOptimized: true, period: 'hoy' };
       case 'yesterday':
-        return { viewName: 'v_estadisticas_ayer_cerradas', isOptimized: true, period: 'ayer' };
+        return { viewName: 'v_estadisticas_ayer', isOptimized: true, period: 'ayer' };
       case 'last7days':
         return { viewName: 'v_estadisticas_ultimos_7_dias_cerradas', isOptimized: true, period: 'últimos 7 días' };
       case 'last30days':
@@ -149,7 +149,7 @@ export const useAdminStatistics = (options = {}) => {
       return { viewName: 'v_estadisticas_hoy_cerradas', isOptimized: true, period: 'hoy' };
     }
     if (isFilteringYesterday(startDate, endDate)) {
-      return { viewName: 'v_estadisticas_ayer_cerradas', isOptimized: true, period: 'ayer' };
+      return { viewName: 'v_estadisticas_ayer', isOptimized: true, period: 'ayer' };
     }
     if (isFilteringLast7Days(startDate, endDate)) {
       return { viewName: 'v_estadisticas_ultimos_7_dias_cerradas', isOptimized: true, period: 'últimos 7 días' };
