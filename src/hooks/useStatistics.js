@@ -233,7 +233,6 @@ const useStatistics = () => {
       
       if (period) {
         // Pasar el período directamente al hook específico
-        console.log(`🔄 [useStatistics] Aplicando período: ${period}`);
         return activeStats.loadPlaysData({ period, ...rest });
       }
       
