@@ -527,37 +527,116 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Filtros compactos para la línea de pestañas
   const renderCompactFilters = () => {
-    const compactOptions = [
+    const firstRowOptions = [
       { label: 'Hoy', value: 'today' },
       { label: 'Ayer', value: 'yesterday' },
       { label: '7d', value: 'last7days' },
-  { label: 'Este mes', value: 'last30days' },
+    ];
+
+    const secondRowOptions = [
+      { label: 'Este mes', value: 'last30days' },
       { label: 'Mes pasado', value: 'lastMonth' },
     ];
 
+    // Preparar opciones de lotería (sin "Todas")
+    const lotteryOptions = (lotteries || []).map(lot => ({ label: lot.nombre, value: lot.id }));
+
+    // Preparar opciones de horario (sin "Todos")
+    const scheduleOptions = (lotterySchedules || []).map(sch => ({ label: sch.nombre, value: sch.id }));
+
     return (
       <View style={styles.inlineFiltersWrapper}>
-        <View style={styles.inlineFiltersContent}>
-        {compactOptions.map(opt => (
-          <TouchableOpacity
-            key={opt.value}
-            style={[
-              styles.inlineFilterChip,
-              selectedPeriod === opt.value && styles.inlineFilterChipActive,
-            ]}
-            onPress={() => {
-              setSelectedPeriod(opt.value);
-              applyPeriodFilter(opt.value);
-            }}
-          >
-            <Text style={[
-              styles.inlineFilterChipText,
-              selectedPeriod === opt.value && styles.inlineFilterChipTextActive,
-            ]}>
-              {opt.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {/* Primera fila: Filtros de período básicos */}
+        <View style={styles.inlineFiltersRow}>
+          {firstRowOptions.map(opt => (
+            <TouchableOpacity
+              key={opt.value}
+              style={[
+                styles.inlineFilterChipSmall,
+                selectedPeriod === opt.value && styles.inlineFilterChipActive,
+              ]}
+              onPress={() => {
+                setSelectedPeriod(opt.value);
+                applyPeriodFilter(opt.value);
+              }}
+            >
+              <Text style={[
+                styles.inlineFilterChipTextSmall,
+                selectedPeriod === opt.value && styles.inlineFilterChipTextActive,
+              ]}>
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Segunda fila: Períodos largos, lotería y horario */}
+        <View style={styles.inlineFiltersRow}>
+          {/* Períodos de mes */}
+          {secondRowOptions.map(opt => (
+            <TouchableOpacity
+              key={opt.value}
+              style={[
+                styles.inlineFilterChipSmall,
+                selectedPeriod === opt.value && styles.inlineFilterChipActive,
+              ]}
+              onPress={() => {
+                setSelectedPeriod(opt.value);
+                applyPeriodFilter(opt.value);
+              }}
+            >
+              <Text style={[
+                styles.inlineFilterChipTextSmall,
+                selectedPeriod === opt.value && styles.inlineFilterChipTextActive,
+              ]}>
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+
+          {/* Filtro de Lotería */}
+          {lotteryOptions.slice(0, 3).map(opt => (
+            <TouchableOpacity
+              key={`lottery-${opt.value}`}
+              style={[
+                styles.inlineFilterChipSmall,
+                selectedLottery === opt.value && styles.inlineFilterChipActive,
+              ]}
+              onPress={() => {
+                setSelectedLottery(opt.value);
+                applyPeriodFilter(selectedPeriod);
+              }}
+            >
+              <Text style={[
+                styles.inlineFilterChipTextSmall,
+                selectedLottery === opt.value && styles.inlineFilterChipTextActive,
+              ]}>
+                {opt.label.length > 6 ? opt.label.substring(0, 6) + '...' : opt.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+
+          {/* Filtro de Horario (solo si hay lotería específica seleccionada) */}
+          {selectedLottery !== 'all' && scheduleOptions.slice(0, 2).map(opt => (
+            <TouchableOpacity
+              key={`schedule-${opt.value}`}
+              style={[
+                styles.inlineFilterChipSmall,
+                selectedSchedule === opt.value && styles.inlineFilterChipActive,
+              ]}
+              onPress={() => {
+                setSelectedSchedule(opt.value);
+                applyPeriodFilter(selectedPeriod);
+              }}
+            >
+              <Text style={[
+                styles.inlineFilterChipTextSmall,
+                selectedSchedule === opt.value && styles.inlineFilterChipTextActive,
+              ]}>
+                {opt.label.length > 5 ? opt.label.substring(0, 5) + '...' : opt.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
     );
@@ -2185,6 +2264,12 @@ const styles = StyleSheet.create({
   inlineFiltersWrapper: {
     flexGrow: 1, // Permitir que crezca para usar más espacio
   },
+  inlineFiltersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginBottom: 2, // Reducido de 4 a 2
+  },
   inlineFiltersContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2200,6 +2285,17 @@ const styles = StyleSheet.create({
     marginRight: 6,
     marginBottom: 4, // Agregar margen inferior para cuando se envuelvan
   },
+  inlineFilterChipSmall: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 8,
+    paddingHorizontal: 4, // Reducido de 6 a 4
+    paddingVertical: 1, // Reducido de 2 a 1
+    marginRight: 2, // Reducido de 4 a 2
+    marginBottom: 1, // Reducido de 2 a 1
+    minWidth: 36, // Reducido de 40 a 36
+  },
   inlineFilterChipActive: {
     backgroundColor: '#27AE60',
     borderColor: '#27AE60',
@@ -2208,6 +2304,12 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#6c757d',
     fontWeight: '500',
+  },
+  inlineFilterChipTextSmall: {
+    fontSize: 9,
+    color: '#6c757d',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   inlineFilterChipTextActive: {
     color: '#ffffff',
