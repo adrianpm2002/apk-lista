@@ -18,251 +18,72 @@ export function useCapacityData(bankId, options = {}) {
     if (!bankId) return;
     setLoading(true); setError(null);
     try {
-      // 1. Perfil -> límites específicos
+      // Obtener el usuario actual para filtrar por listero específico
       const { data: { user } } = await supabase.auth.getUser();
-      let specificLimits = null;
-      if (user) {
-        const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', user.id).maybeSingle();
-        specificLimits = profile?.limite_especifico || null;
+      if (!user) {
+        throw new Error('Usuario no autenticado');
       }
 
-      // 2. Loterías del banco
-      const { data: lots, error: lotsErr } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId);
-      if(lotsErr) throw lotsErr;
-      const lotIds = (lots||[]).map(l=> l.id);
-      if(!lotIds.length){ setCapacityData([]); setLoading(false); return; }
+      // Consultar v_capacidades filtrada por banco y listero
+      const { data: capacities, error: capErr } = await supabase
+        .from('v_capacidades')
+        .select('*')
+        .eq('id_banco', bankId)
+        .eq('id_listero', user.id);
+      
+      if (capErr) throw capErr;
 
-      // 3. Límites específicos de lotería
-      let lotteryLimits = {};
-      try {
-        const { data: lotteryLimitsData } = await supabase
-          .from('limite_loteria')
-          .select('id_loteria, limites')
-          .in('id_loteria', lotIds);
-        if (lotteryLimitsData) {
-          lotteryLimitsData.forEach(item => {
-            lotteryLimits[item.id_loteria] = item.limites || {};
-          });
-        }
-      } catch (e) {
-        console.warn('Error loading lottery limits, continuing without them:', e.message);
-        lotteryLimits = {};
+      if (!capacities || capacities.length === 0) {
+        setCapacityData([]);
+        setLoading(false);
+        return;
       }
 
-      // 4. Horarios de esas loterías
-      const { data: horariosRows, error: horErr } = await supabase
-        .from('horario')
-        .select('id,nombre,id_loteria,hora_inicio,hora_fin')
-        .in('id_loteria', lotIds);
-      if(horErr) throw horErr;
-      const horarioMeta = {}; (horariosRows||[]).forEach(h=>{ horarioMeta[h.id]=h; });
-
-      // 4. Límites por número (para porcentaje) - puede que no exista para todos
-      const { data: limits, error: limErr } = await supabase
-        .from('limite_numero')
-        .select('numero, limite, jugada, id_horario')
-        .in('id_horario', (horariosRows||[]).map(h=>h.id));
-      if(limErr) throw limErr;
-      const limitNumberMap = new Map(); // key h|jugada|numero -> limite_numero.limite
-      (limits||[]).forEach(r=>{ limitNumberMap.set(`${r.id_horario}|${r.jugada}|${r.numero}`, r.limite); });
-
-      // 5. Jugadas del día (uso real) en tabla jugada - usar rango LOCAL del día para evitar desfases por UTC
-      // Filtrar solo por el listero actual para mostrar capacidad individual
-      const nowLocal = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      const y = nowLocal.getFullYear();
-      const m = pad(nowLocal.getMonth() + 1);
-      const d = pad(nowLocal.getDate());
-      const startStr = `${y}-${m}-${d} 00:00:00`;
-      const endStr = `${y}-${m}-${d} 23:59:59.999`;
-      
-      let jugadasQuery = supabase
-        .from('jugada')
-        .select('id_horario,jugada,numeros,monto_unitario,created_at')
-        .gte('created_at', startStr)
-        .lte('created_at', endStr)
-        .in('id_horario', (horariosRows||[]).map(h=>h.id));
-      
-      if (user) {
-        // Filtrar solo las jugadas del listero actual (capacidad individual)
-        jugadasQuery = jugadasQuery.eq('id_listero', user.id);
-      }
-      
-      const { data: jugadas, error: jugErr } = await jugadasQuery;
-      if(jugErr) throw jugErr;
-
-      // 6. Calcular horarios abiertos
-      const now = new Date();
-      const nowMin = now.getHours()*60 + now.getMinutes();
-      const isOpen = (hi,hf)=>{
-        if(!hi||!hf) return false; const [shi,smi]=hi.split(':'); const [shf,smf]=hf.split(':');
-        const start=parseInt(shi,10)*60+parseInt(smi||'0',10); const end=parseInt(shf,10)*60+parseInt(smf||'0',10);
-        if(start===end) return true; if(end>start) return nowMin>=start && nowMin<end; return (nowMin>=start)||(nowMin<end);
-      };
-
-      // 7. Agregar uso por número considerando repeticiones y parle canónico
-      const usageMap = new Map(); // key h|jugada|numeroCanonical -> uso acumulado
-      const parleCanonical = (n) => {
-        if(n.length!==4) return n; const a=n.slice(0,2), b=n.slice(2); const alt=b+a; return alt < n ? alt : n;
-      };
-      (jugadas||[]).forEach(j => {
-        const h = j.id_horario; const jug = j.jugada; const monto = j.monto_unitario || 0;
-        if(!h || !jug || monto<=0) return;
-        const hor = horarioMeta[h]; if(!hor) return;
-        if(!isOpen(hor.hora_inicio, hor.hora_fin)) return; // sólo abiertos
-        const nums = (j.numeros||'').split(',').map(s=> s.trim()).filter(Boolean);
-        nums.forEach(raw => {
-          const digits = raw.replace(/[^0-9]/g,'');
-          if(!digits) return;
-            let canonical = digits;
-            if(jug==='parle' && digits.length===4){ canonical = parleCanonical(digits); }
-          const key = `${h}|${jug}|${canonical}`;
-          usageMap.set(key, (usageMap.get(key)||0) + monto);
-        });
-      });
-
-      // 8. Construir filas finales. Si hay límite específico para 'fijo' (u otras jugadas) pero sin límite_numero individual
-      // y no hay uso todavía, aun así se deben mostrar todos los números posibles con usado=0.
-      const rows = [];
-
-      // Función auxiliar para obtener límite específico por lotería
-      const getSpecificLimitForLottery = (lotId, jugada) => {
-        if (!specificLimits || !lotId) return null;
+      // Convertir datos de la vista al formato esperado
+      const rows = capacities.map(cap => {
+        const pct = Math.min(100, cap.limite_efectivo ? (cap.uso_actual / cap.limite_efectivo) * 100 : 0);
         
-        // Formato: {lotteryId: {jugada: valor}}
-        const lotteryLimits = specificLimits[lotId];
-        return lotteryLimits && lotteryLimits[jugada] ? lotteryLimits[jugada] : null;
-      };
+        // Formatear número según la jugada
+        let formattedNumber = cap.numero_canonico;
+        if (cap.jugada === 'centena' && formattedNumber.length < 3) {
+          formattedNumber = formattedNumber.padStart(3, '0');
+        } else if (cap.jugada === 'parle' && formattedNumber.length < 4) {
+          formattedNumber = formattedNumber.padStart(4, '0');
+        } else if (cap.jugada === 'tripleta' && formattedNumber.length < 6) {
+          formattedNumber = formattedNumber.padStart(6, '0');
+        } else if ((cap.jugada === 'fijo' || cap.jugada === 'corrido') && formattedNumber.length < 2) {
+          formattedNumber = formattedNumber.padStart(2, '0');
+        }
 
-      // Función auxiliar para calcular el límite efectivo (mínimo entre los 3 tipos de límites)
-      const calculateEffectiveLimit = (perNumber, lotteryLimit, specLimit) => {
-        const limits = [];
-        if (perNumber !== undefined && perNumber !== null) limits.push(perNumber);
-        if (lotteryLimit !== undefined && lotteryLimit !== null) limits.push(lotteryLimit);
-        if (specLimit !== undefined && specLimit !== null) limits.push(specLimit);
-        return limits.length > 0 ? Math.min(...limits) : null;
-      };
-
-      const pushRow = (h, jug, numero, used, effective, hor, lotName, lotId) => {
-        const pct = Math.min(100, effective ? (used / effective) * 100 : 0);
-        rows.push({
-          loteriaId: String(lotId),
-          loteriaNombre: lotName,
-          horarioId: h,
-          horarioNombre: hor.nombre,
-          jugada: jug,
-          numero,
-          limite: effective,
-          usado: used,
+        return {
+          loteriaId: String(cap.id_loteria),
+          loteriaNombre: cap.loteria_nombre,
+          horarioId: cap.id_horario,
+          horarioNombre: cap.horario_nombre,
+          jugada: cap.jugada,
+          numero: formattedNumber,
+          limite: cap.limite_efectivo || 0,
+          usado: cap.uso_actual || 0,
           porcentaje: pct,
-          abierto: true
-        });
-      };
-
-      // a) Filas con uso real
-      const expectedLenFor = (jug) => jug==='centena'?3 : jug==='parle'?4 : jug==='tripleta'?6 : 2;
-      usageMap.forEach((used, key) => {
-        const [h,jug,numero] = key.split('|');
-        const hor = horarioMeta[h]; if(!hor) return;
-        const lotId = hor.id_loteria; const lotName = (lots||[]).find(l=>l.id===lotId)?.nombre || lotId;
-        const perNumber = limitNumberMap.get(`${h}|${jug}|${numero}`);
-        const lotteryLimit = lotteryLimits[lotId] && lotteryLimits[lotId][jug];
-        const specLimit = getSpecificLimitForLottery(lotId, jug);
-        const effective = calculateEffectiveLimit(perNumber, lotteryLimit, specLimit);
-        if(!effective) return;
-        const padLen = expectedLenFor(jug);
-        pushRow(h, jug, String(numero).padStart(padLen,'0'), used, effective, hor, lotName, lotId);
+          abierto: cap.abierto
+        };
       });
 
-      // b) Generar filas para jugadas con limite específico aunque no haya uso ni limite_numero.
-      if(specificLimits){
-        // Detectar formato: nuevo (por lotería) o antiguo (global)
-        const isNewFormat = Object.values(specificLimits).some(val => 
-          typeof val === 'object' && val !== null && !Array.isArray(val)
-        );
-
-        if (isNewFormat) {
-          // Formato nuevo: iterar por lotería y luego por jugadas
-          Object.entries(specificLimits).forEach(([lotId, lotteryLimits]) => {
-            if (typeof lotteryLimits !== 'object' || lotteryLimits === null) return;
-            
-            Object.entries(lotteryLimits).forEach(([jug, limVal]) => {
-              if(!limVal || limVal<=0) return;
-              const enumerate = (length) => {
-                (horariosRows||[]).forEach(hor => {
-                  if(!isOpen(hor.hora_inicio, hor.hora_fin)) return;
-                  if(hor.id_loteria !== parseInt(lotId)) return; // Solo horarios de esta lotería
-                  const lotName = (lots||[]).find(l=>l.id===hor.id_loteria)?.nombre || hor.id_loteria;
-                  const max = length===2? 100 : length===3? 1000 : 0;
-                  for(let n=0;n<max;n++){
-                    const num = String(n).padStart(length,'0');
-                    const keyUsage = `${hor.id}|${jug}|${num}`;
-                    if(usageMap.has(keyUsage)) continue;
-                    const perNumber = limitNumberMap.get(`${hor.id}|${jug}|${num}`);
-                    const lotteryLimit = lotteryLimits[hor.id_loteria] && lotteryLimits[hor.id_loteria][jug];
-                    const effective = calculateEffectiveLimit(perNumber, lotteryLimit, limVal);
-                    if(!effective) continue;
-                    pushRow(hor.id, jug, num, 0, effective, hor, lotName, hor.id_loteria);
-                  }
-                });
-              };
-              if(jug==='fijo' || jug==='corrido') enumerate(2);
-              else if(jug==='centena') enumerate(3);
-              // parle y tripleta NO se enumeran totalmente por tamaño explosivo; sólo aparecen si tienen uso o límite explícito.
-            });
-          });
-        } else {
-          // Formato antiguo: comportamiento original
-          Object.entries(specificLimits).forEach(([jug, limVal]) => {
-            if(!limVal || limVal<=0) return;
-            const enumerate = (length) => {
-              (horariosRows||[]).forEach(hor => {
-                if(!isOpen(hor.hora_inicio, hor.hora_fin)) return;
-                const lotId = hor.id_loteria; const lotName = (lots||[]).find(l=>l.id===lotId)?.nombre || lotId;
-                const max = length===2? 100 : length===3? 1000 : 0;
-                for(let n=0;n<max;n++){
-                  const num = String(n).padStart(length,'0');
-                  const keyUsage = `${hor.id}|${jug}|${num}`;
-                  if(usageMap.has(keyUsage)) continue;
-                  const perNumber = limitNumberMap.get(`${hor.id}|${jug}|${num}`);
-                  const lotteryLimit = lotteryLimits[lotId] && lotteryLimits[lotId][jug];
-                  const effective = calculateEffectiveLimit(perNumber, lotteryLimit, limVal);
-                  if(!effective) continue;
-                  pushRow(hor.id, jug, num, 0, effective, hor, lotName, lotId);
-                }
-              });
-            };
-            if(jug==='fijo' || jug==='corrido') enumerate(2);
-            else if(jug==='centena') enumerate(3);
-            // parle y tripleta NO se enumeran totalmente por tamaño explosivo; sólo aparecen si tienen uso o límite explícito.
-          });
-        }
+      // Filtrar según opciones
+      let finalRows = rows;
+      
+      if (!includeClosed) {
+        finalRows = finalRows.filter(r => r.abierto);
+      }
+      
+      if (hideZero) {
+        finalRows = finalRows.filter(r => r.usado > 0);
       }
 
-      // c) Incluir filas para límites por número (limite_numero) aunque no haya uso ni limite específico (o aunque lo haya), evitando duplicados
-      const presentSet = new Set(rows.map(r => `${r.horarioId}|${r.jugada}|${r.numero}`));
-      (limits||[]).forEach(r => {
-        const h = r.id_horario; const jug = r.jugada; const numero = r.numero;
-        const hor = horarioMeta[h]; if(!hor) return;
-        if(!isOpen(hor.hora_inicio, hor.hora_fin)) return;
-        const key = `${h}|${jug}|${numero}`;
-        if(presentSet.has(key)) return; // ya agregado por uso o enumeración de específico
-        const lotId = hor.id_loteria; const lotName = (lots||[]).find(l=>l.id===lotId)?.nombre || lotId;
-        const perNumber = r.limite;
-        const lotteryLimit = lotteryLimits[lotId] && lotteryLimits[lotId][jug];
-        const specLimit = getSpecificLimitForLottery(lotId, jug);
-        const effective = calculateEffectiveLimit(perNumber, lotteryLimit, specLimit);
-        if(!effective) return;
-        const padLen = expectedLenFor(jug);
-        pushRow(h, jug, String(numero).padStart(padLen,'0'), 0, effective, hor, lotName, lotId);
-        presentSet.add(key);
-      });
-
-  // 9. Ordenar por porcentaje desc y conservar todos (incluye usado=0 para ver capacidad disponible)
-  rows.sort((a,b)=> b.porcentaje - a.porcentaje);
-  let finalRows = includeClosed ? rows : rows.filter(r=> r.abierto);
-  if(hideZero) finalRows = finalRows.filter(r=> r.usado > 0);
-  setCapacityData(finalRows);
+      // Ordenar por porcentaje descendente
+      finalRows.sort((a, b) => b.porcentaje - a.porcentaje);
+      
+      setCapacityData(finalRows);
     } catch(e){ setError(e.message||'Error cargando capacidad'); }
     setLoading(false);
   }, [bankId, includeClosed, hideZero]);
