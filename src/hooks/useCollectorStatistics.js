@@ -163,7 +163,6 @@ export const useCollectorStatistics = (options = {}) => {
   const loadCollectorPlaysData = async (userId, filters = {}) => {
     try {
       if (!userId) {
-        console.warn('⚠️ [loadCollectorPlaysData] No userId provided');
         return [];
       }
 
@@ -176,13 +175,9 @@ export const useCollectorStatistics = (options = {}) => {
       if (period) {
         // Usar mapeo directo por período (nueva funcionalidad)
         viewConfig = getViewByPeriod(period);
-        console.log(`🚀 [loadCollectorPlaysData] Usando vista por período ${period}:`, viewConfig.viewName);
       } else {
         // Usar detección por fechas (funcionalidad legacy)
         viewConfig = getOptimizedView(startDate, endDate);
-        if (viewConfig.isOptimized) {
-          console.log(`🚀 [loadCollectorPlaysData] Usando vista optimizada para ${viewConfig.period}:`, viewConfig.viewName);
-        }
       }
       
       const { viewName, isOptimized } = viewConfig;
@@ -228,7 +223,6 @@ export const useCollectorStatistics = (options = {}) => {
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) {
-          console.error('❌ [loadCollectorPlaysData] Error cargando datos:', error);
           return [];
         }
         
@@ -246,7 +240,6 @@ export const useCollectorStatistics = (options = {}) => {
         
         // Límite de seguridad para evitar bucles infinitos
         if (page > 250) { // Hasta 1.25M registros
-          console.warn('⚠️ [loadCollectorPlaysData] Límite de páginas alcanzado (1.25M registros)');
           break;
         }
         
@@ -258,7 +251,6 @@ export const useCollectorStatistics = (options = {}) => {
       return allPlaysData || [];
       
     } catch (error) {
-      console.error('❌ Error en loadCollectorPlaysData:', error);
       return [];
     }
   };
@@ -372,7 +364,6 @@ export const useCollectorStatistics = (options = {}) => {
       return groupedData;
       
     } catch (error) {
-      console.error('❌ Error cargando jugadas collector:', error);
       setTableData(prev => ({
         ...prev,
         plays: []
@@ -434,7 +425,6 @@ export const useCollectorStatistics = (options = {}) => {
           setUserId(user.id);
         }
       } catch (error) {
-        console.error('❌ Error cargando usuario:', error);
       }
     };
 

@@ -163,7 +163,6 @@ export const useListeroStatistics = (options = {}) => {
   const loadListeroPlaysData = async (userId, filters = {}) => {
     try {
       if (!userId) {
-        console.warn('⚠️ [loadListeroPlaysData] No userId provided');
         return [];
       }
 
@@ -174,13 +173,9 @@ export const useListeroStatistics = (options = {}) => {
       if (period) {
         // Usar mapeo directo por período (nueva funcionalidad)
         viewConfig = getViewByPeriod(period);
-        console.log(`🚀 [loadListeroPlaysData] Usando vista por período ${period}:`, viewConfig.viewName);
       } else {
         // Usar detección por fechas (funcionalidad legacy)
         viewConfig = getOptimizedView(startDate, endDate);
-        if (viewConfig.isOptimized) {
-          console.log(`🚀 [loadListeroPlaysData] Usando vista optimizada para ${viewConfig.period}:`, viewConfig.viewName);
-        }
       }
       
       const { viewName, isOptimized } = viewConfig;
@@ -224,7 +219,6 @@ export const useListeroStatistics = (options = {}) => {
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) {
-          console.error('❌ [loadListeroPlaysData] Error cargando datos:', error);
           return [];
         }
         
@@ -237,7 +231,6 @@ export const useListeroStatistics = (options = {}) => {
         }
         
         if (page > 250) { // Hasta 1.25M registros
-          console.warn('⚠️ [loadListeroPlaysData] Límite de páginas alcanzado (1.25M registros)');
           break;
         }
       }
@@ -245,7 +238,6 @@ export const useListeroStatistics = (options = {}) => {
       return allPlaysData || [];
       
     } catch (error) {
-      console.error('❌ Error en loadListeroPlaysData:', error);
       return [];
     }
   };
@@ -315,7 +307,6 @@ export const useListeroStatistics = (options = {}) => {
       return formattedPlays;
       
     } catch (error) {
-      console.error('❌ Error cargando jugadas listero:', error);
       setTableData(prev => ({
         ...prev,
         plays: []
@@ -341,7 +332,6 @@ export const useListeroStatistics = (options = {}) => {
           setUserId(user.id);
         }
       } catch (error) {
-        console.error('❌ Error cargando usuario:', error);
       }
     };
 

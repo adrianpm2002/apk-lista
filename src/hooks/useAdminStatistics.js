@@ -167,7 +167,6 @@ export const useAdminStatistics = (options = {}) => {
   const loadAdminPlaysData = async (userId, filters = {}) => {
     try {
       if (!userId) {
-        console.warn('⚠️ [loadAdminPlaysData] No userId provided');
         return [];
       }
 
@@ -180,20 +179,12 @@ export const useAdminStatistics = (options = {}) => {
       if (period) {
         // Usar mapeo directo por período (nueva funcionalidad)
         viewConfig = getViewByPeriod(period);
-        console.log(`🚀 [loadAdminPlaysData] Usando vista por período ${period}:`, viewConfig.viewName);
       } else {
         // Usar detección por fechas (funcionalidad legacy)
         viewConfig = getOptimizedView(startDate, endDate);
-        if (viewConfig.isOptimized) {
-          console.log(`🚀 [loadAdminPlaysData] Usando vista optimizada para ${viewConfig.period}:`, viewConfig.viewName);
-        }
       }
       
       const { viewName, isOptimized } = viewConfig;
-      
-      if (isOptimized) {
-        console.log(`🚀 [loadAdminPlaysData] Usando vista optimizada para ${period}:`, viewName);
-      }
       
       // Formatear fechas si están disponibles y no estamos usando vista optimizada
       let dateFilters = {};
@@ -238,7 +229,6 @@ export const useAdminStatistics = (options = {}) => {
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) {
-          console.error('❌ [loadAdminPlaysData] Error cargando datos:', error);
           return [];
         }
         
@@ -256,7 +246,6 @@ export const useAdminStatistics = (options = {}) => {
         
         // Límite de seguridad para evitar bucles infinitos
         if (page > 250) { // Hasta 1.25M registros
-          console.warn('⚠️ [loadAdminPlaysData] Límite de páginas alcanzado (1.25M registros)');
           break;
         }
         
@@ -268,7 +257,6 @@ export const useAdminStatistics = (options = {}) => {
       return allPlaysData || [];
       
     } catch (error) {
-      console.error('❌ Error en loadAdminPlaysData:', error);
       return [];
     }
   };
@@ -418,7 +406,6 @@ export const useAdminStatistics = (options = {}) => {
       return groupedData;
       
     } catch (error) {
-      console.error('❌ Error cargando jugadas admin:', error);
       setTableData(prev => ({
         ...prev,
         plays: []
@@ -488,7 +475,7 @@ export const useAdminStatistics = (options = {}) => {
           setUserId(user.id);
         }
       } catch (error) {
-        console.error('❌ Error cargando usuario:', error);
+        // Error silencioso
       }
     };
 
