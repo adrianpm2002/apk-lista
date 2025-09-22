@@ -32,7 +32,7 @@ export function useBankCapacityData(bankId, options = {}) {
         return;
       }
 
-      // Agrupar por horario+jugada+numero y sumar límites y uso
+      // Agrupar por horario+jugada+numero y sumar límites de todos los listeros
       const aggregated = new Map();
       
       capacities.forEach(cap => {
@@ -47,15 +47,14 @@ export function useBankCapacityData(bankId, options = {}) {
             jugada: cap.jugada,
             numero: cap.numero,
             limite: 0,
-            usado: 0,
+            usado: cap.bank_used_total || 0, // Uso total del banco (mismo en todas las filas)
             abierto: true // La vista ya filtra por horarios abiertos
           });
         }
         
         const item = aggregated.get(key);
-        // Para el banco, usar los límites y uso total del banco
-        item.limite += cap.bank_allowed_total || 0;
-        item.usado += cap.bank_used_total || 0;
+        // Sumar límites efectivos de todos los listeros para obtener capacidad total del banco
+        item.limite += cap.effective_limit_listero || 0;
       });
 
       // Convertir a array y calcular porcentajes
