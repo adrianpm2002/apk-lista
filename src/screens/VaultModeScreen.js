@@ -423,93 +423,124 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       }
     }
 
-    try {
-      // Solo verificación de límites (duplicados manejados por BD)
-      const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
-      const ctx = await fetchLimitsContext(horarios, userId);
-      
-      const tempInstructions = payloads.map(p=> ({ 
-        playType: p.jugada, 
-        numbers: p.numeros.split(',').filter(Boolean), 
-        amountEach: p.monto_unitario 
-      }));
-      
-      const violations = checkInstructionsLimits(tempInstructions, horarios, ctx);
-      if(violations.length){
-        setLimitViolations(violations);
-        setInsertFeedback({ 
-          type: 'error',
-          message: `Se encontraron ${violations.length} violación(es) de límites. Revisa las restricciones.`
-        });
-        return;
-      }
-      
-      // Inserción directa - duplicados detectados por trigger BD
-      setIsInserting(true);
-      const successes = [];
-      const failures = [];
-      
-      for(const p of payloads){
-        const { data, error } = await supabase.from('jugada').insert({
-          id_listero: p.id_listero,
-          id_horario: p.id_horario,
-          jugada: p.jugada,
-          numeros: p.numeros,
-          nota: p.nota,
-          monto_unitario: p.monto_unitario,
-          monto_total: p.monto_total
-        }).select('id').single();
-        
-        if(error){
-          // Tu trigger enviará: "Jugada duplicada no permitida en el mismo día"
-          const isDuplicate = error.message?.includes('Jugada duplicada') || 
-                             error.message?.includes('duplicada') || 
-                             error.code === '23505';
-          failures.push({ p, error, isDuplicate });
-        } else {
-          successes.push(data.id);
-        }
-      }
-      
-      if(failures.length === 0){
-        // ¡ÉXITO TOTAL! Limpiar toda la pantalla automáticamente
-        setJugadasFijosYCorridos([]);
-        setJugadasParles([]);
-        setJugadasCentenas([]);
-        setNote('');
-        setNumero('');
-        setFijo('');
-        setCorrido('');
-        setParleInput('');
-        setPrecioParle('');
-        setCentenaNumero('');
-        setCentenaPrecio('');
-        setJugadasConError(new Set());
-        setShowFieldErrors(false);
-        
-        setInsertFeedback({ 
-          type: 'success',
-          message: `${successes.length} jugada(s) enviada(s) exitosamente.`
-        });
-      } else {
-        // Hubo algunos errores - extraer mensajes del servidor
-        const serverErrors = failures.map(f => f.error.message).filter(Boolean);
-        const duplicateFails = failures.filter(f=>f.isDuplicate);
-        setInsertFeedback({ 
-          type: 'warning',
-          message: `${successes.length} exitosa(s), ${failures.length} fallida(s)${duplicateFails.length ? ` (${duplicateFails.length} duplicada(s))` : ''}.`,
-          serverError: serverErrors.length ? serverErrors.join(' | ') : undefined
-        });
-      }
-    } catch(err){
-      console.error('Error general insertando jugadas', err);
+    // Solo verificación de límites (duplicados manejados por BD)
+    const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
+    const ctx = await fetchLimitsContext(horarios, userId);
+    
+    const tempInstructions = payloads.map(p=> ({ 
+      playType: p.jugada, 
+      numbers: p.numeros.split(',').filter(Boolean), 
+      amountEach: p.monto_unitario 
+    }));
+    
+    const violations = checkInstructionsLimits(tempInstructions, horarios, ctx);
+    if(violations.length){
+      setLimitViolations(violations);
       setInsertFeedback({ 
         type: 'error',
-        message: 'Error inesperado al enviar jugadas. Intenta nuevamente.'
+        message: `Se encontraron ${violations.length} violación(es) de límites. Revisa las restricciones.`
       });
-    } finally { 
-      setIsInserting(false); 
+      return;
     }
+    
+    // Inserción usando batch (más eficiente)
+    setIsInserting(true);
+    
+    try {
+        // Intentar batch insert primero
+        const { data: insertedData, error: batchError } = await supabase
+          .from('jugada')
+          .insert(payloads)
+          .select('id');
+        
+        if (batchError) {
+          // Si batch falla, usar inserción secuencial para manejar duplicados
+          console.warn('Batch insert failed, trying sequential:', batchError);
+          const successes = [];
+          const failures = [];
+          
+          for(const p of payloads){
+            const { data, error } = await supabase.from('jugada').insert({
+              id_listero: p.id_listero,
+              id_horario: p.id_horario,
+              jugada: p.jugada,
+              numeros: p.numeros,
+              nota: p.nota,
+              monto_unitario: p.monto_unitario,
+              monto_total: p.monto_total
+            }).select('id').single();
+            
+            if(error){
+              const isDuplicate = error.message?.includes('Jugada duplicada') || 
+                                 error.message?.includes('duplicada') || 
+                                 error.code === '23505';
+              failures.push({ p, error, isDuplicate });
+            } else {
+              successes.push(data.id);
+            }
+          }
+          
+          if(failures.length === 0){
+            // ¡ÉXITO TOTAL! Limpiar toda la pantalla automáticamente
+            setJugadasFijosYCorridos([]);
+            setJugadasParles([]);
+            setJugadasCentenas([]);
+            setNote('');
+            setNumero('');
+            setFijo('');
+            setCorrido('');
+            setParleInput('');
+            setPrecioParle('');
+            setCentenaNumero('');
+            setCentenaPrecio('');
+            setJugadasConError(new Set());
+            setShowFieldErrors(false);
+            
+            setInsertFeedback({ 
+              type: 'success',
+              message: `${payloads.length} jugada(s) enviada(s) exitosamente.`
+            });
+          } else {
+            // Hubo algunos errores - extraer mensajes del servidor
+            const serverErrors = failures.map(f => f.error.message).filter(Boolean);
+            const duplicateFails = failures.filter(f=>f.isDuplicate);
+            setInsertFeedback({ 
+              type: 'warning',
+              message: `${successes.length} exitosa(s), ${failures.length} fallida(s)${duplicateFails.length ? ` (${duplicateFails.length} duplicada(s))` : ''}.`,
+              serverError: serverErrors.length ? serverErrors.join(' | ') : undefined
+            });
+          }
+        } else {
+          // Batch exitoso - limpiar pantalla automáticamente
+          setJugadasFijosYCorridos([]);
+          setJugadasParles([]);
+          setJugadasCentenas([]);
+          setNote('');
+          setNumero('');
+          setFijo('');
+          setCorrido('');
+          setParleInput('');
+          setPrecioParle('');
+          setCentenaNumero('');
+          setCentenaPrecio('');
+          setJugadasConError(new Set());
+          setShowFieldErrors(false);
+          
+          setInsertFeedback({ 
+            type: 'success',
+            message: `${payloads.length} jugada(s) enviada(s) exitosamente.`
+          });
+        }
+        
+      } catch(err){
+        console.error('Error general insertando jugadas', err);
+        setInsertFeedback({ 
+          type: 'error',
+          message: 'Error inesperado al enviar jugadas. Intenta nuevamente.'
+        });
+      } finally { 
+        setIsInserting(false); 
+      }
   };
 
   return (

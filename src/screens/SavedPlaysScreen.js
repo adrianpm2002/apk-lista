@@ -58,15 +58,11 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         return;
       }
       
-      // Usar la nueva view v_registro_diario para obtener todos los datos optimizados
-      const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD en zona horaria local
-      
+      // Usar la nueva view v_registro_diario (ya filtrada por día actual en la BD)
       const { data, error } = await supabase
         .from('v_registro_diario')
         .select('*')
         .eq('id_listero', userId)
-        .gte('fecha_jugada', `${today} 00:00:00`)
-        .lte('fecha_jugada', `${today} 23:59:59.999`)
         .order('fecha_jugada', { ascending: false });
         
       if (error) throw error;

@@ -535,7 +535,10 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
       if(!parsedInstructions.length){ setPlaysError(true); return; }
 
       try {
-        const playsToSave = [];
+        // Preparar payloads para batch insert
+        const { data: { user } } = await supabase.auth.getUser();
+        const payloads = [];
+        
         for (const lottery of selectedLotteries) {
           for(const instr of parsedInstructions){
             let unit = instr.amountEach;
@@ -546,40 +549,69 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
               total = instr.totalPerLottery; // ya el original
               unit = instr.amountEach; // ya dividido
             }
-            playsToSave.push({
-              lottery,
-              schedule: selectedSchedules[lottery],
-              playType: instr.playType,
-              numbers: instr.numbers.join(','),
-              note: note.trim() || null,
-              amount: unit,
-              total,
-              comando: plays.trim() // Agregar el texto original del input con saltos de línea
+            
+            payloads.push({
+              id_horario: selectedSchedules[lottery],
+              jugada: instr.playType,
+              numeros: instr.numbers.join(','),
+              nota: note.trim() || null,
+              monto_unitario: unit,
+              monto_total: total,
+              comando: plays.trim(), // Agregar el texto original del input
+              id_listero: user?.id || null
             });
           }
         }
-        let success=0; let fail=0; let blockedViolations=[]; let errMsgs=[];
-        for(const playData of playsToSave){
-          const result = await submitPlayWithConfirmation(playData);
-          if(result.success) {
-            success++; 
-          } else { 
-            fail++; 
-            if(result.limitViolations) {
-              blockedViolations = blockedViolations.concat(result.limitViolations);
+
+        // Inserción usando batch (más eficiente)
+        try {
+          // Intentar batch insert primero
+          const { data: insertedData, error: batchError } = await supabase
+            .from('jugada')
+            .insert(payloads)
+            .select('id');
+          
+          if (batchError) {
+            // Si batch falla, usar inserción secuencial para manejar duplicados
+            console.warn('Batch insert failed, trying sequential:', batchError);
+            let success = 0; 
+            let fail = 0; 
+            let errMsgs = [];
+            
+            for(const payload of payloads){
+              const { data, error } = await supabase.from('jugada').insert(payload).select('id').single();
+              if(error){
+                fail++;
+                const isDuplicate = error.message?.includes('Jugada duplicada') || 
+                                   error.message?.includes('duplicada') || 
+                                   error.code === '23505';
+                if(error.message) errMsgs.push(error.message);
+              } else {
+                success++;
+              }
             }
-            if(result.message) {
-              errMsgs.push(result.message);
+            
+            setInsertFeedback({ success, fail, duplicates:[], edit:false, serverError: errMsgs.length ? errMsgs.join(' | ') : undefined });
+            if(success){
+              setPlays(''); 
+              setCalculatedAmount(0); 
+              setTotal(0); 
+              setParsedInstructions([]);
+              // Mantener la nota después del envío exitoso
             }
+          } else {
+            // Batch exitoso - limpiar pantalla automáticamente
+            const success = payloads.length;
+            setInsertFeedback({ success, fail: 0, duplicates:[], edit:false });
+            setPlays(''); 
+            setCalculatedAmount(0); 
+            setTotal(0); 
+            setParsedInstructions([]);
+            // Mantener la nota después del envío exitoso
           }
-        }
-        if(blockedViolations.length){
-          setLimitViolations(blockedViolations.map(v=> ({ numero:v.number, jugada:v.limitType || v.jugada || '', permitido:v.limit, usado:v.current })));
-        }
-        setInsertFeedback({ success, fail, duplicates:[], edit:false, serverError: errMsgs.length ? errMsgs.join(' | ') : undefined });
-        if(success){
-          setPlays(''); setCalculatedAmount(0); setTotal(0); setParsedInstructions([]);
-          // Mantener la nota después del envío exitoso
+        } catch (generalError) {
+          console.error('Error general insertando jugadas:', generalError);
+          setInsertFeedback({ success: 0, fail: payloads.length, duplicates:[], edit:false, serverError: 'Error inesperado al enviar jugadas' });
         }
       } catch (error) {
         console.error('Error al guardar las jugadas:', error);
