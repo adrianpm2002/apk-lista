@@ -816,6 +816,14 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
               style={styles.fieldContainer}
               inputStyle={styles.unifiedInput}
             />
+            <MoneyInputField
+              label={'70% del Total'}
+              value={Math.round(total * 0.7).toString()}
+              editable={false}
+              placeholder="$0"
+              style={styles.fieldContainer}
+              inputStyle={styles.unifiedInput}
+            />
           </View>
         </View>
 

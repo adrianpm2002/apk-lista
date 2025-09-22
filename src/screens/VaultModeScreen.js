@@ -3,6 +3,7 @@ import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ScrollView 
 import DropdownPicker from '../components/DropdownPicker';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import InputField from '../components/InputField';
+import MoneyInputField from '../components/MoneyInputField';
 import { supabase } from '../supabaseClient';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import ModeSelector from '../components/ModeSelector';
@@ -543,6 +544,15 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       }
   };
 
+  // Cálculo de totales para mostrar en UI
+  const sumFijos = jugadasFijosYCorridos.reduce((acc, j) => acc + (parseFloat(j.fijo) || 0), 0);
+  const sumCorridos = jugadasFijosYCorridos.reduce((acc, j) => acc + (parseFloat(j.corrido) || 0), 0);
+  const sumParles = jugadasParles.reduce((acc, j) => acc + (parseFloat(j.precioIndividual) || 0), 0);
+  const sumCentenas = jugadasCentenas.reduce((acc, j) => acc + (parseFloat(j.precio) || 0), 0);
+  const perLotteryTotalRaw = sumFijos + sumCorridos + sumParles + sumCentenas;
+  const lotteriesCount = selectedLotteries.length || 1;
+  const totalGeneral = perLotteryTotalRaw * lotteriesCount;
+
   return (
   <View style={[styles.container, { minHeight: '100vh' }]}> 
       {/* Barra de navegación superior */}
@@ -846,6 +856,35 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           </View>
           {/* Eliminadas View vacías de inputs debajo de las listas */}
         </View>
+        {/* Totales */}
+        <View style={styles.generalTotalContainer}>
+          {selectedLotteries.length >= 2 && (
+            <MoneyInputField
+              label={'Monto por Lotería'}
+              value={Math.round(totalGeneral / lotteriesCount).toString()}
+              editable={false}
+              placeholder="$0"
+              style={styles.fieldContainer}
+              inputStyle={styles.unifiedInput}
+            />
+          )}
+          <MoneyInputField
+            label={'Monto General'}
+            value={totalGeneral.toString()}
+            editable={false}
+            placeholder="$0"
+            style={styles.fieldContainer}
+            inputStyle={styles.unifiedInput}
+          />
+          <MoneyInputField
+            label={'70% del Total'}
+            value={Math.round(totalGeneral * 0.7).toString()}
+            editable={false}
+            placeholder="$0"
+            style={styles.fieldContainer}
+            inputStyle={styles.unifiedInput}
+          />
+        </View>
         {/* Botones de acción */}
         <View style={styles.actionButtonsContainer}>
           <TouchableOpacity 
@@ -999,6 +1038,24 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2c3e50',
     textAlign: 'center',
+  // Reutilizar estilos similares a VisualMode para totales
+  generalTotalContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    paddingHorizontal: 8,
+    marginBottom: 8,
+    flexWrap: 'wrap',
+  },
+  fieldContainer: {
+    minWidth: 120,
+    maxWidth: 160,
+  },
+  unifiedInput: {
+    height: 36,
+    paddingHorizontal: 8,
+    fontSize: 14,
+  },
     marginBottom: 10,
     paddingBottom: 8,
     borderBottomWidth: 1,
