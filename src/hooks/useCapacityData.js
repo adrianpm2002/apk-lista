@@ -8,7 +8,7 @@ import { supabase } from '../supabaseClient';
  * Retorna siempre sólo horarios abiertos (misma lógica que BatteryButton original) salvo que se pase options.includeClosed.
  */
 export function useCapacityData(bankId, options = {}) {
-  const { includeClosed = false, auto = false, hideZero = true } = options;
+  const { auto = false, hideZero = true } = options;
   const [capacityData, setCapacityData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -41,10 +41,10 @@ export function useCapacityData(bankId, options = {}) {
 
       // Convertir datos de la vista al formato esperado
       const rows = capacities.map(cap => {
-        const pct = Math.min(100, cap.limite_efectivo ? (cap.uso_actual / cap.limite_efectivo) * 100 : 0);
+        const pct = Math.min(100, cap.effective_limit_listero ? (cap.used_today_listero / cap.effective_limit_listero) * 100 : 0);
         
         // Formatear número según la jugada
-        let formattedNumber = cap.numero_canonico;
+        let formattedNumber = cap.numero;
         if (cap.jugada === 'centena' && formattedNumber.length < 3) {
           formattedNumber = formattedNumber.padStart(3, '0');
         } else if (cap.jugada === 'parle' && formattedNumber.length < 4) {
@@ -57,25 +57,22 @@ export function useCapacityData(bankId, options = {}) {
 
         return {
           loteriaId: String(cap.id_loteria),
-          loteriaNombre: cap.loteria_nombre,
+          loteriaNombre: cap.nombre_loteria,
           horarioId: cap.id_horario,
-          horarioNombre: cap.horario_nombre,
+          horarioNombre: cap.nombre_horario,
           jugada: cap.jugada,
           numero: formattedNumber,
-          limite: cap.limite_efectivo || 0,
-          usado: cap.uso_actual || 0,
+          limite: cap.effective_limit_listero || 0,
+          usado: cap.used_today_listero || 0,
           porcentaje: pct,
-          abierto: cap.abierto
+          abierto: true // La vista ya filtra por horarios abiertos
         };
       });
 
       // Filtrar según opciones
       let finalRows = rows;
       
-      if (!includeClosed) {
-        finalRows = finalRows.filter(r => r.abierto);
-      }
-      
+      // Ya no necesitamos filtrar por abierto, la vista lo hace
       if (hideZero) {
         finalRows = finalRows.filter(r => r.usado > 0);
       }
@@ -86,7 +83,7 @@ export function useCapacityData(bankId, options = {}) {
       setCapacityData(finalRows);
     } catch(e){ setError(e.message||'Error cargando capacidad'); }
     setLoading(false);
-  }, [bankId, includeClosed, hideZero]);
+  }, [bankId, hideZero]);
 
   // Auto fetch si se pide y cambia banco
   useEffect(()=>{

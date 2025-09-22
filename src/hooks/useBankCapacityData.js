@@ -6,7 +6,7 @@ import { supabase } from '../supabaseClient';
  * Muestra qué tan llenos están los números considerando la suma total de uso y límites de todos los listeros.
  */
 export function useBankCapacityData(bankId, options = {}) {
-  const { includeClosed = false, auto = false, hideZero = true } = options;
+  const { auto = false, hideZero = true } = options;
   const [capacityData, setCapacityData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -36,25 +36,26 @@ export function useBankCapacityData(bankId, options = {}) {
       const aggregated = new Map();
       
       capacities.forEach(cap => {
-        const key = `${cap.id_horario}|${cap.jugada}|${cap.numero_canonico}`;
+        const key = `${cap.id_horario}|${cap.jugada}|${cap.numero}`;
         
         if (!aggregated.has(key)) {
           aggregated.set(key, {
             loteriaId: String(cap.id_loteria),
-            loteriaNombre: cap.loteria_nombre,
+            loteriaNombre: cap.nombre_loteria,
             horarioId: cap.id_horario,
-            horarioNombre: cap.horario_nombre,
+            horarioNombre: cap.nombre_horario,
             jugada: cap.jugada,
-            numero: cap.numero_canonico,
+            numero: cap.numero,
             limite: 0,
             usado: 0,
-            abierto: cap.abierto
+            abierto: true // La vista ya filtra por horarios abiertos
           });
         }
         
         const item = aggregated.get(key);
-        item.limite += cap.limite_efectivo || 0;
-        item.usado += cap.uso_actual || 0;
+        // Para el banco, usar los límites y uso total del banco
+        item.limite += cap.bank_allowed_total || 0;
+        item.usado += cap.bank_used_total || 0;
       });
 
       // Convertir a array y calcular porcentajes
@@ -80,9 +81,8 @@ export function useBankCapacityData(bankId, options = {}) {
         };
       });
 
-      // Filtrar según opciones
+      // Filtrar según opciones - ya no filtramos por abierto, la vista lo hace
       const filteredRows = rows.filter(row => {
-        if (!includeClosed && !row.abierto) return false;
         if (hideZero && row.usado === 0) return false;
         return true;
       });
@@ -96,7 +96,7 @@ export function useBankCapacityData(bankId, options = {}) {
       setError(e.message || 'Error cargando capacidad del banco');
     }
     setLoading(false);
-  }, [bankId, includeClosed, hideZero]);
+  }, [bankId, hideZero]);
 
   // Auto fetch si se pide y cambia banco
   useEffect(() => {
