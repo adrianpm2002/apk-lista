@@ -550,44 +550,69 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   setInsertFeedback({ success:0, fail:payloads.length, duplicates:[], blocked:true });
         return; // aborta inserción
       }
-      // 7. Insertar (sin violaciones)
+      // 7. Insertar usando batch (más eficiente)
       setIsInserting(true);
-      const successes=[]; const failures=[];
       
-      for(const p of payloads){
-        const { data, error } = await supabase.from('jugada').insert(p).select('id').single();
-        if(error){
-          const msg = (error.message||'').toLowerCase();
-          const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || error.code==='23505';
-          failures.push({ p, error, isDuplicate });
+      try {
+        const { data: insertedData, error: batchError } = await supabase
+          .from('jugada')
+          .insert(payloads)
+          .select('id');
+        
+        if (batchError) {
+          // Si hay error en batch, intentar secuencial para identificar duplicados
+          console.warn('Batch insert failed, trying sequential:', batchError);
+          const successes = []; 
+          const failures = [];
+          
+          for(const p of payloads){
+            const { data, error } = await supabase.from('jugada').insert(p).select('id').single();
+            if(error){
+              const msg = (error.message||'').toLowerCase();
+              const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || error.code==='23505';
+              failures.push({ p, error, isDuplicate });
+            } else {
+              successes.push(data.id);
+            }
+          }
+          
+          if(failures.length===0){
+            setPlays('');
+            setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
+            setTotal(0);
+            setShowFieldErrors(false);
+          }
+          
+          if(failures.length){
+            const duplicateFails = failures.filter(f=>f.isDuplicate);
+            const serverErrors = failures.map(f => f.error.message).filter(Boolean);
+            setInsertFeedback({ 
+              success:successes.length, 
+              fail:failures.length, 
+              duplicates: duplicateFails.map(f=>({ jugada:f.p.jugada, numeros:f.p.numeros, nota:f.p.nota, horario:f.p.id_horario })),
+              serverError: serverErrors.length ? serverErrors.join(' | ') : undefined
+            });
+          } else {
+            setInsertFeedback({ success:successes.length, fail:0, duplicates:[] });
+          }
         } else {
-          successes.push(data.id);
+          // Batch insert exitoso
+          const successes = insertedData || [];
+          setPlays('');
+          setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
+          setTotal(0);
+          setShowFieldErrors(false);
+          setInsertFeedback({ success: successes.length, fail: 0, duplicates: [] });
         }
-      }
-      if(failures.length===0){
-        setPlays('');
-        setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
-        // Mantener la nota después del envío exitoso
-        setTotal(0);
-        setShowFieldErrors(false);
-      }
-      if(failures.length){
-        const duplicateFails = failures.filter(f=>f.isDuplicate);
-        const serverErrors = failures.map(f => f.error.message).filter(Boolean);
-        setInsertFeedback({ 
-          success:successes.length, 
-          fail:failures.length, 
-          duplicates: duplicateFails.map(f=>({ jugada:f.p.jugada, numeros:f.p.numeros, nota:f.p.nota, horario:f.p.id_horario })),
-          serverError: serverErrors.length ? serverErrors.join(' | ') : undefined
-        });
-        // Feedback detallado ya en banner insertFeedback
-      } else {
-        setInsertFeedback({ success:successes.length, fail:0, duplicates:[] });
-      }
-    } catch(err){
-      console.error('Error general insertando jugadas', err);
-      setInsertFeedback({ success:0, fail:payloads.length||1, duplicates:[] });
-    } finally { setIsInserting(false); }
+      } catch(err){
+        console.error('Error general insertando jugadas', err);
+        setInsertFeedback({ success:0, fail:payloads.length||1, duplicates:[] });
+      } finally { setIsInserting(false); }
+    } catch (outerErr) {
+      console.error('Error general en handleSend:', outerErr);
+      setError('Error inesperado al procesar jugadas');
+      setIsInserting(false);
+    }
   };
 
   const handleClear = () => {
