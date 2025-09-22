@@ -28,11 +28,11 @@ export const useCollectorStatistics = (options = {}) => {
   const getViewByPeriod = (period) => {
     switch (period) {
       case 'today':
-        return { viewName: 'v_estadisticas_hoy_cerradas', isOptimized: true, period: 'hoy' };
+        return { viewName: 'v_estadisticas_hoy', isOptimized: true, period: 'hoy' };
       case 'yesterday':
         return { viewName: 'v_estadisticas_ayer', isOptimized: true, period: 'ayer' };
       case 'last7days':
-        return { viewName: 'v_estadisticas_ultimos_7_dias_cerradas', isOptimized: true, period: 'últimos 7 días' };
+        return { viewName: 'v_estadisticas_7d', isOptimized: true, period: 'últimos 7 días' };
       case 'last30days':
         return { viewName: 'v_estadisticas_ultimo_mes_cerradas', isOptimized: true, period: 'último mes' };
       case 'lastMonth':
@@ -142,13 +142,13 @@ export const useCollectorStatistics = (options = {}) => {
   // Helper para determinar qué vista usar según el filtro de fechas
   const getOptimizedView = (startDate, endDate) => {
     if (isFilteringToday(startDate, endDate)) {
-      return { viewName: 'v_estadisticas_hoy_cerradas', isOptimized: true, period: 'hoy' };
+      return { viewName: 'v_estadisticas_hoy', isOptimized: true, period: 'hoy' };
     }
     if (isFilteringYesterday(startDate, endDate)) {
       return { viewName: 'v_estadisticas_ayer', isOptimized: true, period: 'ayer' };
     }
     if (isFilteringLast7Days(startDate, endDate)) {
-      return { viewName: 'v_estadisticas_ultimos_7_dias_cerradas', isOptimized: true, period: 'últimos 7 días' };
+      return { viewName: 'v_estadisticas_7d', isOptimized: true, period: 'últimos 7 días' };
     }
     if (isFilteringLast30Days(startDate, endDate)) {
       return { viewName: 'v_estadisticas_ultimo_mes_cerradas', isOptimized: true, period: 'último mes' };
