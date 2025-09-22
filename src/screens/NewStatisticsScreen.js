@@ -35,10 +35,7 @@ const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
           setUserRole(profile.role || 'listero');
         }
         
-        console.log('🔍 [StatisticsScreen] Rol detectado:', profile?.role || 'listero');
-        
       } catch (error) {
-        console.error('Error detectando rol:', error);
         setUserRole('listero'); // Por defecto listero
       } finally {
         setIsLoading(false);

@@ -70,7 +70,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         // console.log('🔍 [StatisticsScreen] Loading user profile...');
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          console.log('❌ [StatisticsScreen] No user found');
           return;
         }
         
@@ -81,13 +80,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           .single();
           
         if (error || !profile) {
-          console.log('❌ [StatisticsScreen] Error loading profile:', error);
           return;
         }
         
         // Permitir acceso a listeros, colectores y administradores
         if (profile.role !== 'listero' && profile.role !== 'colector' && profile.role !== 'collector' && profile.role !== 'admin') {
-          console.error('❌ [StatisticsScreen] Solo listeros, colectores y administradores pueden acceder a estadísticas');
           return;
         }
         
@@ -95,7 +92,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         setCurrentUserId(user.id);
         
       } catch (e) {
-        console.error('❌ [StatisticsScreen] Error in loadUserProfile:', e);
       }
     };
     
@@ -156,9 +152,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Agregar logs cuando cambien los datos del hook
   useEffect(() => {
-    if (error) {
-      console.error('❌ [StatisticsScreen] Hook error:', error);
-    }
   }, [kpiData, chartData, tableData, lotteries, schedules, loading, error]);
 
   // Opciones de períodos
@@ -241,7 +234,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         }
         
         // ❌ CONSULTA DESHABILITADA - Solo usar datos de v_estadisticas
-        console.log('⚠️ Consulta a horario deshabilitada - usando solo v_estadisticas');
         setLotterySchedules([]);
         return;
         
@@ -278,8 +270,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Aplicar filtro de período
   const applyPeriodFilter = (period) => {
-    console.log(`🔄 [StatisticsScreen] Aplicando filtro de período: ${period}`);
-    
     // En lugar de calcular fechas, pasar el período directamente
     const filterParams = {
       period: period  // Pasar el período directamente

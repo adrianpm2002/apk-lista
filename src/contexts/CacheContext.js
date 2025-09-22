@@ -111,7 +111,6 @@ export const CacheProvider = ({ children }) => {
       
       return statisticsData;
     } catch (error) {
-      console.error('Error fetching statistics:', error);
       return null;
     }
   }, [currentBankId]);
@@ -549,49 +548,21 @@ export const CacheProvider = ({ children }) => {
 
       // Extraer valores de las promesas resueltas y log errores
       const statisticsData = statistics.status === 'fulfilled' ? statistics.value : null;
-      if (statistics.status === 'rejected') {
-        console.error('Error fetching statistics:', statistics.reason);
-      }
 
       const todayResultsData = todayResults.status === 'fulfilled' ? todayResults.value : [];
-      if (todayResults.status === 'rejected') {
-        console.error('Error fetching today results:', todayResults.reason);
-      }
 
       const usersData = users.status === 'fulfilled' ? users.value : [];
-      if (users.status === 'rejected') {
-        console.error('Error fetching users:', users.reason);
-      }
-
       const lotteriesData = lotteries.status === 'fulfilled' ? lotteries.value : [];
-      if (lotteries.status === 'rejected') {
-        console.error('Error fetching lotteries:', lotteries.reason);
-      }
 
       const pricesData = prices.status === 'fulfilled' ? prices.value : [];
-      if (prices.status === 'rejected') {
-        console.error('Error fetching prices:', prices.reason);
-      }
 
       const numberLimitsData = numberLimits.status === 'fulfilled' ? numberLimits.value : { limitedNumbers: [], specificLimits: [] };
-      if (numberLimits.status === 'rejected') {
-        console.error('Error fetching number limits:', numberLimits.reason);
-      }
 
       const schedulesData = schedules.status === 'fulfilled' ? schedules.value : [];
-      if (schedules.status === 'rejected') {
-        console.error('Error fetching schedules:', schedules.reason);
-      }
 
       const limitedNumbersData = limitedNumbers.status === 'fulfilled' ? limitedNumbers.value : [];
-      if (limitedNumbers.status === 'rejected') {
-        console.error('Error fetching limited numbers:', limitedNumbers.reason);
-      }
 
       const priceConfigurationsData = priceConfigurations.status === 'fulfilled' ? priceConfigurations.value : [];
-      if (priceConfigurations.status === 'rejected') {
-        console.error('Error fetching price configurations:', priceConfigurations.reason);
-      }
 
       setCache(prev => ({
         ...prev,

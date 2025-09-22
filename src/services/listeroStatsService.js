@@ -52,8 +52,6 @@ function formatTimeAMPM(isoDate) {
 // Obtener estadísticas agregadas del listero desde v_estadisticas
 export async function getListeroStatsFromView(listeroId, { from, to } = {}) {
   try {
-    console.log('[listeroStatsService] getListeroStatsFromView called', { listeroId, from, to });
-    
     const { startStr, endStr } = buildRangeStrings(from, to);
     
     // Obtener todos los datos usando paginación optimizada
@@ -74,12 +72,9 @@ export async function getListeroStatsFromView(listeroId, { from, to } = {}) {
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (error) {
-        console.error('[listeroStatsService] Error consultando v_estadisticas:', error);
         throw error;
       }
       
-        console.log(`[listeroStatsService] Page ${page + 1}: ${data?.length || 0} records`);
-        
         if (data && data.length > 0) {
           allData = allData.concat(data);
           // CORECCIÓN: Si obtienes exactamente 1000 registros (límite de Supabase), puede haber más
@@ -87,14 +82,14 @@ export async function getListeroStatsFromView(listeroId, { from, to } = {}) {
           page++;
         } else {
           hasMore = false;
-        }      // Límite de seguridad
+        }
+        
+      // Límite de seguridad
       if (page > 250) {
-        console.warn('[listeroStatsService] Límite de páginas alcanzado');
         break;
       }
     }
 
-    console.log('[listeroStatsService] v_estadisticas returned total rows:', allData.length);
     const data = allData;
 
     // Agrupar por fecha, lotería, horario, resultado
@@ -137,11 +132,9 @@ export async function getListeroStatsFromView(listeroId, { from, to } = {}) {
       }))
       .sort((a, b) => new Date(b.fecha_jugada) - new Date(a.fecha_jugada));
 
-    console.log('[listeroStatsService] getListeroStatsFromView result count:', result.length);
     return result;
 
   } catch (err) {
-    console.error('[listeroStatsService] Error en getListeroStatsFromView:', err);
     throw err;
   }
 }
@@ -149,10 +142,6 @@ export async function getListeroStatsFromView(listeroId, { from, to } = {}) {
 // Obtener jugadas individuales para "ver más" desde v_estadisticas
 export async function getListeroPlayDetailsFromView(listeroId, fecha_jugada, nombre_loteria, nombre_horario) {
   try {
-    console.log('[listeroStatsService] getListeroPlayDetailsFromView called', { 
-      listeroId, fecha_jugada, nombre_loteria, nombre_horario 
-    });
-
     // Obtener todas las jugadas del día específico, lotería y horario usando paginación
     const startOfDay = new Date(fecha_jugada);
     startOfDay.setHours(0, 0, 0, 0);
@@ -177,7 +166,6 @@ export async function getListeroPlayDetailsFromView(listeroId, fecha_jugada, nom
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (error) {
-        console.error('[listeroStatsService] Error consultando v_estadisticas para detalles:', error);
         throw error;
       }
       
@@ -192,12 +180,10 @@ export async function getListeroPlayDetailsFromView(listeroId, fecha_jugada, nom
       
       // Límite de seguridad
       if (page > 50) {
-        console.warn('[listeroStatsService] Límite de páginas alcanzado para detalles');
         break;
       }
     }
 
-    console.log('[listeroStatsService] v_estadisticas detalles returned total rows:', allData.length);
     const data = allData;
 
     // Mapear a formato esperado
@@ -257,7 +243,6 @@ export async function getListeroPlayDetailsFromView(listeroId, fecha_jugada, nom
     };
 
   } catch (err) {
-    console.error('[listeroStatsService] Error en getListeroPlayDetailsFromView:', err);
     throw err;
   }
 }
@@ -271,7 +256,6 @@ export async function getDailyStats(listeroId, { from, to, lotteryId=null, sched
   try {
     return await getListeroStatsFromView(listeroId, { from, to });
   } catch (error) {
-    console.error('Error en getDailyStats:', error);
     throw error;
   }
 }
@@ -297,7 +281,6 @@ export async function getPlaysDetails(listeroId, { from, to, lotteryId=null, sch
     
     return [];
   } catch (error) {
-    console.error('Error en getPlaysDetails:', error);
     throw error;
   }
 }
@@ -520,7 +503,6 @@ export async function getDailyStats(listeroId, { from, to, lotteryId=null, sched
       const { data: statsData, error } = await query;
 
       if (error) {
-        console.error('Error consultando v_statistics_complete:', error);
         throw error;
       }
       
@@ -535,7 +517,6 @@ export async function getDailyStats(listeroId, { from, to, lotteryId=null, sched
       
       // Límite de seguridad
       if (page > 250) {
-        console.warn('[getDailyStats] Límite de páginas alcanzado');
         break;
       }
     }
@@ -574,15 +555,9 @@ export async function getDailyStats(listeroId, { from, to, lotteryId=null, sched
     // Convertir a array y ordenar por día
     const dailyStats = Object.values(groupedByDay).sort((a, b) => a.day.localeCompare(b.day));
     
-    console.log('📊 getDailyStats desde v_statistics_complete:', {
-      input: { listeroId, from: startStr, to: endStr, lotteryId, scheduleId },
-      output: dailyStats
-    });
-    
     return dailyStats;
     
   } catch (error) {
-    console.error('Error en getDailyStats:', error);
     // Fallback al método original si hay error
     return getDailyStatsOriginal(listeroId, { from, to, lotteryId, scheduleId, includeToday, onlyClosedToday });
   }
@@ -729,7 +704,6 @@ export async function getPlaysDetails(listeroId, { from, to, lotteryId=null, sch
       const { data: statsData, error } = await query;
 
       if (error) {
-        console.error('Error consultando v_statistics_complete para detalles:', error);
         throw error;
       }
       
@@ -744,7 +718,6 @@ export async function getPlaysDetails(listeroId, { from, to, lotteryId=null, sch
       
       // Límite de seguridad
       if (page > 250) {
-        console.warn('[getPlaysDetails] Límite de páginas alcanzado');
         break;
       }
     }
@@ -783,15 +756,9 @@ export async function getPlaysDetails(listeroId, { from, to, lotteryId=null, sch
       balance_colector: row.balance_colector
     }));
     
-    console.log('📋 getPlaysDetails desde v_statistics_complete:', {
-      input: { listeroId, from: startStr, to: endStr, lotteryId, scheduleId },
-      output: `${result.length} jugadas`
-    });
-    
     return result;
     
   } catch (error) {
-    console.error('Error en getPlaysDetails:', error);
     // Fallback al método original si hay error
     return getPlaysDetailsOriginal(listeroId, { from, to, lotteryId, scheduleId, includeToday, onlyClosedToday });
   }
@@ -966,13 +933,11 @@ export async function calculateListeroEarnings(listeroId, plays) {
           totalEarnings += earnings;
         }
       } catch (err) {
-        console.error(`Error obteniendo configuración para ganancia ${gainId}:`, err);
       }
     }
     
     return Number(totalEarnings.toFixed(2));
   } catch (error) {
-    console.error('Error calculando ganancias del listero:', error);
     return 0;
   }
 }
