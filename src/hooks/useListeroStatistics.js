@@ -34,9 +34,9 @@ export const useListeroStatistics = (options = {}) => {
       case 'last7days':
         return { viewName: 'v_estadisticas_7d', isOptimized: true, period: 'últimos 7 días' };
       case 'last30days':
-        return { viewName: 'v_estadisticas_ultimo_mes_cerradas', isOptimized: true, period: 'último mes' };
+        return { viewName: 'v_estadisticas_mes', isOptimized: true, period: 'este mes' };
       case 'lastMonth':
-        return { viewName: 'v_estadisticas_mes_pasado_cerradas', isOptimized: true, period: 'mes pasado' };
+        return { viewName: 'v_estadisticas_mes_pasado', isOptimized: true, period: 'mes pasado' };
       default:
         return { viewName: 'v_estadisticas', isOptimized: false, period: 'custom' };
     }
@@ -151,10 +151,10 @@ export const useListeroStatistics = (options = {}) => {
       return { viewName: 'v_estadisticas_7d', isOptimized: true, period: 'últimos 7 días' };
     }
     if (isFilteringLast30Days(startDate, endDate)) {
-      return { viewName: 'v_estadisticas_ultimo_mes_cerradas', isOptimized: true, period: 'último mes' };
+      return { viewName: 'v_estadisticas_mes', isOptimized: true, period: 'este mes' };
     }
     if (isFilteringLastMonth(startDate, endDate)) {
-      return { viewName: 'v_estadisticas_mes_pasado_cerradas', isOptimized: true, period: 'mes pasado' };
+      return { viewName: 'v_estadisticas_mes_pasado', isOptimized: true, period: 'mes pasado' };
     }
     return { viewName: 'v_estadisticas', isOptimized: false, period: 'custom' };
   };
@@ -192,7 +192,8 @@ export const useListeroStatistics = (options = {}) => {
 
       let allPlaysData = [];
       let page = 0;
-      const pageSize = 1000; // Tamaño de página que coincide con el límite real de Supabase
+      // Supabase tiene límite máximo de 1000 registros por consulta
+      const pageSize = 1000;
       let hasMore = true;
       
       while (hasMore) {
