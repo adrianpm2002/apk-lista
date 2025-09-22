@@ -724,7 +724,22 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
           label={t('common.numbers')}
           value={plays}
           onChangeText={(txt)=> { 
-            setPlays(txt); 
+            // Procesar texto para eliminar letras antes del guión en cada línea
+            const processedText = txt.split('\n').map(line => {
+              // Buscar guión en la línea
+              const dashIndex = line.indexOf('-');
+              if (dashIndex > 0) {
+                // Si hay guión y hay texto antes, eliminar todas las letras antes del guión
+                const beforeDash = line.substring(0, dashIndex);
+                const afterDash = line.substring(dashIndex);
+                // Eliminar todas las letras (a-z, A-Z) pero mantener números y espacios
+                const cleanedBeforeDash = beforeDash.replace(/[a-zA-Z]/g, '');
+                return cleanedBeforeDash + afterDash;
+              }
+              return line;
+            }).join('\n');
+            
+            setPlays(processedText); 
             setShowInsertButton(false); // Ocultar botón cuando se cambia el texto
             setDuplicateLines([]); // Limpiar duplicados cuando se cambia el texto
             if(showFieldErrors){ /* no quitar bordes aún */ }
