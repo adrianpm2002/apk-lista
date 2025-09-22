@@ -333,51 +333,36 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
       return;
     }
     try {
-      // Validaciones de límites sin insertar (similar a handleInsert pero lectura solamente)
+      // Validaciones de límites usando funciones migradas
       const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
       let violations=[];
       if(horarios.length){
         const { data: { user } } = await supabase.auth.getUser();
-        let specificLimits=null;
-        if(user){
-          const { data: profile } = await supabase.from('profiles').select('limite_especifico').eq('id', user.id).maybeSingle();
-          specificLimits = profile?.limite_especifico || null;
+        const ctx = await fetchLimitsContext(horarios, user?.id);
+        
+        // Si estamos editando, restar el uso previo de la jugada en ese horario para no bloquear por capacidad
+        if(isEditing && editingId){
+          try {
+            const { data: currentPlay } = await supabase
+              .from('jugada')
+              .select('id_horario,jugada,numeros,monto_unitario')
+              .eq('id', editingId)
+              .maybeSingle();
+            if(currentPlay && horarios.includes(currentPlay.id_horario)){
+              const prevNums = (currentPlay.numeros||'').split(',').map(s=>s.trim()).filter(Boolean);
+              const toCanon = (pt,n)=> pt==='parle' && /^\d{4}$/.test(n) ? [n.slice(0,2),n.slice(2)].sort().join('') : n;
+              prevNums.forEach(n => {
+                const canon = toCanon(currentPlay.jugada, n);
+                const key = currentPlay.id_horario+"|"+currentPlay.jugada+"|"+canon;
+                if(ctx.usageMap.has(key)){
+                  const after = (ctx.usageMap.get(key)||0) - (currentPlay.monto_unitario||0);
+                  if(after>0) ctx.usageMap.set(key, after); else ctx.usageMap.delete(key);
+                }
+              });
+            }
+          } catch(_) { /* silencio */ }
         }
-        const { data: limitRows } = await supabase.from('limite_numero').select('numero, limite, jugada, id_horario').in('id_horario', horarios);
-        const limitMap=new Map();
-        (limitRows||[]).forEach(r=> limitMap.set(r.id_horario+"|"+r.jugada+"|"+r.numero, r.limite));
-        // Usar zona horaria de La Habana (Cuba) para calcular el día actual
-        const nowLocal = new Date();
-        const pad = (n) => String(n).padStart(2, '0');
-        const y = nowLocal.getFullYear();
-        const m = pad(nowLocal.getMonth() + 1);
-        const d = pad(nowLocal.getDate());
-        const startStr = `${y}-${m}-${d} 00:00:00`;
-        const endStr = `${y}-${m}-${d} 23:59:59.999`;
-        const { data: jugadasDia } = await supabase.from('jugada').select('id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', startStr).lte('created_at', endStr).in('id_horario', horarios).eq('id_listero', user.id);
-        const usageMap=new Map();
-        (jugadasDia||[]).forEach(j=>{
-          (j.numeros||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(n=>{
-            const k=j.id_horario+"|"+j.jugada+"|"+n;
-            usageMap.set(k,(usageMap.get(k)||0)+(j.monto_unitario||0));
-          });
-        });
-        parsedInstructions.forEach(instr=>{
-          instr.numbers.forEach(num=>{
-            horarios.forEach(h=>{
-              const key=h+"|"+instr.playType+"|"+num;
-              const limit = limitMap.get(key);
-              const spec = specificLimits && specificLimits[instr.playType];
-              let effective = limit != null && spec != null ? Math.min(limit,spec) : (limit != null ? limit : (spec != null ? spec : null));
-              if(!effective) return;
-              const used = usageMap.get(key)||0;
-              const amt = instr.amountEach||0;
-              if(used + amt > effective){
-                violations.push({ numero:num, jugada:instr.playType, permitido:effective, usado:used, intento:amt });
-              }
-            });
-          });
-        });
+        violations = checkInstructionsLimits(parsedInstructions, horarios, ctx);
       }
       if(violations.length){
         setLimitViolations(violations);
