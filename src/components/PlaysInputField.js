@@ -141,7 +141,16 @@ const PlaysInputField = ({
         </View>
       )}
       {label && pasteButtonOverlay && <Text style={styles.label}>{label}</Text>}
-      <Pressable style={[styles.tokensBox, hasError && styles.inputError]} onPress={()=> hiddenInputRef.current?.focus()}>
+      <Pressable style={[styles.tokensBox, hasError && styles.inputError]} onPress={()=> {
+        console.log('PlaysInputField: Attempting to focus hidden input');
+        // Forzar blur y luego focus para asegurar que el teclado aparezca
+        if (hiddenInputRef.current) {
+          hiddenInputRef.current.blur();
+          setTimeout(() => {
+            hiddenInputRef.current?.focus();
+          }, 10);
+        }
+      }}>
         <ScrollView
           style={styles.tokensScroll}
           contentContainerStyle={styles.tokensWrap}
@@ -197,6 +206,8 @@ const PlaysInputField = ({
             multiline
             autoCorrect={false}
             placeholder=''
+            editable={true}
+            pointerEvents="auto"
         />
         {showPasteButton && (
           <View style={styles.sideButtons}>
@@ -237,7 +248,7 @@ const styles = StyleSheet.create({
   tokenEditInput:{ minWidth:40, paddingVertical:0, paddingHorizontal:0, fontSize:14, fontWeight:'700', color:'#2C3E50', textAlign:'center', includeFontPadding:false, textAlignVertical:'center' },
   tokenTrailing:{ backgroundColor:'#FDEDEC' },
   trailingText:{ color:'#C0392B' },
-  hiddenInput:{ position:'absolute', opacity:0, left:0, top:0, height:0, width:0 },
+  hiddenInput:{ position:'absolute', opacity:0, left:-1000, top:-1000, height:1, width:1 },
   sideButtons:{ position:'absolute', right:8, top:8, alignItems:'flex-end' },
   sideBtn:{ backgroundColor:'#E8F5E8', paddingHorizontal:8, paddingVertical:6, borderRadius:6, marginBottom:6, borderWidth:1, borderColor:'#B8D4A8' },
   sideBtnDark:{ backgroundColor:'#2C3E50', borderColor:'#5D6D7E' },
