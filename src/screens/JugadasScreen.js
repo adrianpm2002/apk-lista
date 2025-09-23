@@ -152,7 +152,7 @@ const PlaysRecordView = ({ navigation, groupData, title, sidebarVisible, setSide
                     styles.amountItem,
                     (jugada.balance || 0) >= 0 ? styles.positiveBalance : styles.negativeBalance
                   ]}>
-                    📊 Balance: {formatMoney(jugada.balance || 0)}
+                    📊 Balance: {formatMoney(jugada.balance || 0)} <Text style={styles.percentage70}>70%: {formatMoney(jugada.balance * 0.7)}</Text>
                   </Text>
                 </View>
               </View>
