@@ -96,21 +96,21 @@ const PlaysRecordView = ({ navigation, groupData, title, sidebarVisible, setSide
             
             <View style={styles.totalsContainer}>
               <Text style={styles.totalItem}>
-                💰 Total Bruto: {formatMoney(totales.bruto)}
+                💰 Total Bruto: {formatMoney(totales.bruto)} <Text style={styles.percentage70}>70%: {formatMoney(totales.bruto * 0.7)}</Text>
               </Text>
               <Text style={styles.totalItem}>
                 🏆 Total Premios: {formatMoney(totales.premios)}
               </Text>
               {totales.ganancia > 0 && (
                 <Text style={styles.totalItem}>
-                  📈 Total Ganancia: {formatMoney(totales.ganancia)}
+                  📈 Total Ganancia: {formatMoney(totales.ganancia)} <Text style={styles.percentage70}>70%: {formatMoney(totales.ganancia * 0.7)}</Text>
                 </Text>
               )}
               <Text style={[
                 styles.totalItem,
                 totales.balance >= 0 ? styles.positiveBalance : styles.negativeBalance
               ]}>
-                📊 Balance Total: {formatMoney(totales.balance)}
+                📊 Balance Total: {formatMoney(totales.balance)} <Text style={styles.percentage70}>70%: {formatMoney(totales.balance * 0.7)}</Text>
               </Text>
             </View>
           </View>
@@ -136,11 +136,11 @@ const PlaysRecordView = ({ navigation, groupData, title, sidebarVisible, setSide
                 
                 <View style={styles.playAmounts}>
                   <Text style={styles.amountItem}>
-                    💰 Total: {formatMoney(jugada.bruto)}
+                    💰 Total: {formatMoney(jugada.bruto)} <Text style={styles.percentage70}>70%: {formatMoney(jugada.bruto * 0.7)}</Text>
                   </Text>
                   {jugada.ganancia !== undefined && (
                     <Text style={styles.amountItem}>
-                      📈 Ganancia: {formatMoney(jugada.ganancia)}
+                      📈 Ganancia: {formatMoney(jugada.ganancia)} <Text style={styles.percentage70}>70%: {formatMoney(jugada.ganancia * 0.7)}</Text>
                     </Text>
                   )}
                   {jugada.pagado > 0 && (
@@ -857,6 +857,11 @@ const styles = {
     color: '#7f8c8d',
     marginTop: 32,
     fontStyle: 'italic',
+  },
+  percentage70: {
+    color: '#888',
+    fontSize: 12,
+    fontWeight: 'normal',
   },
 };
 
