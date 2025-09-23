@@ -845,23 +845,26 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               const playsInPeriod = tableData?.plays || [];
               
               const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.bruto) || 0), 0);
+              const totalBruto70 = totalBruto * 0.7;
               const totalGananciaListero = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
+              const totalGananciaListero70 = totalGananciaListero * 0.7;
               const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.premio) || 0), 0);
               const totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_listero) || 0), 0); // Usar balance_listero real
+              const totalBalance70 = totalBalance * 0.7;
               
               return (
                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
                   <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                     <Text style={{ color: '#6c757d', fontSize: 12 }}>Bruto</Text>
-                    <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatMoney(totalBruto)}</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatMoney(totalBruto)} <Text style={{color:'#888',fontSize:13}}>(70%: {formatMoney(totalBruto70)})</Text></Text>
                   </View>
                   <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                     <Text style={{ color: '#6c757d', fontSize: 12 }}>Ganancia</Text>
-                    <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatMoney(totalGananciaListero)}</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatMoney(totalGananciaListero)} <Text style={{color:'#888',fontSize:13}}>(70%: {formatMoney(totalGananciaListero70)})</Text></Text>
                   </View>
                   <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                     <Text style={{ color: '#6c757d', fontSize: 12 }}>Balance</Text>
-                    <Text style={{ fontSize:16, fontWeight:'800', color: totalBalance>=0? '#27AE60':'#e74c3c' }}>{formatMoney(totalBalance)}</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color: totalBalance>=0? '#27AE60':'#e74c3c' }}>{formatMoney(totalBalance)} <Text style={{color:'#888',fontSize:13}}>(70%: {formatMoney(totalBalance70)})</Text></Text>
                   </View>
                 </View>
               );
