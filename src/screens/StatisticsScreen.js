@@ -1075,40 +1075,38 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 const playsInPeriod = allPlays || [];
                 
                 const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0); // CORREGIDO: usar monto_total
+                const totalBruto70 = totalBruto * 0.7;
                 const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0); // CORREGIDO: usar monto_a_pagar
-                
                 let totalGanancia = 0;
+                let totalGanancia70 = 0;
                 let totalBalance = 0;
-                
+                let totalBalance70 = 0;
                 if (userRole === 'collector' || userRole === 'colector') {
-                  // Para colectores: ganancia es la suma de todas las ganancia_colector de sus listeros
                   totalGanancia = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
-                  // Para colectores: balance es la suma de todos los balance_colector de sus listeros
+                  totalGanancia70 = totalGanancia * 0.7;
                   totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
+                  totalBalance70 = totalBalance * 0.7;
                 } else if (userRole === 'admin') {
-                  // Para admin: ganancia es la suma de todas las ganancia_colector (ganancia del banco)
                   totalGanancia = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
-                  // Para admin: balance es la suma de todos los balance_colector (balance del banco)
                   totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
+                  totalBalance70 = totalBalance * 0.7;
                 }
                 
                 return (
                   <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
                     <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                       <Text style={{ color: '#6c757d', fontSize: 12 }}>Bruto</Text>
-                      <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatMoney(totalBruto)}</Text>
+                      <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatMoney(totalBruto)} <Text style={{color:'#888',fontSize:13}}>(70%: {formatMoney(totalBruto70)})</Text></Text>
                     </View>
-                    
                     {(userRole === 'collector' || userRole === 'colector') && (
                       <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                         <Text style={{ color: '#6c757d', fontSize: 12 }}>Ganancia</Text>
-                        <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatMoney(totalGanancia)}</Text>
+                        <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatMoney(totalGanancia)} <Text style={{color:'#888',fontSize:13}}>(70%: {formatMoney(totalGanancia70)})</Text></Text>
                       </View>
                     )}
-                    
                     <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                       <Text style={{ color: '#6c757d', fontSize: 12 }}>Balance</Text>
-                      <Text style={{ fontSize:16, fontWeight:'800', color: totalBalance>=0? '#27AE60':'#e74c3c' }}>{formatMoney(totalBalance)}</Text>
+                      <Text style={{ fontSize:16, fontWeight:'800', color: totalBalance>=0? '#27AE60':'#e74c3c' }}>{formatMoney(totalBalance)} <Text style={{color:'#888',fontSize:13}}>(70%: {formatMoney(totalBalance70)})</Text></Text>
                     </View>
                   </View>
                 );
