@@ -36,11 +36,12 @@
     },
     "extra": {
       "eas": {
-        "projectId": "83929415-67d9-4199-8f74-4d86a5ec37dd"
+        "projectId": "ff8415f9-a7cd-425b-a1aa-f6e2b418633b"
       }
     },
     "plugins": [
       "expo-splash-screen"
-    ]
+    ],
+    "owner": "lazaroadrian0803"
   }
 }
