@@ -1586,9 +1586,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Colector</Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Bruto</Text>
+              <Text style={[styles.excelHeaderCell, { width: 80, color:'#888', fontSize:13 }]}>Bruto 70%</Text>
               <Text style={[styles.excelHeaderCell, { width: 110 }]}>Gan. Colector</Text>
+              <Text style={[styles.excelHeaderCell, { width: 90, color:'#888', fontSize:13 }]}>Gan. Col. 70%</Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Premios</Text>
               <Text style={[styles.excelHeaderCell, { width: 110 }]}>Balance</Text>
+              <Text style={[styles.excelHeaderCell, { width: 90, color:'#888', fontSize:13 }]}>Balance 70%</Text>
             </View>
             
             {/* Filas de colectores expandibles */}
@@ -1614,8 +1617,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     <View style={[styles.excelCellContainer, { width: 100 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.total_bruto)}</Text>
                     </View>
+                    <View style={[styles.excelCellContainer, { width: 80 }]}>
+                      <Text style={[styles.excelCell, { color:'#888', fontSize:13 }]} numberOfLines={1}>{fmt(colector.total_bruto * 0.7)}</Text>
+                    </View>
                     <View style={[styles.excelCellContainer, { width: 110 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.total_ganancia_colector)}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 90 }]}>
+                      <Text style={[styles.excelCell, { color:'#888', fontSize:13 }]} numberOfLines={1}>{fmt(colector.total_ganancia_colector * 0.7)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 100 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.total_premio)}</Text>
@@ -1623,6 +1632,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     <View style={[styles.excelCellContainer, { width: 110 }]}>
                       <Text style={getBalanceTextStyle(colector.balance_colector, styles.excelCell)} numberOfLines={1}>
                         {fmt(colector.balance_colector)}
+                      </Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 90 }]}>
+                      <Text style={getBalanceTextStyle(colector.balance_colector * 0.7, [styles.excelCell, { color:'#888', fontSize:13 }])} numberOfLines={1}>
+                        {fmt(colector.balance_colector * 0.7)}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1635,10 +1649,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                         <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
                         <Text style={[styles.excelHeaderCell, { width: 100 }]}>Listero</Text>
                         <Text style={[styles.excelHeaderCell, { width: 100 }]}>Bruto</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 80, color:'#888', fontSize:13 }]}>Bruto 70%</Text>
                         <Text style={[styles.excelHeaderCell, { width: 110 }]}>Gan. Listero</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 90, color:'#888', fontSize:13 }]}>Gan. List. 70%</Text>
                         <Text style={[styles.excelHeaderCell, { width: 100 }]}>Premios</Text>
                         <Text style={[styles.excelHeaderCell, { width: 110 }]}>Bal. Listero</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 90, color:'#888', fontSize:13 }]}>Bal. List. 70%</Text>
                         <Text style={[styles.excelHeaderCell, { width: 110 }]}>Bal. Colector</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 90, color:'#888', fontSize:13 }]}>Bal. Col. 70%</Text>
                       </View>
                       
                       {/* Filas de listeros expandibles */}
@@ -1664,8 +1682,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                               <View style={[styles.excelCellContainer, { width: 100 }]}>
                                 <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_bruto)}</Text>
                               </View>
+                              <View style={[styles.excelCellContainer, { width: 80 }]}>
+                                <Text style={[styles.excelCell, { color:'#888', fontSize:13 }]} numberOfLines={1}>{fmt(listero.total_bruto * 0.7)}</Text>
+                              </View>
                               <View style={[styles.excelCellContainer, { width: 110 }]}>
                                 <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_ganancia_listero)}</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 90 }]}>
+                                <Text style={[styles.excelCell, { color:'#888', fontSize:13 }]} numberOfLines={1}>{fmt(listero.total_ganancia_listero * 0.7)}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 100 }]}>
                                 <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_premio)}</Text>
@@ -1675,9 +1699,19 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                                   {fmt(listero.balance_listero)}
                                 </Text>
                               </View>
+                              <View style={[styles.excelCellContainer, { width: 90 }]}>
+                                <Text style={getBalanceTextStyle(listero.balance_listero * 0.7, [styles.excelCell, { color:'#888', fontSize:13 }])} numberOfLines={1}>
+                                  {fmt(listero.balance_listero * 0.7)}
+                                </Text>
+                              </View>
                               <View style={[styles.excelCellContainer, { width: 110 }]}>
                                 <Text style={getBalanceTextStyle(listero.balance_colector, styles.excelCell)} numberOfLines={1}>
                                   {fmt(listero.balance_colector)}
+                                </Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 90 }]}>
+                                <Text style={getBalanceTextStyle(listero.balance_colector * 0.7, [styles.excelCell, { color:'#888', fontSize:13 }])} numberOfLines={1}>
+                                  {fmt(listero.balance_colector * 0.7)}
                                 </Text>
                               </View>
                             </TouchableOpacity>
