@@ -178,7 +178,9 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   // Totales: Recogido = suma de monto_total de TODAS las jugadas del día (sin filtrar)
   // Pendiente = suma de las jugadas (filtradas) cuyo resultado no está disponible
   const totalRecogido = savedPlays.reduce((s,p)=> s + (p.total || 0), 0);
+  const totalRecogido70 = totalRecogido * 0.7;
   const pendientePago = filteredPlays.filter(p=> p.result==='no disponible').reduce((s,p)=> s + (p.total || 0),0);
+  const pendientePago70 = pendientePago * 0.7;
   // Pagado = suma de premios pagados del día (todas las jugadas de hoy con resultado; las perdidas aportan 0)
   const totalPagadoDia = savedPlays.reduce((s,p)=> s + (p.payAmount || 0), 0);
 
@@ -494,9 +496,9 @@ const SavedPlaysScreen = ({ navigation, route }) => {
           </Pressable>
         )}
         <View style={styles.totalsFlexGroup}>
-          <Text style={styles.totalText}>Recogido: ${totalRecogido.toFixed(1)}</Text>
+          <Text style={styles.totalText}>Recogido: ${totalRecogido.toFixed(1)} <Text style={{color:'#888',fontSize:13}}>(70%: ${totalRecogido70.toFixed(1)})</Text></Text>
           <Text style={styles.totalText}>Pagado: ${totalPagadoDia.toFixed(1)}</Text>
-          <Text style={styles.totalText}>Pendiente: ${pendientePago.toFixed(1)}</Text>
+          <Text style={styles.totalText}>Pendiente: ${pendientePago.toFixed(1)} <Text style={{color:'#888',fontSize:13}}>(70%: ${pendientePago70.toFixed(1)})</Text></Text>
         </View>
         <Pressable style={[styles.prizeFilterButton, showOnlyWinners && styles.prizeFilterButtonActive]} onPress={()=> setShowOnlyWinners(p=>!p)}>
           <Text style={styles.prizeFilterText}>{showOnlyWinners? '🏆 Ganadores':'🎯 Todos'}</Text>
