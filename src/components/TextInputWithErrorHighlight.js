@@ -209,28 +209,46 @@ const TextInputWithErrorHighlight = ({
       );
     }
 
-    // Para React Native nativo, usar TextInput normal con indicadores visuales
+    // Para React Native nativo, implementar señalización de errores mejorada
     return (
-      <TextInput
-        style={[
-          styles.input,
-          isFocused && styles.inputFocused,
-          hasError && styles.inputError,
-          overlayButtons.length > 0 && styles.inputWithOverlayButtons,
-          // Agregar indicador visual cuando hay errores
-          errorLines.length > 0 && styles.inputWithErrors,
-          inputStyle,
-        ]}
-        value={value}
-        onChangeText={onChangeText}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
-        placeholder={placeholder}
-        placeholderTextColor="#7F8C8D"
-        multiline
-        textAlignVertical="top"
-        {...otherProps}
-      />
+      <View style={{ position: 'relative' }}>
+        <TextInput
+          style={[
+            styles.input,
+            isFocused && styles.inputFocused,
+            hasError && styles.inputError,
+            overlayButtons.length > 0 && styles.inputWithOverlayButtons,
+            // Agregar estilos especiales cuando hay errores de línea
+            errorLines.length > 0 && styles.inputWithLineErrors,
+            inputStyle,
+          ]}
+          value={value}
+          onChangeText={onChangeText}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          placeholder={placeholder}
+          placeholderTextColor="#7F8C8D"
+          multiline
+          textAlignVertical="top"
+          {...otherProps}
+        />
+        
+        {/* Mostrar indicador de errores específicos debajo del input */}
+        {errorLines.length > 0 && (
+          <View style={styles.rnErrorIndicator}>
+            <View style={styles.rnErrorHeader}>
+              <Text style={styles.rnErrorIcon}>⚠️</Text>
+              <Text style={styles.rnErrorText}>
+                {errorLines.length} error{errorLines.length > 1 ? 'es' : ''} encontrado{errorLines.length > 1 ? 's' : ''}
+              </Text>
+            </View>
+            <Text style={styles.rnErrorLines}>
+              Línea{errorLines.length > 1 ? 's' : ''}: {errorLines.slice(0, 8).join(', ')}
+              {errorLines.length > 8 && ` y ${errorLines.length - 8} más`}
+            </Text>
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -324,6 +342,45 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#FF7F7F',
     paddingLeft: 8,
+  },
+  inputWithLineErrors: {
+    // Estilos especiales para errores de líneas específicas
+    borderLeftWidth: 4,
+    borderLeftColor: '#E74C3C',
+    backgroundColor: '#FEF2F2',
+    paddingLeft: 8,
+  },
+  rnErrorIndicator: {
+    marginTop: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#E74C3C',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  rnErrorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  rnErrorIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  rnErrorText: {
+    fontSize: 13,
+    color: '#DC2626',
+    fontWeight: '700',
+  },
+  rnErrorLines: {
+    fontSize: 12,
+    color: '#B91C1C',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '600',
+    marginLeft: 20, // Alinear con el texto después del ícono
   },
   badgeContainer: {
     position: 'absolute',
