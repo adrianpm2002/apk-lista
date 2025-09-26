@@ -10,6 +10,7 @@ import InputField from '../components/InputField';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
+import { isScheduleOpen } from '../utils/scheduleValidator';
 
 // Función helper para confirmaciones compatibles con web
 const showConfirmation = (title, message, onConfirm, onCancel = null) => {
@@ -300,44 +301,77 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
       return;
     }
 
-    showConfirmation(
-      'Confirmar eliminación',
-      '¿Estás seguro de que deseas eliminar esta lotería? También se eliminarán todos sus horarios.',
-      async () => {
-        try {
-          // Primero eliminar horarios
-          const { error: schedulesError } = await supabase
-            .from('horario')
-            .delete()
-            .eq('id_loteria', id);
+    try {
+      // Primero verificar si la lotería tiene horarios abiertos
+      const { data: lotterySchedules, error: schedulesError } = await supabase
+        .from('horario')
+        .select('hora_inicio, hora_fin, nombre')
+        .eq('id_loteria', id);
 
-          if (schedulesError) {
-            console.error('Error deleting schedules:', schedulesError);
-          }
-
-          // Luego eliminar la lotería
-          const { error } = await supabase
-            .from('loteria')
-            .delete()
-            .eq('id', id);
-
-          if (error) {
-            console.error('Error deleting lottery:', error);
-            Alert.alert('Error', 'No se pudo eliminar la lotería');
-            return;
-          }
-
-          // Recargar datos
-          await fetchLotteriesData();
-          await fetchSchedulesData();
-          
-          Alert.alert('Éxito', 'Lotería eliminada correctamente');
-        } catch (error) {
-          console.error('Error general deleting lottery:', error);
-          Alert.alert('Error', 'Error general al eliminar la lotería');
-        }
+      if (schedulesError) {
+        console.error('Error fetching schedules for validation:', schedulesError);
+        Alert.alert('Error', 'No se pudo verificar el estado de los horarios');
+        return;
       }
-    );
+
+      // Verificar si algún horario está abierto
+      const openSchedules = lotterySchedules?.filter(schedule => 
+        isScheduleOpen(schedule.hora_inicio, schedule.hora_fin)
+      ) || [];
+
+      if (openSchedules.length > 0) {
+        const scheduleNames = openSchedules.map(s => s.nombre).join(', ');
+        Alert.alert(
+          'Lotería con Horarios Activos',
+          `No se puede eliminar esta lotería porque tiene horarios actualmente abiertos: ${scheduleNames}. Por favor, espera a que todos los horarios cierren.`,
+          [{ text: 'Entendido' }]
+        );
+        return;
+      }
+
+      // Si no hay horarios abiertos, proceder con la eliminación
+      showConfirmation(
+        'Confirmar eliminación',
+        '¿Estás seguro de que deseas eliminar esta lotería? También se eliminarán todos sus horarios.',
+        async () => {
+          try {
+            // Primero eliminar horarios
+            const { error: schedulesDeleteError } = await supabase
+              .from('horario')
+              .delete()
+              .eq('id_loteria', id);
+
+            if (schedulesDeleteError) {
+              console.error('Error deleting schedules:', schedulesDeleteError);
+            }
+
+            // Luego eliminar la lotería
+            const { error } = await supabase
+              .from('loteria')
+              .delete()
+              .eq('id', id);
+
+            if (error) {
+              console.error('Error deleting lottery:', error);
+              Alert.alert('Error', 'No se pudo eliminar la lotería');
+              return;
+            }
+
+            // Recargar datos
+            await fetchLotteriesData();
+            await fetchSchedulesData();
+            
+            Alert.alert('Éxito', 'Lotería eliminada correctamente');
+          } catch (error) {
+            console.error('Error general deleting lottery:', error);
+            Alert.alert('Error', 'Error general al eliminar la lotería');
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Error in handleDeleteLottery:', error);
+      Alert.alert('Error', 'Error al verificar el estado de la lotería');
+    }
   };
 
   const openScheduleModal = (lottery) => {
@@ -444,6 +478,18 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
   };
 
   const handleEditSchedule = (schedule) => {
+    // Verificar si el horario está abierto antes de permitir editarlo
+    const isOpen = isScheduleOpen(schedule.hora_inicio, schedule.hora_fin);
+    
+    if (isOpen) {
+      Alert.alert(
+        'Horario Activo',
+        'No se puede editar un horario que está actualmente abierto. Por favor, espera a que cierre para editarlo.',
+        [{ text: 'Entendido' }]
+      );
+      return;
+    }
+
     setEditingSchedule(schedule);
     setNewSchedule({
       name: schedule.nombre,
@@ -457,6 +503,21 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
   };
 
   const handleDeleteSchedule = async (scheduleId) => {
+    // Verificar si el horario está abierto antes de permitir eliminarlo
+    const schedule = modalSchedules.find(s => s.id === scheduleId);
+    if (schedule) {
+      const isOpen = isScheduleOpen(schedule.hora_inicio, schedule.hora_fin);
+      
+      if (isOpen) {
+        Alert.alert(
+          'Horario Activo',
+          'No se puede eliminar un horario que está actualmente abierto. Por favor, espera a que cierre para eliminarlo.',
+          [{ text: 'Entendido' }]
+        );
+        return;
+      }
+    }
+
     showConfirmation(
       'Confirmar eliminación',
       '¿Estás seguro de que deseas eliminar este horario?',
@@ -606,6 +667,10 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
             }
             renderItem={({ item }) => {
               const lotterySchedules = getLotterySchedules(item.id);
+              const hasOpenSchedules = lotterySchedules.some(schedule => 
+                isScheduleOpen(schedule.hora_inicio, schedule.hora_fin)
+              );
+              
               return (
                 <View style={styles.lotteryCard}>
                   <Text style={styles.lotteryName}>
@@ -619,11 +684,21 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
                     </Text>
                     {lotterySchedules.length > 0 ? (
                       <View style={styles.schedulePreviewList}>
-                        {lotterySchedules.slice(0, 3).map((schedule, index) => (
-                          <Text key={schedule.id} style={styles.schedulePreviewItem}>
-                            {schedule.nombre}: {formatTimeFromString(schedule.hora_inicio)} - {formatTimeFromString(schedule.hora_fin)}
-                          </Text>
-                        ))}
+                        {lotterySchedules.slice(0, 3).map((schedule, index) => {
+                          const isOpen = isScheduleOpen(schedule.hora_inicio, schedule.hora_fin);
+                          return (
+                            <View key={schedule.id} style={styles.schedulePreviewRow}>
+                              <Text style={styles.schedulePreviewItem}>
+                                {schedule.nombre}: {formatTimeFromString(schedule.hora_inicio)} - {formatTimeFromString(schedule.hora_fin)}
+                              </Text>
+                              {isOpen && (
+                                <View style={styles.miniStatusBadge}>
+                                  <Text style={styles.miniStatusBadgeText}>●</Text>
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })}
                         {lotterySchedules.length > 3 && (
                           <Text style={styles.schedulePreviewMore}>
                             y {lotterySchedules.length - 3} más...
@@ -645,10 +720,18 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={styles.actionButtonText}>🕒 Gestionar Horarios</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.actionButton, styles.deleteButton]}
+                      style={[
+                        styles.actionButton, 
+                        styles.deleteButton,
+                        hasOpenSchedules && styles.disabledButton
+                      ]}
                       onPress={() => handleDeleteLottery(item.id)}
+                      disabled={hasOpenSchedules}
                     >
-                      <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
+                      <Text style={[
+                        styles.actionButtonText,
+                        hasOpenSchedules && styles.disabledText
+                      ]}>🗑️ Eliminar</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -840,32 +923,68 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
                     No hay horarios configurados
                   </Text>
                 ) : (
-                  modalSchedules.map((schedule) => (
-                    <View key={schedule.id} style={[styles.scheduleCard, { backgroundColor: '#f8f9fa' }]}>
-                      <View style={styles.scheduleInfo}>
-                        <Text style={[styles.scheduleName, { color: '#000' }]}>
-                          {schedule.nombre}
-                        </Text>
-                        <Text style={[styles.scheduleTime, { color: '#7f8c8d' }]}>
-                          {formatTimeFromString(schedule.hora_inicio)} - {formatTimeFromString(schedule.hora_fin)}
-                        </Text>
+                  modalSchedules.map((schedule) => {
+                    const isOpen = isScheduleOpen(schedule.hora_inicio, schedule.hora_fin);
+                    return (
+                      <View 
+                        key={schedule.id} 
+                        style={[
+                          styles.scheduleCard, 
+                          { 
+                            backgroundColor: isOpen ? '#e8f5e8' : '#f8f9fa',
+                            borderLeftWidth: 3,
+                            borderLeftColor: isOpen ? '#28a745' : '#6c757d'
+                          }
+                        ]}
+                      >
+                        <View style={styles.scheduleInfo}>
+                          <View style={styles.scheduleNameRow}>
+                            <Text style={[styles.scheduleName, { color: '#000' }]}>
+                              {schedule.nombre}
+                            </Text>
+                            {isOpen && (
+                              <View style={styles.statusBadge}>
+                                <Text style={styles.statusBadgeText}>ABIERTO</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={[styles.scheduleTime, { color: '#7f8c8d' }]}>
+                            {formatTimeFromString(schedule.hora_inicio)} - {formatTimeFromString(schedule.hora_fin)}
+                          </Text>
+                        </View>
+                        <View style={styles.scheduleActions}>
+                          <TouchableOpacity
+                            onPress={() => handleEditSchedule(schedule)}
+                            style={[
+                              styles.scheduleActionButton, 
+                              styles.editButton,
+                              isOpen && styles.disabledButton
+                            ]}
+                            disabled={isOpen}
+                          >
+                            <Text style={[
+                              styles.scheduleActionText,
+                              isOpen && styles.disabledText
+                            ]}>✏️</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => handleDeleteSchedule(schedule.id)}
+                            style={[
+                              styles.scheduleActionButton, 
+                              styles.deleteScheduleButton,
+                              isOpen && styles.disabledButton
+                            ]}
+                            disabled={isOpen}
+                          >
+                            <Text style={[
+                              styles.scheduleActionText,
+                              isOpen && styles.disabledText
+                            ]}>🗑️</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                      <View style={styles.scheduleActions}>
-                        <TouchableOpacity
-                          onPress={() => handleEditSchedule(schedule)}
-                          style={[styles.scheduleActionButton, styles.editButton]}
-                        >
-                          <Text style={styles.scheduleActionText}>✏️</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => handleDeleteSchedule(schedule.id)}
-                          style={[styles.scheduleActionButton, styles.deleteScheduleButton]}
-                        >
-                          <Text style={styles.scheduleActionText}>🗑️</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))
+                    );
+                  })
                 )}
               </View>
             </ScrollView>
@@ -1132,6 +1251,31 @@ const styles = StyleSheet.create({
   scheduleActionText: {
     fontSize: 12,
   },
+  // Nuevos estilos para indicadores visuales de horarios abiertos/cerrados
+  scheduleNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  statusBadge: {
+    backgroundColor: '#28a745',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  statusBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  disabledButton: {
+    opacity: 0.5,
+    backgroundColor: '#cccccc',
+  },
+  disabledText: {
+    color: '#999999',
+  },
   // Estilos para vista previa de horarios
   schedulePreviewContainer: {
     marginBottom: 12,
@@ -1147,10 +1291,23 @@ const styles = StyleSheet.create({
   schedulePreviewList: {
     paddingLeft: 4,
   },
+  schedulePreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
   schedulePreviewItem: {
     fontSize: 13,
     lineHeight: 18,
-    marginBottom: 2,
+    flex: 1,
+  },
+  miniStatusBadge: {
+    marginLeft: 8,
+  },
+  miniStatusBadgeText: {
+    color: '#28a745',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   schedulePreviewMore: {
     fontSize: 12,
