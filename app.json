@@ -27,7 +27,11 @@
       "package": "com.adrianpm.apklistaclean",
       "permissions": [
         "WRITE_EXTERNAL_STORAGE",
-        "READ_EXTERNAL_STORAGE"
+        "READ_EXTERNAL_STORAGE",
+        "WAKE_LOCK",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "SYSTEM_ALERT_WINDOW"
       ]
     },
     "web": {
@@ -40,7 +44,14 @@
       }
     },
     "plugins": [
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "expo-notifications",
+      [
+        "expo-background-fetch",
+        {
+          "backgroundModes": ["background-fetch"]
+        }
+      ]
     ],
     "owner": "lazaroadrian0803"
   }

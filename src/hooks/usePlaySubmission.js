@@ -1,6 +1,8 @@
 // Hook simplificado para insertar UNA jugada (sin lógica de límites legacy ni tablas inexistentes)
 // Se asume que la pantalla (visual o texto) ya validó límites usando limitUtils antes de llamar aquí.
 import { supabase } from '../supabaseClient';
+import NetInfo from '@react-native-community/netinfo';
+import backgroundTaskService from '../services/backgroundTaskService';
 
 export const usePlaySubmission = () => {
 
@@ -126,9 +128,38 @@ export const usePlaySubmission = () => {
     }
   };
 
-  // Función auxiliar para guardar jugada (sin tracking adicional)
+  // Función auxiliar para guardar jugada (con soporte para segundo plano)
   const savePlay = async (formData, numbersArray, calculatedTotal, ids) => {
     try {
+      // Verificar estado de la conexión
+      const netInfo = await NetInfo.fetch();
+      
+      if (!netInfo.isConnected) {
+        console.log('Sin conexión - agregando jugada a cola de pendientes');
+        // Si no hay conexión, agregar a cola de jugadas pendientes
+        const success = await backgroundTaskService.addPendingPlay(
+          formData, 
+          numbersArray, 
+          calculatedTotal, 
+          ids
+        );
+        
+        if (success) {
+          return { 
+            success: true, 
+            message: 'Jugada guardada. Se enviará cuando haya conexión.',
+            isPending: true
+          };
+        } else {
+          return { 
+            success: false, 
+            error: 'Error guardando jugada pendiente', 
+            message: 'No se pudo guardar la jugada para envío posterior' 
+          };
+        }
+      }
+
+      // Si hay conexión, intentar enviar inmediatamente
       const { data: { user } } = await supabase.auth.getUser();
       const insertPayload = {
         id_horario: ids.scheduleId,
@@ -148,12 +179,55 @@ export const usePlaySubmission = () => {
       const { error: insertError } = await supabase.from('jugada').insert(insertPayload);
       if (insertError) {
         console.error('Error insertando jugada:', insertError);
-        return { success:false, error:'Error insertando jugada', message: insertError.message };
+        
+        // Si falla el envío inmediato, agregar a cola de pendientes
+        console.log('Error en envío inmediato - agregando a cola de pendientes');
+        const success = await backgroundTaskService.addPendingPlay(
+          formData, 
+          numbersArray, 
+          calculatedTotal, 
+          ids
+        );
+        
+        if (success) {
+          return { 
+            success: true, 
+            message: 'Error temporal. La jugada se enviará automáticamente.',
+            isPending: true
+          };
+        } else {
+          return { 
+            success: false, 
+            error: 'Error insertando jugada', 
+            message: insertError.message 
+          };
+        }
       }
       
-      return { success:true, play: insertPayload, message:'Jugada insertada' };
+      return { success: true, play: insertPayload, message: 'Jugada insertada exitosamente' };
     } catch (error) {
-      console.error('Error guardando jugada y registrando apuestas:', error);
+      console.error('Error guardando jugada:', error);
+      
+      // En caso de error, intentar guardar como pendiente
+      try {
+        const success = await backgroundTaskService.addPendingPlay(
+          formData, 
+          numbersArray, 
+          calculatedTotal, 
+          ids
+        );
+        
+        if (success) {
+          return { 
+            success: true, 
+            message: 'Error temporal. La jugada se enviará automáticamente.',
+            isPending: true
+          };
+        }
+      } catch (pendingError) {
+        console.error('Error guardando jugada pendiente:', pendingError);
+      }
+      
       throw error;
     }
   };

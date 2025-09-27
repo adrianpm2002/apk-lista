@@ -6,29 +6,39 @@ import { Platform, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { AuthProvider } from './src/contexts/AuthContext';
+import { AppStateProvider } from './src/contexts/AppStateContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import ConnectionStatusIndicator from './src/components/ConnectionStatusIndicator';
 
-export default function App() {
+function AppContent() {
   useEffect(() => {
     if (Platform.OS === 'android') {
-      // Configuración adicional para Android si es necesaria
-      console.log('Configurando barra de estado para Android');
+      console.log('Configurando app para Android con soporte de segundo plano');
     }
   }, []);
 
   return (
+    <View style={styles.container}>
+      <StatusBar 
+        style="dark"
+        backgroundColor="transparent"
+        translucent={true}
+        hidden={false}
+      />
+      <NavigationContainer>
+        <AppNavigator />
+      </NavigationContainer>
+      <ConnectionStatusIndicator />
+    </View>
+  );
+}
+
+export default function App() {
+  return (
     <AuthProvider>
-      <View style={styles.container}>
-        <StatusBar 
-          style="dark"
-          backgroundColor="transparent"
-          translucent={true}
-          hidden={false}
-        />
-        <NavigationContainer>
-          <AppNavigator />
-        </NavigationContainer>
-      </View>
+      <AppStateProvider>
+        <AppContent />
+      </AppStateProvider>
     </AuthProvider>
   );
 }
