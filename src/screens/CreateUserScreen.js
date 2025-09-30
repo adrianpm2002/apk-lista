@@ -352,6 +352,22 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
           lotteryPlayTypes[lottery.id] = actives;
         }
         setLotteryActivePlayTypes(lotteryPlayTypes);
+        
+        // Limpiar limitsValues para mantener solo las jugadas actualmente activas
+        setLimitsValues(prev => {
+          const cleanedLimits = {};
+          Object.entries(prev).forEach(([lotteryId, lotteryLimits]) => {
+            const activesForLottery = lotteryPlayTypes[lotteryId] || [];
+            if (activesForLottery.length > 0) {
+              cleanedLimits[lotteryId] = {};
+              activesForLottery.forEach(playType => {
+                // Mantener el valor si existe, sino inicializar vacío
+                cleanedLimits[lotteryId][playType] = lotteryLimits?.[playType] || '';
+              });
+            }
+          });
+          return cleanedLimits;
+        });
       };
       loadLotteryActivePlayTypes();
     }
