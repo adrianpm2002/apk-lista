@@ -67,6 +67,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   const [activePlayTypes, setActivePlayTypes] = useState([]); // jugadas activas del banco
   const [enableSpecificLimits, setEnableSpecificLimits] = useState(false); // toggle crear listero
   const [limitsValues, setLimitsValues] = useState({}); // valores ingresados para limites específicos por lotería: {lotteryId: {playType: value}}
+  const [lotteryActivePlayTypes, setLotteryActivePlayTypes] = useState({}); // jugadas activas por lotería: {lotteryId: [jugadas]}
   // Estado para reset de contraseña (solo admin)
   const [resetModalVisible, setResetModalVisible] = useState(false);
   const [resetTargetUser, setResetTargetUser] = useState(null);
@@ -318,6 +319,65 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   }, [userRole, currentBankId]);
 
   useEffect(() => { fetchValidGains(); }, [fetchValidGains]);
+
+  // Función helper para obtener jugadas activas por lotería específica
+  const getActivePlayTypesForLottery = useCallback(async (lotteryId) => {
+    if (!currentBankId || !lotteryId) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('jugadas_activas')
+        .select('jugadas')
+        .eq('id_banco', currentBankId)
+        .maybeSingle();
+      
+      if (error && error.code !== 'PGRST116') return [];
+      
+      const jugadas = data?.jugadas || {};
+      
+      // Detectar formato antiguo vs nuevo
+      const isOldFormat = Object.keys(jugadas).some(key => 
+        ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'].includes(key)
+      );
+      
+      let actives = [];
+      
+      if (isOldFormat) {
+        // Formato antiguo: usar jugadas globales
+        actives = Object.keys(jugadas).filter(k => jugadas[k]);
+      } else {
+        // Formato nuevo: usar jugadas específicas de esta lotería
+        const lotteryJugadas = jugadas[lotteryId] || {};
+        actives = Object.keys(lotteryJugadas).filter(k => lotteryJugadas[k]);
+      }
+      
+      // Ordenar según orden canónico
+      actives.sort((a,b) => {
+        const ia = JUGADA_ORDER.indexOf(a);
+        const ib = JUGADA_ORDER.indexOf(b);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+      });
+      
+      return actives;
+    } catch (e) {
+      return [];
+    }
+  }, [currentBankId]);
+
+  // Cargar jugadas activas por lotería cuando se habilitan límites específicos
+  useEffect(() => {
+    if (enableSpecificLimits && availableLotteries.length > 0) {
+      const loadLotteryActivePlayTypes = async () => {
+        const lotteryPlayTypes = {};
+        for (const lottery of availableLotteries) {
+          const actives = await getActivePlayTypesForLottery(lottery.id);
+          lotteryPlayTypes[lottery.id] = actives;
+        }
+        setLotteryActivePlayTypes(lotteryPlayTypes);
+      };
+      loadLotteryActivePlayTypes();
+    }
+  }, [enableSpecificLimits, availableLotteries, getActivePlayTypesForLottery]);
 
   // Función auxiliar para determinar si una ganancia es válida según las jugadas activas
   const isGainValid = useCallback((gainId) => {
@@ -1411,29 +1471,35 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                       {activePlayTypes.length === 0 && (
                         <Text style={styles.limitsHint}>No hay jugadas activas.</Text>
                       )}
-                      {availableLotteries.map(lottery => (
-                        <View key={lottery.id} style={styles.lotteryLimitsSection}>
-                          <Text style={styles.lotteryLimitsTitle}>{lottery.nombre}</Text>
-                          {activePlayTypes.map(playType => (
-                            <View key={`${lottery.id}-${playType}`} style={styles.limitInputRow}>
-                              <Text style={styles.limitPlayType}>{playType}</Text>
-                              <TextInput
-                                placeholder="Límite"
-                                keyboardType="numeric"
-                                value={limitsValues[lottery.id]?.[playType] || ''}
-                                onChangeText={val => setLimitsValues(prev => ({
-                                  ...prev,
-                                  [lottery.id]: {
-                                    ...(prev[lottery.id] || {}),
-                                    [playType]: val.replace(/[^0-9]/g,'')
-                                  }
-                                }))}
-                                style={styles.limitInput}
-                              />
-                            </View>
-                          ))}
-                        </View>
-                      ))}
+                      {availableLotteries.map(lottery => {
+                        const lotteryPlayTypes = lotteryActivePlayTypes[lottery.id] || [];
+                        return (
+                          <View key={lottery.id} style={styles.lotteryLimitsSection}>
+                            <Text style={styles.lotteryLimitsTitle}>{lottery.nombre}</Text>
+                            {lotteryPlayTypes.length === 0 && (
+                              <Text style={styles.limitsHint}>No hay jugadas activas para esta lotería.</Text>
+                            )}
+                            {lotteryPlayTypes.map(playType => (
+                              <View key={`${lottery.id}-${playType}`} style={styles.limitInputRow}>
+                                <Text style={styles.limitPlayType}>{playType}</Text>
+                                <TextInput
+                                  placeholder="Límite"
+                                  keyboardType="numeric"
+                                  value={limitsValues[lottery.id]?.[playType] || ''}
+                                  onChangeText={val => setLimitsValues(prev => ({
+                                    ...prev,
+                                    [lottery.id]: {
+                                      ...(prev[lottery.id] || {}),
+                                      [playType]: val.replace(/[^0-9]/g,'')
+                                    }
+                                  }))}
+                                  style={styles.limitInput}
+                                />
+                              </View>
+                            ))}
+                          </View>
+                        );
+                      })}
                     </View>
                   )}
                 </>
