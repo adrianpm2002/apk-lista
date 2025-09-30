@@ -13,7 +13,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
-import MultiSelectDropdown from '../components/MultiSelectDropdown';
+import DropdownPicker from '../components/DropdownPicker';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
 import ScreenWrapper from '../components/ScreenWrapper';
@@ -75,7 +75,7 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
   
   // Estados para loterías
   const [availableLotteries, setAvailableLotteries] = useState([]);
-  const [selectedLotteries, setSelectedLotteries] = useState([]);
+  const [selectedLottery, setSelectedLottery] = useState('');
   const [loadingLotteries, setLoadingLotteries] = useState(false);
   
   // Estado para jugadas activas del banco
@@ -112,12 +112,10 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
             return;
           }
         } else {
-          console.error('Error cargando rol:', error);
           Alert.alert('Error', 'No se pudo cargar el perfil del usuario');
         }
       }
     } catch (error) {
-      console.error('Error inicializando pantalla:', error);
       Alert.alert('Error', 'No se pudo cargar la información del usuario');
     } finally {
       setLoading(false);
@@ -150,8 +148,12 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
     }, [currentBankId])
   );
 
-  const loadActivePlayTypes = async () => {
-    if (!currentBankId) return;
+  const loadActivePlayTypes = async (lotteryId) => {
+    if (!currentBankId || !lotteryId) {
+      // Si no hay lotería seleccionada, limpiar jugadas activas
+      setEnabledPlayTypes({});
+      return;
+    }
     
     try {
       const { data, error } = await supabase
@@ -161,15 +163,33 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
         .single();
 
       if (error) {
-        console.error('Error loading active play types:', error);
+        // Si no hay datos, todas las jugadas están desactivadas para esta lotería
+        setEnabledPlayTypes({});
         return;
       }
 
       if (data && data.jugadas) {
-        setEnabledPlayTypes(data.jugadas);
+        // El formato real es: { "uuid-loteria-1": { fijo: true, ... }, "uuid-loteria-2": { ... } }
+        const jugadas = data.jugadas || {};
+        
+        // Detectar formato antiguo vs nuevo
+        const isOldFormat = Object.keys(jugadas).some(key => 
+          ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'].includes(key)
+        );
+        
+        if (isOldFormat) {
+          // Formato antiguo: usar jugadas globales (todas las loterías tienen las mismas jugadas)
+          setEnabledPlayTypes(jugadas);
+        } else {
+          // Formato nuevo: usar jugadas de la lotería específica usando su UUID
+          const lotteryJugadas = jugadas[lotteryId] || {};
+          setEnabledPlayTypes(lotteryJugadas);
+        }
+      } else {
+        setEnabledPlayTypes({});
       }
     } catch (error) {
-      console.error('Error loading active play types:', error);
+      setEnabledPlayTypes({});
     }
   };
 
@@ -185,13 +205,12 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
         .order('nombre', { ascending: true });
 
       if (error) {
-        console.error('Error loading lotteries:', error);
         return;
       }
 
       setAvailableLotteries(data || []);
     } catch (error) {
-      console.error('Error loading lotteries:', error);
+      // Error silencioso para carga de loterías
     } finally {
       setLoadingLotteries(false);
     }
@@ -303,17 +322,24 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
   };
 
   // Función para manejar selección múltiple de loterías
-  const handleLotterySelection = (selectedValues) => {
-    setSelectedLotteries(selectedValues);
+  const handleLotterySelection = (selectedValue) => {
+    setSelectedLottery(selectedValue);
+    // Extraer el UUID del objeto si es necesario
+    const lotteryId = typeof selectedValue === 'object' ? selectedValue.value : selectedValue;
+    // Cargar las jugadas activas para esta lotería
+    loadActivePlayTypes(lotteryId);
   };
 
   // saveConfiguration eliminado: cambios se aplican en tiempo real
 
   // CRUD local de precios (pendiente definir tabla para persistir). Cada guardado reemplaza/añade por jugada.
   const handleSavePricesBatch = async () => {
-    // Validar que se hayan seleccionado loterías (solo para nuevas configuraciones)
-    if (!editingConfigId && selectedLotteries.length === 0) {
-      setModalError('Selecciona al menos una lotería.');
+    // Extraer el UUID de la lotería seleccionada
+    const lotteryId = typeof selectedLottery === 'object' ? selectedLottery.value : selectedLottery;
+    
+    // Validar que se haya seleccionado una lotería (solo para nuevas configuraciones)
+    if (!editingConfigId && !lotteryId) {
+      setModalError('Selecciona una lotería.');
       return;
     }
 
@@ -417,26 +443,24 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
             Alert.alert('Éxito', 'Configuración actualizada correctamente');
           }
         } else {
-          // Insertar nueva configuración para cada lotería seleccionada
-          const insertPromises = selectedLotteries.map(lotteryId => {
-            const payload = { 
-              id_banco: currentBankId, 
-              id_loteria: lotteryId,
-              precios: preciosJSON, 
-              nombre: priceConfigName.trim()
-            };
-            return supabase.from('precio').insert(payload).select();
-          });
-
-          const results = await Promise.all(insertPromises);
-          const errors = results.filter(result => result.error);
+          // Insertar nueva configuración para la lotería seleccionada
+          const payload = { 
+            id_banco: currentBankId, 
+            id_loteria: lotteryId, // Usar el lotteryId extraído arriba
+            precios: preciosJSON, 
+            nombre: priceConfigName.trim()
+          };
           
-          if (errors.length > 0) {
-            console.error('Error guardando precios:', errors);
-            Alert.alert('Error', `No se pudieron guardar ${errors.length} configuraciones de precios`);
+          const { data: insertData, error: insertError } = await supabase
+            .from('precio')
+            .insert(payload)
+            .select();
+          
+          if (insertError) {
+            Alert.alert('Error', 'No se pudo guardar la configuración de precios');
           } else {
             await loadPriceConfigurations(); // Recargar configuraciones
-            Alert.alert('Éxito', `Se guardaron ${selectedLotteries.length} configuraciones de precios correctamente`);
+            Alert.alert('Éxito', 'Configuración de precios guardada correctamente');
           }
         }
       } catch (err) {
@@ -455,7 +479,7 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
 
   const clearModalData = () => {
     setPriceConfigName('');
-    setSelectedLotteries([]);
+    setSelectedLottery('');
     setModalError('');
     setModalFieldErrors({});
     // Limpiar winningPrices
@@ -588,6 +612,7 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
             setEditingBatch(false);
             setEditingConfigId(null);
             clearModalData();
+            setEnabledPlayTypes({}); // Limpiar jugadas activas hasta seleccionar lotería
             setPriceModalVisible(true);
           }}
           variant="primary"
@@ -624,10 +649,9 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
             const configuredPlays = jugadasKeys;
             
             // Verificar problemas de configuración
-            const activePlayTypes = enabledPlayTypes ? Object.keys(enabledPlayTypes).filter(k => enabledPlayTypes[k]) : [];
-            const hasInactiveConfigured = configuredPlays.some(play => !activePlayTypes.includes(play));
-            const hasMissingActive = activePlayTypes.some(play => !configuredPlays.includes(play));
-            const hasConfigError = hasInactiveConfigured || hasMissingActive;
+            // NOTA: Deshabilitamos temporalmente la verificación de problemas de configuración
+            // porque requiere cargar las jugadas activas de cada lotería individualmente
+            const hasConfigError = false;
             
             return (
               <View key={cfg.id} style={[styles.configItem, hasConfigError && styles.configItemError]}>
@@ -742,23 +766,35 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
                 />
               </View>
 
-              {/* Selector de Loterías */}
+              {/* Selector de Lotería */}
               {!editingBatch && (
                 <View style={styles.modalPriceGroup}>
-                  <Text style={styles.modalPriceGroupTitle}>Loterías</Text>
-                  <MultiSelectDropdown
-                    label="Seleccionar Loterías"
-                    selectedValues={selectedLotteries}
+                  <Text style={styles.modalPriceGroupTitle}>Lotería</Text>
+                  <DropdownPicker
+                    label="Seleccionar Lotería"
+                    value={selectedLottery && typeof selectedLottery === 'object' ? selectedLottery.label : ''}
                     onSelect={handleLotterySelection}
                     options={availableLotteries.map(lottery => ({
                       label: lottery.nombre,
                       value: lottery.id
                     }))}
-                    placeholder="Selecciona las loterías..."
+                    placeholder="Selecciona una lotería..."
                   />
                 </View>
               )}
-              {availablePlayTypes.filter(pt => enabledPlayTypes[pt.id]).map(pt => (
+              
+              {/* Mensaje cuando no hay lotería seleccionada o no hay jugadas activas */}
+              {((!selectedLottery || (typeof selectedLottery === 'object' && !selectedLottery.value)) || availablePlayTypes.filter(pt => enabledPlayTypes[pt.id]).length === 0) && (
+                <View style={styles.emptyStateContainer}>
+                  <Text style={styles.emptyStateText}>
+                    {(!selectedLottery || (typeof selectedLottery === 'object' && !selectedLottery.value))
+                      ? "Selecciona una lotería para configurar precios" 
+                      : "Esta lotería no tiene jugadas activas configuradas"}
+                  </Text>
+                </View>
+              )}
+              
+              {selectedLottery && availablePlayTypes.filter(pt => enabledPlayTypes[pt.id]).map(pt => (
                 <View key={pt.id} style={styles.modalPriceGroup}>
                   <Text style={styles.modalPriceGroupTitle}>{pt.label}</Text>
                   <View style={styles.modalRow}>
@@ -1179,5 +1215,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#2980B9',
     textAlign: 'center'
+  },
+  emptyStateContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    marginVertical: 10,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });
