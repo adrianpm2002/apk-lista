@@ -46,8 +46,19 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibil
       setVisibleModes(prev => ({ ...prev, ...incomingVisibleModes }));
     }
   }, [incomingVisibleModes]);
+
+  // Cargar estado del modo santiago cuando es admin
+  useEffect(() => {
+    if (role === 'admin') {
+      loadModoSantiago();
+    }
+  }, [role]);
   // Modal de cambio de contraseña independiente
   const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
+  
+  // Estado para modo santiago (solo para admin/banco)
+  const [modoSantiago, setModoSantiago] = useState(false);
+  const [loadingModoSantiago, setLoadingModoSantiago] = useState(false);
 
   // Opciones del sidebar por rol
 const roleOptionsMap = {
@@ -354,6 +365,83 @@ const configOptions = role ? roleOptionsMap[role] : null;
     setSettingsView('modes');
   };
 
+  // Cargar estado del modo santiago desde la base de datos
+  const loadModoSantiago = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('modo_santiago')
+        .eq('id', user.id)
+        .single();
+
+      if (!error && profile) {
+        setModoSantiago(profile.modo_santiago || false);
+      }
+    } catch (error) {
+      console.error('Error cargando modo santiago:', error);
+    }
+  };
+
+  // Alternar estado del modo santiago
+  const toggleModoSantiago = async () => {
+    if (loadingModoSantiago) return;
+    
+    setLoadingModoSantiago(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const newValue = !modoSantiago;
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({ modo_santiago: newValue })
+        .eq('id', user.id);
+
+      if (!error) {
+        setModoSantiago(newValue);
+        showToast(`Modo Santiago ${newValue ? 'activado' : 'desactivado'}`);
+      } else {
+        console.error('Error actualizando modo santiago:', error);
+        Alert.alert('Error', 'No se pudo actualizar el modo santiago');
+      }
+    } catch (error) {
+      console.error('Error actualizando modo santiago:', error);
+      Alert.alert('Error', 'No se pudo actualizar el modo santiago');
+    } finally {
+      setLoadingModoSantiago(false);
+    }
+  };
+
+  // Función para mostrar toast de confirmación
+  const showToast = (message) => {
+    setToastMsg(message);
+    toastOpacity.stopAnimation();
+    toastOpacity.setValue(0);
+    try {
+      Animated.sequence([
+        Animated.timing(toastOpacity, { 
+          toValue: 1, 
+          duration: Platform.OS === 'android' ? 120 : 160, 
+          useNativeDriver: Platform.OS !== 'web' 
+        }),
+        Animated.delay(Platform.OS === 'android' ? 1000 : 1200),
+        Animated.timing(toastOpacity, { 
+          toValue: 0, 
+          duration: Platform.OS === 'android' ? 150 : 180, 
+          useNativeDriver: Platform.OS !== 'web' 
+        }),
+      ]).start();
+    } catch (error) {
+      console.error('Toast animation error:', error);
+      toastOpacity.setValue(1);
+      setTimeout(() => toastOpacity.setValue(0), Platform.OS === 'android' ? 1000 : 1200);
+    }
+  };
+
   const handleModeToggle = (mode) => {
     const newVisibleModes = {
       ...visibleModes,
@@ -503,6 +591,35 @@ const configOptions = role ? roleOptionsMap[role] : null;
                     <Text style={styles.settingIcon}>👁️</Text>
                     <Text style={styles.settingText}>Modos Visibles</Text>
                     <Text style={styles.settingArrow}>▶</Text>
+                  </Pressable>
+                )}
+
+                {/* Modo Santiago (solo admin/banco) */}
+                {role === 'admin' && (
+                  <Pressable 
+                    style={[
+                      styles.settingOption,
+                      loadingModoSantiago && { opacity: 0.6 }
+                    ]}
+                    onPress={toggleModoSantiago}
+                    disabled={loadingModoSantiago}
+                  >
+                    <Text style={styles.settingIcon}>⚡</Text>
+                    <View style={styles.settingTextContainer}>
+                      <Text style={styles.settingText}>Modo Santiago</Text>
+                      <Text style={styles.settingStatus}>
+                        {loadingModoSantiago ? 'Actualizando...' : (modoSantiago ? 'Activado' : 'Desactivado')}
+                      </Text>
+                    </View>
+                    <View style={[
+                      styles.toggleSwitch,
+                      modoSantiago && styles.toggleSwitchActive
+                    ]}>
+                      <View style={[
+                        styles.toggleIndicator,
+                        modoSantiago && styles.toggleIndicatorActive
+                      ]} />
+                    </View>
                   </Pressable>
                 )}
 
@@ -1364,6 +1481,34 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   
+  // Toggle switch styles for modo santiago
+  toggleSwitch: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#ccc',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  toggleSwitchActive: {
+    backgroundColor: '#34c759',
+  },
+  toggleIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleIndicatorActive: {
+    alignSelf: 'flex-end',
+  },
+
   // Pressed states
   buttonPressed: {
     opacity: 0.7,
