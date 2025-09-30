@@ -1,34 +1,16 @@
-import React, { Suspense } from 'react';
-import { View, Text } from 'react-native';
-
-// Importación lazy del SideBar para mejor rendimiento
-const LazySideBar = React.lazy(() => import('./SideBar').then(module => ({ default: module.SideBar })));
-
-// Componente de carga mientras se carga el SideBar
-const SideBarFallback = ({ isDarkMode }) => (
-  <View style={{ 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    backgroundColor: isDarkMode ? '#2c3e50' : '#ffffff'
-  }}>
-    <Text style={{ color: isDarkMode ? '#ecf0f1' : '#2c3e50' }}>
-      Cargando menú...
-    </Text>
-  </View>
-);
+import React from 'react';
+import { SideBar } from './SideBar';
 
 const SideBarWrapper = (props) => {
+  console.log('🔧 SideBarWrapper - Props received:', { isVisible: props.isVisible, role: props.role });
+  
   // Solo renderizar el SideBar cuando es visible
   if (!props.isVisible) {
     return null;
   }
 
-  return (
-    <Suspense fallback={<SideBarFallback isDarkMode={props.isDarkMode} />}>
-      <LazySideBar {...props} />
-    </Suspense>
-  );
+  // Usar importación directa temporalmente para debugging
+  return <SideBar {...props} />;
 };
 
 // Importar SideBarToggle normalmente ya que es un componente simple

@@ -167,54 +167,66 @@ const configOptions = role ? roleOptionsMap[role] : null;
   };
 
   const handleOptionPress = (option) => {
-    // Solo cerrar el sidebar si NO es configuración
-    if (option.id !== 'settings') {
-      handleClose();
-    }
-
+    console.log('🔧 SideBar - handleOptionPress called with option:', option);
+    
     switch (option.id) {
     case 'createUser':
+      handleClose();
       navigation.navigate('CreateUser');
       break;
     case 'insertResults':
+      handleClose();
       navigation.navigate('Bankview');
       break;
     case 'lotteries':
+      handleClose();
       navigation.navigate('ManageLotteries');
       break;
     case 'jugadas':
+      handleClose();
       navigation.navigate('Jugadas');
       break;
     case 'lotteryLimits':
+      handleClose();
       navigation.navigate('LotteryLimits');
       break;
     case 'prices':
+      handleClose();
       navigation.navigate('ManagePrices');
       break;
     case 'listerLimits':
+      handleClose();
       navigation.navigate('NumberLimits');
       break;
     case 'limitedNumbers':
+      handleClose();
       navigation.navigate('NumberLimits');
       break;
     case 'statistics':
+      handleClose();
       navigation.navigate('Statistics');
       break;
     case 'bankCapacity':
+      handleClose();
       navigation.navigate('BankCapacity');
       break;
     case 'collectorStatistics':
+      handleClose();
       navigation.navigate('CollectorStatistics');
       break;
     case 'play':
+      handleClose();
       navigation.navigate('MainApp');
       break;
     case 'settings':
-      handleClose(); // Cerrar sidebar primero
+      console.log('🔧 SideBar - Opening settings modal');
       setModalContent(option);
       setModalVisible(true);
+      console.log('🔧 SideBar - Modal should be visible now, modalVisible set to true');
+      // NO cerrar el sidebar para configuración - el modal se maneja independientemente
       break;
     default:
+      handleClose();
       Alert.alert('Opción aún no implementada');
   }
 };
@@ -224,6 +236,8 @@ const configOptions = role ? roleOptionsMap[role] : null;
     setModalVisible(false);
     setModalContent(null);
     setSettingsView('root');
+    // Cerrar el sidebar también cuando se cierre el modal de configuración
+    handleClose();
   };
 
   const handleLogout = () => {
