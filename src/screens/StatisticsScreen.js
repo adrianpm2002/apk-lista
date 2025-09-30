@@ -30,9 +30,8 @@ try {
   } else {
     exportPdfModule = require('../utils/pdfExport.native');
   }
-  console.log('Módulo PDF cargado para plataforma:', Platform.OS);
+
 } catch (error) {
-  console.error('Error al cargar módulo PDF:', error);
   exportPdfModule = null;
 }
 
@@ -301,9 +300,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       setShowExportModal(false);
       
       if (format === 'pdf') {
-        console.log('Iniciando exportación PDF...');
         const success = await exportDetailsToPDF();
-        console.log('Resultado exportación:', success);
         
         if (success) {
           Alert.alert('Éxito', 'PDF exportado correctamente');
@@ -312,26 +309,18 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         }
       }
     } catch (error) {
-      console.error('Error en handleExport:', error);
       Alert.alert('Error', `No se pudieron exportar los datos: ${error.message}`);
     }
   };
 
   // ===== Export helpers (Web) =====
   const groupDetailsForExport = () => {
-    console.log('groupDetailsForExport: Iniciando...');
-    console.log('tableData:', tableData);
-    console.log('tableData es array:', Array.isArray(tableData));
-    console.log('tableData length:', tableData ? tableData.length : 'undefined');
-    
     // Validar que tableData sea un array
     if (!tableData || !Array.isArray(tableData)) {
-      console.error('tableData no es un array válido:', tableData);
       return [];
     }
     
     if (tableData.length === 0) {
-      console.log('tableData está vacío');
       return [];
     }
     
@@ -360,11 +349,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     };
     const map = new Map();
     
-    console.log('Procesando', tableData.length, 'registros...');
+
     
     // Filtrar registros con fechas válidas antes de procesarlos
     const validRecords = tableData.filter(r => r.created_at);
-    console.log('Registros con fecha válida:', validRecords.length);
     
     for(const r of validRecords){
       const dayKey = dayKeyOf(r.created_at);
@@ -394,18 +382,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     const groups = Array.from(map.values()).sort((a,b)=> (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
     groups.forEach(g=> g.plays.sort((a,b)=> b.ts - a.ts));
     
-    console.log('Grupos generados:', groups.length);
     return groups;
   };
 
   const exportDetailsToPDF = async () => {
     try{
-      console.log('Iniciando exportDetailsToPDF...');
-      console.log('Platform:', Platform.OS);
-      console.log('exportPdfModule:', exportPdfModule);
-      
       const groups = groupDetailsForExport();
-      console.log('Grupos generados:', groups.length);
       
       const style = `
         <style>
@@ -437,21 +419,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         ${sections}
       </body></html>`;
       
-      console.log('HTML generado, longitud:', html.length);
-      
       // Verificar que el módulo esté disponible
       if (!exportPdfModule || !exportPdfModule.exportPdf) {
-        console.error('Módulo exportPdf no disponible');
         throw new Error('Módulo de exportación no disponible');
       }
       
       // Usar el módulo de exportación según la plataforma
-      console.log('Llamando a exportPdf...');
       const ok = await exportPdfModule.exportPdf(html);
-      console.log('Resultado de exportPdf:', ok);
       return !!ok;
     }catch(e){ 
-      console.error('Error en exportDetailsToPDF:', e);
       return false; 
     }
   };
@@ -949,7 +925,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             const dateKey = `${year}-${month}-${day}`; // YYYY-MM-DD en fecha local
             
             if (!dailyBalanceMap.has(dateKey)) {
-              console.log(`📅 [renderRoleBasedChartsTab] Creating new day: ${dateKey} from original: ${play.fecha_jugada}`);
               dailyBalanceMap.set(dateKey, {
                 date: dateKey,
                 d: new Date(playDate.getFullYear(), playDate.getMonth(), playDate.getDate()),
@@ -1037,25 +1012,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             label: labelFormat(day.d)
           }));
           
-          // Debug: Log para verificar datos
-          console.log('📊 [renderRoleBasedChartsTab] Debug data:', {
-            allPlaysCount: allPlays.length,
-            dailyDataCount: dailyData.length,
-            displayDataCount: displayData.length,
-            seriesCount: series.length,
-            dailyBreakdown: dailyData.map(d => ({ 
-              date: d.date, 
-              balance: d.balance, 
-              playCount: d.playCount,
-              bruto: d.bruto,
-              ganancia: d.ganancia 
-            })),
-            series: series.map(s => ({ date: s.date, profit: s.profit, label: s.label }))
-          });
-          
           // Para un solo día, asegurar que el gráfico tenga contexto
           if (series.length === 1) {
-            console.log('📊 [renderRoleBasedChartsTab] Single day detected, ensuring proper display');
+            // Agregar contexto al gráfico para un solo punto
           }
           
           return (
@@ -1168,7 +1127,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       // Navegar a la pantalla de jugadas con los parámetros
       navigation.navigate('Jugadas', playsRecordParams);
     } catch (error) {
-      console.error('Error navegando al registro de jugadas:', error);
       Alert.alert('Error', 'No se pudo abrir el registro de jugadas');
     }
   };

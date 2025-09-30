@@ -823,7 +823,7 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
             animationProps={{ scaleFrom:0.9, duration:180 }}
           />
           {/* Martillo oculto en Modo Texto 2.0 */}
-          <ListButton currentMode={currentMode} onOptionSelect={(option) => console.log('List option:', option)} />
+          <ListButton currentMode={currentMode} onOptionSelect={(option) => {}} />
           <TextModeInfoButton icon="ℹ︎" mode="texto2" />
           <CleanerButton onInsert={(formatted)=>{
             setPlays(prev => {

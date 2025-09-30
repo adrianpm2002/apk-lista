@@ -8,7 +8,7 @@ export const debugAsyncStorage = {
    * Prueba básica de escritura y lectura
    */
   async basicTest() {
-    console.log('=== INICIANDO TEST ASYNC STORAGE ===');
+
     
     try {
       // Test de escritura

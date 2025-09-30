@@ -66,7 +66,7 @@ export const useConnectionSimulator = () => {
     
     setIsSimulating(true);
     saveSimulationState(true, simulatedConnection);
-    console.log('🔧 Simulación de conexión activada:', simulatedConnection ? 'CONECTADO' : 'DESCONECTADO');
+
   };
 
   const stopSimulation = () => {
@@ -76,7 +76,7 @@ export const useConnectionSimulator = () => {
     // Restaurar NetInfo original si es posible
     if (originalNetInfo) {
       // En un entorno real, esto requeriría reiniciar la app
-      console.log('🔧 Simulación desactivada - Reinicia la app para usar conexión real');
+
     }
   };
 
@@ -85,12 +85,12 @@ export const useConnectionSimulator = () => {
     saveSimulationState(isSimulating, connected);
     
     if (isSimulating) {
-      console.log('🔧 Estado de conexión simulado cambiado a:', connected ? 'CONECTADO' : 'DESCONECTADO');
+
       
       // Disparar evento simulado para listeners activos
       setTimeout(() => {
         // Esto simularía el cambio en tiempo real
-        console.log('📶 Evento de cambio de conexión simulado');
+
       }, 100);
     }
   };
@@ -114,7 +114,7 @@ export const useAppStateSimulator = () => {
   const [simulatedAppState, setSimulatedAppState] = useState('active');
 
   const simulateAppStateChange = (newState) => {
-    console.log(`🔧 Simulando cambio de AppState: ${simulatedAppState} -> ${newState}`);
+
     setSimulatedAppState(newState);
     
     // Disparar evento simulado

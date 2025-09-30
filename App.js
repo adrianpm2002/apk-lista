@@ -1,6 +1,8 @@
 // Solo para plataformas nativas (iOS/Android)
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
+// Desactivar logs en producción
+import './src/utils/disableLogs';
 import React, { useEffect } from 'react';
 import { Platform, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -13,7 +15,7 @@ import ConnectionStatusIndicator from './src/components/ConnectionStatusIndicato
 function AppContent() {
   useEffect(() => {
     if (Platform.OS === 'android') {
-      console.log('Configurando app para Android con soporte de segundo plano');
+      // Configurando app para Android con soporte de segundo plano
     }
   }, []);
 

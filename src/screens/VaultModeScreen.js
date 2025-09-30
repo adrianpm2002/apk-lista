@@ -869,7 +869,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
             animationProps={{ scaleFrom:0.9, duration:180 }}
           />
           {/* Botón de registros diarios */}
-          <ListButton currentMode={currentMode} onOptionSelect={(option) => console.log('List option:', option)} />
+          <ListButton currentMode={currentMode} onOptionSelect={(option) => {}} />
           <TouchableOpacity 
             style={[
               styles.actionButton, 

@@ -59,6 +59,8 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibil
   // Estado para modo santiago (solo para admin/banco)
   const [modoSantiago, setModoSantiago] = useState(false);
   const [loadingModoSantiago, setLoadingModoSantiago] = useState(false);
+  const [porcentajeSantiago, setPorcentajeSantiago] = useState(100);
+  const [loadingPorcentaje, setLoadingPorcentaje] = useState(false);
 
   // Opciones del sidebar por rol
 const roleOptionsMap = {
@@ -167,8 +169,6 @@ const configOptions = role ? roleOptionsMap[role] : null;
   };
 
   const handleOptionPress = (option) => {
-    console.log('🔧 SideBar - handleOptionPress called with option:', option);
-    
     switch (option.id) {
     case 'createUser':
       handleClose();
@@ -219,10 +219,8 @@ const configOptions = role ? roleOptionsMap[role] : null;
       navigation.navigate('MainApp');
       break;
     case 'settings':
-      console.log('🔧 SideBar - Opening settings modal');
       setModalContent(option);
       setModalVisible(true);
-      console.log('🔧 SideBar - Modal should be visible now, modalVisible set to true');
       // NO cerrar el sidebar para configuración - el modal se maneja independientemente
       break;
     default:
@@ -276,7 +274,6 @@ const configOptions = role ? roleOptionsMap[role] : null;
   };
 
   // Estados para configuraciones
-  const [currentFontSize, setCurrentFontSize] = useState('mediano'); // 'pequeno', 'mediano', 'grande'
   const [keepSessionActive, setKeepSessionActive] = useState(false);
 
   // Función para manejar "Mantener sesión iniciada"
@@ -290,48 +287,8 @@ const configOptions = role ? roleOptionsMap[role] : null;
           text: keepSessionActive ? 'Desactivar' : 'Activar', 
           onPress: () => {
             setKeepSessionActive(!keepSessionActive);
-            console.log(`Sesión permanente ${!keepSessionActive ? 'activada' : 'desactivada'}`);
           }
         }
-      ]
-    );
-  };
-
-  // Función para manejar "Tamaño de letra"
-  const handleFontSizePress = () => {
-    const fontSizeLabels = {
-      pequeno: 'Pequeño',
-      mediano: 'Mediano',
-      grande: 'Grande'
-    };
-
-    Alert.alert(
-      'Tamaño de letra',
-      `Actual: ${fontSizeLabels[currentFontSize]}\n\nSelecciona el tamaño de letra:`,
-      [
-        { 
-          text: 'Pequeño', 
-          onPress: () => {
-            setCurrentFontSize('pequeno');
-            console.log('Tamaño pequeño seleccionado');
-            // Aquí se aplicaría el cambio global
-          }
-        },
-        { 
-          text: 'Mediano', 
-          onPress: () => {
-            setCurrentFontSize('mediano');
-            console.log('Tamaño mediano seleccionado');
-          }
-        },
-        { 
-          text: 'Grande', 
-          onPress: () => {
-            setCurrentFontSize('grande');
-            console.log('Tamaño grande seleccionado');
-          }
-        },
-        { text: 'Cancelar', style: 'cancel' }
       ]
     );
   };
@@ -363,7 +320,9 @@ const configOptions = role ? roleOptionsMap[role] : null;
                 { 
                   text: 'Desactivar', 
                   style: 'destructive',
-                  onPress: () => console.log('Patrón desactivado')
+                  onPress: () => {
+                    // Patrón desactivado
+                  }
                 }
               ]
             );
@@ -387,12 +346,13 @@ const configOptions = role ? roleOptionsMap[role] : null;
 
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('modo_santiago')
+        .select('modo_santiago, porciento')
         .eq('id', user.id)
         .single();
 
       if (!error && profile) {
         setModoSantiago(profile.modo_santiago || false);
+        setPorcentajeSantiago(profile.porciento || 100);
       }
     } catch (error) {
       console.error('Error cargando modo santiago:', error);
@@ -427,6 +387,35 @@ const configOptions = role ? roleOptionsMap[role] : null;
       Alert.alert('Error', 'No se pudo actualizar el modo santiago');
     } finally {
       setLoadingModoSantiago(false);
+    }
+  };
+
+  // Actualizar porcentaje de modo santiago
+  const updatePorcentajeSantiago = async (newPorcentaje) => {
+    if (loadingPorcentaje) return;
+    
+    setLoadingPorcentaje(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ porciento: newPorcentaje })
+        .eq('id', user.id);
+
+      if (!error) {
+        setPorcentajeSantiago(newPorcentaje);
+        showToast(`Porcentaje actualizado a ${newPorcentaje}%`);
+      } else {
+        console.error('Error actualizando porcentaje:', error);
+        Alert.alert('Error', 'No se pudo actualizar el porcentaje');
+      }
+    } catch (error) {
+      console.error('Error actualizando porcentaje:', error);
+      Alert.alert('Error', 'No se pudo actualizar el porcentaje');
+    } finally {
+      setLoadingPorcentaje(false);
     }
   };
 
@@ -543,32 +532,7 @@ const configOptions = role ? roleOptionsMap[role] : null;
                 </Pressable>
                 */}
 
-                {/* OCULTO PARA BUILD - Tamaño de letra */}
-                {/*
-                <Pressable style={[
-                  styles.settingOption,
-                  Platform.OS === 'android' && {
-                    backgroundColor: '#FFFFFF',
-                    marginVertical: 2,
-                    borderRadius: 4,
-                    elevation: 1,
-                    paddingVertical: 8,
-                    paddingHorizontal: 10
-                  }
-                ]} onPress={handleFontSizePress}>
-                  <Text style={[styles.settingIcon, { fontSize: 14 }]}>🔤</Text>
-                  <View style={styles.settingTextContainer}>
-                    <Text style={[styles.settingText, Platform.OS === 'android' && { color: '#000000', fontSize: 13 }]}>
-                      Tamaño de letra
-                    </Text>
-                    <Text style={[styles.settingStatus, Platform.OS === 'android' && { color: '#666666', fontSize: 11 }]}>
-                      {currentFontSize === 'pequeno' ? 'Pequeño' : 
-                       currentFontSize === 'mediano' ? 'Mediano' : 'Grande'}
-                    </Text>
-                  </View>
-                  <Text style={[styles.settingArrow, { fontSize: 12 }]}>▶</Text>
-                </Pressable>
-                */}
+
 
                 {/* OCULTO PARA BUILD - Patrón de seguridad */}
                 {/*
@@ -636,6 +600,44 @@ const configOptions = role ? roleOptionsMap[role] : null;
                     </View>
                   </Pressable>
                 )}
+
+                {/* Porcentaje Santiago (solo cuando modo santiago está activado) */}
+                {role === 'admin' && modoSantiago && (
+                  <View style={styles.settingOption}>
+                    <Text style={styles.settingIcon}>📊</Text>
+                    <View style={styles.settingTextContainer}>
+                      <Text style={styles.settingText}>Porcentaje Santiago</Text>
+                      <Text style={styles.settingStatus}>
+                        {loadingPorcentaje ? 'Actualizando...' : `${porcentajeSantiago}%`}
+                      </Text>
+                    </View>
+                    <View style={styles.percentageInputContainer}>
+                      <TextInput
+                        style={[
+                          styles.percentageInput,
+                          loadingPorcentaje && { opacity: 0.6 }
+                        ]}
+                        value={porcentajeSantiago.toString()}
+                        onChangeText={(text) => {
+                          const numValue = parseInt(text) || 0;
+                          if (numValue >= 0 && numValue <= 100) {
+                            setPorcentajeSantiago(numValue);
+                          }
+                        }}
+                        onEndEditing={() => {
+                          updatePorcentajeSantiago(porcentajeSantiago);
+                        }}
+                        keyboardType="numeric"
+                        maxLength={3}
+                        editable={!loadingPorcentaje}
+                        selectTextOnFocus={true}
+                      />
+                      <Text style={styles.percentageSymbol}>%</Text>
+                    </View>
+                  </View>
+                )}
+
+
 
                 {/* Cambiar contraseña (admin, collector y listero) */}
                 {(role === 'collector' || role === 'listero' || role === 'admin') && (
@@ -1522,6 +1524,33 @@ const styles = StyleSheet.create({
   toggleIndicatorActive: {
     alignSelf: 'flex-end',
   },
+
+  // Percentage input styles
+  percentageInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    paddingHorizontal: 8,
+    minWidth: 60,
+  },
+  percentageInput: {
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    minWidth: 30,
+    paddingVertical: 4,
+  },
+  percentageSymbol: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 2,
+  },
+
+
 
   // Pressed states
   buttonPressed: {

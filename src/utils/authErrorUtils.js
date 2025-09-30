@@ -101,6 +101,6 @@ export const logAuthError = (context, error) => {
   
   // Log adicional para debugging en desarrollo
   if (process.env.NODE_ENV !== 'production') {
-    console.log(`[Auth Error Details - ${context}]`, error);
+
   }
 };

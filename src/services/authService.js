@@ -19,14 +19,14 @@ class AuthService {
       // console.log('Sesión persistente habilitada:', isPersistentEnabled);
 
       if (!isPersistentEnabled) {
-        console.log('Sesión persistente deshabilitada');
+
         return null;
       }
 
       // Verificar si hay un refresh token almacenado
       const refreshToken = await secureStorage.getStoredRefreshToken();
       if (!refreshToken) {
-        console.log('No hay refresh token almacenado');
+
         return null;
       }
 
@@ -45,7 +45,7 @@ class AuthService {
         if (error.message.includes('refresh_token_not_found') || 
             error.message.includes('invalid refresh token') ||
             error.message.includes('Auth session missing')) {
-          console.log('Refresh token inválido, limpiando credenciales...');
+
           await secureStorage.clearStoredCredentials();
         }
         
@@ -53,7 +53,7 @@ class AuthService {
       }
 
       if (!data.session) {
-        console.log('No se pudo establecer la sesión');
+
         return null;
       }
 
@@ -63,13 +63,13 @@ class AuthService {
       const userProfile = await this.getUserProfile(data.session.user.id);
       
       if (!userProfile) {
-        console.log('No se pudo obtener el perfil del usuario');
+
         return null;
       }
 
       // Verificar si el usuario sigue activo
       if (userProfile.activo === false) {
-        console.log('Usuario inactivo, no restaurar sesión');
+
         await this.logout(false); // No limpiar preferencia de persistencia
         return null;
       }
@@ -241,7 +241,7 @@ class AuthService {
    */
   async logout(clearPersistentPreference = false) {
     try {
-      console.log('Cerrando sesión...');
+
       
       // Cerrar sesión en Supabase
       await supabase.auth.signOut();
@@ -253,7 +253,7 @@ class AuthService {
         await secureStorage.clearStoredCredentials();
       }
       
-      console.log('Sesión cerrada exitosamente');
+
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
       // Forzar limpieza incluso si hay error
@@ -274,11 +274,11 @@ class AuthService {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.refresh_token) {
           await secureStorage.saveRefreshToken(session.refresh_token);
-          console.log('Sesión persistente habilitada - refresh token guardado');
+
         }
       } else {
         // Si se deshabilita, limpiar solo los datos almacenados pero mantener sesión actual
-        console.log('Sesión persistente deshabilitada - limpiando datos almacenados');
+
         await secureStorage.clearStoredCredentials();
       }
     } catch (error) {

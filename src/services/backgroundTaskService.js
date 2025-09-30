@@ -10,7 +10,7 @@ const PENDING_PLAYS_KEY = 'pending_plays';
 // Definir la tarea en segundo plano
 TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
   try {
-    console.log('Ejecutando tarea en segundo plano...');
+
     await processPendingPlays();
     return BackgroundFetch.BackgroundFetchResult.NewData;
   } catch (error) {
@@ -137,7 +137,7 @@ export const registerBackgroundFetch = async () => {
         stopOnTerminate: false, // Continuar después de cerrar la app
         startOnBoot: true, // Iniciar al reiniciar el dispositivo
       });
-      console.log('Tarea en segundo plano registrada');
+
     }
   } catch (error) {
     console.error('Error registrando tarea en segundo plano:', error);
@@ -150,7 +150,7 @@ export const unregisterBackgroundFetch = async () => {
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_FETCH_TASK);
     if (isRegistered) {
       await BackgroundFetch.unregisterTaskAsync(BACKGROUND_FETCH_TASK);
-      console.log('Tarea en segundo plano desregistrada');
+
     }
   } catch (error) {
     console.error('Error desregistrando tarea en segundo plano:', error);
@@ -174,7 +174,7 @@ export const addPendingPlay = async (playData, numbersArray, calculatedTotal, id
     const updatedPlays = [...existingPlays, pendingPlay];
     
     await AsyncStorage.setItem(PENDING_PLAYS_KEY, JSON.stringify(updatedPlays));
-    console.log('Jugada agregada a cola de pendientes');
+
     
     // Mostrar notificación informativa
     await sendNotification(
@@ -205,7 +205,7 @@ export const getPendingPlays = async () => {
 export const clearPendingPlays = async () => {
   try {
     await AsyncStorage.removeItem(PENDING_PLAYS_KEY);
-    console.log('Cola de jugadas pendientes limpiada');
+
   } catch (error) {
     console.error('Error limpiando jugadas pendientes:', error);
   }
@@ -213,7 +213,7 @@ export const clearPendingPlays = async () => {
 
 // Verificar estado de la conexión y procesar jugadas pendientes manualmente
 export const processPendingPlaysManually = async () => {
-  console.log('Procesando jugadas pendientes manualmente...');
+
   await processPendingPlays();
 };
 

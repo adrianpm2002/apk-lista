@@ -1027,7 +1027,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           )}
           
           <BatteryButton 
-            onOptionSelect={(option) => console.log('Battery option:', option)}
+            onOptionSelect={(option) => {}}
             selectedLotteries={selectedLotteries}
             selectedSchedules={selectedSchedules}
             selectedPlayTypes={selectedPlayTypes}
@@ -1045,7 +1045,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           />
           
           <ListButton 
-            onOptionSelect={(option) => console.log('List option:', option)}
+            onOptionSelect={(option) => {}}
             isDarkMode={isDarkMode}
           />
           

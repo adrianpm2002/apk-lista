@@ -70,7 +70,7 @@ export const sendNotification = async (type, title, body, data = {}) => {
       ...(Platform.OS === 'android' && { channelId }),
     });
 
-    console.log('Notificación enviada:', { type, title, body });
+
   } catch (error) {
     console.error('Error enviando notificación:', error);
   }

@@ -840,7 +840,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
               setPlays(prev => prev ? prev + (prev.endsWith('\n')?'':'\n') + opt.numbers : opt.numbers);
             }
           }} />
-          <ListButton currentMode={currentMode} onOptionSelect={(option) => console.log('List option:', option)} />
+          <ListButton currentMode={currentMode} onOptionSelect={(option) => {}} />
           <TextModeInfoButton icon="ℹ︎" />
           <CleanerButton onInsert={(formatted)=>{
             setPlays(prev => {
