@@ -104,7 +104,6 @@ const configOptions = role ? roleOptionsMap[role] : null;
   // Animación del sidebar
   useEffect(() => {
     if (!slideAnim) {
-      console.warn('slideAnim is not initialized');
       return;
     }
 
@@ -114,24 +113,15 @@ const configOptions = role ? roleOptionsMap[role] : null;
           toValue: 0,
           duration: Platform.OS === 'android' ? 250 : 300,
           useNativeDriver: Platform.OS !== 'web', // Solo usar native driver en móvil
-        }).start((finished) => {
-          if (!finished) {
-            console.warn('Animation interrupted');
-          }
-        });
+        }).start();
       } else {
         Animated.timing(slideAnim, {
           toValue: -sidebarWidth,
           duration: Platform.OS === 'android' ? 200 : 300,
           useNativeDriver: Platform.OS !== 'web', // Solo usar native driver en móvil
-        }).start((finished) => {
-          if (!finished) {
-            console.warn('Animation interrupted');
-          }
-        });
+        }).start();
       }
     } catch (error) {
-      console.error('Animation error:', error);
       // Fallback sin animación
       slideAnim.setValue(isVisible ? 0 : -sidebarWidth);
     }
@@ -355,7 +345,7 @@ const configOptions = role ? roleOptionsMap[role] : null;
         setPorcentajeSantiago(profile.porciento || 100);
       }
     } catch (error) {
-      console.error('Error cargando modo santiago:', error);
+      // Error silencioso en modo producción
     }
   };
 
@@ -379,11 +369,9 @@ const configOptions = role ? roleOptionsMap[role] : null;
         setModoSantiago(newValue);
         showToast(`Modo Santiago ${newValue ? 'activado' : 'desactivado'}`);
       } else {
-        console.error('Error actualizando modo santiago:', error);
         Alert.alert('Error', 'No se pudo actualizar el modo santiago');
       }
     } catch (error) {
-      console.error('Error actualizando modo santiago:', error);
       Alert.alert('Error', 'No se pudo actualizar el modo santiago');
     } finally {
       setLoadingModoSantiago(false);
@@ -408,11 +396,9 @@ const configOptions = role ? roleOptionsMap[role] : null;
         setPorcentajeSantiago(newPorcentaje);
         showToast(`Porcentaje actualizado a ${newPorcentaje}%`);
       } else {
-        console.error('Error actualizando porcentaje:', error);
         Alert.alert('Error', 'No se pudo actualizar el porcentaje');
       }
     } catch (error) {
-      console.error('Error actualizando porcentaje:', error);
       Alert.alert('Error', 'No se pudo actualizar el porcentaje');
     } finally {
       setLoadingPorcentaje(false);
@@ -439,7 +425,6 @@ const configOptions = role ? roleOptionsMap[role] : null;
         }),
       ]).start();
     } catch (error) {
-      console.error('Toast animation error:', error);
       toastOpacity.setValue(1);
       setTimeout(() => toastOpacity.setValue(0), Platform.OS === 'android' ? 1000 : 1200);
     }
@@ -818,7 +803,6 @@ const configOptions = role ? roleOptionsMap[role] : null;
                         }),
                       ]).start();
                     } catch (error) {
-                      console.error('Toast animation error:', error);
                       toastOpacity.setValue(1);
                       setTimeout(() => toastOpacity.setValue(0), Platform.OS === 'android' ? 1000 : 1200);
                     }

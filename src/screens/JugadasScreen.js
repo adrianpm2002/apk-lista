@@ -224,6 +224,10 @@ const JugadasContent = React.memo(({
   const [userRole, setUserRole] = useState(null);
   const [currentBankId, setCurrentBankId] = useState(null);
   
+  // Estados para loterías y jugadas por lotería
+  const [lotteries, setLotteries] = useState([]); // Lista de loterías del banco
+  const [expandedLottery, setExpandedLottery] = useState(null); // Lotería expandida para mostrar jugadas
+  
   // Estados para tipos de jugada disponibles
   const [availablePlayTypes] = useState([
     { id: 'fijo', label: 'Fijo', enabled: true },
@@ -234,15 +238,8 @@ const JugadasContent = React.memo(({
     { id: 'tripleta', label: 'Tripleta', enabled: true },
   ]);
   
-  // Estado de jugadas activas basado en la nueva estructura jsonb (una fila por banco)
-  const [enabledPlayTypes, setEnabledPlayTypes] = useState({
-    fijo: true,
-    corrido: true,
-    posicion: true,
-    parle: true,
-    centena: true,
-    tripleta: true,
-  });
+  // Estado de jugadas activas por lotería: { lotteryId: { fijo: true, corrido: false, ... } }
+  const [enabledPlayTypesByLottery, setEnabledPlayTypesByLottery] = useState({});
   const [jugadasRecordId, setJugadasRecordId] = useState(null); // id de la fila en jugadas_activas
 
   // ========== FETCH FUNCTIONS ==========
@@ -277,10 +274,13 @@ const JugadasContent = React.memo(({
     fetchUserProfile();
   }, []);
 
-  // Cargar jugadas activas cuando tengamos bankId
+  // Cargar loterías y jugadas activas cuando tengamos bankId
   useEffect(() => {
     if (currentBankId) {
-      fetchJugadasActivas(currentBankId).finally(() => {
+      Promise.all([
+        fetchLotteries(currentBankId),
+        fetchJugadasActivas(currentBankId)
+      ]).finally(() => {
         setLoading(false);
       });
     } else {
@@ -288,9 +288,29 @@ const JugadasContent = React.memo(({
     }
   }, [currentBankId]);
 
+  // Función para cargar las loterías del banco
+  const fetchLotteries = useCallback(async (bankId) => {
+    try {
+      const { data, error } = await supabase
+        .from('loteria')
+        .select('id, nombre')
+        .eq('id_banco', bankId)
+        .order('nombre');
+      
+      if (error) {
+        console.error('Error fetching lotteries:', error);
+        return;
+      }
+      
+      setLotteries(data || []);
+    } catch (error) {
+      console.error('Error fetching lotteries:', error);
+    }
+  }, []);
+
   const fetchJugadasActivas = useCallback(async (bankId) => {
     try {
-      // Traer TODAS las filas (si hubiera duplicadas) para este banco
+      // Traer el registro de jugadas activas para este banco
       const { data: rows, error } = await supabase
         .from('jugadas_activas')
         .select('id, jugadas, created_at')
@@ -298,9 +318,9 @@ const JugadasContent = React.memo(({
         .order('created_at', { ascending: true });
         
       if (error) {
-        // Si la tabla no existe, usar valores por defecto
+        // Si la tabla no existe, inicializar estado vacío
         if (error.code === '42P01') {
-          setEnabledPlayTypes(DEFAULT_JUGADAS_JSON);
+          setEnabledPlayTypesByLottery({});
           setJugadasRecordId(null);
           return;
         }
@@ -312,131 +332,119 @@ const JugadasContent = React.memo(({
       }
       
       if (!rows || rows.length === 0) {
-        // No existe fila: crear una
-        const now = new Date().toISOString();
-        
-        const { data: inserted, error: insErr } = await supabase
-          .from('jugadas_activas')
-          .insert({ 
-            id_banco: bankId, 
-            created_at: now, 
-            jugadas: DEFAULT_JUGADAS_JSON 
-          })
-          .select('id, jugadas')
-          .single();
-          
-        if (insErr) {
-          // Si la tabla no existe, usar valores por defecto
-          if (insErr.code === '42P01') {
-            setEnabledPlayTypes(DEFAULT_JUGADAS_JSON);
-            setJugadasRecordId(null);
-            return;
-          }
-          
-          // En caso de otros errores, usar valores por defecto localmente
-          setEnabledPlayTypes(DEFAULT_JUGADAS_JSON);
-          setJugadasRecordId(null);
-          return;
-        }
-        
-        setJugadasRecordId(inserted.id);
-        setEnabledPlayTypes(inserted.jugadas || DEFAULT_JUGADAS_JSON);
+        // No existe registro: inicializar estado vacío
+        setEnabledPlayTypesByLottery({});
+        setJugadasRecordId(null);
         return;
       }
-      // Si hay más de una fila, consolidar y eliminar duplicadas
-      let baseRow = rows[0]; // más antigua (por orden ascendente)
+
+      // Usar el primer registro encontrado (debería ser único por banco)
+      const baseRow = rows[0];
+      setJugadasRecordId(baseRow.id);
       
-      if (rows.length > 1) {
-        // Estrategia de consolidación: OR lógico (si alguna fila tiene true lo conservamos en true)
-        const consolidated = { ...DEFAULT_JUGADAS_JSON };
-        rows.forEach(r => {
-          const jug = r.jugadas || {};
-          Object.keys(consolidated).forEach(k => {
-            if (jug[k] === true) consolidated[k] = true;
-          });
-        });
-        
-        // Actualizar la fila base con la consolidación (solo si difiere)
-        const needsUpdate = Object.keys(consolidated).some(k => (baseRow.jugadas||{})[k] !== consolidated[k]);
-        if (needsUpdate) {
-          const { error: updErr } = await supabase
-            .from('jugadas_activas')
-            .update({ jugadas: consolidated })
-            .eq('id', baseRow.id);
-          if (!updErr) {
-            baseRow = { ...baseRow, jugadas: consolidated };
-          }
-        }
-        
-        // Eliminar filas sobrantes (todas excepto baseRow)
-        const duplicateIds = rows.slice(1).map(r => r.id);
-        if (duplicateIds.length > 0) {
-          await supabase
-            .from('jugadas_activas')
-            .delete()
-            .in('id', duplicateIds);
-        }
+      // El nuevo formato es: { lotteryId: { fijo: true, corrido: false, ... } }
+      const jugadas = baseRow.jugadas || {};
+      
+      // Detectar si es formato antiguo: tiene keys como 'fijo', 'corrido' directamente
+      const isOldFormat = Object.keys(jugadas).some(key => 
+        ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'].includes(key)
+      );
+      
+      if (isOldFormat) {
+        // Formato antiguo: inicializar estado vacío, se migrará cuando el usuario configure
+        setEnabledPlayTypesByLottery({});
+      } else {
+        // Formato nuevo: ya está por lotería
+        setEnabledPlayTypesByLottery(jugadas);
       }
       
-      // Usar la fila base resultante
-      setJugadasRecordId(baseRow.id);
-      const merged = { ...DEFAULT_JUGADAS_JSON, ...(baseRow.jugadas || {}) };
-      setEnabledPlayTypes(merged);
-      
     } catch (error) {
-      setEnabledPlayTypes(DEFAULT_JUGADAS_JSON);
+      setEnabledPlayTypesByLottery({});
       setJugadasRecordId(null);
     }
   }, []); // useCallback sin dependencias porque usa setters directamente
 
-  const togglePlayType = useCallback(async (typeId) => {
-    if (!currentBankId) {
+  const togglePlayTypeForLottery = useCallback(async (lotteryId, typeId) => {
+    if (!currentBankId || !lotteryId) {
       return;
     }
     
-    const prevVal = enabledPlayTypes[typeId];
+    const currentLotteryJugadas = enabledPlayTypesByLottery[lotteryId] || {};
+    const prevVal = currentLotteryJugadas[typeId] || false;
     const newValue = !prevVal;
     
-    // Actualizar estado local inmediatamente (esto no debería causar re-mount)
-    setEnabledPlayTypes(prev => {
-      return { ...prev, [typeId]: newValue };
-    });
-    setUpdatingTypes(prev => new Set(prev).add(typeId));
+    // Actualizar estado local inmediatamente
+    setEnabledPlayTypesByLottery(prev => ({
+      ...prev,
+      [lotteryId]: {
+        ...currentLotteryJugadas,
+        [typeId]: newValue
+      }
+    }));
+    setUpdatingTypes(prev => new Set(prev).add(`${lotteryId}_${typeId}`));
     
     try {
-      // Usar el recordId actual sin refrescar datos
-      const recordId = jugadasRecordId;
-      
-      if (!recordId) {
-        return; // Mantener el cambio solo en el estado local
+      // Si no hay registro, crear uno
+      if (!jugadasRecordId) {
+        const now = new Date().toISOString();
+        const newJugadas = {
+          [lotteryId]: {
+            ...currentLotteryJugadas,
+            [typeId]: newValue
+          }
+        };
+        
+        const { data: inserted, error: insErr } = await supabase
+          .from('jugadas_activas')
+          .insert({ 
+            id_banco: currentBankId, 
+            created_at: now, 
+            jugadas: newJugadas 
+          })
+          .select('id')
+          .single();
+          
+        if (!insErr && inserted) {
+          setJugadasRecordId(inserted.id);
+        }
+        return;
       }
       
-      // Crear la nueva configuración basada en el estado actual más el cambio
-      const updatedJugadas = { ...enabledPlayTypes, [typeId]: newValue };
+      // Actualizar el registro existente
+      const updatedJugadas = {
+        ...enabledPlayTypesByLottery,
+        [lotteryId]: {
+          ...currentLotteryJugadas,
+          [typeId]: newValue
+        }
+      };
       
       const { error: updErr } = await supabase
         .from('jugadas_activas')
         .update({ jugadas: updatedJugadas })
-        .eq('id', recordId);
+        .eq('id', jugadasRecordId);
         
-      if (updErr) {
-        if (updErr.code === '42P01') {
-          return; // Mantener el cambio solo en el estado local
-        }
+      if (updErr && updErr.code !== '42P01') {
         throw updErr;
       }
       
     } catch (e) {
       // Revertir el cambio en caso de error
-      setEnabledPlayTypes(prev => ({ ...prev, [typeId]: prevVal }));
+      setEnabledPlayTypesByLottery(prev => ({
+        ...prev,
+        [lotteryId]: {
+          ...currentLotteryJugadas,
+          [typeId]: prevVal
+        }
+      }));
     } finally {
       setUpdatingTypes(prev => { 
         const n = new Set(prev); 
-        n.delete(typeId); 
+        n.delete(`${lotteryId}_${typeId}`); 
         return n; 
       });
     }
-  }, [enabledPlayTypes, currentBankId, jugadasRecordId]); // useCallback con las dependencias necesarias
+  }, [enabledPlayTypesByLottery, currentBankId, jugadasRecordId]); // useCallback con las dependencias necesarias
 
   const handleRefresh = async () => {
     if (!currentBankId) return;
@@ -487,23 +495,52 @@ const JugadasContent = React.memo(({
         }
       >
         
-        {/* Sección: Tipos de Jugada */}
+        {/* Sección: Configuración por Lotería */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tipos de Jugada Disponibles</Text>
+          <Text style={styles.sectionTitle}>Jugadas Activas por Lotería</Text>
           
-          {/* Lista de tipos de jugada */}
-          {availablePlayTypes.map(playType => (
-            <View key={playType.id} style={styles.playTypeItem}>
-              <Text style={styles.playTypeLabel}>{playType.label}</Text>
-              <Switch
-                value={enabledPlayTypes[playType.id]}
-                disabled={updatingTypes.has(playType.id)}
-                onValueChange={() => togglePlayType(playType.id)}
-                trackColor={{ false: '#767577', true: '#81b0ff' }}
-                thumbColor={enabledPlayTypes[playType.id] ? '#f5dd4b' : '#f4f3f4'}
-              />
-            </View>
-          ))}
+          {lotteries.length === 0 ? (
+            <Text style={styles.emptyText}>No hay loterías disponibles para este banco</Text>
+          ) : (
+            lotteries.map(lottery => (
+              <View key={lottery.id} style={styles.lotteryContainer}>
+                {/* Header de la lotería */}
+                <TouchableOpacity 
+                  style={styles.lotteryHeader}
+                  onPress={() => setExpandedLottery(expandedLottery === lottery.id ? null : lottery.id)}
+                >
+                  <Text style={styles.lotteryName}>{lottery.nombre}</Text>
+                  <Text style={styles.expandIcon}>
+                    {expandedLottery === lottery.id ? '▼' : '▶'}
+                  </Text>
+                </TouchableOpacity>
+                
+                {/* Contenido expandible */}
+                {expandedLottery === lottery.id && (
+                  <View style={styles.lotteryContent}>
+                    {availablePlayTypes.map(playType => {
+                      const lotteryJugadas = enabledPlayTypesByLottery[lottery.id] || {};
+                      const isEnabled = lotteryJugadas[playType.id] || false;
+                      const isUpdating = updatingTypes.has(`${lottery.id}_${playType.id}`);
+                      
+                      return (
+                        <View key={playType.id} style={styles.playTypeItem}>
+                          <Text style={styles.playTypeLabel}>{playType.label}</Text>
+                          <Switch
+                            value={isEnabled}
+                            disabled={isUpdating}
+                            onValueChange={() => togglePlayTypeForLottery(lottery.id, playType.id)}
+                            trackColor={{ false: '#767577', true: '#81b0ff' }}
+                            thumbColor={isEnabled ? '#f5dd4b' : '#f4f3f4'}
+                          />
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            ))
+          )}
         </View>
 
       </ScrollView>
@@ -857,6 +894,37 @@ const styles = {
     color: '#7f8c8d',
     marginTop: 32,
     fontStyle: 'italic',
+  },
+  // Estilos para el nuevo layout por loterías
+  lotteryContainer: {
+    backgroundColor: '#fff',
+    marginBottom: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+    ...createShadowStyle(1),
+  },
+  lotteryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e1e8ed',
+  },
+  lotteryName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+    flex: 1,
+  },
+  expandIcon: {
+    fontSize: 16,
+    color: '#3498db',
+    fontWeight: 'bold',
+  },
+  lotteryContent: {
+    padding: 16,
   },
 };
 
