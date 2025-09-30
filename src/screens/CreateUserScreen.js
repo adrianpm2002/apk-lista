@@ -202,11 +202,41 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         .eq('id_banco', currentBankId)
         .maybeSingle();
       if (error && error.code !== 'PGRST116') { // ignorar no rows
-        console.error('Error cargando jugadas activas:', error);
         return;
       }
-      const jugadas = data?.jugadas || { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
-      const actives = Object.keys(jugadas).filter(k => jugadas[k]);
+      
+      let actives = [];
+      const jugadas = data?.jugadas || {};
+      
+      // Detectar formato antiguo vs nuevo
+      const isOldFormat = Object.keys(jugadas).some(key => 
+        ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'].includes(key)
+      );
+      
+      if (isOldFormat) {
+        // Formato antiguo: { fijo: true, corrido: true, ... }
+        actives = Object.keys(jugadas).filter(k => jugadas[k]);
+      } else {
+        // Formato nuevo: { "uuid-loteria-1": { fijo: true, ... }, "uuid-loteria-2": { ... } }
+        // Crear unión de todas las jugadas activas en cualquier lotería
+        const allActivePlayTypes = new Set();
+        Object.values(jugadas).forEach(lotteryJugadas => {
+          if (lotteryJugadas && typeof lotteryJugadas === 'object') {
+            Object.entries(lotteryJugadas).forEach(([jugada, isActive]) => {
+              if (isActive) {
+                allActivePlayTypes.add(jugada);
+              }
+            });
+          }
+        });
+        actives = Array.from(allActivePlayTypes);
+      }
+      
+      // Si no hay jugadas configuradas, usar todas como activas (fallback)
+      if (actives.length === 0) {
+        actives = ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'];
+      }
+      
       // Ordenar según orden canónico
       actives.sort((a,b) => {
         const ia = JUGADA_ORDER.indexOf(a);
@@ -240,50 +270,52 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     }
   }, [currentBankId]);
 
-  // Cargar configuraciones de precio válidas: exactamente mismas jugadas activas
+  // Cargar configuraciones de precio disponibles (sin filtro estricto por jugadas activas)
   const fetchValidGains = useCallback(async () => {
     if (!currentBankId) return;
     try {
       const { data, error } = await supabase
         .from('precio')
-        .select('id, nombre, precios, id_banco, id_loteria')
+        .select(`
+          id, 
+          nombre, 
+          precios, 
+          id_banco, 
+          id_loteria,
+          loteria:id_loteria(nombre)
+        `)
         .eq('id_banco', currentBankId);
-      if (error) { console.error('Error precio:', error); return; }
-      // Tanto collector como admin usan la misma lógica de validación
-      // para determinar correctamente qué ganancias son válidas
-      const actSet = new Set(activePlayTypes);
-      const filtered = (data||[]).filter(cfg => {
+      if (error) { 
+        return; 
+      }
+      
+      // Procesar datos para incluir el nombre de la lotería
+      const processedData = (data || []).map(cfg => ({
+        ...cfg,
+        loteriaNombre: cfg.loteria?.nombre || 'Lotería desconocida'
+      }));
+      
+      // Filtrar configuraciones que tengan estructura válida
+      const filtered = processedData.filter(cfg => {
         if (!cfg || !cfg.precios || typeof cfg.precios !== 'object') return false;
-          const keys = Object.keys(cfg.precios);
-          if (keys.length !== actSet.size) return false;
-          for (const k of keys) {
-            if (!actSet.has(k)) return false;
-            const v = cfg.precios[k];
-            if (!v || typeof v !== 'object') return false;
-            const req = ['limited','regular','listeroPct','collectorPct'];
-            for (const r of req) { if (!(r in v)) return false; }
-          }
-          for (const a of actSet) { if (!(a in cfg.precios)) return false; }
-          return true;
+        
+        // Verificar que al menos tenga alguna jugada configurada correctamente
+        const keys = Object.keys(cfg.precios);
+        return keys.some(k => {
+          const v = cfg.precios[k];
+          if (!v || typeof v !== 'object') return false;
+          const req = ['limited','regular','listeroPct','collectorPct'];
+          return req.every(r => r in v);
+        });
       });
       
-      // Admin también necesita acceso a todas las configuraciones para resolver nombres
-      // pero conservamos las filtradas para la validación de estado
-      if (userRole === 'admin') {
-        // Para admin: cargar todas las configuraciones para poder resolver nombres históricos
-        // pero usar la validación para determinar el estado actual
-        setGainOptions(data || []);
-        // Para el modal de asignación, usar solo las configuraciones válidas
-        setValidGainOptions(filtered);
-      } else {
-        // Para collector: solo las configuraciones válidas en ambos casos
-        setGainOptions(filtered);
-        setValidGainOptions(filtered);
-      }
+      // Tanto admin como collector pueden usar todas las configuraciones válidas
+      setGainOptions(filtered);
+      setValidGainOptions(filtered);
     } catch (e) {
-      console.error('Excepción fetchValidGains:', e);
+      // Error silencioso para producción
     }
-  }, [userRole, currentBankId, activePlayTypes]);
+  }, [userRole, currentBankId]);
 
   useEffect(() => { fetchValidGains(); }, [fetchValidGains]);
 
