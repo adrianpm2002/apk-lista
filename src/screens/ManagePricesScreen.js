@@ -698,41 +698,59 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
                       return allRows;
                     })()}
                     <View style={styles.configActionsRow}>
-                      <TouchableOpacity onPress={() => {
-                        // Cargar esta config en modal para editar como nueva versión
+                      <TouchableOpacity onPress={async () => {
+                        // Cargar esta config en modal para editar
                         const json = cfg.precios || {};
-                        const newWinning = { ...winningPrices };
-                        Object.keys(newWinning).forEach(k => {
-                          const o = json[k] || {};
-                          newWinning[k] = {
-                            regular: o.regular?.toString() || '',
-                            limited: o.limited?.toString() || '',
-                            collectorPct: o.collectorPct?.toString() || '',
-                            listeroPct: o.listeroPct?.toString() || ''
+                        
+                        // Encontrar la lotería asociada a esta configuración
+                        const associatedLottery = availableLotteries.find(lottery => lottery.id === cfg.id_loteria);
+                        
+                        if (associatedLottery) {
+                          // Configurar la lotería seleccionada
+                          const lotteryObj = {
+                            label: associatedLottery.nombre,
+                            value: associatedLottery.id
                           };
-                        });
-                        setWinningPrices(newWinning);
-                        // reconstruir priceEntries para referencias locales
-                        const newEntries = [];
-                        Object.keys(json).forEach(k => {
-                          const o = json[k] || {};
-                          const anyVal = ['regular','limited','collectorPct','listeroPct'].some(f => o[f] !== null && o[f] !== undefined && o[f] !== '');
-                          if (anyVal) {
-                            newEntries.push({
-                              id: k + '-' + Date.now(),
-                              jugada: k,
-                              regular: o.regular ?? null,
-                              limited: o.limited ?? null,
-                              collectorPct: o.collectorPct ?? null,
-                              listeroPct: o.listeroPct ?? null,
-                            });
-                          }
-                        });
-                        setPriceEntries(newEntries);
-                        setPriceConfigName(cfg.nombre || '');
-                        setEditingBatch(true);
-                        setEditingConfigId(cfg.id); // marcar para UPDATE
-                        setPriceModalVisible(true);
+                          setSelectedLottery(lotteryObj);
+                          
+                          // Cargar las jugadas activas para esta lotería
+                          await loadActivePlayTypes(associatedLottery.id);
+                          
+                          // Configurar los precios basados en lo que está guardado
+                          const newWinning = {};
+                          availablePlayTypes.forEach(pt => {
+                            const o = json[pt.id] || {};
+                            newWinning[pt.id] = {
+                              regular: o.regular?.toString() || '',
+                              limited: o.limited?.toString() || '',
+                              collectorPct: o.collectorPct?.toString() || '',
+                              listeroPct: o.listeroPct?.toString() || ''
+                            };
+                          });
+                          
+                          // También incluir jugadas que estén en la configuración guardada pero no necesariamente activas
+                          Object.keys(json).forEach(jugadaKey => {
+                            if (!newWinning[jugadaKey]) {
+                              const o = json[jugadaKey] || {};
+                              newWinning[jugadaKey] = {
+                                regular: o.regular?.toString() || '',
+                                limited: o.limited?.toString() || '',
+                                collectorPct: o.collectorPct?.toString() || '',
+                                listeroPct: o.listeroPct?.toString() || ''
+                              };
+                            }
+                          });
+                          
+                          setWinningPrices(newWinning);
+                          
+                          // Configurar el modal para edición
+                          setPriceConfigName(cfg.nombre || '');
+                          setEditingBatch(true);
+                          setEditingConfigId(cfg.id);
+                          setPriceModalVisible(true);
+                        } else {
+                          Alert.alert('Error', 'No se encontró la lotería asociada a esta configuración');
+                        }
                       }} style={styles.smallButtonPrimary}>
                         <Text style={styles.smallButtonText}>Editar</Text>
                       </TouchableOpacity>
@@ -780,6 +798,18 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
                     }))}
                     placeholder="Selecciona una lotería..."
                   />
+                </View>
+              )}
+
+              {/* Mostrar lotería cuando estamos editando */}
+              {editingBatch && selectedLottery && (
+                <View style={styles.modalPriceGroup}>
+                  <Text style={styles.modalPriceGroupTitle}>Lotería</Text>
+                  <View style={styles.readOnlyField}>
+                    <Text style={styles.readOnlyFieldText}>
+                      {typeof selectedLottery === 'object' ? selectedLottery.label : selectedLottery}
+                    </Text>
+                  </View>
                 </View>
               )}
               
@@ -1229,5 +1259,18 @@ const styles = StyleSheet.create({
     color: '#7f8c8d',
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  readOnlyField: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  readOnlyFieldText: {
+    fontSize: 16,
+    color: '#495057',
+    fontWeight: '500',
   },
 });
