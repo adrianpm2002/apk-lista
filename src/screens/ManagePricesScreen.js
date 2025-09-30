@@ -169,22 +169,12 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
       }
 
       if (data && data.jugadas) {
-        // El formato real es: { "uuid-loteria-1": { fijo: true, ... }, "uuid-loteria-2": { ... } }
+        // Formato nuevo: { "uuid-loteria-1": { fijo: true, ... }, "uuid-loteria-2": { ... } }
         const jugadas = data.jugadas || {};
         
-        // Detectar formato antiguo vs nuevo
-        const isOldFormat = Object.keys(jugadas).some(key => 
-          ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'].includes(key)
-        );
-        
-        if (isOldFormat) {
-          // Formato antiguo: usar jugadas globales (todas las loterías tienen las mismas jugadas)
-          setEnabledPlayTypes(jugadas);
-        } else {
-          // Formato nuevo: usar jugadas de la lotería específica usando su UUID
-          const lotteryJugadas = jugadas[lotteryId] || {};
-          setEnabledPlayTypes(lotteryJugadas);
-        }
+        // Usar jugadas de la lotería específica usando su UUID
+        const lotteryJugadas = jugadas[lotteryId] || {};
+        setEnabledPlayTypes(lotteryJugadas);
       } else {
         setEnabledPlayTypes({});
       }

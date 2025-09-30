@@ -209,29 +209,19 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       let actives = [];
       const jugadas = data?.jugadas || {};
       
-      // Detectar formato antiguo vs nuevo
-      const isOldFormat = Object.keys(jugadas).some(key => 
-        ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'].includes(key)
-      );
-      
-      if (isOldFormat) {
-        // Formato antiguo: { fijo: true, corrido: true, ... }
-        actives = Object.keys(jugadas).filter(k => jugadas[k]);
-      } else {
-        // Formato nuevo: { "uuid-loteria-1": { fijo: true, ... }, "uuid-loteria-2": { ... } }
-        // Crear unión de todas las jugadas activas en cualquier lotería
-        const allActivePlayTypes = new Set();
-        Object.values(jugadas).forEach(lotteryJugadas => {
-          if (lotteryJugadas && typeof lotteryJugadas === 'object') {
-            Object.entries(lotteryJugadas).forEach(([jugada, isActive]) => {
-              if (isActive) {
-                allActivePlayTypes.add(jugada);
-              }
-            });
-          }
-        });
-        actives = Array.from(allActivePlayTypes);
-      }
+      // Formato nuevo: { "uuid-loteria-1": { fijo: true, ... }, "uuid-loteria-2": { ... } }
+      // Crear unión de todas las jugadas activas en cualquier lotería
+      const allActivePlayTypes = new Set();
+      Object.values(jugadas).forEach(lotteryJugadas => {
+        if (lotteryJugadas && typeof lotteryJugadas === 'object') {
+          Object.entries(lotteryJugadas).forEach(([jugada, isActive]) => {
+            if (isActive) {
+              allActivePlayTypes.add(jugada);
+            }
+          });
+        }
+      });
+      actives = Array.from(allActivePlayTypes);
       
       // Si no hay jugadas configuradas, usar todas como activas (fallback)
       if (actives.length === 0) {
@@ -335,21 +325,9 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       
       const jugadas = data?.jugadas || {};
       
-      // Detectar formato antiguo vs nuevo
-      const isOldFormat = Object.keys(jugadas).some(key => 
-        ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'].includes(key)
-      );
-      
-      let actives = [];
-      
-      if (isOldFormat) {
-        // Formato antiguo: usar jugadas globales
-        actives = Object.keys(jugadas).filter(k => jugadas[k]);
-      } else {
-        // Formato nuevo: usar jugadas específicas de esta lotería
-        const lotteryJugadas = jugadas[lotteryId] || {};
-        actives = Object.keys(lotteryJugadas).filter(k => lotteryJugadas[k]);
-      }
+      // Formato nuevo: usar jugadas específicas de esta lotería
+      const lotteryJugadas = jugadas[lotteryId] || {};
+      const actives = Object.keys(lotteryJugadas).filter(k => lotteryJugadas[k]);
       
       // Ordenar según orden canónico
       actives.sort((a,b) => {

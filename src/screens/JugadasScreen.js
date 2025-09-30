@@ -345,18 +345,8 @@ const JugadasContent = React.memo(({
       // El nuevo formato es: { lotteryId: { fijo: true, corrido: false, ... } }
       const jugadas = baseRow.jugadas || {};
       
-      // Detectar si es formato antiguo: tiene keys como 'fijo', 'corrido' directamente
-      const isOldFormat = Object.keys(jugadas).some(key => 
-        ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'].includes(key)
-      );
-      
-      if (isOldFormat) {
-        // Formato antiguo: inicializar estado vacío, se migrará cuando el usuario configure
-        setEnabledPlayTypesByLottery({});
-      } else {
-        // Formato nuevo: ya está por lotería
-        setEnabledPlayTypesByLottery(jugadas);
-      }
+      // Formato nuevo: ya está por lotería
+      setEnabledPlayTypesByLottery(jugadas);
       
     } catch (error) {
       setEnabledPlayTypesByLottery({});
