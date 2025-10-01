@@ -769,7 +769,9 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
           showClearButtonOverlay={true}
           onClear={()=> setPlays('')}
           hasError={showFieldErrors && (playsError || !plays.trim())}
-          keyboardType="number-pad"
+          keyboardType="default"
+          returnKeyType="default"
+          blurOnSubmit={false}
         />
   {/* Se eliminan botones superiores duplicados */}
         {(plays.length>0) && (
