@@ -139,14 +139,14 @@ const TextInputWithErrorHighlight = ({
             style={{
               width: '100%',
               minHeight: '120px',
-              border: `${isFocused ? 2 : 1.5}px solid ${isFocused ? '#3498DB' : (hasError ? '#E74C3C' : '#D5DBDB')}`,
+              border: '1.5px solid #D5DBDB',
               borderRadius: '8px',
               padding: '14px 12px',
               paddingRight: overlayButtons.length > 0 ? '50px' : '12px',
               fontSize: '16px',
               fontFamily: 'monospace',
               color: '#2C3E50',
-              backgroundColor: hasError ? '#FDEDEC' : '#FFFFFF',
+              backgroundColor: '#FFFFFF',
               resize: 'vertical',
               outline: 'none',
               lineHeight: '1.4',
@@ -215,11 +215,7 @@ const TextInputWithErrorHighlight = ({
         <TextInput
           style={[
             styles.input,
-            isFocused && styles.inputFocused,
-            hasError && styles.inputError,
             overlayButtons.length > 0 && styles.inputWithOverlayButtons,
-            // Agregar estilos especiales cuando hay errores de línea
-            errorLines.length > 0 && styles.inputWithLineErrors,
             inputStyle,
           ]}
           value={value}
@@ -233,21 +229,7 @@ const TextInputWithErrorHighlight = ({
           {...otherProps}
         />
         
-        {/* Mostrar indicador de errores específicos debajo del input */}
-        {errorLines.length > 0 && (
-          <View style={styles.rnErrorIndicator}>
-            <View style={styles.rnErrorHeader}>
-              <Text style={styles.rnErrorIcon}>⚠️</Text>
-              <Text style={styles.rnErrorText}>
-                {errorLines.length} error{errorLines.length > 1 ? 'es' : ''} encontrado{errorLines.length > 1 ? 's' : ''}
-              </Text>
-            </View>
-            <Text style={styles.rnErrorLines}>
-              Línea{errorLines.length > 1 ? 's' : ''}: {errorLines.slice(0, 8).join(', ')}
-              {errorLines.length > 8 && ` y ${errorLines.length - 8} más`}
-            </Text>
-          </View>
-        )}
+        {/* Mostrar indicador de errores específicos debajo del input - REMOVIDO */}
       </View>
     );
   };
