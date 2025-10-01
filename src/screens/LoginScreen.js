@@ -9,7 +9,7 @@ import { authService } from '../services/authService';
 
 const LoginScreen = ({ navigation }) => {
   return (
-    <ScreenWrapper showCacheStatus={false}>
+    <ScreenWrapper>
       <LoginContent navigation={navigation} />
     </ScreenWrapper>
   );

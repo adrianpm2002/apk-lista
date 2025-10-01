@@ -303,7 +303,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Rango personalizado eliminado
 
-  // Manejar refresh - simplificado sin cache
+  // Manejar refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {

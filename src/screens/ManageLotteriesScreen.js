@@ -586,7 +586,7 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
     return '00:00';
   };
 
-  // Optimized focus refresh sin cache
+  // Optimized focus refresh
   const focusRefresh = useCallback(() => {
     if (currentBankId) {
       fetchLotteriesData();

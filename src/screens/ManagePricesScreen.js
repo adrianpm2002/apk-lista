@@ -1223,19 +1223,6 @@ const styles = StyleSheet.create({
     color: '#c92a2a',
     fontWeight: '600'
   },
-  cacheIndicator: {
-    backgroundColor: '#E8F4FD',
-    borderRadius: 6,
-    padding: 8,
-    marginBottom: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: '#3498DB'
-  },
-  cacheIndicatorText: {
-    fontSize: 12,
-    color: '#2980B9',
-    textAlign: 'center'
-  },
   emptyStateContainer: {
     padding: 20,
     alignItems: 'center',
