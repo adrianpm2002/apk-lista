@@ -122,6 +122,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Estados para datos agrupados (collector y admin)
   const [groupedData, setGroupedData] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(''); // Para collector: listero seleccionado, para admin: colector seleccionado
+  
+  // Estados para modo Santiago
+  const [modoSantiago, setModoSantiago] = useState(false);
+  const [porcentajeSantiago, setPorcentajeSantiago] = useState(100);
 
   // Función para formatear montos con decimales
   const formatMoney = (amount) => {
@@ -130,6 +134,53 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       minimumFractionDigits: 2, 
       maximumFractionDigits: 2 
     })}`;
+  };
+
+  // Funciones auxiliares para modo Santiago
+  const getSantiagoHeader = (originalText) => {
+    if (!modoSantiago) return originalText;
+    return `${originalText}(${porcentajeSantiago}%)`;
+  };
+
+  const getSantiagoValue = (amount) => {
+    if (!modoSantiago) return amount;
+    return Number(amount) * (porcentajeSantiago / 100);
+  };
+
+  const formatSantiagoMoney = (amount) => {
+    return formatMoney(getSantiagoValue(amount));
+  };
+
+  // Función para cargar el modo Santiago del banco
+  const loadModoSantiago = async () => {
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const userId = userRes?.user?.id;
+      if (!userId) return;
+
+      // Obtener el banco del usuario actual
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id_banco')
+        .eq('id', userId)
+        .single();
+
+      if (profile?.id_banco) {
+        // Obtener configuración del banco
+        const { data: bankProfile } = await supabase
+          .from('profiles')
+          .select('modo_santiago, porciento')
+          .eq('id', profile.id_banco)
+          .single();
+
+        if (bankProfile) {
+          setModoSantiago(bankProfile.modo_santiago || false);
+          setPorcentajeSantiago(bankProfile.porciento || 100);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading modo Santiago:', error);
+    }
   };
 
   // Hook de estadísticas
@@ -171,6 +222,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Cargar datos iniciales
   useEffect(() => {
     loadInitialData();
+    loadModoSantiago();
     // Aplicar configuración por defecto: hoy para gráficas (pestaña por defecto)
     applyPeriodFilter('today');
   }, []);
@@ -405,7 +457,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             <td>${(p.nota||'')}</td>
             <td>${(p.jugada||'')}</td>
             <td>${(p.numeros || p.numeros_jugados || '').replace(/</g,'&lt;')}</td>
-            <td>${formatMoney(p.bruto)}</td>
+            <td>${formatSantiagoMoney(p.bruto)}</td>
             <td>${p.pagado>0? formatMoney(p.pagado) : 'Sin premio'}</td>
           </tr>`).join('');
         return `${header}
@@ -828,16 +880,16 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               return (
                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
                   <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                    <Text style={{ color: '#6c757d', fontSize: 12 }}>Bruto</Text>
-                    <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatMoney(totalBruto)}</Text>
+                    <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Bruto')}</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatSantiagoMoney(totalBruto)}</Text>
                   </View>
                   <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                    <Text style={{ color: '#6c757d', fontSize: 12 }}>Ganancia</Text>
-                    <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatMoney(totalGananciaListero)}</Text>
+                    <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Ganancia')}</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatSantiagoMoney(totalGananciaListero)}</Text>
                   </View>
                   <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                    <Text style={{ color: '#6c757d', fontSize: 12 }}>Balance</Text>
-                    <Text style={{ fontSize:16, fontWeight:'800', color: totalBalance>=0? '#27AE60':'#e74c3c' }}>{formatMoney(totalBalance)}</Text>
+                    <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Balance')}</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color: getSantiagoValue(totalBalance)>=0? '#27AE60':'#e74c3c' }}>{formatSantiagoMoney(totalBalance)}</Text>
                   </View>
                 </View>
               );
@@ -1051,20 +1103,20 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 return (
                   <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
                     <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                      <Text style={{ color: '#6c757d', fontSize: 12 }}>Bruto</Text>
-                      <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatMoney(totalBruto)}</Text>
+                      <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Bruto')}</Text>
+                      <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatSantiagoMoney(totalBruto)}</Text>
                     </View>
                     
                     {(userRole === 'collector' || userRole === 'colector') && (
                       <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                        <Text style={{ color: '#6c757d', fontSize: 12 }}>Ganancia</Text>
-                        <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatMoney(totalGanancia)}</Text>
+                        <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Ganancia')}</Text>
+                        <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatSantiagoMoney(totalGanancia)}</Text>
                       </View>
                     )}
                     
                     <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                      <Text style={{ color: '#6c757d', fontSize: 12 }}>Balance</Text>
-                      <Text style={{ fontSize:16, fontWeight:'800', color: totalBalance>=0? '#27AE60':'#e74c3c' }}>{formatMoney(totalBalance)}</Text>
+                      <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Balance')}</Text>
+                      <Text style={{ fontSize:16, fontWeight:'800', color: getSantiagoValue(totalBalance)>=0? '#27AE60':'#e74c3c' }}>{formatSantiagoMoney(totalBalance)}</Text>
                     </View>
                   </View>
                 );
@@ -1269,10 +1321,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                   <Text style={[styles.excelHeaderCell, { width: 80 }]}>Lotería</Text>
                   <Text style={[styles.excelHeaderCell, { width: 80 }]}>Horario</Text>
                   <Text style={[styles.excelHeaderCell, { width: 70 }]}>Resultado</Text>
-                  <Text style={[styles.excelHeaderCell, { width: 100 }]}>Bruto</Text>
-                  <Text style={[styles.excelHeaderCell, { width: 100 }]}>Ganancia</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Bruto')}</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Ganancia')}</Text>
                   <Text style={[styles.excelHeaderCell, { width: 100 }]}>Premio</Text>
-                  <Text style={[styles.excelHeaderCell, { width: 100 }]}>Balance</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Balance')}</Text>
                 </View>
                 
                 {/* Filas de grupos expandibles */}
@@ -1307,17 +1359,17 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                           </Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 100 }]}>
-                          <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalRecogido)}</Text>
+                          <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(g.totalRecogido)}</Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 100 }]}>
-                          <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalGananciaListero)}</Text>
+                          <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(g.totalGananciaListero)}</Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 100 }]}>
                           <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalPagado)}</Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 100 }]}>
-                          <Text style={getBalanceTextStyle(balance, styles.excelCell)} numberOfLines={1}>
-                            {fmt(balance)}
+                          <Text style={getBalanceTextStyle(getSantiagoValue(balance), styles.excelCell)} numberOfLines={1}>
+                            {formatSantiagoMoney(balance)}
                           </Text>
                         </View>
                       </TouchableOpacity>
@@ -1392,11 +1444,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             <View style={styles.excelHeaderRow}>
               <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Listero</Text>
-              <Text style={[styles.excelHeaderCell, { width: 100 }]}>Bruto</Text>
-              <Text style={[styles.excelHeaderCell, { width: 110 }]}>Gan. Listeros</Text>
-              <Text style={[styles.excelHeaderCell, { width: 110 }]}>Gan. Colector</Text>
+              <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Bruto')}</Text>
+              <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Gan. Listeros')}</Text>
+              <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Gan. Colector')}</Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Premios</Text>
-              <Text style={[styles.excelHeaderCell, { width: 110 }]}>Balance</Text>
+              <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Balance')}</Text>
             </View>
             
             {/* Filas de listeros expandibles */}
@@ -1420,20 +1472,20 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={styles.excelCell} numberOfLines={2}>{listero.listero_name}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 100 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_bruto)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(listero.total_bruto)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 110 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_ganancia_listero)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(listero.total_ganancia_listero)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 110 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_ganancia_colector)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(listero.total_ganancia_colector)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 100 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_premio)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 110 }]}>
-                      <Text style={getBalanceTextStyle(listero.balance_colector, styles.excelCell)} numberOfLines={1}>
-                        {fmt(listero.balance_colector)}
+                      <Text style={getBalanceTextStyle(getSantiagoValue(listero.balance_colector), styles.excelCell)} numberOfLines={1}>
+                        {formatSantiagoMoney(listero.balance_colector)}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1469,7 +1521,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           {groupedData.map(item => (
             <Picker.Item 
               key={item.id_listero} 
-              label={`${item.listero_username} - Bruto: ${formatMoney(item.bruto_total)} - Ganancia: ${formatMoney(item.ganancia_colector_total)} - Balance: ${formatMoney(item.balance_colector_total)}`}
+              label={`${item.listero_username} - Bruto: ${formatSantiagoMoney(item.bruto_total)} - Ganancia: ${formatSantiagoMoney(item.ganancia_colector_total)} - Balance: ${formatSantiagoMoney(item.balance_colector_total)}`}
               value={String(item.id_listero)}
             />
           ))}
@@ -1516,10 +1568,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             <View style={styles.excelHeaderRow}>
               <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Colector</Text>
-              <Text style={[styles.excelHeaderCell, { width: 100 }]}>Bruto</Text>
-              <Text style={[styles.excelHeaderCell, { width: 110 }]}>Gan. Colector</Text>
+              <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Bruto')}</Text>
+              <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Gan. Colector')}</Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Premios</Text>
-              <Text style={[styles.excelHeaderCell, { width: 110 }]}>Balance</Text>
+              <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Balance')}</Text>
             </View>
             
             {/* Filas de colectores expandibles */}
@@ -1543,17 +1595,17 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={styles.excelCell} numberOfLines={2}>{colector.collector_name}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 100 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.total_bruto)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(colector.total_bruto)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 110 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.total_ganancia_colector)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(colector.total_ganancia_colector)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 100 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(colector.total_premio)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 110 }]}>
-                      <Text style={getBalanceTextStyle(colector.balance_colector, styles.excelCell)} numberOfLines={1}>
-                        {fmt(colector.balance_colector)}
+                      <Text style={getBalanceTextStyle(getSantiagoValue(colector.balance_colector), styles.excelCell)} numberOfLines={1}>
+                        {formatSantiagoMoney(colector.balance_colector)}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1565,11 +1617,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <View style={[styles.excelHeaderRow, styles.subHeader]}>
                         <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
                         <Text style={[styles.excelHeaderCell, { width: 100 }]}>Listero</Text>
-                        <Text style={[styles.excelHeaderCell, { width: 100 }]}>Bruto</Text>
-                        <Text style={[styles.excelHeaderCell, { width: 110 }]}>Gan. Listero</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Bruto')}</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Gan. Listero')}</Text>
                         <Text style={[styles.excelHeaderCell, { width: 100 }]}>Premios</Text>
-                        <Text style={[styles.excelHeaderCell, { width: 110 }]}>Bal. Listero</Text>
-                        <Text style={[styles.excelHeaderCell, { width: 110 }]}>Bal. Colector</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Bal. Listero')}</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Bal. Colector')}</Text>
                       </View>
                       
                       {/* Filas de listeros expandibles */}
@@ -1593,22 +1645,22 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                                 <Text style={styles.excelCell} numberOfLines={2}>{listero.listero_name}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 100 }]}>
-                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_bruto)}</Text>
+                                <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(listero.total_bruto)}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 110 }]}>
-                                <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_ganancia_listero)}</Text>
+                                <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(listero.total_ganancia_listero)}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 100 }]}>
                                 <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_premio)}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 110 }]}>
-                                <Text style={getBalanceTextStyle(listero.balance_listero, styles.excelCell)} numberOfLines={1}>
-                                  {fmt(listero.balance_listero)}
+                                <Text style={getBalanceTextStyle(getSantiagoValue(listero.balance_listero), styles.excelCell)} numberOfLines={1}>
+                                  {formatSantiagoMoney(listero.balance_listero)}
                                 </Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 110 }]}>
-                                <Text style={getBalanceTextStyle(listero.balance_colector, styles.excelCell)} numberOfLines={1}>
-                                  {fmt(listero.balance_colector)}
+                                <Text style={getBalanceTextStyle(getSantiagoValue(listero.balance_colector), styles.excelCell)} numberOfLines={1}>
+                                  {formatSantiagoMoney(listero.balance_colector)}
                                 </Text>
                               </View>
                             </TouchableOpacity>
@@ -1649,7 +1701,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           {groupedData.map(item => (
             <Picker.Item 
               key={item.id_colector} 
-              label={`${item.colector_username} - Bruto: ${formatMoney(item.bruto_total)} - Balance: ${formatMoney(item.balance_banco_total)}`}
+              label={`${item.colector_username} - Bruto: ${formatSantiagoMoney(item.bruto_total)} - Balance: ${formatSantiagoMoney(item.balance_banco_total)}`}
               value={String(item.id_colector)}
             />
           ))}
@@ -1819,28 +1871,28 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 70 }]}>Lotería</Text>
               <Text style={[styles.excelHeaderCell, { width: 70 }]}>Horario</Text>
               <Text style={[styles.excelHeaderCell, { width: 80 }]}>Resultado</Text>
-              <Text style={[styles.excelHeaderCell, { width: 80 }]}>Bruto</Text>
+              <Text style={[styles.excelHeaderCell, { width: 80 }]}>{getSantiagoHeader('Bruto')}</Text>
               {(userRole === 'collector' || userRole === 'admin') ? (
                 <>
-                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>Gan. Listero</Text>
-                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>Gan. Colector</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>{getSantiagoHeader('Gan. Listero')}</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>{getSantiagoHeader('Gan. Colector')}</Text>
                 </>
               ) : (
-                <Text style={[styles.excelHeaderCell, { width: 80 }]}>Ganancia</Text>
+                <Text style={[styles.excelHeaderCell, { width: 80 }]}>{getSantiagoHeader('Ganancia')}</Text>
               )}
               <Text style={[styles.excelHeaderCell, { width: 80 }]}>{(userRole === 'collector' || userRole === 'admin') ? 'Premio' : 'Pagado'}</Text>
               {userRole === 'collector' ? (
                 <>
-                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>Bal. Listero</Text>
-                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>Bal. Colector</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>{getSantiagoHeader('Bal. Listero')}</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>{getSantiagoHeader('Bal. Colector')}</Text>
                 </>
               ) : userRole === 'admin' ? (
                 <>
-                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>Bal. Listero</Text>
-                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>Bal. Colector</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>{getSantiagoHeader('Bal. Listero')}</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 80 }]}>{getSantiagoHeader('Bal. Colector')}</Text>
                 </>
               ) : (
-                <Text style={[styles.excelHeaderCell, { width: 80 }]}>Balance</Text>
+                <Text style={[styles.excelHeaderCell, { width: 80 }]}>{getSantiagoHeader('Balance')}</Text>
               )}
             </View>
             
@@ -1875,20 +1927,20 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       </Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 80 }]}>
-                      <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalRecogido)}</Text>
+                      <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(g.totalRecogido)}</Text>
                     </View>
                     {(userRole === 'collector' || userRole === 'admin') ? (
                       <>
                         <View style={[styles.excelCellContainer, { width: 80 }]}>
-                          <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalGananciaListero || 0)}</Text>
+                          <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(g.totalGananciaListero || 0)}</Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 80 }]}>
-                          <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalGananciaColector || 0)}</Text>
+                          <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(g.totalGananciaColector || 0)}</Text>
                         </View>
                       </>
                     ) : (
                       <View style={[styles.excelCellContainer, { width: 80 }]}>
-                        <Text style={styles.excelCell} numberOfLines={1}>{fmt(g.totalGanancia)}</Text>
+                        <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(g.totalGanancia)}</Text>
                       </View>
                     )}
                     <View style={[styles.excelCellContainer, { width: 80 }]}>
@@ -1897,33 +1949,33 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     {userRole === 'collector' ? (
                       <>
                         <View style={[styles.excelCellContainer, { width: 80 }]}>
-                          <Text style={getBalanceTextStyle(g.totalBalanceListero, styles.excelCell)} numberOfLines={1}>
-                            {fmt(g.totalBalanceListero || 0)}
+                          <Text style={getBalanceTextStyle(getSantiagoValue(g.totalBalanceListero), styles.excelCell)} numberOfLines={1}>
+                            {formatSantiagoMoney(g.totalBalanceListero || 0)}
                           </Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 80 }]}>
-                          <Text style={getBalanceTextStyle(g.totalBalanceColector, styles.excelCell)} numberOfLines={1}>
-                            {fmt(g.totalBalanceColector || 0)}
+                          <Text style={getBalanceTextStyle(getSantiagoValue(g.totalBalanceColector), styles.excelCell)} numberOfLines={1}>
+                            {formatSantiagoMoney(g.totalBalanceColector || 0)}
                           </Text>
                         </View>
                       </>
                     ) : userRole === 'admin' ? (
                       <>
                         <View style={[styles.excelCellContainer, { width: 80 }]}>
-                          <Text style={getBalanceTextStyle(g.totalBalanceListero, styles.excelCell)} numberOfLines={1}>
-                            {fmt(g.totalBalanceListero || 0)}
+                          <Text style={getBalanceTextStyle(getSantiagoValue(g.totalBalanceListero), styles.excelCell)} numberOfLines={1}>
+                            {formatSantiagoMoney(g.totalBalanceListero || 0)}
                           </Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 80 }]}>
-                          <Text style={getBalanceTextStyle(g.totalBalanceColector, styles.excelCell)} numberOfLines={1}>
-                            {fmt(g.totalBalanceColector || 0)}
+                          <Text style={getBalanceTextStyle(getSantiagoValue(g.totalBalanceColector), styles.excelCell)} numberOfLines={1}>
+                            {formatSantiagoMoney(g.totalBalanceColector || 0)}
                           </Text>
                         </View>
                       </>
                     ) : (
                       <View style={[styles.excelCellContainer, { width: 80 }]}>
-                        <Text style={getBalanceTextStyle(balance, styles.excelCell)} numberOfLines={1}>
-                          {fmt(balance)}
+                        <Text style={getBalanceTextStyle(getSantiagoValue(balance), styles.excelCell)} numberOfLines={1}>
+                          {formatSantiagoMoney(balance)}
                         </Text>
                       </View>
                     )}
