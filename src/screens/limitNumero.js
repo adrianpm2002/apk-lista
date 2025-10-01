@@ -187,7 +187,9 @@ const LimitNumberContent = ({ navigation }) => {
           .maybeSingle();
         if (!error) {
           const jugadasJson = data?.jugadas || {};
-          const activeList = Object.entries(jugadasJson)
+          // Nuevo formato: extraer jugadas de la lotería específica
+          const lotteryJugadas = jugadasJson[selectedLottery.id] || {};
+          const activeList = Object.entries(lotteryJugadas)
             .filter(([,v]) => v)
             .map(([k]) => ({ id: k, jugada: k }))
             .sort((a,b)=> JUGADA_ORDER.indexOf(a.jugada)-JUGADA_ORDER.indexOf(b.jugada));
@@ -200,6 +202,16 @@ const LimitNumberContent = ({ navigation }) => {
 
   const DIGIT_RULES = { fijo:2, corrido:2, posicion:2, parle:4, centena:3, tripleta:6 };
   const JUGADA_ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
+  
+  // Mapear nombres amigables para jugadas
+  const JUGADA_FRIENDLY_NAMES = {
+    fijo: 'Fijo',
+    corrido: 'Corrido', 
+    posicion: 'Posición',
+    parle: 'Parlé',
+    centena: 'Centena',
+    tripleta: 'Tripleta'
+  };
 
   // Formatear número mostrado con ceros a la izquierda
   const formatNumberDisplay = (raw, jugadaKey) => {
@@ -272,9 +284,20 @@ const LimitNumberContent = ({ navigation }) => {
         .maybeSingle();
       if (!error) {
         const jugadasJson = data?.jugadas || {};
-        const activeList = Object.entries(jugadasJson)
-          .filter(([,v]) => v)
-          .map(([k]) => ({ jugada: k }))
+        // Nuevo formato: crear unión de todas las jugadas activas de todas las loterías
+        const allActivePlayTypes = new Set();
+        Object.values(jugadasJson).forEach(lotteryJugadas => {
+          if (lotteryJugadas && typeof lotteryJugadas === 'object') {
+            Object.entries(lotteryJugadas).forEach(([jugada, isActive]) => {
+              if (isActive) {
+                allActivePlayTypes.add(jugada);
+              }
+            });
+          }
+        });
+        
+        const activeList = Array.from(allActivePlayTypes)
+          .map(jugada => ({ jugada }))
           .sort((a,b)=> JUGADA_ORDER.indexOf(a.jugada)-JUGADA_ORDER.indexOf(b.jugada));
         setActiveJugadas(activeList);
       }
@@ -402,7 +425,9 @@ const LimitNumberContent = ({ navigation }) => {
           .maybeSingle();
         if (!error) {
           const jugadasJson = data?.jugadas || {};
-          const activeList = Object.entries(jugadasJson)
+          // Nuevo formato: extraer jugadas de la lotería específica
+          const lotteryJugadas = jugadasJson[selectedLottery2.id] || {};
+          const activeList = Object.entries(lotteryJugadas)
             .filter(([,v]) => v)
             .map(([k]) => ({ id: k, jugada: k }))
             .sort((a,b)=> JUGADA_ORDER.indexOf(a.jugada)-JUGADA_ORDER.indexOf(b.jugada));
@@ -528,7 +553,11 @@ const LimitNumberContent = ({ navigation }) => {
   const prepareJugadaOptions = (selectedSch, isModal2 = false) => {
     if (!selectedSch) return [];
     const jugadasList = isModal2 ? jugadas2 : jugadas;
-    return jugadasList.map(j => ({ label: j.jugada, value: j.id, data: j }));
+    return jugadasList.map(j => ({ 
+      label: JUGADA_FRIENDLY_NAMES[j.jugada] || j.jugada, 
+      value: j.id, 
+      data: j 
+    }));
   };
 
   return (
@@ -559,7 +588,7 @@ const LimitNumberContent = ({ navigation }) => {
             </TouchableOpacity>
             {activeJugadas.map(j => (
               <TouchableOpacity key={j.jugada} style={[styles.filterChip, filterJugadaKey===j.jugada && styles.filterChipActive]} onPress={()=> setFilterJugadaKey(prev => prev===j.jugada? null : j.jugada)}>
-                <Text style={[styles.filterChipText, filterJugadaKey===j.jugada && styles.filterChipTextActive]}>{j.jugada}</Text>
+                <Text style={[styles.filterChipText, filterJugadaKey===j.jugada && styles.filterChipTextActive]}>{JUGADA_FRIENDLY_NAMES[j.jugada] || j.jugada}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -599,7 +628,7 @@ const LimitNumberContent = ({ navigation }) => {
                         {(item.horario?.loteria?.nombre || '') + (item.horario?.loteria?.nombre ? ' - ' : '') + (item.horario?.nombre || '')}
                       </Text>
           <Text style={[styles.itemLimit, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
-                        {formatNumberDisplay(item.numero, item.jugadaKey)} {item.jugadaKey ? `(${item.jugadaKey})` : ''}
+                        {formatNumberDisplay(item.numero, item.jugadaKey)} {item.jugadaKey ? `(${JUGADA_FRIENDLY_NAMES[item.jugadaKey] || item.jugadaKey})` : ''}
                       </Text>
                     </View>
                     <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item)}>
@@ -644,7 +673,7 @@ const LimitNumberContent = ({ navigation }) => {
                         {(item.horario?.loteria?.nombre || '') + (item.horario?.loteria?.nombre ? ' - ' : '') + (item.horario?.nombre || '')}
                       </Text>
                       <Text style={[styles.itemLimit, !activeJugadasSet.has(item.jugadaKey) && styles.inactiveJugada]}>
-                        {String(item.numero).padStart((DIGIT_RULES[item.jugadaKey]||2),'0')} {item.jugadaKey? `(${item.jugadaKey})`: ''}  Límite: {item.limite}
+                        {String(item.numero).padStart((DIGIT_RULES[item.jugadaKey]||2),'0')} {item.jugadaKey? `(${JUGADA_FRIENDLY_NAMES[item.jugadaKey] || item.jugadaKey})`: ''}  Límite: {item.limite}
                       </Text>
                     </View>
                     <TouchableOpacity style={styles.deleteBtn} onPress={()=> handleDeleteLimite(item)}>
@@ -702,7 +731,7 @@ const LimitNumberContent = ({ navigation }) => {
               <View style={[styles.selectorColumn, { flex: 1 }] }>
                 <DropdownPicker
                   label="Jugada"
-                  value={selectedJugada?.jugada}
+                  value={selectedJugada?.jugada ? (JUGADA_FRIENDLY_NAMES[selectedJugada.jugada] || selectedJugada.jugada) : undefined}
                   onSelect={(item) => setSelectedJugada(item.data)}
                   options={prepareJugadaOptions(selectedSchedule)}
                   placeholder={selectedSchedule ? (loadingJugadas ? "Cargando..." : "Seleccionar jugada...") : "Selecciona horario"}
@@ -721,7 +750,11 @@ const LimitNumberContent = ({ navigation }) => {
                     setTempNumber(clean.slice(0, maxLen));
                   }}
                   keyboardType="numeric"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  selectTextOnFocus={true}
                   style={styles.input}
+                  underlineColorAndroid="transparent"
                 />
               </View>
             </View>
@@ -797,7 +830,7 @@ const LimitNumberContent = ({ navigation }) => {
               <View style={[styles.selectorColumn,{flex:1}]}> 
                 <DropdownPicker
                   label="Jugada"
-                  value={selectedJugada2?.jugada}
+                  value={selectedJugada2?.jugada ? (JUGADA_FRIENDLY_NAMES[selectedJugada2.jugada] || selectedJugada2.jugada) : undefined}
                   onSelect={(item) => setSelectedJugada2(item.data)}
                   options={prepareJugadaOptions(selectedSchedule2, true)}
                   placeholder={selectedSchedule2 ? "Seleccionar jugada..." : "Selecciona horario"}
@@ -816,7 +849,11 @@ const LimitNumberContent = ({ navigation }) => {
                     setTempNumber2(clean.slice(0,maxLen));
                   }}
                   keyboardType="numeric"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  selectTextOnFocus={true}
                   style={styles.input}
+                  underlineColorAndroid="transparent"
                 />
               </View>
               <View style={[styles.selectorColumn,{flex:1}]}> 
@@ -827,7 +864,11 @@ const LimitNumberContent = ({ navigation }) => {
                   value={tempLimit2}
                   onChangeText={t=> setTempLimit2(t.replace(/[^0-9]/g,''))}
                   keyboardType="numeric"
+                  returnKeyType="done"
+                  blurOnSubmit={true}
+                  selectTextOnFocus={true}
                   style={styles.input}
+                  underlineColorAndroid="transparent"
                 />
               </View>
             </View>
@@ -939,7 +980,18 @@ const styles = StyleSheet.create({
     marginTop: -3 
   },
   inlineForm: { flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' },
-  input: { flex: 1, backgroundColor: '#f4f6f7', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, fontSize: 14, color: '#2c3e50' },
+  input: { 
+    flex: 1, 
+    backgroundColor: '#f4f6f7', 
+    paddingHorizontal: 12, 
+    paddingVertical: Platform.OS === 'android' ? 12 : 10, 
+    borderRadius: 8, 
+    fontSize: 16, 
+    color: '#2c3e50',
+    borderWidth: 1,
+    borderColor: '#e1e8ed',
+    minHeight: Platform.OS === 'android' ? 48 : 40
+  },
   inputDark: { backgroundColor: '#34495e', color: '#ecf0f1' },
   saveBtn: { backgroundColor: '#2980b9', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10 },
   saveBtnDisabled: { backgroundColor: '#95a5a6' },
