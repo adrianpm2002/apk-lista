@@ -98,7 +98,9 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const [userId, setUserId] = useState(null);
   const [userProfile, setUserProfile] = useState(null); // Para el nombre de usuario al copiar
   const [isInserting, setIsInserting] = useState(false);
-  const [playTypes, setPlayTypes] = useState([]); // jugadas activas dinámicas
+  const [playTypes, setPlayTypes] = useState([]); // jugadas activas dinámicas (todas las jugadas disponibles)
+  const [filteredPlayTypes, setFilteredPlayTypes] = useState([]); // jugadas filtradas según loterías seleccionadas
+  const [allJugadas, setAllJugadas] = useState({}); // almacenar todas las jugadas por lotería para filtrado
   // Edición
   const [editingId, setEditingId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -139,20 +141,92 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       try {
         const { data: lots } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
         setLotteries((lots||[]).map(l=>({ label:l.nombre, value:l.id })));
+        
         const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
-        const jugadasObj = jugRow?.jugadas || { fijo:true, corrido:true, posicion:true, parle:true, centena:true, tripleta:true };
-        const enabled = Object.entries(jugadasObj)
-          .filter(([,v])=>v)
-          .map(([k])=>({ label: getPlayTypeLabel(k), value:k }));
+        const jugadas = jugRow?.jugadas || {};
+        
+        // Almacenar todas las jugadas por lotería para filtrado posterior
+        setAllJugadas(jugadas);
+        
+        // Nuevo formato: { "uuid-loteria-1": { fijo: true, ... }, "uuid-loteria-2": { ... } }
+        // Crear unión de todas las jugadas activas en cualquier lotería
+        const allActivePlayTypes = new Set();
+        Object.values(jugadas).forEach(lotteryJugadas => {
+          if (lotteryJugadas && typeof lotteryJugadas === 'object') {
+            Object.entries(lotteryJugadas).forEach(([jugada, isActive]) => {
+              if (isActive) {
+                allActivePlayTypes.add(jugada);
+              }
+            });
+          }
+        });
+        
+        // Si no hay jugadas configuradas, usar todas como activas (fallback)
+        if (allActivePlayTypes.size === 0) {
+          ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'].forEach(j => 
+            allActivePlayTypes.add(j)
+          );
+        }
+        
+        // Convertir a formato esperado y ordenar
+        const enabled = Array.from(allActivePlayTypes).map(k => ({ 
+          label: getPlayTypeLabel(k), 
+          value: k 
+        }));
+        
         const order = ['fijo','corrido','posicion','parle','centena','tripleta'];
         const ordered = order
-          .filter(k => enabled.some(e=> e.value===k))
-          .map(k => enabled.find(e=> e.value===k));
+          .filter(k => enabled.some(e => e.value === k))
+          .map(k => enabled.find(e => e.value === k));
+        
         setPlayTypes(ordered);
+        setFilteredPlayTypes(ordered); // Inicialmente mostrar todas
       } catch(e){ /* ignore */ }
     };
     loadData();
   },[bankId]);
+
+  // Filtrar jugadas activas basándose en las loterías seleccionadas
+  useEffect(() => {
+    if (!selectedLotteries.length || Object.keys(allJugadas).length === 0) {
+      // Si no hay loterías seleccionadas, mostrar todas las jugadas disponibles
+      setFilteredPlayTypes(playTypes);
+      return;
+    }
+
+    // Encontrar jugadas que estén activas en TODAS las loterías seleccionadas
+    const commonPlayTypes = new Set();
+    const firstLottery = selectedLotteries[0];
+    const firstLotteryJugadas = allJugadas[firstLottery] || {};
+    
+    // Empezar con las jugadas activas de la primera lotería
+    Object.entries(firstLotteryJugadas).forEach(([jugada, isActive]) => {
+      if (isActive) {
+        commonPlayTypes.add(jugada);
+      }
+    });
+
+    // Filtrar para mantener solo las que están activas en todas las loterías seleccionadas
+    selectedLotteries.slice(1).forEach(lotteryId => {
+      const lotteryJugadas = allJugadas[lotteryId] || {};
+      commonPlayTypes.forEach(jugada => {
+        if (!lotteryJugadas[jugada]) {
+          commonPlayTypes.delete(jugada);
+        }
+      });
+    });
+
+    // Convertir a formato esperado y ordenar
+    const commonArray = Array.from(commonPlayTypes);
+    const filtered = playTypes.filter(pt => commonArray.includes(pt.value));
+    
+    setFilteredPlayTypes(filtered);
+    
+    // Limpiar jugadas seleccionadas que ya no estén disponibles
+    setSelectedPlayTypes(prev => 
+      prev.filter(selected => commonArray.includes(selected))
+    );
+  }, [selectedLotteries, allJugadas, playTypes]);
 
   // Cargar horarios de todas las loterías del banco, filtrar solo los que están abiertos actualmente y agrupar
   useEffect(()=>{
@@ -908,8 +982,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             <MultiSelectDropdown
               label={t('common.playType')}
               selectedValues={selectedPlayTypes}
-              onSelect={(vals)=> setSelectedPlayTypes(applyPlayTypeSelection(selectedPlayTypes, vals, playTypes))}
-              options={playTypes}
+              onSelect={(vals)=> setSelectedPlayTypes(applyPlayTypeSelection(selectedPlayTypes, vals, filteredPlayTypes))}
+              options={filteredPlayTypes}
               placeholder={t('placeholders.selectPlayTypes')}
               isDarkMode={isDarkMode}
               hasError={playTypeError}
