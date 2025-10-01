@@ -393,7 +393,7 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
           const exceso = total - v.permitido;
           return `${v.numero} (${v.jugada}): excede ${exceso}`;
         }).join(', ');
-        setVerifyFeedback({ type:'error', message:`${t('verify.limitViolations')}: ${violationDetails}${violations.length > 3 ? '...' : ''}` });
+        setVerifyFeedback({ type:'error', message:`${violationDetails}${violations.length > 3 ? '...' : ''}` });
         return;
       }
       // Resumen agregado sin listar números

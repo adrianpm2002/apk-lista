@@ -384,7 +384,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
       if(violations.length){
         setLimitViolations(violations);
         setShowInsertButton(false); // Ocultar botón si hay violaciones
-        // Mostrar detalles igual que en insertFeedback
+        // Mostrar solo los detalles específicos, sin mensaje genérico
         const violationDetails = violations.slice(0,3).map(v=> {
           const usado = v.usado || 0;
           const intento = v.intento || 0;
@@ -392,7 +392,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
           const exceso = total - v.permitido;
           return `${v.numero} (${v.jugada}): excede ${exceso}`;
         }).join(', ');
-        setVerifyFeedback({ type:'error', message:`${t('verify.limitViolations')}: ${violationDetails}${violations.length > 3 ? '...' : ''}` });
+        setVerifyFeedback({ type:'error', message:`${violationDetails}${violations.length > 3 ? '...' : ''}` });
         return;
       }
       // Resumen agregado sin listar números
