@@ -32,10 +32,13 @@ export function useBankCapacityData(bankId, options = {}) {
         return;
       }
 
+      // Filtrar filas con numero = null (son límites por defecto, no para mostrar)
+      const validCapacities = capacities.filter(cap => cap.numero !== null && cap.numero !== '' && cap.numero !== undefined);
+      
       // Agrupar por horario+jugada+numero y sumar límites de todos los listeros
       const aggregated = new Map();
       
-      capacities.forEach(cap => {
+      validCapacities.forEach(cap => {
         const key = `${cap.id_horario}|${cap.jugada}|${cap.numero}`;
         
         if (!aggregated.has(key)) {
@@ -61,15 +64,15 @@ export function useBankCapacityData(bankId, options = {}) {
       const rows = Array.from(aggregated.values()).map(item => {
         const pct = Math.min(100, item.limite ? (item.usado / item.limite) * 100 : 0);
         
-        // Formatear número según la jugada
-        let formattedNumber = item.numero;
-        if (item.jugada === 'centena' && formattedNumber.length < 3) {
+        // Formatear número según la jugada (con validación adicional)
+        let formattedNumber = item.numero || '';
+        if (formattedNumber && item.jugada === 'centena' && formattedNumber.length < 3) {
           formattedNumber = formattedNumber.padStart(3, '0');
-        } else if (item.jugada === 'parle' && formattedNumber.length < 4) {
+        } else if (formattedNumber && item.jugada === 'parle' && formattedNumber.length < 4) {
           formattedNumber = formattedNumber.padStart(4, '0');
-        } else if (item.jugada === 'tripleta' && formattedNumber.length < 6) {
+        } else if (formattedNumber && item.jugada === 'tripleta' && formattedNumber.length < 6) {
           formattedNumber = formattedNumber.padStart(6, '0');
-        } else if ((item.jugada === 'fijo' || item.jugada === 'corrido') && formattedNumber.length < 2) {
+        } else if (formattedNumber && (item.jugada === 'fijo' || item.jugada === 'corrido') && formattedNumber.length < 2) {
           formattedNumber = formattedNumber.padStart(2, '0');
         }
         

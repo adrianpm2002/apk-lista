@@ -39,19 +39,22 @@ export function useCapacityData(bankId, options = {}) {
         return;
       }
 
+      // Filtrar filas con numero = null (son límites por defecto, no para mostrar)
+      const validCapacities = capacities.filter(cap => cap.numero !== null && cap.numero !== '' && cap.numero !== undefined);
+      
       // Convertir datos de la vista al formato esperado
-      const rows = capacities.map(cap => {
+      const rows = validCapacities.map(cap => {
         const pct = Math.min(100, cap.effective_limit_listero ? (cap.used_today_listero / cap.effective_limit_listero) * 100 : 0);
         
-        // Formatear número según la jugada
-        let formattedNumber = cap.numero;
-        if (cap.jugada === 'centena' && formattedNumber.length < 3) {
+        // Formatear número según la jugada (con validación adicional)
+        let formattedNumber = cap.numero || '';
+        if (formattedNumber && cap.jugada === 'centena' && formattedNumber.length < 3) {
           formattedNumber = formattedNumber.padStart(3, '0');
-        } else if (cap.jugada === 'parle' && formattedNumber.length < 4) {
+        } else if (formattedNumber && cap.jugada === 'parle' && formattedNumber.length < 4) {
           formattedNumber = formattedNumber.padStart(4, '0');
-        } else if (cap.jugada === 'tripleta' && formattedNumber.length < 6) {
+        } else if (formattedNumber && cap.jugada === 'tripleta' && formattedNumber.length < 6) {
           formattedNumber = formattedNumber.padStart(6, '0');
-        } else if ((cap.jugada === 'fijo' || cap.jugada === 'corrido') && formattedNumber.length < 2) {
+        } else if (formattedNumber && (cap.jugada === 'fijo' || cap.jugada === 'corrido') && formattedNumber.length < 2) {
           formattedNumber = formattedNumber.padStart(2, '0');
         }
 
