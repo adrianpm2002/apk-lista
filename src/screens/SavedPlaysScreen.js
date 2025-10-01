@@ -61,9 +61,10 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         return;
       }
       
-      // Usar la nueva view v_registro_diario (ya filtrada por día actual en la BD)
+      // Usar la view correspondiente según el modo Santiago
+      const viewName = modoSantiago ? 'v_registro_diario_santiago' : 'v_registro_diario';
       const { data, error } = await supabase
-        .from('v_registro_diario')
+        .from(viewName)
         .select('*')
         .eq('id_listero', userId)
         .order('fecha_jugada', { ascending: false });
@@ -149,9 +150,19 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   };
 
   useFocusEffect(useCallback(()=> { 
-    loadSavedPlays(); 
-    loadModoSantiago();
+    const loadData = async () => {
+      await loadModoSantiago(); // Cargar primero el modo Santiago
+      await loadSavedPlays();    // Luego cargar las jugadas con la view correcta
+    };
+    loadData();
   },[]));
+  
+  // Recargar jugadas cuando cambie el modo Santiago
+  useEffect(() => {
+    if (modoSantiago !== null) { // Solo si ya se cargó el modo Santiago
+      loadSavedPlays();
+    }
+  }, [modoSantiago]);
 
   // Derivar opciones dinámicas cada vez que cambian las jugadas cargadas
   useEffect(()=> {
