@@ -804,36 +804,45 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
             />
           </View>
           <View style={styles.halfWidth}>
-            {/* Mostrar monto por lotería si hay 2 o más loterías seleccionadas */}
-            {selectedLotteries.length >= 2 && (
-              <MoneyInputField
-                label={'Monto por Lotería'}
-                value={Math.round(total / (selectedLotteries.length || 1)).toString()}
-                editable={false}
-                placeholder="$0"
-                style={styles.fieldContainer}
-                inputStyle={styles.unifiedInput}
-              />
-            )}
-            <MoneyInputField
-              label={t('common.total')}
-              value={total.toString()}
-              editable={false}
-              placeholder="$0"
-              style={styles.fieldContainer}
-              inputStyle={styles.unifiedInput}
-            />
-            {/* Total modo Santiago */}
-            {modoSantiago && total > 0 && (
-              <MoneyInputField
-                label={`Total Santiago (${porcentajeSantiago}%)`}
-                value={Math.round(total * (porcentajeSantiago / 100)).toString()}
-                editable={false}
-                placeholder="$0"
-                style={styles.fieldContainer}
-                inputStyle={[styles.unifiedInput, { backgroundColor: '#FFE4B5' }]}
-              />
-            )}
+            {/* Fila de totales compacta */}
+            <View style={styles.totalsRow}>
+              {/* Mostrar monto por lotería si hay 2 o más loterías seleccionadas */}
+              {selectedLotteries.length >= 2 && (
+                <View style={styles.totalField}>
+                  <MoneyInputField
+                    label={'Por Lotería'}
+                    value={(total / (selectedLotteries.length || 1)).toFixed(2)}
+                    editable={false}
+                    placeholder="$0.00"
+                    style={styles.compactField}
+                    inputStyle={styles.compactInput}
+                  />
+                </View>
+              )}
+              <View style={styles.totalField}>
+                <MoneyInputField
+                  label={t('common.total')}
+                  value={total.toFixed(2)}
+                  editable={false}
+                  placeholder="$0.00"
+                  style={styles.compactField}
+                  inputStyle={styles.compactInput}
+                />
+              </View>
+              {/* Total modo Santiago */}
+              {modoSantiago && total > 0 && (
+                <View style={styles.totalField}>
+                  <MoneyInputField
+                    label={`Santiago (${porcentajeSantiago}%)`}
+                    value={(total * (porcentajeSantiago / 100)).toFixed(2)}
+                    editable={false}
+                    placeholder="$0.00"
+                    style={styles.compactField}
+                    inputStyle={[styles.compactInput, { backgroundColor: '#FFE4B5' }]}
+                  />
+                </View>
+              )}
+            </View>
           </View>
         </View>
 
@@ -1148,6 +1157,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#2B5F8A',
+  },
+  totalsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+  },
+  totalField: {
+    flex: 1,
+    minWidth: 100,
+  },
+  compactField: {
+    marginBottom: 0,
+  },
+  compactInput: {
+    fontSize: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    minHeight: 32,
   },
 });
 
