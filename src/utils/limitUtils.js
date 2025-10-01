@@ -1,7 +1,7 @@
 import { supabase } from '../supabaseClient';
 
 export const fetchLimitsContext = async (horarios, userId) => {
-  if(!horarios.length) return { capacityMap: new Map() };
+  if(!horarios.length) return { capacityMap: new Map(), defaultLimitsMap: new Map() };
   
   // Consultar v_capacidades filtrando por horarios y listero (si se especifica)
   let query = supabase
@@ -17,29 +17,46 @@ export const fetchLimitsContext = async (horarios, userId) => {
   
   if (error) {
     console.error('Error fetching capacity data:', error);
-    return { capacityMap: new Map() };
+    return { capacityMap: new Map(), defaultLimitsMap: new Map() };
   }
   
-  // Convertir a mapa para compatibilidad con la API existente
+  // Separar datos específicos de números vs límites por defecto (numero = null)
   const capacityMap = new Map();
+  const defaultLimitsMap = new Map(); // Para filas con numero = null
+  
   (capacityData || []).forEach(row => {
-    const key = `${row.id_horario}|${row.jugada}|${row.numero}`;
-    capacityMap.set(key, {
-      used: row.used_today_listero || 0,
-      effectiveLimit: row.effective_limit_listero,
-      remaining: row.remaining_listero || 0,
-      limitPerNumber: row.limit_per_number,
-      limitLottery: row.limit_lottery,
-      limitSpecific: row.limit_specific
-    });
+    if (row.numero === null || row.numero === '') {
+      // Fila con límites por defecto para horario/jugada/listero
+      const defaultKey = `${row.id_horario}|${row.jugada}`;
+      defaultLimitsMap.set(defaultKey, {
+        used: 0, // Sin uso específico para este número
+        effectiveLimit: row.effective_limit_listero,
+        remaining: row.effective_limit_listero || 0, // Todo el límite disponible
+        limitPerNumber: row.limit_per_number,
+        limitLottery: row.limit_lottery,
+        limitSpecific: row.limit_specific
+      });
+    } else {
+      // Fila con número específico
+      const key = `${row.id_horario}|${row.jugada}|${row.numero}`;
+      capacityMap.set(key, {
+        used: row.used_today_listero || 0,
+        effectiveLimit: row.effective_limit_listero,
+        remaining: row.remaining_listero || 0,
+        limitPerNumber: row.limit_per_number,
+        limitLottery: row.limit_lottery,
+        limitSpecific: row.limit_specific
+      });
+    }
   });
   
-  return { capacityMap };
+  return { capacityMap, defaultLimitsMap };
 };
 
 export const checkInstructionsLimits = (instructions, horarios, limitCtx) => {
   const violations = [];
   const capacityMap = limitCtx.capacityMap;
+  const defaultLimitsMap = limitCtx.defaultLimitsMap;
   
   // Calcular intentos por clave canónica para cada horario y jugada
   const attemptMap = new Map(); // key: h|jugada|canonical -> intento total
@@ -79,20 +96,40 @@ export const checkInstructionsLimits = (instructions, horarios, limitCtx) => {
 
   // Comparar intentos agregados con límites efectivos de la vista
   attemptMap.forEach((attempt, key) => {
-    const capacityInfo = capacityMap.get(key);
+    let capacityInfo = capacityMap.get(key);
     
+    // Si no hay información específica para este número, buscar límites por defecto
     if (!capacityInfo) {
-      // Si no hay información de capacidad, no hay restricción
-      return;
+      const [h, jugada, canonical] = key.split('|');
+      const defaultKey = `${h}|${jugada}`;
+      const defaultLimits = defaultLimitsMap.get(defaultKey);
+      
+      if (!defaultLimits) {
+        // No hay límites específicos ni por defecto, permitir inserción
+        return;
+      }
+      
+      // Usar los límites por defecto para este número no jugado antes
+      capacityInfo = {
+        used: 0, // Este número específico no se ha jugado
+        effectiveLimit: defaultLimits.effectiveLimit,
+        remaining: defaultLimits.effectiveLimit || 0, // Todo el límite disponible
+        limitPerNumber: defaultLimits.limitPerNumber,
+        limitLottery: defaultLimits.limitLottery,
+        limitSpecific: defaultLimits.limitSpecific
+      };
     }
     
     const { used, effectiveLimit, remaining } = capacityInfo;
     
-    if (!effectiveLimit) {
-      // No hay límites efectivos, permitir inserción
+    // Si effectiveLimit es null o undefined, no hay límite configurado (permitir)
+    // Si effectiveLimit es 0, el número está bloqueado (no permitir nada)
+    if (effectiveLimit === null || effectiveLimit === undefined) {
+      // No hay límites configurados, permitir inserción
       return;
     }
     
+    // Verificar si el intento excede lo que queda disponible
     if (attempt > remaining) {
       const [h, jugada, canonical] = key.split('|');
       violations.push({ 
