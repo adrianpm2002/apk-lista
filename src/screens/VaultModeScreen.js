@@ -981,14 +981,13 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       {limitViolations.length > 0 && (
         <FeedbackBanner
           type="blocked"
-          message="Límites excedidos"
-          details={limitViolations.slice(0,10).map(v=> {
+          message={limitViolations.slice(0,3).map(v=> {
             const usado = v.usado || 0;
             const intento = v.intento || 0;
             const total = usado + intento;
             const exceso = total - v.permitido;
             return `${v.numero} (${v.jugada}): excede ${exceso}`;
-          })}
+          }).join(', ') + (limitViolations.length > 3 ? '...' : '')}
           onClose={()=> setLimitViolations([])}
           style={{ top:70 }}
         />
