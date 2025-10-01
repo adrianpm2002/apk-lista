@@ -131,13 +131,20 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
         .from('jugadas_activas')
         .select('jugadas')
         .eq('id_banco', bankId)
-        .single();
+        .maybeSingle();
       
       if (!error && data?.jugadas) {
-        setActiveJugadas(data.jugadas);
+        // Nuevo formato: { "uuid-loteria-1": { fijo: true, ... }, "uuid-loteria-2": { ... } }
+        // Crear un objeto consolidado de todas las jugadas activas por lotería
+        const jugadasByLottery = data.jugadas;
+        setActiveJugadas(jugadasByLottery);
+      } else {
+        // Si no hay datos, usar objeto vacío
+        setActiveJugadas({});
       }
     } catch (error) {
       console.error('Error loading active jugadas:', error);
+      setActiveJugadas({});
     }
   };
 
@@ -288,7 +295,7 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
   const renderLotteryItem = ({ item }) => {
     const itemLimits = allLimits[item.id] || {};
     const hasLimits = Object.keys(itemLimits).length > 0;
-    const activeJugadasList = getActiveJugadasList();
+    const activeJugadasList = getActiveJugadasList(item.id);
     
     // Filtrar solo las jugadas que tienen límites configurados
     const configuredLimits = activeJugadasList.filter(jugada => itemLimits[jugada]);
@@ -343,8 +350,14 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
     );
   };
 
-  const getActiveJugadasList = () => {
-    return JUGADA_ORDER.filter(jugada => activeJugadas[jugada] === true);
+  const getActiveJugadasList = (lotteryId = null) => {
+    // Si no se proporciona lotería específica, usar la lotería seleccionada del modal
+    const targetLotteryId = lotteryId || selectedLottery?.id;
+    if (!targetLotteryId) return [];
+    
+    // Nuevo formato: activeJugadas = { "uuid-loteria-1": { fijo: true, ... } }
+    const lotteryJugadas = activeJugadas[targetLotteryId] || {};
+    return JUGADA_ORDER.filter(jugada => lotteryJugadas[jugada] === true);
   };
 
   const renderLimitInput = (jugada) => (

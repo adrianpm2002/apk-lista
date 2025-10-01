@@ -99,12 +99,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   
   // Estados para filtros
   const [selectedPeriod, setSelectedPeriod] = useState('today');
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  // ELIMINAR: startDate y endDate no se usan ya que se eliminó el rango personalizado
+  // const [startDate, setStartDate] = useState(new Date());
+  // const [endDate, setEndDate] = useState(new Date());
   const [selectedLottery, setSelectedLottery] = useState('all');
   const [selectedSchedule, setSelectedSchedule] = useState('all');
   const [lotterySchedules, setLotterySchedules] = useState([]); // horarios de la lotería seleccionada
-  // Estados de DatePicker eliminados (no se usa rango personalizado)
   
   // Estados para modales
   const [showExportModal, setShowExportModal] = useState(false);
@@ -112,7 +112,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Estados para datos
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('charts'); // Por defecto en gráficas
-  const [chartHeight, setChartHeight] = useState(240);
+  // ELIMINADO: chartHeight no se usa en ningún lugar
+  // const [chartHeight, setChartHeight] = useState(240);
   // Estado de expansión para grupos en Detalles (debe estar a nivel de componente para mantener el orden de hooks)
   const [expandedGroups, setExpandedGroups] = useState(new Set());
 
@@ -200,9 +201,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     userRole,
   } = useStatistics(); // Hook para listeros y colectores
 
-  // Agregar logs cuando cambien los datos del hook
-  useEffect(() => {
-  }, [kpiData, chartData, tableData, lotteries, schedules, loading, error]);
+  // ELIMINADO: useEffect vacío que no hace nada
+  // useEffect(() => {
+  // }, [kpiData, chartData, tableData, lotteries, schedules, loading, error]);
 
   // Opciones de períodos
   const periodOptions = [
@@ -234,27 +235,19 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   }, [currentUserId]);
 
-  // Cargar datos cuando el userRole esté disponible (para colectores)
+  // Cargar datos cuando el userRole esté disponible (consolidado)
   useEffect(() => {
-    if (userRole && (userRole === 'collector' || userRole === 'colector')) {
-      
+    if (userRole && (userRole === 'collector' || userRole === 'colector' || userRole === 'admin')) {
       loadAllStats();
     }
   }, [userRole]);
 
-  // Cargar datos cuando el userRole esté disponible (para admin/banco)
-  useEffect(() => {
-    if (userRole && userRole === 'admin') {
-      loadAllStats();
-    }
-  }, [userRole]);
-
-  // Monitor de cambios de userRole para detectar inconsistencias
-  useEffect(() => {
-    if (userRole) {
-      // console.log('🔄 [StatisticsScreen] UserRole changed to:', userRole, '(for sidebar)');
-    }
-  }, [userRole]);
+  // ELIMINADO: Monitor de userRole innecesario que solo tenía un console.log comentado
+  // useEffect(() => {
+  //   if (userRole) {
+  //     // console.log('🔄 [StatisticsScreen] UserRole changed to:', userRole, '(for sidebar)');
+  //   }
+  // }, [userRole]);
 
   // Procesar datos de tabla para crear groupedData para admin
   useEffect(() => {
@@ -272,44 +265,21 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   }, [selectedPeriod, selectedLottery, selectedSchedule]);
 
-  // Cargar horarios de la lotería seleccionada
+  // ELIMINADO: useEffect para cargar horarios está completamente deshabilitado
+  // Este código nunca se ejecuta porque inmediatamente hace return después de setLotterySchedules([])
+  /*
   useEffect(() => {
     let cancelled = false;
     const loadSchedulesForLottery = async () => {
-      try {
-        // Resetear selección de horario al cambiar lotería
-        setSelectedSchedule('all');
-        if (selectedLottery === 'all') {
-          setLotterySchedules([]);
-          return;
-        }
-        
-        // ❌ CONSULTA DESHABILITADA - Solo usar datos de v_estadisticas
-        setLotterySchedules([]);
-        return;
-        
-        /*
-        const { supabase } = await import('../supabaseClient');
-        const { data, error } = await supabase
-          .from('horario')
-          .select('id, nombre')
-          .eq('id_loteria', selectedLottery)
-          .order('nombre', { ascending: true });
-        if (error) throw error;
-        */
-        
-        if (!cancelled) {
-          const mapped = (data || []).map(h => ({ id: String(h.id), name: h.nombre }));
-          setLotterySchedules(mapped);
-        }
-      } catch (e) {
-  // ...
-        if (!cancelled) setLotterySchedules([]);
-      }
+      // Funcionalidad deshabilitada - solo usar datos de v_estadisticas
+      setSelectedSchedule('all');
+      setLotterySchedules([]);
+      return;
     };
     loadSchedulesForLottery();
     return () => { cancelled = true; };
   }, [selectedLottery]);
+  */
 
   const loadInitialData = async () => {
     try {
