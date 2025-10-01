@@ -3,6 +3,7 @@ import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ScrollView 
 import DropdownPicker from '../components/DropdownPicker';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import InputField from '../components/InputField';
+import MoneyInputField from '../components/MoneyInputField';
 import { supabase } from '../supabaseClient';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import ModeSelector from '../components/ModeSelector';
@@ -29,6 +30,36 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   const [scheduleError, setScheduleError] = useState(false);
   const [showFieldErrors, setShowFieldErrors] = useState(false);
   const [bankId, setBankId] = useState(null);
+  
+  // Estados para modo Santiago
+  const [modoSantiago, setModoSantiago] = useState(false);
+  const [porcentajeSantiago, setPorcentajeSantiago] = useState(100);
+  
+  // Estado para total
+  const [totalGeneral, setTotalGeneral] = useState(0);
+
+  // Calcular total automáticamente cuando cambien las jugadas
+  React.useEffect(() => {
+    let total = 0;
+    
+    // Sumar fijos y corridos
+    jugadasFijosYCorridos.forEach(jugada => {
+      if (jugada.fijo) total += parseFloat(jugada.fijo) || 0;
+      if (jugada.corrido) total += parseFloat(jugada.corrido) || 0;
+    });
+    
+    // Sumar parles
+    jugadasParles.forEach(jugada => {
+      total += jugada.precioTotal || 0;
+    });
+    
+    // Sumar centenas
+    jugadasCentenas.forEach(jugada => {
+      total += parseFloat(jugada.precio) || 0;
+    });
+    
+    setTotalGeneral(total * (selectedLotteries.length || 1));
+  }, [jugadasFijosYCorridos, jugadasParles, jugadasCentenas, selectedLotteries.length]);
 
   // Cargar banco (id_banco) y luego loterías
   React.useEffect(() => {
@@ -52,6 +83,18 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       try {
         const { data: lots } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
         setLotteries((lots || []).map(l => ({ label: l.nombre, value: l.id })));
+        
+        // Cargar configuración de modo Santiago del banco
+        const { data: bankProfile } = await supabase
+          .from('profiles')
+          .select('modo_santiago, porciento')
+          .eq('id', bankId)
+          .single();
+        
+        if (bankProfile) {
+          setModoSantiago(bankProfile.modo_santiago || false);
+          setPorcentajeSantiago(bankProfile.porciento || 100);
+        }
       } catch (e) { /* ignore */ }
     };
     loadData();
@@ -846,6 +889,40 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           </View>
           {/* Eliminadas View vacías de inputs debajo de las listas */}
         </View>
+        
+        {/* Sección de totales */}
+        {totalGeneral > 0 && (
+          <View style={styles.totalsSection}>
+            {/* Mostrar monto por lotería si hay 2 o más loterías seleccionadas */}
+            {selectedLotteries.length >= 2 && (
+              <MoneyInputField
+                label={'Monto por Lotería'}
+                value={Math.round(totalGeneral / (selectedLotteries.length || 1)).toString()}
+                editable={false}
+                placeholder="$0"
+                style={styles.totalField}
+              />
+            )}
+            <MoneyInputField
+              label={'Total General'}
+              value={totalGeneral.toString()}
+              editable={false}
+              placeholder="$0"
+              style={styles.totalField}
+            />
+            {/* Total modo Santiago */}
+            {modoSantiago && (
+              <MoneyInputField
+                label={`Total Santiago (${porcentajeSantiago}%)`}
+                value={Math.round(totalGeneral * (porcentajeSantiago / 100)).toString()}
+                editable={false}
+                placeholder="$0"
+                style={[styles.totalField, { backgroundColor: '#FFE4B5' }]}
+              />
+            )}
+          </View>
+        )}
+        
         {/* Botones de acción */}
         <View style={styles.actionButtonsContainer}>
           <TouchableOpacity 
@@ -1295,6 +1372,18 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  totalsSection: {
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  totalField: {
+    marginBottom: 8,
   },
 });
 

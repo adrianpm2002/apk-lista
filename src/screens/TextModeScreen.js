@@ -60,6 +60,11 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
   const [limitViolations, setLimitViolations] = useState([]); // [{numero, jugada, permitido, usado}]
   const [showFieldErrors, setShowFieldErrors] = useState(false);
   const [showInsertButton, setShowInsertButton] = useState(false); // Controla visibilidad del botón insertar
+  
+  // Estados para modo Santiago
+  const [modoSantiago, setModoSantiago] = useState(false);
+  const [porcentajeSantiago, setPorcentajeSantiago] = useState(100);
+  
   // Capacidades ahora manejadas por BatteryButton (se eliminan estados locales duplicados)
 
   // Lógica de capacidad eliminada (delegada a BatteryButton)
@@ -143,6 +148,18 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         const { data: lots } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
         if(cancelled) return;
         setLotteries((lots||[]).map(l=> ({ label:l.nombre, value:l.id })));
+        
+        // Cargar configuración de modo Santiago del banco
+        const { data: bankProfile } = await supabase
+          .from('profiles')
+          .select('modo_santiago, porciento')
+          .eq('id', bankId)
+          .single();
+        
+        if (bankProfile && !cancelled) {
+          setModoSantiago(bankProfile.modo_santiago || false);
+          setPorcentajeSantiago(bankProfile.porciento || 100);
+        }
       } catch(e){ /* ignore */ }
     };
     loadLots();
@@ -816,6 +833,17 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
               style={styles.fieldContainer}
               inputStyle={styles.unifiedInput}
             />
+            {/* Total modo Santiago */}
+            {modoSantiago && total > 0 && (
+              <MoneyInputField
+                label={`Total Santiago (${porcentajeSantiago}%)`}
+                value={Math.round(total * (porcentajeSantiago / 100)).toString()}
+                editable={false}
+                placeholder="$0"
+                style={styles.fieldContainer}
+                inputStyle={[styles.unifiedInput, { backgroundColor: '#FFE4B5' }]}
+              />
+            )}
           </View>
         </View>
 

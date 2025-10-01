@@ -101,6 +101,11 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const [playTypes, setPlayTypes] = useState([]); // jugadas activas dinámicas (todas las jugadas disponibles)
   const [filteredPlayTypes, setFilteredPlayTypes] = useState([]); // jugadas filtradas según loterías seleccionadas
   const [allJugadas, setAllJugadas] = useState({}); // almacenar todas las jugadas por lotería para filtrado
+  
+  // Estados para modo Santiago
+  const [modoSantiago, setModoSantiago] = useState(false);
+  const [porcentajeSantiago, setPorcentajeSantiago] = useState(100);
+  
   // Edición
   const [editingId, setEditingId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -141,6 +146,18 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       try {
         const { data: lots } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
         setLotteries((lots||[]).map(l=>({ label:l.nombre, value:l.id })));
+        
+        // Cargar configuración de modo Santiago del banco
+        const { data: bankProfile } = await supabase
+          .from('profiles')
+          .select('modo_santiago, porciento')
+          .eq('id', bankId)
+          .single();
+        
+        if (bankProfile) {
+          setModoSantiago(bankProfile.modo_santiago || false);
+          setPorcentajeSantiago(bankProfile.porciento || 100);
+        }
         
         const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
         const jugadas = jugRow?.jugadas || {};
@@ -1082,6 +1099,17 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
               style={styles.fieldContainer}
               inputStyle={styles.unifiedInput}
             />
+            {/* Total modo Santiago */}
+            {modoSantiago && total > 0 && (
+              <MoneyInputField
+                label={`Total Santiago (${porcentajeSantiago}%)`}
+                value={Math.round(total * (porcentajeSantiago / 100)).toString()}
+                editable={false}
+                placeholder="$0"
+                style={styles.fieldContainer}
+                inputStyle={[styles.unifiedInput, { backgroundColor: '#FFE4B5' }]}
+              />
+            )}
           </View>
         </View>
 
