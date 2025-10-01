@@ -13,10 +13,9 @@ const getPlayTypeLabel = (playType) => ({
 }[playType] || playType);
 
 const SavedPlaysScreen = ({ navigation, route }) => {
-  // Formatea dinero sin ceros a la derecha innecesarios (e.g., 8000.00 -> 8000, 123.50 -> 123.5)
+  // Formatea dinero con exactamente 2 decimales
   const formatMoneyCompact = (n) => {
-    const s = Number(n || 0).toFixed(2);
-    return s.replace(/\.00$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+    return Number(n || 0).toFixed(2);
   };
   const originMode = route?.params?.originMode || 'Visual';
   const [savedPlays, setSavedPlays] = useState([]);
@@ -74,7 +73,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         
         // Calcular monto total (cantidad de números × monto unitario)
         const numbersCount = (r.numeros_jugados || '').split(',').filter(Boolean).length;
-        const calculatedTotal = r.monto_unitario * numbersCount;
+        const calculatedTotal = Number((r.monto_unitario * numbersCount).toFixed(2));
         
         // Determinar estado del resultado
         const hasResult = r.resultado !== null && r.resultado !== undefined;
@@ -238,7 +237,7 @@ const SavedPlaysScreen = ({ navigation, route }) => {
             {!!item.note && (
               <Text style={styles.noteStronger} numberOfLines={1}>{(item.note || '').toUpperCase()}</Text>
             )}
-            <Text style={styles.priceCalc}>${item.amount} × {item.numbers.split(',').filter(Boolean).length} = ${item.total}</Text>
+            <Text style={styles.priceCalc}>${item.amount.toFixed(2)} × {item.numbers.split(',').filter(Boolean).length} = ${item.total.toFixed(2)}</Text>
           </View>
         </View>
   <View style={styles.resultBox}>
@@ -494,9 +493,9 @@ const SavedPlaysScreen = ({ navigation, route }) => {
           </Pressable>
         )}
         <View style={styles.totalsFlexGroup}>
-          <Text style={styles.totalText}>Recogido: ${totalRecogido.toFixed(1)}</Text>
-          <Text style={styles.totalText}>Pagado: ${totalPagadoDia.toFixed(1)}</Text>
-          <Text style={styles.totalText}>Pendiente: ${pendientePago.toFixed(1)}</Text>
+          <Text style={styles.totalText}>Recogido: ${totalRecogido.toFixed(2)}</Text>
+          <Text style={styles.totalText}>Pagado: ${totalPagadoDia.toFixed(2)}</Text>
+          <Text style={styles.totalText}>Pendiente: ${pendientePago.toFixed(2)}</Text>
         </View>
         <Pressable style={[styles.prizeFilterButton, showOnlyWinners && styles.prizeFilterButtonActive]} onPress={()=> setShowOnlyWinners(p=>!p)}>
           <Text style={styles.prizeFilterText}>{showOnlyWinners? '🏆 Ganadores':'🎯 Todos'}</Text>
