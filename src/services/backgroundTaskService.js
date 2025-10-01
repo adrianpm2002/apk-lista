@@ -14,7 +14,7 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
     await processPendingPlays();
     return BackgroundFetch.BackgroundFetchResult.NewData;
   } catch (error) {
-    console.error('Error en tarea en segundo plano:', error);
+    // Error silencioso para producción
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
@@ -45,7 +45,7 @@ const processPendingPlays = async () => {
           failedPlays.push({ ...play, error: result.error });
         }
       } catch (error) {
-        console.error('Error procesando jugada:', error);
+        // Error silencioso para producción
         failedPlays.push({ ...play, error: error.message });
       }
     }
@@ -76,7 +76,7 @@ const processPendingPlays = async () => {
     }
 
   } catch (error) {
-    console.error('Error procesando jugadas pendientes:', error);
+    // Error silencioso para producción
   }
 };
 
@@ -107,13 +107,13 @@ const submitPlayToServer = async (playEntry) => {
     
     const { error: insertError } = await supabase.from('jugada').insert(insertPayload);
     if (insertError) {
-      console.error('Error insertando jugada:', insertError);
+      // Error silencioso para producción
       return { success: false, error: insertError.message };
     }
     
     return { success: true, play: insertPayload };
   } catch (error) {
-    console.error('Error enviando jugada al servidor:', error);
+    // Error silencioso para producción
     return { success: false, error: error.message };
   }
 };
@@ -140,7 +140,7 @@ export const registerBackgroundFetch = async () => {
 
     }
   } catch (error) {
-    console.error('Error registrando tarea en segundo plano:', error);
+    // Error silencioso para producción
   }
 };
 
@@ -153,7 +153,7 @@ export const unregisterBackgroundFetch = async () => {
 
     }
   } catch (error) {
-    console.error('Error desregistrando tarea en segundo plano:', error);
+    // Error silencioso para producción
   }
 };
 
@@ -185,7 +185,7 @@ export const addPendingPlay = async (playData, numbersArray, calculatedTotal, id
     
     return true;
   } catch (error) {
-    console.error('Error agregando jugada pendiente:', error);
+    // Error silencioso para producción
     return false;
   }
 };
@@ -196,7 +196,7 @@ export const getPendingPlays = async () => {
     const pendingPlaysData = await AsyncStorage.getItem(PENDING_PLAYS_KEY);
     return pendingPlaysData ? JSON.parse(pendingPlaysData) : [];
   } catch (error) {
-    console.error('Error obteniendo jugadas pendientes:', error);
+    // Error silencioso para producción
     return [];
   }
 };
@@ -207,7 +207,7 @@ export const clearPendingPlays = async () => {
     await AsyncStorage.removeItem(PENDING_PLAYS_KEY);
 
   } catch (error) {
-    console.error('Error limpiando jugadas pendientes:', error);
+    // Error silencioso para producción
   }
 };
 

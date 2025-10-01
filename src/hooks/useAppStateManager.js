@@ -17,15 +17,11 @@ export const useAppStateManager = () => {
 
     // Suscribirse a cambios de estado de la app
     const handleAppStateChange = (nextAppState) => {
-      console.log('AppState cambió de', appState.current, 'a', nextAppState);
-      
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
         // La app se volvió activa
-        console.log('App se volvió activa - procesando jugadas pendientes');
         handleAppBecameActive();
       } else if (nextAppState.match(/inactive|background/)) {
         // La app se fue a segundo plano
-        console.log('App se fue a segundo plano');
         handleAppWentToBackground();
       }
 
@@ -37,12 +33,10 @@ export const useAppStateManager = () => {
 
     // Suscribirse a cambios de conectividad
     const unsubscribeNetInfo = NetInfo.addEventListener(state => {
-      console.log('Estado de conexión:', state.isConnected);
       setIsConnected(state.isConnected);
       
       // Si se recuperó la conexión, procesar jugadas pendientes
       if (state.isConnected && !isConnected) {
-        console.log('Conexión recuperada - procesando jugadas pendientes');
         backgroundTaskService.processPendingPlaysManually();
       }
     });
@@ -69,7 +63,6 @@ export const useAppStateManager = () => {
   };
 
   const handleAppWentToBackground = async () => {
-    console.log('Preparando app para segundo plano...');
     // Aquí puedes agregar lógica adicional si es necesaria
   };
 
@@ -78,7 +71,7 @@ export const useAppStateManager = () => {
       const pendingPlays = await backgroundTaskService.getPendingPlays();
       setPendingPlaysCount(pendingPlays.length);
     } catch (error) {
-      console.error('Error actualizando contador de jugadas pendientes:', error);
+      // Error silencioso para producción
     }
   };
 

@@ -352,36 +352,24 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
           lotteryPlayTypes[lottery.id] = actives;
         }
         setLotteryActivePlayTypes(lotteryPlayTypes);
-        
-        // Limpiar limitsValues para mantener solo las jugadas actualmente activas
-        setLimitsValues(prev => {
-          const cleanedLimits = {};
-          Object.entries(prev).forEach(([lotteryId, lotteryLimits]) => {
-            const activesForLottery = lotteryPlayTypes[lotteryId] || [];
-            if (activesForLottery.length > 0) {
-              cleanedLimits[lotteryId] = {};
-              activesForLottery.forEach(playType => {
-                // Mantener el valor si existe, sino inicializar vacío
-                cleanedLimits[lotteryId][playType] = lotteryLimits?.[playType] || '';
-              });
-            }
-          });
-          return cleanedLimits;
-        });
       };
       loadLotteryActivePlayTypes();
     }
   }, [enableSpecificLimits, availableLotteries, getActivePlayTypesForLottery]);
 
-  // Función auxiliar para determinar si una ganancia es válida según las jugadas activas
-  const isGainValid = useCallback((gainId) => {
-    const gain = gainOptions.find(g => g.id === gainId);
+  // Función auxiliar para determinar si una ganancia es válida según las jugadas activas de la lotería específica
+  const isGainValidForLottery = useCallback(async (gainId, lotteryId) => {
+    const gain = gainOptions.find(g => g.id === gainId && g.id_loteria === lotteryId);
     if (!gain || !gain.precios || typeof gain.precios !== 'object') return false;
     
-    const actSet = new Set(activePlayTypes);
+    // Obtener jugadas activas específicas para esta lotería
+    const lotteryActivePlayTypes = await getActivePlayTypesForLottery(lotteryId);
+    if (lotteryActivePlayTypes.length === 0) return false;
+    
+    const actSet = new Set(lotteryActivePlayTypes);
     const keys = Object.keys(gain.precios);
     
-    // Verificar que la ganancia tenga exactamente las mismas jugadas que están activas
+    // Verificar que la ganancia tenga exactamente las mismas jugadas que están activas en la lotería
     if (keys.length !== actSet.size) return false;
     
     for (const k of keys) {
@@ -395,7 +383,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     for (const a of actSet) { if (!(a in gain.precios)) return false; }
     
     return true;
-  }, [gainOptions, activePlayTypes]);
+  }, [gainOptions, getActivePlayTypesForLottery]);
 
   // Cargar loterías disponibles para el banco
   const fetchAvailableLotteries = useCallback(async () => {
@@ -1069,16 +1057,13 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         
         if (lottery && gain) {
           // Para el modal (useValidOnly=true), las ganancias ya están filtradas como válidas
-          // Para la lista (useValidOnly=false), verificar validez
+          // Para la lista (useValidOnly=false), verificar validez específica por lotería
           if (useValidOnly) {
             selectedItems.push(`${lottery.nombre}: ${gain.nombre}`);
           } else {
-            const isValid = isGainValid(gainId);
-            if (isValid) {
-              selectedItems.push(`${lottery.nombre}: ${gain.nombre}`);
-            } else {
-              invalidItems.push(`${lottery.nombre}: Ganancia inválida`);
-            }
+            // Para la lista, simplemente mostrar la ganancia sin validación en tiempo real
+            // La validación se hace al momento de asignar/guardar
+            selectedItems.push(`${lottery.nombre}: ${gain.nombre}`);
           }
         } else if (lottery) {
           invalidItems.push(`${lottery.nombre}: Ganancia inválida`);
@@ -1219,16 +1204,16 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                   const gainId = gainsData[`${lotteryId}_id`];
                   
                   if (lotteryName && gainId) {
-                    // Buscar el nombre de la ganancia en gainOptions
-                    const gain = gainOptions.find(g => g.id === gainId);
+                    // Buscar el nombre de la ganancia en gainOptions, filtrando por lotería específica
+                    const gain = gainOptions.find(g => g.id === gainId && g.id_loteria === lotteryId);
                     let gainName;
                     
                     if (gain) {
-                      // Verificar si la ganancia es válida según las jugadas activas
-                      const isValid = isGainValid(gainId);
-                      gainName = isValid ? gain.nombre : 'Ganancia inválida';
+                      gainName = gain.nombre;
                     } else {
-                      gainName = 'Ganancia inválida';
+                      // Si no se encuentra con lotería específica, intentar solo por ID como fallback
+                      const fallbackGain = gainOptions.find(g => g.id === gainId);
+                      gainName = fallbackGain ? fallbackGain.nombre : 'Ganancia no encontrada';
                     }
                     
                     lotteryGainPairs.push(`${lotteryName}: ${gainName}`);
