@@ -8,7 +8,13 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "build:production": "cross-env NODE_ENV=production eas build --platform android --profile production",
+    "build:production-apk": "cross-env NODE_ENV=production eas build --platform android --profile production-apk",
+    "validate:security": "node scripts/validate-build.js",
+    "prebuild:production": "npm run validate:security",
+    "clean": "expo r -c",
+    "security:check": "npm audit && npm run validate:security"
   },
   "dependencies": {
     "@expo/metro-runtime": "~4.0.1",

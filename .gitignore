@@ -32,6 +32,19 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
+.env.production
+.env.development
+
+# Archivos de configuración sensibles
+config/database.json
+config/secrets.json
+src/config/api-keys.js
+
+# Archivos de build con información sensible
+android/app/src/main/assets/apk-public-key.txt
+android/app/my-upload-key.keystore
+ios/certificates/
 
 # typescript
 *.tsbuildinfo
