@@ -38,28 +38,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   // Estado para total
   const [totalGeneral, setTotalGeneral] = useState(0);
 
-  // Calcular total automáticamente cuando cambien las jugadas
-  React.useEffect(() => {
-    let total = 0;
-    
-    // Sumar fijos y corridos
-    jugadasFijosYCorridos.forEach(jugada => {
-      if (jugada.fijo) total += parseFloat(jugada.fijo) || 0;
-      if (jugada.corrido) total += parseFloat(jugada.corrido) || 0;
-    });
-    
-    // Sumar parles
-    jugadasParles.forEach(jugada => {
-      total += jugada.precioTotal || 0;
-    });
-    
-    // Sumar centenas
-    jugadasCentenas.forEach(jugada => {
-      total += parseFloat(jugada.precio) || 0;
-    });
-    
-    setTotalGeneral(total * (selectedLotteries.length || 1));
-  }, [jugadasFijosYCorridos, jugadasParles, jugadasCentenas, selectedLotteries.length]);
+
 
   // Cargar banco (id_banco) y luego loterías
   React.useEffect(() => {
@@ -220,6 +199,29 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     };
     loadUserId();
   }, []);
+
+  // Calcular total automáticamente cuando cambien las jugadas
+  React.useEffect(() => {
+    let total = 0;
+    
+    // Sumar fijos y corridos
+    jugadasFijosYCorridos.forEach(jugada => {
+      if (jugada.fijo) total += parseFloat(jugada.fijo) || 0;
+      if (jugada.corrido) total += parseFloat(jugada.corrido) || 0;
+    });
+    
+    // Sumar parles
+    jugadasParles.forEach(jugada => {
+      total += jugada.precioTotal || 0;
+    });
+    
+    // Sumar centenas
+    jugadasCentenas.forEach(jugada => {
+      total += parseFloat(jugada.precio) || 0;
+    });
+    
+    setTotalGeneral(total * (selectedLotteries.length || 1));
+  }, [jugadasFijosYCorridos, jugadasParles, jugadasCentenas, selectedLotteries.length]);
   
   // Función para limpiar completamente la pantalla
   const limpiarPantalla = () => {
