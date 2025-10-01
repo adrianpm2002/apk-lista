@@ -28,6 +28,10 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
+  
+  // Estados para modo Santiago
+  const [modoSantiago, setModoSantiago] = useState(false);
+  const [porcentajeSantiago, setPorcentajeSantiago] = useState(100);
   const [hasMoreData, setHasMoreData] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   // Nuevos estados para UI compacta
@@ -112,7 +116,42 @@ const SavedPlaysScreen = ({ navigation, route }) => {
     }
   };
 
-  useFocusEffect(useCallback(()=> { loadSavedPlays(); },[]));
+  // Función para cargar el modo Santiago del banco
+  const loadModoSantiago = async () => {
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const userId = userRes?.user?.id;
+      if (!userId) return;
+
+      // Obtener el banco del listero actual
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id_banco')
+        .eq('id', userId)
+        .single();
+
+      if (profile?.id_banco) {
+        // Obtener configuración del banco
+        const { data: bankProfile } = await supabase
+          .from('profiles')
+          .select('modo_santiago, porciento')
+          .eq('id', profile.id_banco)
+          .single();
+
+        if (bankProfile) {
+          setModoSantiago(bankProfile.modo_santiago || false);
+          setPorcentajeSantiago(bankProfile.porciento || 100);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading modo Santiago:', error);
+    }
+  };
+
+  useFocusEffect(useCallback(()=> { 
+    loadSavedPlays(); 
+    loadModoSantiago();
+  },[]));
 
   // Derivar opciones dinámicas cada vez que cambian las jugadas cargadas
   useEffect(()=> {
@@ -238,6 +277,11 @@ const SavedPlaysScreen = ({ navigation, route }) => {
               <Text style={styles.noteStronger} numberOfLines={1}>{(item.note || '').toUpperCase()}</Text>
             )}
             <Text style={styles.priceCalc}>${item.amount.toFixed(2)} × {item.numbers.split(',').filter(Boolean).length} = ${item.total.toFixed(2)}</Text>
+            {modoSantiago && item.total > 0 && (
+              <Text style={[styles.priceCalc, styles.santiagoText]}>
+                {porcentajeSantiago}%: ${(item.total * (porcentajeSantiago / 100)).toFixed(2)}
+              </Text>
+            )}
           </View>
         </View>
   <View style={styles.resultBox}>
@@ -494,8 +538,18 @@ const SavedPlaysScreen = ({ navigation, route }) => {
         )}
         <View style={styles.totalsFlexGroup}>
           <Text style={styles.totalText}>Recogido: ${totalRecogido.toFixed(2)}</Text>
+          {modoSantiago && totalRecogido > 0 && (
+            <Text style={[styles.totalText, styles.santiagoText]}>
+              {porcentajeSantiago}%: ${(totalRecogido * (porcentajeSantiago / 100)).toFixed(2)}
+            </Text>
+          )}
           <Text style={styles.totalText}>Pagado: ${totalPagadoDia.toFixed(2)}</Text>
           <Text style={styles.totalText}>Pendiente: ${pendientePago.toFixed(2)}</Text>
+          {modoSantiago && pendientePago > 0 && (
+            <Text style={[styles.totalText, styles.santiagoText]}>
+              {porcentajeSantiago}%: ${(pendientePago * (porcentajeSantiago / 100)).toFixed(2)}
+            </Text>
+          )}
         </View>
         <Pressable style={[styles.prizeFilterButton, showOnlyWinners && styles.prizeFilterButtonActive]} onPress={()=> setShowOnlyWinners(p=>!p)}>
           <Text style={styles.prizeFilterText}>{showOnlyWinners? '🏆 Ganadores':'🎯 Todos'}</Text>
@@ -559,6 +613,7 @@ const styles = StyleSheet.create({
   inlineTotals:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginTop:4 },
   totalsRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#F8F9FA', borderRadius:8, padding:10, marginBottom:8 },
   totalText:{ fontSize:12, fontWeight:'600', color:'#2D5016' },
+  santiagoText:{ color:'#8B4513', fontWeight:'700' },
   totalTextDark:{ color:'#ECF0F1' },
   prizeFilterButton:{ backgroundColor:'#F39C12', paddingHorizontal:10, paddingVertical:4, borderRadius:6 },
   prizeFilterButtonActive:{ backgroundColor:'#27AE60' },
