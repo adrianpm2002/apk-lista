@@ -61,19 +61,41 @@ export const checkInstructionsLimits = (instructions, horarios, limitCtx) => {
   // Calcular intentos por clave canónica para cada horario y jugada
   const attemptMap = new Map(); // key: h|jugada|canonical -> intento total
 
-  const toCanonicalParle = (n) => {
-    const d = (n||'').replace(/[^0-9]/g,'');
-    if(d.length===4){ const a=d.slice(0,2), b=d.slice(2); return [a,b].sort().join(''); }
-    return n;
-  };
-
-  const toCanonicalTripleta = (n) => {
-    const d = (n||'').replace(/[^0-9]/g,'');
-    if(d.length===6){ 
-      const pairs = [d.slice(0,2), d.slice(2,4), d.slice(4,6)];
-      return pairs.sort().join('');
+  // Función unificada de canonicalización que coincide con la vista SQL
+  const canonicalizeNumber = (jugada, num) => {
+    const digits = (num || '').replace(/[^0-9]/g, '');
+    
+    switch (jugada) {
+      case 'parle':
+        if (digits.length === 4) {
+          const a = digits.slice(0, 2);
+          const b = digits.slice(2, 4);
+          return [a, b].sort().join('');
+        }
+        return digits.padStart(4, '0'); // Formatear con padding si es menor
+        
+      case 'tripleta':
+        if (digits.length === 6) {
+          const pairs = [
+            digits.slice(0, 2),
+            digits.slice(2, 4),
+            digits.slice(4, 6)
+          ];
+          return pairs.sort().join('');
+        }
+        return digits.padStart(6, '0'); // Formatear con padding si es menor
+        
+      case 'centena':
+        return digits.padStart(3, '0');
+        
+      case 'fijo':
+      case 'corrido':
+      case 'posicion':
+        return digits.padStart(2, '0');
+        
+      default:
+        return digits;
     }
-    return d;
   };
 
   instructions.forEach(instr => {
@@ -81,9 +103,7 @@ export const checkInstructionsLimits = (instructions, horarios, limitCtx) => {
     // contar ocurrencias originales (incluso invertidas separadas)
     const counts = instr.numbers.reduce((acc,n)=> (acc[n]=(acc[n]||0)+1, acc), {});
     Object.keys(counts).forEach(num => {
-      let canonical = num.replace(/[^0-9]/g,'');
-      if(jugada==='parle') canonical = toCanonicalParle(num);
-      else if(jugada==='tripleta') canonical = toCanonicalTripleta(num);
+      const canonical = canonicalizeNumber(jugada, num);
       
       horarios.forEach(h => {
         const key = `${h}|${jugada}|${canonical}`;
