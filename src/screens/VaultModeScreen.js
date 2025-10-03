@@ -499,60 +499,35 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           .select('id');
         
         if (batchError) {
-          // Si batch falla, usar inserción secuencial para manejar duplicados
-          console.warn('Batch insert failed, trying sequential:', batchError);
-          const successes = [];
-          const failures = [];
+          // Manejar error del batch directamente (sin fallback secuencial)
+          console.error('Batch insert failed:', batchError);
+          const msg = (batchError.message || '').toLowerCase();
+          const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || batchError.code === '23505';
+          const isLimitError = msg.includes('límite excedido') || msg.includes('limit exceeded');
           
-          for(const p of payloads){
-            const { data, error } = await supabase.from('jugada').insert({
-              id_listero: p.id_listero,
-              id_horario: p.id_horario,
-              jugada: p.jugada,
-              numeros: p.numeros,
-              nota: p.nota,
-              monto_unitario: p.monto_unitario,
-              monto_total: p.monto_total
-            }).select('id').single();
-            
-            if(error){
-              const isDuplicate = error.message?.includes('Jugada duplicada') || 
-                                 error.message?.includes('duplicada') || 
-                                 error.code === '23505';
-              failures.push({ p, error, isDuplicate });
-            } else {
-              successes.push(data.id);
-            }
-          }
-          
-          if(failures.length === 0){
-            // ¡ÉXITO TOTAL! Limpiar toda la pantalla automáticamente
-            setJugadasFijosYCorridos([]);
-            setJugadasParles([]);
-            setJugadasCentenas([]);
-            setNote('');
-            setNumero('');
-            setFijo('');
-            setCorrido('');
-            setParleInput('');
-            setPrecioParle('');
-            setCentenaNumero('');
-            setCentenaPrecio('');
-            setJugadasConError(new Set());
-            setShowFieldErrors(false);
-            
+          if (isLimitError) {
+            // Error de límite - mostrar mensaje del trigger
             setInsertFeedback({ 
-              type: 'success',
-              message: `${payloads.length} jugada(s) enviada(s) exitosamente.`
+              success: 0, 
+              fail: payloads.length, 
+              duplicates: [], 
+              edit: false,
+              serverError: batchError.message
+            });
+          } else if (isDuplicate) {
+            // Error de duplicado
+            setInsertFeedback({ 
+              success: 0, 
+              fail: payloads.length, 
+              duplicates: payloads.map(p => ({ jugada: p.jugada, numeros: p.numeros, nota: p.nota, horario: p.id_horario })), 
+              edit: false
             });
           } else {
-            // Hubo algunos errores - extraer mensajes del servidor
-            const serverErrors = failures.map(f => f.error.message).filter(Boolean);
-            const duplicateFails = failures.filter(f=>f.isDuplicate);
+            // Otro tipo de error
             setInsertFeedback({ 
-              type: 'warning',
-              message: `${successes.length} exitosa(s), ${failures.length} fallida(s)${duplicateFails.length ? ` (${duplicateFails.length} duplicada(s))` : ''}.`,
-              serverError: serverErrors.length ? serverErrors.join(' | ') : undefined
+              type: 'error',
+              message: `Error: ${batchError.message || 'Error desconocido'}`,
+              serverError: batchError.message || 'Error desconocido'
             });
           }
         } else {

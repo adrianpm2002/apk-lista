@@ -651,40 +651,37 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           .select('id');
         
         if (batchError) {
-          // Si hay error en batch, intentar secuencial para identificar duplicados
-          console.warn('Batch insert failed, trying sequential:', batchError);
-          const successes = []; 
-          const failures = [];
+          // Manejar error del batch directamente (sin fallback secuencial)
+          console.error('Batch insert failed:', batchError);
+          const msg = (batchError.message || '').toLowerCase();
+          const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || batchError.code === '23505';
+          const isLimitError = msg.includes('límite excedido') || msg.includes('limit exceeded');
           
-          for(const p of payloads){
-            const { data, error } = await supabase.from('jugada').insert(p).select('id').single();
-            if(error){
-              const msg = (error.message||'').toLowerCase();
-              const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || error.code==='23505';
-              failures.push({ p, error, isDuplicate });
-            } else {
-              successes.push(data.id);
-            }
-          }
-          
-          if(failures.length===0){
-            setPlays('');
-            setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
-            setTotal(0);
-            setShowFieldErrors(false);
-          }
-          
-          if(failures.length){
-            const duplicateFails = failures.filter(f=>f.isDuplicate);
-            const serverErrors = failures.map(f => f.error.message).filter(Boolean);
+          if (isLimitError) {
+            // Error de límite - mostrar mensaje del trigger
             setInsertFeedback({ 
-              success:successes.length, 
-              fail:failures.length, 
-              duplicates: duplicateFails.map(f=>({ jugada:f.p.jugada, numeros:f.p.numeros, nota:f.p.nota, horario:f.p.id_horario })),
-              serverError: serverErrors.length ? serverErrors.join(' | ') : undefined
+              success: 0, 
+              fail: payloads.length, 
+              duplicates: [], 
+              edit: false,
+              serverError: batchError.message
+            });
+          } else if (isDuplicate) {
+            // Error de duplicado
+            setInsertFeedback({ 
+              success: 0, 
+              fail: payloads.length, 
+              duplicates: payloads.map(p => ({ jugada: p.jugada, numeros: p.numeros, nota: p.nota, horario: p.id_horario })), 
+              edit: false
             });
           } else {
-            setInsertFeedback({ success:successes.length, fail:0, duplicates:[] });
+            // Otro tipo de error
+            setInsertFeedback({ 
+              success: 0, 
+              fail: payloads.length, 
+              duplicates: [],
+              serverError: batchError.message || 'Error desconocido'
+            });
           }
         } else {
           // Batch insert exitoso

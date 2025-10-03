@@ -574,32 +574,39 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
             .select('id');
           
           if (batchError) {
-            // Si batch falla, usar inserción secuencial para manejar duplicados
-            console.warn('Batch insert failed, trying sequential:', batchError);
-            let success = 0; 
-            let fail = 0; 
-            let errMsgs = [];
+            // Manejar error del batch directamente (sin fallback secuencial)
+            console.error('Batch insert failed:', batchError);
+            const msg = (batchError.message || '').toLowerCase();
+            const isDuplicate = msg.includes('duplicad') || msg.includes('duplicate') || msg.includes('ya existe') || batchError.code === '23505';
+            const isLimitError = msg.includes('límite excedido') || msg.includes('limit exceeded');
             
-            for(const payload of payloads){
-              const { data, error } = await supabase.from('jugada').insert(payload).select('id').single();
-              if(error){
-                fail++;
-                const isDuplicate = error.message?.includes('Jugada duplicada') || 
-                                   error.message?.includes('duplicada') || 
-                                   error.code === '23505';
-                if(error.message) errMsgs.push(error.message);
-              } else {
-                success++;
-              }
-            }
-            
-            setInsertFeedback({ success, fail, duplicates:[], edit:false, serverError: errMsgs.length ? errMsgs.join(' | ') : undefined });
-            if(success){
-              setPlays(''); 
-              setCalculatedAmount(0); 
-              setTotal(0); 
-              setParsedInstructions([]);
-              // Mantener la nota después del envío exitoso
+            if (isLimitError) {
+              // Error de límite - mostrar mensaje del trigger
+              setInsertFeedback({ 
+                success: 0, 
+                fail: payloads.length, 
+                duplicates: [], 
+                edit: false,
+                serverError: batchError.message
+              });
+            } else if (isDuplicate) {
+              // Error de duplicado
+              setInsertFeedback({ 
+                success: 0, 
+                fail: payloads.length, 
+                duplicates: [], 
+                edit: false,
+                serverError: batchError.message
+              });
+            } else {
+              // Otro tipo de error
+              setInsertFeedback({ 
+                success: 0, 
+                fail: payloads.length, 
+                duplicates: [], 
+                edit: false,
+                serverError: batchError.message || 'Error desconocido'
+              });
             }
           } else {
             // Batch exitoso - limpiar pantalla automáticamente
