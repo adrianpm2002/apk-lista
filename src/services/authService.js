@@ -44,8 +44,9 @@ class AuthService {
         // Si el refresh token es inválido, limpiar credenciales
         if (error.message.includes('refresh_token_not_found') || 
             error.message.includes('invalid refresh token') ||
+            error.message.includes('Refresh Token Not Found') ||
             error.message.includes('Auth session missing')) {
-
+          // Limpiar credenciales silenciosamente sin mostrar error al usuario
           await secureStorage.clearStoredCredentials();
         }
         

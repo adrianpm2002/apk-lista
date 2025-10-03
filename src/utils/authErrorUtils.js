@@ -21,7 +21,8 @@ export const mapAuthError = (error) => {
     return 'Email no confirmado';
   }
 
-  if (errorMessage.includes('invalid refresh token')) {
+  if (errorMessage.includes('invalid refresh token') || 
+      errorMessage.includes('refresh token not found')) {
     return 'Sesión expirada, por favor inicie sesión nuevamente';
   }
 
@@ -64,6 +65,7 @@ export const isTokenExpiredError = (error) => {
   const errorMessage = error.message?.toLowerCase() || '';
   
   return errorMessage.includes('invalid refresh token') ||
+         errorMessage.includes('refresh token not found') ||
          errorMessage.includes('refresh_token_not_found') ||
          errorMessage.includes('jwt expired') ||
          errorMessage.includes('token expired');
@@ -91,13 +93,26 @@ export const isNetworkError = (error) => {
  * @param {Error} error - Error a loggear
  */
 export const logAuthError = (context, error) => {
-  console.error(`[Auth Error - ${context}]`, {
+  // Si es un error esperado (token expirado), usar warning en lugar de error
+  const isExpectedError = isTokenExpiredError(error);
+  
+  const logData = {
     message: error.message,
-    stack: error.stack,
     name: error.name,
     timestamp: new Date().toISOString(),
-    fullError: error, // Agregar el error completo para debugging
-  });
+  };
+  
+  if (isExpectedError) {
+    // Para errores esperados, solo mostrar un warning simplificado
+    console.warn(`[Auth Warning - ${context}]: ${error.message}`);
+  } else {
+    // Para errores inesperados, mostrar información completa
+    console.error(`[Auth Error - ${context}]`, {
+      ...logData,
+      stack: error.stack,
+      fullError: error,
+    });
+  }
   
   // Log adicional para debugging en desarrollo
   if (process.env.NODE_ENV !== 'production') {

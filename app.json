@@ -17,7 +17,8 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.adrianpm.apklistaclean"
+      "bundleIdentifier": "com.adrianpm.apklistaclean",
+      "newArchEnabled": true
     },
     "android": {
       "adaptiveIcon": {
@@ -32,7 +33,8 @@
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "SYSTEM_ALERT_WINDOW"
-      ]
+      ],
+      "newArchEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png",

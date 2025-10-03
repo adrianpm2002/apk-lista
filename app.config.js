@@ -84,11 +84,11 @@ export default {
       enabled: true,
       checkAutomatically: "ON_LOAD",
       fallbackToCacheTimeout: 30000,
-      codeSigningCertificate: "./code-signing-certificate.pem", // Certificado para validar updates
-      codeSigningMetadata: {
-        keyid: "main",
-        alg: "rsa-v1_5-sha256"
-      }
+      // codeSigningCertificate: "./code-signing-certificate.pem", // Certificado para validar updates (deshabilitado temporalmente)
+      // codeSigningMetadata: {
+      //   keyid: "main",
+      //   alg: "rsa-v1_5-sha256"
+      // }
     },
     // Hooks para validación de integridad
     hooks: {
