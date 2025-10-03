@@ -15,8 +15,16 @@ const TextInputWithErrorHighlight = ({
   pasteButtonOverlay = false,
   showClearButtonOverlay = false,
   onClear,
+  // Props específicos de React Native que se deben filtrar en Web
+  keyboardType,
+  returnKeyType,
+  blurOnSubmit,
   ...otherProps
 }) => {
+  // Filtrar props de React Native que no son válidos en Web
+  const validProps = Platform.OS === 'web' 
+    ? otherProps 
+    : { ...otherProps, keyboardType, returnKeyType, blurOnSubmit };
   const [isFocused, setIsFocused] = useState(false);
   const editorRef = useRef(null);
   const overlayRef = useRef(null);
@@ -153,7 +161,7 @@ const TextInputWithErrorHighlight = ({
               boxSizing: 'border-box',
               ...inputStyle,
             }}
-            {...otherProps}
+            {...validProps}
           />
           
           {/* Overlay para mostrar líneas con errores */}
@@ -226,7 +234,7 @@ const TextInputWithErrorHighlight = ({
           placeholderTextColor="#7F8C8D"
           multiline
           textAlignVertical="top"
-          {...otherProps}
+          {...validProps}
         />
         
         {/* Mostrar indicador de errores específicos debajo del input - REMOVIDO */}
