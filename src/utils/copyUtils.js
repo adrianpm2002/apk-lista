@@ -6,6 +6,7 @@ export const generateCopyText = async (formData, currentUserProfile = null, note
     // Usar el nombre de la nota si está disponible, sino "SIN NOMBRE"
     let userName = noteName && noteName.trim() ? noteName.trim() : 'SIN NOMBRE';
     
+    // Agregar nombre y solo UN salto de línea
     copyText += userName + '\n';
     
     // Obtener información de loterías y horarios
@@ -13,11 +14,6 @@ export const generateCopyText = async (formData, currentUserProfile = null, note
     
     // Organizar por lotería
     const lotteryIds = formData.selectedLotteries || [];
-    
-    // Si hay múltiples loterías, agregar una línea en blanco después del nombre
-    if (lotteryIds.length > 1) {
-      copyText += '\n';
-    }
     
     // Agregar información de cada lotería
     for (const lotteryId of lotteryIds) {
@@ -54,50 +50,61 @@ export const generateCopyText = async (formData, currentUserProfile = null, note
     // Agregar línea en blanco antes de las jugadas
     copyText += '\n';
     
-    // Procesar números y jugadas según el formato del ejemplo
+    // Procesar números y jugadas según los tipos seleccionados
     const selectedPlayTypes = formData.selectedPlayTypes || [];
     const amounts = formData.amounts || {};
     const plays = formData.plays || '';
     
-    // Extraer números de las jugadas
-    const numbers = plays.match(/\d+/g) || [];
+    // Extraer números únicos de las jugadas (solo números de 2 dígitos)
+    const numberMatches = plays.match(/\d{2}/g) || [];
+    const uniqueNumbers = [...new Set(numberMatches)];
     
-    if (numbers.length > 0) {
-      // Formato específico según el ejemplo:
-      // 08 18 28 38 48 58 68 78 88 98-10
-      // 88-10
-      // 11 -20
+    if (uniqueNumbers.length === 0) {
+      copyText += 'Sin números válidos\n';
+    } else {
+      // Obtener montos de fijo y corrido
+      const fijoAmount = parseFloat((amounts.fijo || '0').toString().replace(/[^0-9.]/g, '')) || 0;
+      const corridoAmount = parseFloat((amounts.corrido || '0').toString().replace(/[^0-9.]/g, '')) || 0;
       
-      // Primera línea: todos los números con el primer monto
-      const firstAmount = amounts[selectedPlayTypes[0]] || '10';
-      copyText += `${numbers.join(' ')}-${firstAmount}\n`;
+      // Generar línea con el formato correcto: números-fijo-corrido
+      // Si solo hay fijo: "00 11 22-0.2"
+      // Si tiene ambos: "00 11 22-0.2-0.2"
+      // Si solo hay corrido: "00 11 22-0-0.2"
       
-      // Segunda línea: último número con el mismo monto
-      if (numbers.length > 0) {
-        copyText += `${numbers[numbers.length - 1]}-${firstAmount}\n`;
+      let amountSuffix = '';
+      if (fijoAmount > 0 && corridoAmount > 0) {
+        // Ambos montos
+        amountSuffix = `-${fijoAmount}-${corridoAmount}`;
+      } else if (fijoAmount > 0) {
+        // Solo fijo
+        amountSuffix = `-${fijoAmount}`;
+      } else if (corridoAmount > 0) {
+        // Solo corrido (formato: -0-corrido)
+        amountSuffix = `-0-${corridoAmount}`;
       }
       
-      // Tercera línea: un número con un monto diferente (si hay segundo tipo de jugada)
-      const secondAmount = amounts[selectedPlayTypes[1]] || '20';
-      copyText += `${numbers[0] || '11'} -${secondAmount}\n`;
+      // Agregar la línea con todos los números
+      copyText += `${uniqueNumbers.join(' ')}${amountSuffix}\n`;
     }
     
-    // Calcular total
-    let totalAmount = 0;
+    // Calcular total por lotería
+    let totalPerLottery = 0;
+    const numberCount = uniqueNumbers.length;
+    
     for (const playType of selectedPlayTypes) {
       const amount = amounts[playType];
       if (amount && parseFloat(amount.toString().replace(/[^0-9.]/g, '')) > 0) {
         const unitAmount = parseFloat(amount.toString().replace(/[^0-9.]/g, '')) || 0;
-        totalAmount += unitAmount * numbers.length;
+        totalPerLottery += unitAmount * numberCount;
       }
     }
     
-    copyText += `\nTotal: ${totalAmount}`;
+    copyText += `\nTotal: ${totalPerLottery}`;
     
-    // Si hay múltiples loterías, agregar Total General
+    // Si hay múltiples loterías, agregar Total General (pegado sin línea en blanco)
     if (lotteryIds.length > 1) {
-      const totalGeneral = totalAmount * lotteryIds.length;
-      copyText += `\n\nTotal General:${totalGeneral}`;
+      const totalGeneral = totalPerLottery * lotteryIds.length;
+      copyText += `\nTotal General: ${totalGeneral}`;
     }
     
     return copyText;
