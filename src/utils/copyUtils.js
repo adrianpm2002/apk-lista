@@ -55,47 +55,113 @@ export const generateCopyText = async (formData, currentUserProfile = null, note
     const amounts = formData.amounts || {};
     const plays = formData.plays || '';
     
-    // Extraer números únicos de las jugadas (solo números de 2 dígitos)
-    const numberMatches = plays.match(/\d{2}/g) || [];
-    const uniqueNumbers = [...new Set(numberMatches)];
-    
-    if (uniqueNumbers.length === 0) {
-      copyText += 'Sin números válidos\n';
-    } else {
-      // Obtener montos de fijo y corrido
-      const fijoAmount = parseFloat((amounts.fijo || '0').toString().replace(/[^0-9.]/g, '')) || 0;
-      const corridoAmount = parseFloat((amounts.corrido || '0').toString().replace(/[^0-9.]/g, '')) || 0;
-      
-      // Generar línea con el formato correcto: números-fijo-corrido
-      // Si solo hay fijo: "00 11 22-0.2"
-      // Si tiene ambos: "00 11 22-0.2-0.2"
-      // Si solo hay corrido: "00 11 22-0-0.2"
-      
-      let amountSuffix = '';
-      if (fijoAmount > 0 && corridoAmount > 0) {
-        // Ambos montos
-        amountSuffix = `-${fijoAmount}-${corridoAmount}`;
-      } else if (fijoAmount > 0) {
-        // Solo fijo
-        amountSuffix = `-${fijoAmount}`;
-      } else if (corridoAmount > 0) {
-        // Solo corrido (formato: -0-corrido)
-        amountSuffix = `-0-${corridoAmount}`;
-      }
-      
-      // Agregar la línea con todos los números
-      copyText += `${uniqueNumbers.join(' ')}${amountSuffix}\n`;
-    }
-    
-    // Calcular total por lotería
     let totalPerLottery = 0;
-    const numberCount = uniqueNumbers.length;
     
+    // Procesar cada tipo de jugada por separado
     for (const playType of selectedPlayTypes) {
       const amount = amounts[playType];
-      if (amount && parseFloat(amount.toString().replace(/[^0-9.]/g, '')) > 0) {
-        const unitAmount = parseFloat(amount.toString().replace(/[^0-9.]/g, '')) || 0;
-        totalPerLottery += unitAmount * numberCount;
+      if (!amount || parseFloat(amount.toString().replace(/[^0-9.]/g, '')) <= 0) {
+        continue; // Saltar si no hay monto válido para este tipo
+      }
+      
+      const unitAmount = parseFloat(amount.toString().replace(/[^0-9.]/g, '')) || 0;
+      let numbersForType = [];
+      
+      // Extraer números según el tipo de jugada
+      if (playType === 'fijo' || playType === 'corrido') {
+        // Números de 2 dígitos
+        const matches = plays.match(/\b\d{2}\b/g) || [];
+        numbersForType = [...new Set(matches)];
+      } else if (playType === 'centena') {
+        // Números de 3 dígitos
+        const matches = plays.match(/\b\d{3}\b/g) || [];
+        numbersForType = [...new Set(matches)];
+      } else if (playType === 'parle') {
+        // Números de 4 dígitos (combinaciones de 2 números de 2 dígitos)
+        const matches = plays.match(/\b\d{4}\b/g) || [];
+        numbersForType = [...new Set(matches)];
+      } else if (playType === 'tripleta') {
+        // Números de 6 dígitos (combinaciones de 3 números de 2 dígitos)
+        const matches = plays.match(/\b\d{6}\b/g) || [];
+        numbersForType = [...new Set(matches)];
+      } else if (playType === 'posicion') {
+        // Posición también usa números de 2 dígitos
+        const matches = plays.match(/\b\d{2}\b/g) || [];
+        numbersForType = [...new Set(matches)];
+      }
+      
+      if (numbersForType.length === 0) {
+        continue; // No hay números válidos para este tipo
+      }
+      
+      // Calcular total para este tipo de jugada
+      totalPerLottery += unitAmount * numbersForType.length;
+    }
+    
+    // Generar la línea de jugadas
+    // Para fijo y corrido: combinar en una sola línea con formato números-fijo-corrido
+    const fijoAmount = parseFloat((amounts.fijo || '0').toString().replace(/[^0-9.]/g, '')) || 0;
+    const corridoAmount = parseFloat((amounts.corrido || '0').toString().replace(/[^0-9.]/g, '')) || 0;
+    
+    if (fijoAmount > 0 || corridoAmount > 0) {
+      // Extraer números de 2 dígitos para fijo/corrido
+      const twoDigitMatches = plays.match(/\b\d{2}\b/g) || [];
+      const uniqueTwoDigit = [...new Set(twoDigitMatches)];
+      
+      if (uniqueTwoDigit.length > 0) {
+        let amountSuffix = '';
+        if (fijoAmount > 0 && corridoAmount > 0) {
+          // Ambos montos
+          amountSuffix = `-${fijoAmount}-${corridoAmount}`;
+        } else if (fijoAmount > 0) {
+          // Solo fijo
+          amountSuffix = `-${fijoAmount}`;
+        } else if (corridoAmount > 0) {
+          // Solo corrido (formato: -0-corrido)
+          amountSuffix = `-0-${corridoAmount}`;
+        }
+        copyText += `${uniqueTwoDigit.join(' ')}${amountSuffix}\n`;
+      }
+    }
+    
+    // Para centena: línea separada con números de 3 dígitos
+    const centenaAmount = parseFloat((amounts.centena || '0').toString().replace(/[^0-9.]/g, '')) || 0;
+    if (centenaAmount > 0) {
+      const threeDigitMatches = plays.match(/\b\d{3}\b/g) || [];
+      const uniqueThreeDigit = [...new Set(threeDigitMatches)];
+      if (uniqueThreeDigit.length > 0) {
+        copyText += `${uniqueThreeDigit.join(' ')}-${centenaAmount}\n`;
+      }
+    }
+    
+    // Para parle: línea separada con números de 4 dígitos
+    const parleAmount = parseFloat((amounts.parle || '0').toString().replace(/[^0-9.]/g, '')) || 0;
+    if (parleAmount > 0) {
+      const fourDigitMatches = plays.match(/\b\d{4}\b/g) || [];
+      const uniqueFourDigit = [...new Set(fourDigitMatches)];
+      if (uniqueFourDigit.length > 0) {
+        copyText += `${uniqueFourDigit.join(' ')}-${parleAmount}\n`;
+      }
+    }
+    
+    // Para tripleta: línea separada con números de 6 dígitos
+    const tripletaAmount = parseFloat((amounts.tripleta || '0').toString().replace(/[^0-9.]/g, '')) || 0;
+    if (tripletaAmount > 0) {
+      const sixDigitMatches = plays.match(/\b\d{6}\b/g) || [];
+      const uniqueSixDigit = [...new Set(sixDigitMatches)];
+      if (uniqueSixDigit.length > 0) {
+        copyText += `${uniqueSixDigit.join(' ')}-${tripletaAmount}\n`;
+      }
+    }
+    
+    // Para posición: línea separada con números de 2 dígitos
+    const posicionAmount = parseFloat((amounts.posicion || '0').toString().replace(/[^0-9.]/g, '')) || 0;
+    if (posicionAmount > 0 && !fijoAmount && !corridoAmount) {
+      // Solo mostrar posición si no hay fijo/corrido (para evitar duplicados)
+      const twoDigitMatches = plays.match(/\b\d{2}\b/g) || [];
+      const uniqueTwoDigit = [...new Set(twoDigitMatches)];
+      if (uniqueTwoDigit.length > 0) {
+        copyText += `${uniqueTwoDigit.join(' ')}-${posicionAmount}\n`;
       }
     }
     
