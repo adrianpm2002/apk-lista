@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,9 +15,6 @@ import { Picker } from '@react-native-picker/picker';
 import useStatistics from '../hooks/useStatistics';
 import { supabase } from '../supabaseClient';
 import StatisticsChart from '../components/StatisticsChart';
-import DataTable from '../components/DataTable';
-// DateTimePickerWrapper eliminado: no se usará rango personalizado
-import DropdownPicker from '../components/DropdownPicker';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
@@ -66,7 +63,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   useEffect(() => {
     const loadUserProfile = async () => {
       try {
-        // console.log('🔍 [StatisticsScreen] Loading user profile...');
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           return;
@@ -82,12 +78,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           return;
         }
         
-        // Permitir acceso a listeros, colectores y administradores
         if (profile.role !== 'listero' && profile.role !== 'colector' && profile.role !== 'collector' && profile.role !== 'admin') {
           return;
         }
         
-        // Configurar userRole para la interfaz
         setCurrentUserId(user.id);
         
       } catch (e) {
@@ -95,34 +89,19 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     };
     
     loadUserProfile();
-  }, []); // Solo ejecutar una vez al montar el componente
+  }, []);
   
-  // Estados para filtros
   const [selectedPeriod, setSelectedPeriod] = useState('today');
-  // ELIMINAR: startDate y endDate no se usan ya que se eliminó el rango personalizado
-  // const [startDate, setStartDate] = useState(new Date());
-  // const [endDate, setEndDate] = useState(new Date());
   const [selectedLottery, setSelectedLottery] = useState('all');
   const [selectedSchedule, setSelectedSchedule] = useState('all');
-  const [lotterySchedules, setLotterySchedules] = useState([]); // horarios de la lotería seleccionada
-  
-  // Estados para modales
+  const [lotterySchedules, setLotterySchedules] = useState([]);
   const [showExportModal, setShowExportModal] = useState(false);
-  
-  // Estados para datos
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('charts'); // Por defecto en gráficas
-  // ELIMINADO: chartHeight no se usa en ningún lugar
-  // const [chartHeight, setChartHeight] = useState(240);
-  // Estado de expansión para grupos en Detalles (debe estar a nivel de componente para mantener el orden de hooks)
+  const [activeTab, setActiveTab] = useState('charts');
   const [expandedGroups, setExpandedGroups] = useState(new Set());
-
-  // Estados para sidebar
   const [sidebarVisible, setSidebarVisible] = useState(false);
-
-  // Estados para datos agrupados (collector y admin)
   const [groupedData, setGroupedData] = useState([]);
-  const [selectedGroup, setSelectedGroup] = useState(''); // Para collector: listero seleccionado, para admin: colector seleccionado
+  const [selectedGroup, setSelectedGroup] = useState('');
   
   // Estados para modo Santiago
   const [modoSantiago, setModoSantiago] = useState(false);
@@ -199,11 +178,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     clearData,
     // Nuevas propiedades para colectores
     userRole,
-  } = useStatistics(); // Hook para listeros y colectores
-
-  // ELIMINADO: useEffect vacío que no hace nada
-  // useEffect(() => {
-  // }, [kpiData, chartData, tableData, lotteries, schedules, loading, error]);
+  } = useStatistics();
 
   // Opciones de períodos
   const periodOptions = [
@@ -224,18 +199,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   useEffect(() => {
     loadInitialData();
     loadModoSantiago();
-    // Aplicar configuración por defecto: hoy para gráficas (pestaña por defecto)
     applyPeriodFilter('today');
   }, []);
 
-  // Aplicar filtros iniciales cuando se cargue el usuario
   useEffect(() => {
     if (currentUserId) {
       applyPeriodFilter(selectedPeriod);
     }
   }, [currentUserId]);
 
-  // Cargar datos cuando el userRole esté disponible (consolidado)
   useEffect(() => {
     if (userRole && (userRole === 'collector' || userRole === 'colector' || userRole === 'admin')) {
       loadAllStats();
@@ -249,37 +221,17 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   //   }
   // }, [userRole]);
 
-  // Procesar datos de tabla para crear groupedData para admin
   useEffect(() => {
     if (userRole === 'admin' && tableData && tableData.plays) {
-      // Ya no necesitamos procesar los datos aquí, vienen estructurados del hook useAdminStatistics
-      // Los datos ya están agrupados por banco -> colector -> listero
       setGroupedData(tableData.plays);
     }
   }, [userRole, tableData]);
 
-  // Cargar datos cuando cambian los filtros
   useEffect(() => {
     if (selectedPeriod !== 'custom' && currentUserId) {
       applyPeriodFilter(selectedPeriod);
     }
   }, [selectedPeriod, selectedLottery, selectedSchedule]);
-
-  // ELIMINADO: useEffect para cargar horarios está completamente deshabilitado
-  // Este código nunca se ejecuta porque inmediatamente hace return después de setLotterySchedules([])
-  /*
-  useEffect(() => {
-    let cancelled = false;
-    const loadSchedulesForLottery = async () => {
-      // Funcionalidad deshabilitada - solo usar datos de v_estadisticas
-      setSelectedSchedule('all');
-      setLotterySchedules([]);
-      return;
-    };
-    loadSchedulesForLottery();
-    return () => { cancelled = true; };
-  }, [selectedLottery]);
-  */
 
   const loadInitialData = async () => {
     try {
@@ -289,21 +241,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   };
 
-  // Aplicar filtro de período
   const applyPeriodFilter = (period) => {
-    // En lugar de calcular fechas, pasar el período directamente
     const filterParams = {
-      period: period  // Pasar el período directamente
+      period: period
     };
     
     setSelectedPeriod(period);
     applyFilters(filterParams);
-    // El hook useStatistics ya maneja toda la carga de datos
   };
 
-  // Rango personalizado eliminado
-
-  // Manejar refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -316,7 +262,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   }, [selectedPeriod]);
 
-  // Manejar exportación
   const handleExport = async (format) => {
     try {
       setShowExportModal(false);
@@ -453,8 +398,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       return false; 
     }
   };
-
-  // Rango personalizado eliminado: no hay handler de DatePicker
 
   // Renderizar header con sidebar toggle
   const renderHeader = () => (
@@ -675,8 +618,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         <View style={styles.filtersContainer}>
           {compactPeriodOptions.map(opt => renderChip(opt.value, selectedPeriod, setSelectedPeriod, opt.label))}
         </View>
-
-        {/* Rango personalizado eliminado */}
       </View>
     );
   };
@@ -689,7 +630,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       'lastMonth': 'Ganancias vs Pérdidas (Mes pasado)',
       'last7days': 'Ganancias vs Pérdidas (Últimos 7 días)',
       'last30days': 'Ganancias vs Pérdidas (Últimos 30 días)',
-  // 'custom': 'Ganancias vs Pérdidas (Período personalizado)', // eliminado
     };
     return titleMap[selectedPeriod] || 'Ganancias vs Pérdidas';
   };
@@ -718,18 +658,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         />
       }
     >
-      {/* Debug: Mostrar información de chartData */}
-      {!chartData?.trends || chartData.trends.length === 0 ? (
-        <View style={[styles.kpiCard, { backgroundColor: '#f8f9fa' }]}>
-          <Text style={[styles.kpiTitle, { color: '#333333' }]}>
-            📊 Datos de Gráfico
-          </Text>
-          <Text style={[styles.kpiValue, { color: '#666666' }]}>
-            {chartData ? `Tendencias: ${chartData.trends?.length || 0}` : 'No hay datos de chartData'}
-          </Text>
-        </View>
-      ) : null}
-      
       {/* Gráfico de Balance basado en datos reales */}
       {tableData?.plays && tableData.plays.length > 0 && (()=>{
         const fmtShort = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
@@ -1052,21 +980,17 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 // Calcular totales del período desde allPlays (datos reales)
                 const playsInPeriod = allPlays || [];
                 
-                const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0); // CORREGIDO: usar monto_total
-                const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0); // CORREGIDO: usar monto_a_pagar
+                const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
+                const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
                 
                 let totalGanancia = 0;
                 let totalBalance = 0;
                 
                 if (userRole === 'collector' || userRole === 'colector') {
-                  // Para colectores: ganancia es la suma de todas las ganancia_colector de sus listeros
                   totalGanancia = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
-                  // Para colectores: balance es la suma de todos los balance_colector de sus listeros
                   totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
                 } else if (userRole === 'admin') {
-                  // Para admin: ganancia es la suma de todas las ganancia_colector (ganancia del banco)
                   totalGanancia = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
-                  // Para admin: balance es la suma de todos los balance_colector (balance del banco)
                   totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
                 }
                 
@@ -1184,10 +1108,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           </Text>
         );
 
-        // Helpers para formateo
         const dayKeyOf = (ts) => { 
           const d = new Date(ts); 
-          if (isNaN(d.getTime())) return 0; // Manejar fecha inválida
+          if (isNaN(d.getTime())) return 0;
           d.setHours(0,0,0,0); 
           return d.getTime(); 
         };
@@ -1267,16 +1190,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           });
         }
         
-        // Ordenar grupos: fecha descendente, luego lotería y horario ascendente
         let groups = Array.from(map.values())
           .sort((a,b) => (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
 
-        // Ordenar jugadas dentro de cada grupo por hora
         groups.forEach(g => {
           g.plays.sort((a,b) => b.ts - a.ts);
         });
 
-        // Usar estado top-level para expandir/colapsar grupos
         const expanded = expandedGroups;
         const toggle = (key)=> setExpandedGroups(prev=>{ const next=new Set(prev); if(next.has(key)) next.delete(key); else next.add(key); return next; });
 
@@ -1284,7 +1204,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           <View style={{ paddingHorizontal:8 }}>
             <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
               <View style={styles.excelTable}>
-                {/* Header de la tabla principal estilo Excel */}
                 <View style={styles.excelHeaderRow}>
                   <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
                   <Text style={[styles.excelHeaderCell, { width: 70 }]}>Fecha</Text>
@@ -1297,14 +1216,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                   <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Balance')}</Text>
                 </View>
                 
-                {/* Filas de grupos expandibles */}
                 {groups.map((g, groupIndex) => {
                   const open = expanded.has(g.key);
-                  const balance = g.totalBalance; // Usar el balance real del listero
+                  const balance = g.totalBalance;
                   
                   return (
                     <View key={g.key}>
-                      {/* Fila principal del grupo (clickeable para ir al registro) */}
                       <TouchableOpacity 
                         style={[styles.excelDataRow, groupIndex % 2 === 0 && styles.excelRowEven]}
                         onPress={() => navigateToPlaysRecord(g)}
@@ -1410,7 +1327,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       <View style={{ paddingHorizontal: 4, marginTop: 2 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
           <View style={styles.excelTable}>
-            {/* Header de la tabla de listeros */}
             <View style={styles.excelHeaderRow}>
               <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Listero</Text>
@@ -1421,14 +1337,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Balance')}</Text>
             </View>
             
-            {/* Filas de listeros expandibles */}
             {collectorData.map((listero, listeroIndex) => {
               const listeroKey = `listero_${listero.id}`;
               const openListero = expanded.has(listeroKey);
               
               return (
                 <View key={listeroKey}>
-                  {/* Fila del listero (clickeable) */}
                   <TouchableOpacity 
                     style={[styles.excelDataRow, listeroIndex % 2 === 0 && styles.excelRowEven]}
                     onPress={() => toggle(listeroKey)}
@@ -1460,7 +1374,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     </View>
                   </TouchableOpacity>
                   
-                  {/* Contenido expandido - grupos de fecha/lotería/horario */}
                   {openListero && (
                     <View style={[styles.expandedContent, { backgroundColor: '#F1F3F4' }]}>
                       {renderGroupedPlaysTable(listero.plays || [])}
@@ -1534,7 +1447,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       <View style={{ paddingHorizontal: 4, marginTop: 2 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
           <View style={styles.excelTable}>
-            {/* Header de la tabla principal estilo Excel */}
             <View style={styles.excelHeaderRow}>
               <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Colector</Text>
@@ -1544,14 +1456,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Balance')}</Text>
             </View>
             
-            {/* Filas de colectores expandibles */}
             {adminData.map((colector, colectorIndex) => {
               const colectorKey = `colector_${colector.id}`;
               const openColector = expanded.has(colectorKey);
               
               return (
                 <View key={colectorKey}>
-                  {/* Fila principal del colector (clickeable) */}
                   <TouchableOpacity 
                     style={[styles.excelDataRow, colectorIndex % 2 === 0 && styles.excelRowEven]}
                     onPress={() => toggle(colectorKey)}
@@ -2033,10 +1943,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         {renderActiveTabContent()}
       </View>
 
-  {/* Modal de exportación */}
-  {renderExportModal()}
-
-      {/* DatePicker eliminado */}
+      {renderExportModal()}
 
       <SideBarWrapper
         isVisible={sidebarVisible}
