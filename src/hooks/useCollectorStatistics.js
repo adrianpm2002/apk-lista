@@ -9,19 +9,25 @@ const formatDateForQuery = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-export const useCollectorStatistics = (options = {}) => {
+const useCollectorStatistics = (options = {}) => {
   const { enabled = true } = options;
-  // Estados básicos
-  const [isLoading, setIsLoading] = useState(false);
+  
+  // Estados básicos (compatibilidad con pantallas)
+  const [loading, setLoading] = useState(false); // Cambio: isLoading -> loading
+  const [error, setError] = useState(null); // Agregado
   const [userId, setUserId] = useState(null);
-  const [tableData, setTableData] = useState({
-    plays: []
-  });
+  
+  // Estados para compatibilidad con pantallas
+  const [kpiData, setKpiData] = useState({}); // Agregado
+  const [chartData, setChartData] = useState([]); // Agregado
+  const [tableData, setTableData] = useState({ plays: [] }); // Mantener estructura para collector
+  const [lotteries, setLotteries] = useState([]); // Agregado
+  const [schedules, setSchedules] = useState([]); // Agregado
   
   // Estado para el rango de fechas (hoy por defecto)
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().setHours(0, 0, 0, 0)), // Hoy 00:00:00
-    endDate: new Date(new Date().setHours(23, 59, 59, 999)) // Hoy 23:59:59
+    startDate: new Date(new Date().setHours(0, 0, 0, 0)),
+    endDate: new Date(new Date().setHours(23, 59, 59, 999))
   });
 
   // Mapeo directo de período a vista optimizada
@@ -166,8 +172,6 @@ export const useCollectorStatistics = (options = {}) => {
         return [];
       }
 
-  // inicio de carga (silencioso)
-
       const { period, startDate, endDate } = filters;
       
       // Determinar qué vista usar según el período o filtro de fechas
@@ -224,14 +228,12 @@ export const useCollectorStatistics = (options = {}) => {
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) {
+          console.error('Error loading collector plays data:', error);
           return [];
         }
         
-  // progreso de páginas (silencioso)
-        
         if (playsData && playsData.length > 0) {
           allPlaysData = allPlaysData.concat(playsData);
-          // CORECCIÓN: Si obtienes exactamente 1000 registros, puede haber más
           hasMore = playsData.length === 1000; // Continuar si se obtuvieron exactamente 1000 registros
           page++;
         } else {
@@ -242,15 +244,12 @@ export const useCollectorStatistics = (options = {}) => {
         if (page > 250) { // Hasta 1.25M registros
           break;
         }
-        
-        // Mostrar progreso cada 10 páginas
-        // progreso cada 10 páginas (omitido)
       }
-      // total obtenido (silencioso)
 
       return allPlaysData || [];
       
     } catch (error) {
+      console.error('Error in loadCollectorPlaysData:', error);
       return [];
     }
   };
@@ -333,19 +332,16 @@ export const useCollectorStatistics = (options = {}) => {
   // Función principal para cargar datos de jugadas del colector
   const loadPlaysData = async (filters = {}) => {
     try {
-  // inicio carga (silencioso)
-      
       // Prevenir ejecuciones concurrentes
-      if (isLoading) {
-        // ya cargando, abortar (silencioso)
+      if (loading) {
         return;
       }
       
-      setIsLoading(true);
+      setLoading(true);
+      setError(null); // Limpiar errores previos
       
       if (!userId) {
-        // no hay userId (silencioso)
-        setIsLoading(false);
+        setLoading(false);
         return;
       }
       
@@ -358,20 +354,78 @@ export const useCollectorStatistics = (options = {}) => {
         ...prev,
         plays: groupedData
       }));
-      
-  // datos agrupados establecidos (silencioso)
+
+      // Calcular KPIs para compatibilidad con pantallas
+      const totals = getTotalsFromGroupedData(groupedData);
+      setKpiData(totals);
       
       return groupedData;
       
     } catch (error) {
+      console.error('Error loading collector plays data:', error);
+      setError(error.message || 'Error al cargar datos');
       setTableData(prev => ({
         ...prev,
         plays: []
       }));
       return [];
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
+  };
+
+  // Función loadAllStats para compatibilidad
+  const loadAllStats = async () => {
+    return await loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
+  };
+
+  // Función applyFilters para compatibilidad
+  const applyFilters = async (filters) => {
+    const { period, startDate, endDate, ...otherFilters } = filters;
+    
+    // Si se proporciona un período, convertirlo a fechas
+    if (period) {
+      const today = new Date();
+      let start, end;
+      
+      switch (period) {
+        case 'today':
+          start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+          end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+          break;
+        case 'yesterday':
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+          end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
+          break;
+        case 'last7days':
+          start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+          end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+          break;
+        case 'last30days':
+          start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+          end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+          break;
+        case 'lastMonth':
+          start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+          end = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+          break;
+        default:
+          start = dateRange.startDate;
+          end = dateRange.endDate;
+      }
+      
+      setDateRange({ startDate: start, endDate: end });
+      return await loadPlaysData({ period, startDate: start, endDate: end, ...otherFilters });
+    }
+    
+    if (startDate && endDate) {
+      setDateRange({ startDate, endDate });
+      return await loadPlaysData({ startDate, endDate, ...otherFilters });
+    }
+    
+    return await loadPlaysData(filters);
   };
 
   // Función para obtener el balance total del banco (suma de balance_colector)
@@ -410,6 +464,31 @@ export const useCollectorStatistics = (options = {}) => {
     });
   };
 
+  // Función helper para calcular totales desde datos agrupados
+  const getTotalsFromGroupedData = (groupedData) => {
+    if (!groupedData || groupedData.length === 0) {
+      return {
+        totalBruto: 0,
+        totalPremios: 0,
+        totalGanancias: 0,
+        totalBalance: 0
+      };
+    }
+
+    return groupedData.reduce((totals, listero) => {
+      totals.totalBruto += listero.total_bruto || 0;
+      totals.totalPremios += listero.total_premio || 0;
+      totals.totalGanancias += listero.total_ganancia_colector || 0;
+      totals.totalBalance += listero.balance_colector || 0;
+      return totals;
+    }, {
+      totalBruto: 0,
+      totalPremios: 0,
+      totalGanancias: 0,
+      totalBalance: 0
+    });
+  };
+
   // Función para cambiar el rango de fechas
   const updateDateRange = (startDate, endDate) => {
     setDateRange({ startDate, endDate });
@@ -417,7 +496,7 @@ export const useCollectorStatistics = (options = {}) => {
 
   // Efecto para cargar usuario autenticado
   useEffect(() => {
-    if (!enabled) return; // no inicializar cuando está deshabilitado
+    if (!enabled) return;
     const loadUserData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -425,6 +504,7 @@ export const useCollectorStatistics = (options = {}) => {
           setUserId(user.id);
         }
       } catch (error) {
+        setError('Error al cargar usuario');
       }
     };
 
@@ -434,15 +514,15 @@ export const useCollectorStatistics = (options = {}) => {
   // Efecto para cargar datos cuando se obtiene el userId
   useEffect(() => {
     if (!enabled) return;
-    if (userId && !isLoading) {
-      loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
+    if (userId && !loading) {
+      loadAllStats();
     }
   }, [userId, enabled]);
 
   // Efecto para recargar cuando cambie el rango de fechas
   useEffect(() => {
     if (!enabled) return;
-    if (userId && !isLoading) {
+    if (userId && !loading) {
       const timeoutId = setTimeout(() => {
         loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
       }, 300); // Debounce de 300ms
@@ -452,16 +532,34 @@ export const useCollectorStatistics = (options = {}) => {
   }, [dateRange.startDate, dateRange.endDate, enabled]);
 
   return {
-    // Estados
-    isLoading,
-    tableData,
+    // Estados (compatibilidad con pantallas)
+    kpiData,
+    chartData,
+    tableData, // Mantener estructura { plays: [] }
+    lotteries,
+    schedules,
+    loading, // Cambio: isLoading -> loading
+    error,
+    
+    // Estados legacy (para compatibilidad hacia atrás)
+    isLoading: loading, // Mantener para compatibilidad
     dateRange,
     userId,
     
-    // Funciones
+    // Funciones (compatibilidad con pantallas)
+    loadAllStats,
+    applyFilters,
+    
+    // Funciones legacy
     loadPlaysData,
     updateDateRange,
     getBankBalance,
     getTotals
   };
 };
+
+// Exportación por defecto para compatibilidad
+export default useCollectorStatistics;
+
+// Mantener también la exportación named para compatibilidad
+export { useCollectorStatistics };

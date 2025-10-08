@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 
 // Helper para convertir fecha local a string para consultas de base de datos
@@ -9,19 +9,28 @@ const formatDateForQuery = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-export const useListeroStatistics = (options = {}) => {
+const useListeroStatistics = (options = {}) => {
   const { enabled = true } = options;
-  // Estados básicos
-  const [isLoading, setIsLoading] = useState(false);
+  
+  // Estados básicos (compatibilidad con pantallas)
+  const [loading, setLoading] = useState(false); // Cambio: isLoading -> loading
+  const [error, setError] = useState(null); // Agregado
   const [userId, setUserId] = useState(null);
-  const [tableData, setTableData] = useState({
-    plays: []
-  });
+  
+  // Ref para evitar dependencias circulares
+  const loadingRef = useRef(false);
+  
+  // Estados para compatibilidad con pantallas
+  const [kpiData, setKpiData] = useState({}); // Agregado
+  const [chartData, setChartData] = useState([]); // Agregado
+  const [tableData, setTableData] = useState([]); // Cambiado: de objeto a array para listero
+  const [lotteries, setLotteries] = useState([]); // Agregado
+  const [schedules, setSchedules] = useState([]); // Agregado
   
   // Estado para el rango de fechas (hoy por defecto)
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().setHours(0, 0, 0, 0)), // Hoy 00:00:00
-    endDate: new Date(new Date().setHours(23, 59, 59, 999)) // Hoy 23:59:59
+    startDate: new Date(new Date().setHours(0, 0, 0, 0)),
+    endDate: new Date(new Date().setHours(23, 59, 59, 999))
   });
 
   // Mapeo directo de período a vista optimizada
@@ -220,6 +229,7 @@ export const useListeroStatistics = (options = {}) => {
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) {
+          console.error('Error loading plays data:', error);
           return [];
         }
         
@@ -239,22 +249,26 @@ export const useListeroStatistics = (options = {}) => {
       return allPlaysData || [];
       
     } catch (error) {
+      console.error('Error in loadListeroPlaysData:', error);
       return [];
     }
   };
 
   // Función principal para cargar datos de jugadas del listero
-  const loadPlaysData = async (filters = {}) => {
+  const loadPlaysData = useCallback(async (filters = {}) => {
     try {
       // Prevenir ejecuciones concurrentes
-      if (isLoading) {
+      if (loadingRef.current) {
         return;
       }
       
-      setIsLoading(true);
+      loadingRef.current = true;
+      setLoading(true);
+      setError(null); // Limpiar errores previos
       
       if (!userId) {
-        setIsLoading(false);
+        loadingRef.current = false;
+        setLoading(false);
         return;
       }
       
@@ -276,52 +290,119 @@ export const useListeroStatistics = (options = {}) => {
         .map(j => ({
           id: j.id_listero + '_' + j.fecha_jugada,
           created_at: j.fecha_jugada,
+          fecha_jugada: j.fecha_jugada, // Agregado para compatibilidad
           fecha: new Date(j.fecha_jugada).toLocaleDateString('es-ES'),
           hora: new Date(j.fecha_jugada).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
           loteria: j.nombre_loteria || 'N/A',
           horario: j.nombre_horario || 'N/A',
           jugada: j.tipo_jugada || 'N/A',
           numeros: j.numeros_jugados || 'N/A',
+          numeros_jugados: j.numeros_jugados || 'N/A', // Agregado
           monto: j.monto_total || 0,
+          monto_total: j.monto_total || 0, // Agregado
           nota: j.nota || '',
+          tipo_jugada: j.tipo_jugada || 'N/A', // Agregado
+          resultado: j.resultado || 'Pendiente',
+          monto_a_pagar: j.monto_a_pagar || 0, // Agregado
+          ganancia_listero: j.ganancia_listero || 0,
+          balance_listero: j.balance_listero || 0,
           // Campos básicos para compatibilidad
           play_type: j.tipo_jugada || 'N/A',
           bruto: j.monto_total || 0,
-          resultado: j.resultado || 'Pendiente',
           premio: j.monto_a_pagar || 0,
           pagado: j.monto_a_pagar || 0,
-          // Campos específicos para listero
           ganancia: j.ganancia_listero || 0,
           balance: j.balance_listero || 0,
-          ganancia_listero: j.ganancia_listero || 0,
-          balance_listero: j.balance_listero || 0,
           // IDs para filtrado
           id_listero: j.id_listero || null,
           listero_username: j.listero_username || ''
         }));
       
-      setTableData(prev => ({
-        ...prev,
-        plays: formattedPlays
-      }));
+      // Actualizar tableData como array directo (importante para listero)
+      setTableData(formattedPlays);
+      
+      // Calcular KPIs
+      const totals = formattedPlays.reduce((acc, play) => {
+        acc.totalBruto += Number(play.monto_total) || 0;
+        acc.totalPremios += Number(play.monto_a_pagar) || 0;
+        acc.totalGanancias += Number(play.ganancia_listero) || 0;
+        acc.totalBalance += Number(play.balance_listero) || 0;
+        return acc;
+      }, { totalBruto: 0, totalPremios: 0, totalGanancias: 0, totalBalance: 0 });
+      
+      setKpiData(totals);
       
       return formattedPlays;
       
     } catch (error) {
-      setTableData(prev => ({
-        ...prev,
-        plays: []
-      }));
+      console.error('Error loading listero plays data:', error);
+      setError(error.message || 'Error al cargar datos');
+      setTableData([]);
       return [];
     } finally {
-      setIsLoading(false);
+      loadingRef.current = false;
+      setLoading(false);
     }
-  };
+  }, [userId]); // Eliminar loading de las dependencias
+
+  // Función loadAllStats para compatibilidad
+  const loadAllStats = useCallback(async () => {
+    return await loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
+  }, [loadPlaysData, dateRange.startDate, dateRange.endDate]);
+
+  // Función applyFilters para compatibilidad
+  const applyFilters = useCallback(async (filters) => {
+    const { period, startDate, endDate, ...otherFilters } = filters;
+    
+    // Si se proporciona un período, convertirlo a fechas
+    if (period) {
+      const today = new Date();
+      let start, end;
+      
+      switch (period) {
+        case 'today':
+          start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+          end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+          break;
+        case 'yesterday':
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+          end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
+          break;
+        case 'last7days':
+          start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+          end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+          break;
+        case 'last30days':
+          start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+          end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+          break;
+        case 'lastMonth':
+          start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+          end = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+          break;
+        default:
+          start = dateRange.startDate;
+          end = dateRange.endDate;
+      }
+      
+      setDateRange({ startDate: start, endDate: end });
+      return await loadPlaysData({ period, startDate: start, endDate: end, ...otherFilters });
+    }
+    
+    if (startDate && endDate) {
+      setDateRange({ startDate, endDate });
+      return await loadPlaysData({ startDate, endDate, ...otherFilters });
+    }
+    
+    return await loadPlaysData(filters);
+  }, [loadPlaysData, dateRange.startDate, dateRange.endDate]);
 
   // Función para cambiar el rango de fechas
-  const updateDateRange = (startDate, endDate) => {
+  const updateDateRange = useCallback((startDate, endDate) => {
     setDateRange({ startDate, endDate });
-  };
+  }, []);
 
   // Efecto para cargar usuario autenticado
   useEffect(() => {
@@ -333,6 +414,7 @@ export const useListeroStatistics = (options = {}) => {
           setUserId(user.id);
         }
       } catch (error) {
+        setError('Error al cargar usuario');
       }
     };
 
@@ -341,33 +423,53 @@ export const useListeroStatistics = (options = {}) => {
 
   // Efecto para cargar datos cuando se obtiene el userId
   useEffect(() => {
-    if (!enabled) return;
-    if (userId && !isLoading) {
-      loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
-    }
-  }, [userId, enabled]);
+    if (!enabled || !userId) return;
+    
+    // Usar loadPlaysData directamente para evitar dependencias circulares
+    const today = new Date();
+    const startDate = new Date(today.getFullYear(), today.getMonth(), 1); // Primer día del mes
+    const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Último día del mes
+    loadPlaysData({ startDate, endDate });
+  }, [userId, enabled, loadPlaysData]); // Ahora loadPlaysData es estable
 
   // Efecto para recargar cuando cambie el rango de fechas
   useEffect(() => {
-    if (!enabled) return;
-    if (userId && !isLoading) {
-      const timeoutId = setTimeout(() => {
-        loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
-  }, 300);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [dateRange.startDate, dateRange.endDate, enabled]);
+    if (!enabled || !userId) return;
+    
+    const timeoutId = setTimeout(() => {
+      loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
+    }, 300);
+    
+    return () => clearTimeout(timeoutId);
+  }, [dateRange.startDate, dateRange.endDate, enabled, userId, loadPlaysData]); // Incluir loadPlaysData estable
 
   return {
-    // Estados
-    isLoading,
-    tableData,
+    // Estados (compatibilidad con pantallas)
+    kpiData,
+    chartData,
+    tableData, // Ahora es array directo
+    lotteries,
+    schedules,
+    loading, // Cambio: isLoading -> loading
+    error,
+    
+    // Estados legacy (para compatibilidad hacia atrás)
+    isLoading: loading, // Mantener para compatibilidad
     dateRange,
     userId,
     
-    // Funciones
+    // Funciones (compatibilidad con pantallas)
+    loadAllStats,
+    applyFilters,
+    
+    // Funciones legacy
     loadPlaysData,
     updateDateRange
   };
 };
+
+// Exportación por defecto para compatibilidad
+export default useListeroStatistics;
+
+// Mantener también la exportación named para compatibilidad
+export { useListeroStatistics };

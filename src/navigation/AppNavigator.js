@@ -11,9 +11,10 @@ import ManagePricesScreen from '../screens/ManagePricesScreen';
 import JugadasScreen from '../screens/JugadasScreen';
 import LotteryLimitsScreen from '../screens/LotteryLimitsScreen';
 import LimitNumero from '../screens/limitNumero';
-import StatisticsScreen from '../screens/StatisticsScreen';
 import SavedPlaysScreen from '../screens/SavedPlaysScreen';
 import BankCapacityScreen from '../screens/BankCapacityScreen';
+// CAMBIO: Reemplazar imports antiguos de estadísticas por el nuevo router
+import RoleBasedStatisticsRouter from '../screens/statistics/RoleBasedStatisticsRouter';
 
 const Stack = createNativeStackNavigator();
 
@@ -112,11 +113,13 @@ const AppNavigator = () => (
       }}
     />
 
+    {/* CAMBIO: Usar el nuevo RoleBasedStatisticsRouter que maneja todos los roles automáticamente */}
     <Stack.Screen 
       name="Statistics" 
-      component={StatisticsScreen} 
+      component={RoleBasedStatisticsRouter}
       options={{
-        headerShown: false,
+        title: 'Estadísticas',
+        headerShown: false, // Cada pantalla de estadísticas maneja su propio header
         gestureEnabled: Platform.OS === 'ios',
       }}
     />
@@ -130,14 +133,7 @@ const AppNavigator = () => (
       }}
     />
 
-    <Stack.Screen 
-      name="CollectorStatistics" 
-      component={StatisticsScreen} 
-      options={{
-        headerShown: false,
-        gestureEnabled: Platform.OS === 'ios',
-      }}
-    />
+    {/* ELIMINADO: CollectorStatistics ya no es necesario, el RoleBasedStatisticsRouter maneja todos los roles */}
 
     <Stack.Screen 
       name="BankCapacity" 
