@@ -176,7 +176,13 @@ const useAdminStatistics = (options = {}) => {
         return [];
       }
 
+<<<<<<< HEAD
       const { period, startDate, endDate } = filters;
+=======
+  // inicio de carga (silencioso)
+
+      const { period, startDate, endDate, lottery, schedule } = filters;
+>>>>>>> e6b5c97 (Fix: Corregir filtro de loterías en estadísticas y reducir altura del botón)
       
       // Determinar qué vista usar según el período o filtro de fechas
       let viewConfig;
@@ -217,6 +223,16 @@ const useAdminStatistics = (options = {}) => {
         // Solo agregar filtro de estado_horario si no estamos usando vista optimizada
         if (!isOptimized) {
           query = query.eq('estado_horario', 'cerrada');
+        }
+
+        // Aplicar filtro de lotería si está especificado
+        if (lottery) {
+          query = query.eq('id_loteria', lottery);
+        }
+
+        // Aplicar filtro de horario si está especificado
+        if (schedule) {
+          query = query.eq('id_horario', schedule);
         }
         
         query = query.order('fecha_jugada', { ascending: false });
@@ -371,6 +387,7 @@ const useAdminStatistics = (options = {}) => {
   // Función principal para cargar datos de jugadas del admin
   const loadPlaysData = useCallback(async (filters = {}) => {
     try {
+<<<<<<< HEAD
       // Prevenir ejecuciones concurrentes
       if (loading) {
         return;
@@ -378,6 +395,28 @@ const useAdminStatistics = (options = {}) => {
       
       setLoading(true);
       setError(null); // Limpiar errores previos
+=======
+  // inicio carga (silencioso)
+      
+      // Si hay filtros específicos (como lottery), forzar la recarga
+      const hasSpecificFilters = filters?.lottery || filters?.schedule;
+      
+      // Prevenir ejecuciones concurrentes SOLO si no hay filtros específicos
+      if (isLoading && !hasSpecificFilters) {
+        // ya cargando, abortar (silencioso)
+        return;
+      }
+      
+      // Si hay filtros específicos, limpiar datos inmediatamente
+      if (hasSpecificFilters) {
+        setTableData(prev => ({
+          ...prev,
+          plays: []
+        }));
+      }
+      
+      setIsLoading(true);
+>>>>>>> e6b5c97 (Fix: Corregir filtro de loterías en estadísticas y reducir altura del botón)
       
       if (!userId) {
         setLoading(false);

@@ -17,7 +17,8 @@ const MultiSelectDropdown = ({
   options = [], 
   placeholder = "Seleccionar opciones",
   hasError = false,
-  errorMessage = ""
+  errorMessage = "",
+  dropdownStyle = {} // Nuevo prop para estilos personalizados
 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -95,7 +96,8 @@ const MultiSelectDropdown = ({
         style={({ pressed }) => [
           styles.dropdown,
           hasError && styles.dropdownError,
-          pressed && styles.dropdownPressed
+          pressed && styles.dropdownPressed,
+          dropdownStyle // Aplicar estilos personalizados
         ]}
         onPress={() => setIsVisible(true)}
       >

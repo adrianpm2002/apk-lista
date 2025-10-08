@@ -175,7 +175,7 @@ const useListeroStatistics = (options = {}) => {
         return [];
       }
 
-      const { period, startDate, endDate } = filters;
+      const { period, startDate, endDate, lottery, schedule } = filters;
       
       // Determinar qué vista usar según el período o filtro de fechas
       let viewConfig;
@@ -215,6 +215,18 @@ const useListeroStatistics = (options = {}) => {
         if (!isOptimized) {
           query = query.eq('estado_horario', 'cerrada');
         }
+
+        // Aplicar filtro de lotería si está especificado
+        if (lottery) {
+          console.log('🎰 [useListeroStatistics] Filtering by lottery:', lottery, typeof lottery);
+          query = query.eq('id_loteria', lottery);
+        }
+
+        // Aplicar filtro de horario si está especificado
+        if (schedule) {
+          console.log('🕐 [useListeroStatistics] Filtering by schedule:', schedule);
+          query = query.eq('id_horario', schedule);
+        }
         
         query = query.order('fecha_jugada', { ascending: false });
 
@@ -234,6 +246,7 @@ const useListeroStatistics = (options = {}) => {
         }
         
         if (playsData && playsData.length > 0) {
+          
           allPlaysData = allPlaysData.concat(playsData);
           hasMore = playsData.length === 1000; // Continuar si se obtuvieron exactamente 1000 registros
           page++;
@@ -257,6 +270,7 @@ const useListeroStatistics = (options = {}) => {
   // Función principal para cargar datos de jugadas del listero
   const loadPlaysData = useCallback(async (filters = {}) => {
     try {
+<<<<<<< HEAD
       // Prevenir ejecuciones concurrentes
       if (loadingRef.current) {
         return;
@@ -265,6 +279,28 @@ const useListeroStatistics = (options = {}) => {
       loadingRef.current = true;
       setLoading(true);
       setError(null); // Limpiar errores previos
+=======
+      console.log('📊 [useListeroStatistics] loadPlaysData called with filters:', JSON.stringify(filters, null, 2));
+      
+      // Si hay filtros específicos (como lottery), forzar la recarga
+      const hasSpecificFilters = filters?.lottery || filters?.schedule;
+      
+      // Prevenir ejecuciones concurrentes SOLO si no hay filtros específicos
+      if (isLoading && !hasSpecificFilters) {
+        return;
+      }
+      
+      // Si hay filtros específicos, proceder aunque esté loading
+      if (hasSpecificFilters) {
+        // Limpiar datos inmediatamente para evitar mostrar datos viejos
+        setTableData(prev => ({
+          ...prev,
+          plays: []
+        }));
+      }
+      
+      setIsLoading(true);
+>>>>>>> e6b5c97 (Fix: Corregir filtro de loterías en estadísticas y reducir altura del botón)
       
       if (!userId) {
         loadingRef.current = false;
