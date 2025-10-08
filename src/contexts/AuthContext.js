@@ -149,3 +149,6 @@ export const withRole = (Component, requiredRoles) => {
 };
 
 export default AuthContext;
+
+// Exportar useAuth como alias de useAuthContext para compatibilidad
+export const useAuth = useAuthContext;

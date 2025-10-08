@@ -12,11 +12,13 @@ import {
   Platform,
 } from 'react-native';
 import { useCollectorStatistics } from '../../hooks/useCollectorStatistics';
+import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../supabaseClient';
 import StatisticsChart from '../../components/StatisticsChart';
 import SideBarWrapper, { SideBarToggle } from '../../components/SideBarWrapper';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import { createShadowStyle } from '../../utils/shadowUtils';
+import statisticsCacheService from '../../services/statisticsCacheService';
 
 // Importación condicional para exportación PDF
 let exportPdfModule;
@@ -51,8 +53,13 @@ const CollectorStatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const CollectorStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
+  const { user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
+  const [isDataFromCache, setIsDataFromCache] = useState(false);
+  const [cacheInfo, setCacheInfo] = useState(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState('charts');
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -159,6 +166,86 @@ const CollectorStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     applyFilters,
   } = hookResult || {};
 
+  // Cache management functions
+  const loadDataFromCache = useCallback(async () => {
+    if (!user?.id) return;
+    
+    console.log('Loading collector statistics from cache...');
+    setIsLoadingFromCache(true);
+    
+    try {
+      const cachedData = await statisticsCacheService.getStatisticsFromCache('collector', user.id);
+      const info = await statisticsCacheService.getCacheInfo('collector', user.id);
+      
+      setCacheInfo(info);
+      
+      if (cachedData) {
+        console.log('Cache hit - using cached data');
+        // Simular el resultado del hook con datos cacheados
+        if (hookResult) {
+          hookResult.tableData = cachedData;
+        }
+        setIsDataFromCache(true);
+        return true;
+      } else {
+        console.log('Cache miss - no cached data found');
+        setIsDataFromCache(false);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error loading from cache:', error);
+      setIsDataFromCache(false);
+      return false;
+    } finally {
+      setIsLoadingFromCache(false);
+    }
+  }, [user?.id, hookResult]);
+
+  const saveDataToCache = useCallback(async (data) => {
+    if (!user?.id || !data) return;
+    
+    try {
+      console.log('Saving collector statistics to cache...');
+      await statisticsCacheService.saveStatisticsToCache('collector', user.id, data);
+      const info = await statisticsCacheService.getCacheInfo('collector', user.id);
+      setCacheInfo(info);
+      console.log('Data saved to cache successfully');
+    } catch (error) {
+      console.error('Error saving to cache:', error);
+    }
+  }, [user?.id]);
+
+  const forceRefreshData = useCallback(async () => {
+    if (!user?.id) return;
+    
+    setIsUpdating(true);
+    setIsDataFromCache(false);
+    
+    try {
+      console.log('Force refreshing collector statistics...');
+      
+      // Limpiar cache
+      await statisticsCacheService.forceRefresh('collector', user.id);
+      setCacheInfo(null);
+      
+      // Cargar datos frescos
+      if (loadAllStats) {
+        await loadAllStats();
+        
+        // Guardar los nuevos datos en cache
+        if (tableData && tableData.length > 0) {
+          await saveDataToCache(tableData);
+        }
+      }
+      
+      console.log('Force refresh completed');
+    } catch (error) {
+      console.error('Error during force refresh:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [user?.id, loadAllStats, tableData, saveDataToCache]);
+
   // Opciones de períodos
   const periodOptions = [
     { label: 'Hoy', value: 'today' },
@@ -176,23 +263,52 @@ const CollectorStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Cargar datos iniciales
   useEffect(() => {
-    loadInitialData();
-    loadModoSantiago();
-    // Solo aplicar filtro si la función está disponible
-    if (typeof applyFilters === 'function') {
-      applyPeriodFilter('today');
-    }
-  }, [applyFilters]); // Agregar applyFilters como dependencia
+    const initializeData = async () => {
+      console.log('Initializing collector statistics...');
+      
+      try {
+        // Intentar cargar desde cache primero
+        const cacheLoaded = await loadDataFromCache();
+        
+        if (!cacheLoaded) {
+          // Si no hay cache, cargar datos frescos
+          console.log('No cache available, loading fresh data...');
+          await loadInitialData();
+          
+          // Guardar los datos cargados en cache
+          if (tableData && tableData.length > 0) {
+            await saveDataToCache(tableData);
+          }
+        }
+        
+        // Aplicar filtros independientemente de la fuente de datos
+        if (typeof applyFilters === 'function') {
+          await applyPeriodFilter('today');
+        }
+        
+        loadModoSantiago();
+      } catch (error) {
+        console.error('Error during initialization:', error);
+        // Fallback a carga normal si hay error con cache
+        await loadInitialData();
+      }
+    };
+
+    initializeData();
+  }, [loadDataFromCache, saveDataToCache, applyFilters]); // Agregar dependencias del cache
 
   useEffect(() => {
-    loadAllStats();
-  }, []);
+    // Solo cargar si no tenemos datos en cache
+    if (!isDataFromCache && loadAllStats) {
+      loadAllStats();
+    }
+  }, [isDataFromCache, loadAllStats]);
 
   useEffect(() => {
     if (selectedPeriod !== 'custom') {
       applyPeriodFilter(selectedPeriod);
     }
-  }, [selectedPeriod]);
+  }, [selectedPeriod, applyPeriodFilter]);
 
   const loadInitialData = async () => {
     try {
@@ -202,32 +318,77 @@ const CollectorStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   };
 
-  const applyPeriodFilter = (period) => {
+  const applyPeriodFilter = useCallback(async (period) => {
+    console.log('Applying period filter:', period);
+    
+    // Intentar cargar desde cache primero
+    const cacheLoaded = await loadDataFromCache();
+    
+    if (cacheLoaded) {
+      console.log('Using cached data for filter');
+      setIsDataFromCache(true);
+    } else {
+      console.log('Loading fresh data for filter');
+      setIsDataFromCache(false);
+      
+      // Cargar datos frescos si no hay cache
+      if (loadAllStats) {
+        await loadAllStats();
+        
+        // Guardar en cache después de cargar
+        if (tableData && tableData.length > 0) {
+          await saveDataToCache(tableData);
+        }
+      }
+    }
+    
     const filterParams = {
       period: period
     };
     
     setSelectedPeriod(period);
     
-    // Verificación de seguridad
+    // Verificación de seguridad y aplicar filtros
     if (typeof applyFilters === 'function') {
       applyFilters(filterParams);
     } else {
       console.error('applyFilters is not a function:', typeof applyFilters);
       console.log('Available hook functions:', hookResult ? Object.keys(hookResult).filter(key => typeof hookResult[key] === 'function') : 'none');
     }
-  };
+  }, [loadDataFromCache, loadAllStats, tableData, saveDataToCache, applyFilters, hookResult]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    setIsDataFromCache(false);
+    
     try {
+      console.log('Manual refresh triggered');
+      
+      // Limpiar cache antes de actualizar
+      if (user?.id) {
+        await statisticsCacheService.forceRefresh('collector', user.id);
+        setCacheInfo(null);
+      }
+      
+      // Cargar datos frescos
+      if (loadAllStats) {
+        await loadAllStats();
+        
+        // Guardar en cache después de cargar
+        if (tableData && tableData.length > 0) {
+          await saveDataToCache(tableData);
+        }
+      }
+      
+      // Aplicar filtros actuales
       await applyPeriodFilter(selectedPeriod);
     } catch (error) {
+      console.error('Error during refresh:', error);
       Alert.alert('Error', 'No se pudieron actualizar las estadísticas');
     } finally {
       setRefreshing(false);
     }
-  }, [selectedPeriod]);
+  }, [selectedPeriod, user?.id, loadAllStats, tableData, saveDataToCache, applyPeriodFilter]);
 
   const handleExport = async (format) => {
     try {
@@ -344,14 +505,38 @@ const CollectorStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
       
       <View style={styles.headerControls}>
-        <Text style={styles.headerTitle}>Estadísticas Colector</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Estadísticas Colector</Text>
+          
+          {/* Indicador de cache */}
+          {isDataFromCache && cacheInfo && (
+            <View style={styles.cacheIndicator}>
+              <Text style={styles.cacheIndicatorText}>
+                📦 Cache: {new Date(cacheInfo.timestamp).toLocaleTimeString()}
+              </Text>
+            </View>
+          )}
+        </View>
         
-        <TouchableOpacity
-          style={styles.exportButton}
-          onPress={() => setShowExportModal(true)}
-        >
-          <Text style={styles.exportButtonText}>📤 Exportar</Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          {/* Botón de actualización forzada */}
+          <TouchableOpacity
+            style={[styles.updateButton, isUpdating && styles.updateButtonDisabled]}
+            onPress={forceRefreshData}
+            disabled={isUpdating}
+          >
+            <Text style={styles.updateButtonText}>
+              {isUpdating ? '🔄 Actualizando...' : '🔄 Actualizar'}
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.exportButton}
+            onPress={() => setShowExportModal(true)}
+          >
+            <Text style={styles.exportButtonText}>📤 Exportar</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -413,9 +598,9 @@ const CollectorStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 styles.inlineFilterChipSmall,
                 selectedPeriod === opt.value && styles.inlineFilterChipActive,
               ]}
-              onPress={() => {
+              onPress={async () => {
                 setSelectedPeriod(opt.value);
-                applyPeriodFilter(opt.value);
+                await applyPeriodFilter(opt.value);
               }}
             >
               <Text style={[
@@ -436,9 +621,9 @@ const CollectorStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 styles.inlineFilterChipSmall,
                 selectedPeriod === opt.value && styles.inlineFilterChipActive,
               ]}
-              onPress={() => {
+              onPress={async () => {
                 setSelectedPeriod(opt.value);
-                applyPeriodFilter(opt.value);
+                await applyPeriodFilter(opt.value);
               }}
             >
               <Text style={[
@@ -987,6 +1172,41 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
     marginRight: 16,
   },
+  headerTitleContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  cacheIndicator: {
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 2,
+  },
+  cacheIndicatorText: {
+    fontSize: 10,
+    color: '#1976D2',
+    fontWeight: '500',
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  updateButton: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  updateButtonDisabled: {
+    backgroundColor: '#BBBBBB',
+  },
+  updateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   sidebarButton: {
     marginLeft: 4,
     marginBottom: 4,
@@ -994,8 +1214,9 @@ const styles = StyleSheet.create({
   headerControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginLeft: 'auto',
+    justifyContent: 'space-between',
+    flex: 1,
+    marginLeft: 12,
   },
   exportButton: {
     backgroundColor: '#27AE60',

@@ -368,20 +368,11 @@ const useAdminStatistics = (options = {}) => {
     return Object.values(collectorGroups);
   };
 
-  // Función principal para cargar datos de jugadas del admin
+  // Función principal para cargar datos de jugadas del admin - SIN setState para evitar bucles
   const loadPlaysData = useCallback(async (filters = {}) => {
     try {
-      // Prevenir ejecuciones concurrentes
-      if (loading) {
-        return;
-      }
-      
-      setLoading(true);
-      setError(null); // Limpiar errores previos
-      
       if (!userId) {
-        setLoading(false);
-        return;
+        return { groupedData: [], totals: {} };
       }
       
       const playsData = await loadAdminPlaysData(userId, filters);
@@ -389,83 +380,129 @@ const useAdminStatistics = (options = {}) => {
       // Agrupar datos para vista de admin
       const groupedData = groupDataForAdmin(playsData);
       
-      setTableData(prev => ({
-        ...prev,
-        plays: groupedData
-      }));
-
       // Calcular KPIs para compatibilidad con pantallas
       const totals = getTotalsFromGroupedData(groupedData);
-      setKpiData(totals);
       
-      return groupedData;
+      // Solo retornar datos, sin actualizar estados
+      return { groupedData, totals };
       
     } catch (error) {
       console.error('Error loading admin plays data:', error);
-      setError(error.message || 'Error al cargar datos');
+      return { groupedData: [], totals: {} };
+    }
+  }, [userId]); // Solo depende de userId
+
+  // Función loadAllStats para compatibilidad - SIN setState
+  const loadAllStats = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const result = await loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
+      
+      // Actualizar estados con los datos obtenidos
       setTableData(prev => ({
         ...prev,
-        plays: []
+        plays: result.groupedData
       }));
+      
+      setKpiData(result.totals);
+      
+      return result.groupedData;
+    } catch (error) {
+      setError(error.message || 'Error al cargar estadísticas');
       return [];
     } finally {
       setLoading(false);
     }
-  }, [userId, loading]); // Solo depende de userId y loading
-
-  // Función loadAllStats para compatibilidad
-  const loadAllStats = useCallback(async () => {
-    return await loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
   }, [loadPlaysData, dateRange.startDate, dateRange.endDate]);
 
   // Función applyFilters para compatibilidad
   const applyFilters = useCallback(async (filters) => {
     const { period, startDate, endDate, ...otherFilters } = filters;
     
-    // Si se proporciona un período, convertirlo a fechas
-    if (period) {
-      const today = new Date();
-      let start, end;
+    try {
+      setLoading(true);
+      setError(null);
       
-      switch (period) {
-        case 'today':
-          start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-          end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
-          break;
-        case 'yesterday':
-          const yesterday = new Date(today);
-          yesterday.setDate(yesterday.getDate() - 1);
-          start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-          end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
-          break;
-        case 'last7days':
-          start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
-          end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
-          break;
-        case 'last30days':
-          start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
-          end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
-          break;
-        case 'lastMonth':
-          start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-          end = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
-          break;
-        default:
-          start = dateRange.startDate;
-          end = dateRange.endDate;
+      // Si se proporciona un período, convertirlo a fechas
+      if (period) {
+        const today = new Date();
+        let start, end;
+        
+        switch (period) {
+          case 'today':
+            start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+            break;
+          case 'yesterday':
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+            end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
+            break;
+          case 'last7days':
+            start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+            end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+            break;
+          case 'last30days':
+            start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+            end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+            break;
+          case 'lastMonth':
+            start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            end = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+            break;
+          default:
+            start = dateRange.startDate;
+            end = dateRange.endDate;
+        }
+        
+        const result = await loadPlaysData({ period, startDate: start, endDate: end, ...otherFilters });
+        
+        // Actualizar estados con los datos obtenidos
+        setTableData(prev => ({
+          ...prev,
+          plays: result.groupedData
+        }));
+        
+        setKpiData(result.totals);
+        
+        return result.groupedData;
       }
       
-      setDateRange({ startDate: start, endDate: end });
-      return await loadPlaysData({ period, startDate: start, endDate: end, ...otherFilters });
+      if (startDate && endDate) {
+        const result = await loadPlaysData({ startDate, endDate, ...otherFilters });
+        
+        // Actualizar estados con los datos obtenidos
+        setTableData(prev => ({
+          ...prev,
+          plays: result.groupedData
+        }));
+        
+        setKpiData(result.totals);
+        
+        return result.groupedData;
+      }
+      
+      const result = await loadPlaysData(filters);
+      
+      // Actualizar estados con los datos obtenidos
+      setTableData(prev => ({
+        ...prev,
+        plays: result.groupedData
+      }));
+      
+      setKpiData(result.totals);
+      
+      return result.groupedData;
+    } catch (error) {
+      setError(error.message || 'Error al aplicar filtros');
+      return [];
+    } finally {
+      setLoading(false);
     }
-    
-    if (startDate && endDate) {
-      setDateRange({ startDate, endDate });
-      return await loadPlaysData({ startDate, endDate, ...otherFilters });
-    }
-    
-    return await loadPlaysData(filters);
-  }, [loadPlaysData, dateRange.startDate, dateRange.endDate]);
+  }, [loadPlaysData]);
 
   // Función para obtener el balance total del banco (suma de todos los balance_colector)
   const getBankBalance = () => {
@@ -558,25 +595,13 @@ const useAdminStatistics = (options = {}) => {
     loadUserData();
   }, [enabled]);
 
-  // Efecto para cargar datos cuando se obtiene el userId
+  // Efecto SOLO para cargar datos iniciales (sin bucles)
   useEffect(() => {
-    if (!enabled) return;
-    if (userId && !loading) {
-      loadAllStats();
-    }
-  }, [userId, enabled]);
-
-  // Efecto para recargar cuando cambie el rango de fechas
-  useEffect(() => {
-    if (!enabled) return;
-    if (userId && !loading) {
-      const timeoutId = setTimeout(() => {
-        loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
-      }, 300); // Debounce de 300ms
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [dateRange.startDate, dateRange.endDate, enabled, userId, loading, loadPlaysData]);
+    if (!enabled || !userId) return;
+    
+    // Usar la función simple que ya funcionaba
+    loadAllStats();
+  }, [userId, enabled]); // SOLO estas dos dependencias
 
   return {
     // Estados (compatibilidad con pantallas)
@@ -597,8 +622,8 @@ const useAdminStatistics = (options = {}) => {
     loadAllStats,
     applyFilters,
     
-    // Funciones legacy
-    loadPlaysData,
+    // Funciones principales
+    loadPlaysData, // Función que solo retorna datos
     updateDateRange,
     getBankBalance,
     getTotals

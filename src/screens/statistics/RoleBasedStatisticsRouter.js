@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../hooks/useAuth';
@@ -11,6 +11,10 @@ const RoleBasedStatisticsRouter = ({ navigation, route, onModeVisibilityChange }
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [roleDetected, setRoleDetected] = useState(false);
+
+  // Memoizar el userId para evitar re-renders innecesarios
+  const userId = useMemo(() => user?.id, [user?.id]);
 
   useEffect(() => {
     const detectUserRole = async () => {
@@ -24,21 +28,28 @@ const RoleBasedStatisticsRouter = ({ navigation, route, onModeVisibilityChange }
           return;
         }
 
-        if (!user?.id) {
-          console.log('Usuario no autenticado después de inicialización, usando rol por defecto: listero');
-          setUserRole('listero');
+        // Si ya detectamos el rol y el usuario no cambió, no hacer nada
+        if (roleDetected && userId) {
           setLoading(false);
           return;
         }
 
-        console.log('Usuario autenticado detectado:', user.id);
+        if (!userId) {
+          console.log('Usuario no autenticado después de inicialización, usando rol por defecto: listero');
+          setUserRole('listero');
+          setRoleDetected(true);
+          setLoading(false);
+          return;
+        }
+
+        console.log('Usuario autenticado detectado:', userId);
 
         // Usar el patrón estándar que funciona en toda la aplicación
         try {
           const { data: profile, error } = await supabase
             .from('profiles')
             .select('role, id_banco, id_collector')
-            .eq('id', user.id)
+            .eq('id', userId)
             .single();
 
           if (!error && profile) {
@@ -59,12 +70,13 @@ const RoleBasedStatisticsRouter = ({ navigation, route, onModeVisibilityChange }
             }
             
             console.log('Rol detectado:', role, { 
-              userId: user.id, 
+              userId: userId, 
               banco: profile.id_banco, 
               collector: profile.id_collector 
             });
             
             setUserRole(role);
+            setRoleDetected(true);
             setLoading(false);
             return;
           } else {
@@ -76,19 +88,21 @@ const RoleBasedStatisticsRouter = ({ navigation, route, onModeVisibilityChange }
         
         console.log('⚠️ No se encontró perfil, usando rol por defecto');
         setUserRole('listero');
+        setRoleDetected(true);
       } catch (err) {
         console.error('Error detectando rol del usuario:', err);
         setError(err.message);
         // En caso de error o usuario no autenticado, defaultear a listero como fallback
         console.log('Usando rol por defecto: listero debido al error');
         setUserRole('listero');
+        setRoleDetected(true);
       } finally {
         setLoading(false);
       }
     };
 
     detectUserRole();
-  }, [user, isInitialized, authLoading]); // Agregar dependencias de auth
+  }, [userId, isInitialized, authLoading, roleDetected]); // Optimizar dependencias
 
   if (loading) {
     return (

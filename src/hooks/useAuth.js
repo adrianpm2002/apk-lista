@@ -35,8 +35,11 @@ export const useAuth = () => {
         setUserProfile(null);
         
       } else if (event === 'TOKEN_REFRESHED' && session) {
-        setSession(session);
-        setUser(session.user);
+        // Solo actualizar si realmente cambió algo importante
+        if (!user || user.id !== session.user.id) {
+          setSession(session);
+          setUser(session.user);
+        }
       }
       
       setLoading(false);

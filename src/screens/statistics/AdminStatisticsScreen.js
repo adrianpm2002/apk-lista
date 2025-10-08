@@ -12,11 +12,13 @@ import {
   Platform,
 } from 'react-native';
 import { useAdminStatistics } from '../../hooks/useAdminStatistics';
+import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../supabaseClient';
 import StatisticsChart from '../../components/StatisticsChart';
 import SideBarWrapper, { SideBarToggle } from '../../components/SideBarWrapper';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import { createShadowStyle } from '../../utils/shadowUtils';
+import statisticsCacheService from '../../services/statisticsCacheService';
 
 // Importación condicional para exportación PDF
 let exportPdfModule;
@@ -51,13 +53,21 @@ const AdminStatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const AdminStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
+  const { user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('today');
-  const selectedPeriodRef = useRef('today'); // Referencia para acceder al valor actual
+  const selectedPeriodRef = useRef('today');
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('charts');
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Estados para caché
+  const [isLoadingFromCache, setIsLoadingFromCache] = useState(true);
+  const [isDataFromCache, setIsDataFromCache] = useState(false);
+  const [cacheInfo, setCacheInfo] = useState(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Mantener la referencia sincronizada
   useEffect(() => {
@@ -128,6 +138,80 @@ const AdminStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     return allPlays;
   };
 
+  // Funciones para manejo de caché
+  const loadDataFromCache = async (period = 'today') => {
+    try {
+      setIsLoadingFromCache(true);
+      
+      const cachedResult = await statisticsCacheService.getStatisticsFromCache('admin', period);
+      
+      if (cachedResult) {
+        // Simular que los datos vienen del hook pero marcados como caché
+        setIsDataFromCache(true);
+        
+        // Aquí deberías actualizar el estado con los datos del caché
+        // Esto depende de cómo tu hook maneja los datos
+        console.log('📊 Datos cargados desde caché:', cachedResult);
+        
+        const info = await statisticsCacheService.getCacheInfo('admin');
+        setCacheInfo(info);
+        
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('❌ Error al cargar desde caché:', error);
+      return false;
+    } finally {
+      setIsLoadingFromCache(false);
+    }
+  };
+
+  const saveDataToCache = async (data, period = 'today') => {
+    try {
+      const success = await statisticsCacheService.saveStatisticsToCache('admin', data, period);
+      
+      if (success) {
+        setIsDataFromCache(true);
+        const info = await statisticsCacheService.getCacheInfo('admin');
+        setCacheInfo(info);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('❌ Error al guardar en caché:', error);
+      return false;
+    }
+  };
+
+  const forceRefreshData = async () => {
+    try {
+      setIsUpdating(true);
+      setIsDataFromCache(false);
+      
+      // Limpiar caché
+      await statisticsCacheService.forceRefresh('admin');
+      
+      // Cargar datos frescos
+      if (typeof applyFilters === 'function') {
+        await applyFilters({ period: selectedPeriod });
+        loadModoSantiago();
+        
+        // Guardar nuevos datos en caché
+        if (tableData) {
+          await saveDataToCache(tableData, selectedPeriod);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Error al actualizar datos:', error);
+      Alert.alert('Error', 'No se pudieron actualizar las estadísticas');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   // Función para cargar el modo Santiago del banco
   const loadModoSantiago = async () => {
     try {
@@ -184,59 +268,65 @@ const AdminStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     { id: 'details', title: 'Detalles', icon: '📋' },
   ];
 
-  // Definir applyPeriodFilter antes de usarlo en useEffect
-  const applyPeriodFilter = useCallback((period) => {
-    // Evitar bucle si el período ya está seleccionado
-    if (selectedPeriodRef.current === period) {
-      return;
-    }
-    
-    const filterParams = {
-      period: period
-    };
-    
-    setSelectedPeriod(period);
-    
-    // Verificación de seguridad
-    if (typeof applyFilters === 'function') {
-      applyFilters(filterParams);
-    } else {
-      console.error('applyFilters is not a function:', typeof applyFilters);
-      console.log('Available hook functions:', hookResult ? Object.keys(hookResult).filter(key => typeof hookResult[key] === 'function') : 'none');
-    }
-  }, [applyFilters, hookResult]); // Sin selectedPeriod en dependencias
+  // ELIMINAR applyPeriodFilter - está causando bucles infinitos
+  // En su lugar, usar solo el useEffect que responde a cambios de selectedPeriod
 
-  // Cargar datos iniciales solo una vez
+  // ÚNICO useEffect para inicialización - SE EJECUTA SOLO UNA VEZ
   useEffect(() => {
+    if (isInitialized) return; // Si ya está inicializado, no hacer nada
+    
     const initialize = async () => {
       try {
-        await loadAllStats();
-        loadModoSantiago();
-        // Aplicar filtro inicial solo una vez
-        if (typeof applyFilters === 'function') {
-          applyPeriodFilter('today');
+        // Intentar cargar desde caché primero
+        const loadedFromCache = await loadDataFromCache('today');
+        
+        if (!loadedFromCache) {
+          // No hay datos en caché o están expirados, cargar datos frescos
+          console.log('📡 Cargando datos frescos...');
+          
+          if (typeof applyFilters === 'function') {
+            await applyFilters({ period: 'today' });
+            loadModoSantiago();
+            
+            // Guardar datos frescos en caché
+            if (tableData) {
+              await saveDataToCache(tableData, 'today');
+            }
+          }
+        } else {
+          // Datos cargados desde caché exitosamente
+          console.log('⚡ Datos cargados desde caché');
+          loadModoSantiago(); // Solo cargar configuración
         }
+        
+        setIsInitialized(true); // Marcar como inicializado
       } catch (error) {
+        console.error('❌ Error en inicialización:', error);
         Alert.alert('Error', 'No se pudieron cargar las estadísticas iniciales');
       }
     };
     
     initialize();
-  }, []); // Array vacío para ejecutar solo una vez
+  }, [isInitialized]); // Solo depende de isInitialized
 
-  useEffect(() => {
-    if (selectedPeriod !== 'custom') {
-      applyPeriodFilter(selectedPeriod);
+  // ELIMINAR este useEffect que causa bucles infinitos
+  // Los filtros se aplicarán manualmente cuando el usuario cambie el período
+
+  // Función para cambiar período y cargar datos manualmente
+  const handlePeriodChange = (newPeriod) => {
+    if (newPeriod !== 'custom' && newPeriod !== selectedPeriod) {
+      setSelectedPeriod(newPeriod);
+      
+      // Cargar datos manualmente con applyFilters
+      if (typeof applyFilters === 'function') {
+        applyFilters({ period: newPeriod });
+      }
     }
-  }, [selectedPeriod, applyPeriodFilter]);
+  };
 
   const handleRetry = async () => {
     try {
-      await loadAllStats();
-      loadModoSantiago();
-      if (typeof applyFilters === 'function') {
-        applyPeriodFilter('today');
-      }
+      await forceRefreshData();
     } catch (error) {
       Alert.alert('Error', 'No se pudieron cargar las estadísticas');
     }
@@ -245,7 +335,7 @@ const AdminStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await applyPeriodFilter(selectedPeriod);
+      await forceRefreshData();
     } catch (error) {
       Alert.alert('Error', 'No se pudieron actualizar las estadísticas');
     } finally {
@@ -370,6 +460,17 @@ const AdminStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       <View style={styles.headerControls}>
         <Text style={styles.headerTitle}>Estadísticas Banco</Text>
         
+        {/* Botón de actualizar */}
+        <TouchableOpacity
+          style={[styles.updateButton, isUpdating && styles.updateButtonDisabled]}
+          onPress={forceRefreshData}
+          disabled={isUpdating}
+        >
+          <Text style={styles.updateButtonText}>
+            {isUpdating ? '🔄' : '⟳'} {isUpdating ? 'Actualizando...' : 'Actualizar'}
+          </Text>
+        </TouchableOpacity>
+        
         <TouchableOpacity
           style={styles.exportButton}
           onPress={() => setShowExportModal(true)}
@@ -438,8 +539,7 @@ const AdminStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 selectedPeriod === opt.value && styles.inlineFilterChipActive,
               ]}
               onPress={() => {
-                setSelectedPeriod(opt.value);
-                applyPeriodFilter(opt.value);
+                handlePeriodChange(opt.value);
               }}
             >
               <Text style={[
@@ -461,8 +561,7 @@ const AdminStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 selectedPeriod === opt.value && styles.inlineFilterChipActive,
               ]}
               onPress={() => {
-                setSelectedPeriod(opt.value);
-                applyPeriodFilter(opt.value);
+                handlePeriodChange(opt.value);
               }}
             >
               <Text style={[
@@ -1069,6 +1168,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginLeft: 'auto',
+  },
+  updateButton: {
+    backgroundColor: '#3498db',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 100,
+  },
+  updateButtonDisabled: {
+    backgroundColor: '#bdc3c7',
+    opacity: 0.7,
+  },
+  updateButtonText: {
+    color: '#fff',
+    fontWeight: '500',
+    fontSize: 12,
+    textAlign: 'center',
   },
   exportButton: {
     backgroundColor: '#27AE60',

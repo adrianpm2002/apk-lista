@@ -12,11 +12,13 @@ import {
   Platform,
 } from 'react-native';
 import { useListeroStatistics } from '../../hooks/useListeroStatistics';
+import useAuth from '../../hooks/useAuth';
 import { supabase } from '../../supabaseClient';
 import StatisticsChart from '../../components/StatisticsChart';
 import SideBarWrapper, { SideBarToggle } from '../../components/SideBarWrapper';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import { createShadowStyle } from '../../utils/shadowUtils';
+import statisticsCacheService from '../../services/statisticsCacheService';
 
 // Importación condicional para exportación PDF
 let exportPdfModule;
@@ -51,8 +53,13 @@ const ListeroStatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const ListeroStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
+  const { user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
+  const [isDataFromCache, setIsDataFromCache] = useState(false);
+  const [cacheInfo, setCacheInfo] = useState(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState('charts');
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -196,6 +203,111 @@ const ListeroStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   });
 
+  // Cache management functions
+  const loadDataFromCache = useCallback(async () => {
+    if (!user?.id) return;
+    
+    console.log('Loading listero statistics from cache...');
+    setIsLoadingFromCache(true);
+    
+    try {
+      const cachedData = await statisticsCacheService.getStatisticsFromCache('listero', user.id);
+      const info = await statisticsCacheService.getCacheInfo('listero', user.id);
+      
+      setCacheInfo(info);
+      
+      if (cachedData) {
+        console.log('Cache hit - using cached data');
+        // Simular el resultado del hook con datos cacheados
+        if (hookResult) {
+          hookResult.tableData = cachedData;
+        }
+        setIsDataFromCache(true);
+        return true;
+      } else {
+        console.log('Cache miss - no cached data found');
+        setIsDataFromCache(false);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error loading from cache:', error);
+      setIsDataFromCache(false);
+      return false;
+    } finally {
+      setIsLoadingFromCache(false);
+    }
+  }, [user?.id, hookResult]);
+
+  const saveDataToCache = useCallback(async (data) => {
+    if (!user?.id || !data) return;
+    
+    try {
+      console.log('Saving listero statistics to cache...');
+      await statisticsCacheService.saveStatisticsToCache('listero', user.id, data);
+      const info = await statisticsCacheService.getCacheInfo('listero', user.id);
+      setCacheInfo(info);
+      console.log('Data saved to cache successfully');
+    } catch (error) {
+      console.error('Error saving to cache:', error);
+    }
+  }, [user?.id]);
+
+  const forceRefreshData = useCallback(async () => {
+    if (!user?.id) return;
+    
+    setIsUpdating(true);
+    setIsDataFromCache(false);
+    
+    try {
+      console.log('Force refreshing listero statistics...');
+      
+      // Limpiar cache
+      await statisticsCacheService.forceRefresh('listero', user.id);
+      setCacheInfo(null);
+      
+      // Cargar datos frescos
+      if (loadAllStats) {
+        await loadAllStats();
+        
+        // Guardar los nuevos datos en cache
+        if (tableData && tableData.length > 0) {
+          await saveDataToCache(tableData);
+        }
+      }
+      
+      console.log('Force refresh completed');
+    } catch (error) {
+      console.error('Error during force refresh:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [user?.id, loadAllStats, tableData, saveDataToCache]);
+
+  // Función para cargar datos iniciales
+  const loadInitialData = async () => {
+    try {
+      await loadAllStats();
+    } catch (error) {
+      Alert.alert('Error', 'No se pudieron cargar las estadísticas iniciales');
+    }
+  };
+
+  // Función para aplicar filtros de período SIN recargar datos
+  const applyPeriodFilter = useCallback(async (period) => {
+    console.log('Applying period filter to existing data:', period);
+    
+    // NO recargar datos, solo aplicar filtros a los datos existentes
+    const filterParams = { period: period };
+    setSelectedPeriod(period);
+    
+    // Aplicar filtros a los datos que ya tenemos en memoria
+    if (typeof applyFilters === 'function' && tableData && tableData.length > 0) {
+      applyFilters(filterParams);
+    } else {
+      console.warn('No data available for filtering or applyFilters function not available');
+    }
+  }, [tableData, applyFilters]); // Solo depender de los datos y la función de filtrado
+
   // Opciones de períodos
   const periodOptions = [
     { label: 'Hoy', value: 'today' },
@@ -211,63 +323,94 @@ const ListeroStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     { id: 'details', title: 'Detalles', icon: '📋' },
   ];
 
-  // Cargar datos iniciales
+  // Estado para controlar si ya se inicializó
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Cargar datos iniciales UNA SOLA VEZ
   useEffect(() => {
-    loadInitialData();
-    loadModoSantiago();
-    // Solo aplicar filtro si la función está disponible
-    if (typeof applyFilters === 'function') {
-      applyPeriodFilter('today');
+    if (!user?.id || isInitialized) {
+      return; // No hacer nada si no hay usuario o ya se inicializó
     }
-  }, [loadPlaysData]); // Depender de loadPlaysData
 
-  useEffect(() => {
-    if (typeof loadAllStats === 'function') {
-      loadAllStats();
-    } else {
-      console.error('loadAllStats is not a function:', typeof loadAllStats);
-    }
-  }, [loadPlaysData]); // Depender de loadPlaysData en lugar de loadAllStats
-
-  useEffect(() => {
-    if (selectedPeriod !== 'custom') {
-      applyPeriodFilter(selectedPeriod);
-    }
-  }, [selectedPeriod]);
-
-  const loadInitialData = async () => {
-    try {
-      await loadAllStats();
-    } catch (error) {
-      Alert.alert('Error', 'No se pudieron cargar las estadísticas iniciales');
-    }
-  };
-
-  const applyPeriodFilter = (period) => {
-    const filterParams = {
-      period: period
+    const initializeData = async () => {
+      console.log('Initializing listero statistics ONCE...');
+      
+      try {
+        // Intentar cargar desde cache primero
+        const cacheLoaded = await loadDataFromCache();
+        
+        if (!cacheLoaded) {
+          // Si no hay cache, cargar datos frescos
+          console.log('No cache available, loading fresh data...');
+          await loadInitialData();
+          
+          // Guardar los datos cargados en cache automáticamente
+          if (tableData && tableData.length > 0) {
+            await saveDataToCache(tableData);
+          }
+        }
+        
+        loadModoSantiago();
+        setIsInitialized(true); // Marcar como inicializado
+      } catch (error) {
+        console.error('Error during initialization:', error);
+        // Fallback a carga normal si hay error con cache
+        await loadInitialData();
+        setIsInitialized(true);
+      }
     };
-    
-    setSelectedPeriod(period);
-    
-    // Verificación de seguridad
-    if (typeof applyFilters === 'function') {
-      applyFilters(filterParams);
-    } else {
-      console.warn('applyFilters function not available, using fallback');
+
+    initializeData();
+  }, [user?.id]); // Solo ejecutar cuando cambie el usuario
+
+  // Aplicar filtros de período sin recargar datos
+  useEffect(() => {
+    if (!isInitialized || selectedPeriod === 'custom') {
+      return; // No hacer nada si no está inicializado o es período personalizado
     }
-  };
+
+    // Solo aplicar filtros a datos existentes, SIN recargar
+    const filterParams = { period: selectedPeriod };
+    
+    if (typeof applyFilters === 'function' && tableData && tableData.length > 0) {
+      console.log('Applying period filter to existing data:', selectedPeriod);
+      applyFilters(filterParams);
+    }
+  }, [selectedPeriod, isInitialized]); // Solo cuando cambie el período o la inicialización
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    setIsDataFromCache(false);
+    
     try {
-      await applyPeriodFilter(selectedPeriod);
+      console.log('🔄 User requested manual refresh - clearing cache and reloading');
+      
+      // Limpiar cache antes de actualizar
+      if (user?.id) {
+        await statisticsCacheService.forceRefresh('listero', user.id);
+        setCacheInfo(null);
+      }
+      
+      // Cargar datos frescos
+      if (loadAllStats) {
+        await loadAllStats();
+        
+        // Guardar en cache después de cargar (cache actualizado por el usuario)
+        if (tableData && tableData.length > 0) {
+          await saveDataToCache(tableData);
+          console.log('✅ Cache updated with fresh data by user request');
+        }
+      }
+      
+      // NO aplicar filtros automáticamente - mantener período actual
+      console.log('🏁 Manual refresh completed');
     } catch (error) {
+      console.error('Error during refresh:', error);
       Alert.alert('Error', 'No se pudieron actualizar las estadísticas');
     } finally {
       setRefreshing(false);
     }
-  }, [selectedPeriod]);
+  }, [user?.id, loadAllStats, tableData, saveDataToCache]); // Removemos applyPeriodFilter
 
   const handleExport = async (format) => {
     try {
@@ -384,14 +527,29 @@ const ListeroStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
       
       <View style={styles.headerControls}>
-        <Text style={styles.headerTitle}>Mis Estadísticas</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Mis Estadísticas</Text>
+        </View>
         
-        <TouchableOpacity
-          style={styles.exportButton}
-          onPress={() => setShowExportModal(true)}
-        >
-          <Text style={styles.exportButtonText}>📤 Exportar</Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          {/* Botón de actualización forzada */}
+          <TouchableOpacity
+            style={[styles.updateButton, isUpdating && styles.updateButtonDisabled]}
+            onPress={forceRefreshData}
+            disabled={isUpdating}
+          >
+            <Text style={styles.updateButtonText}>
+              {isUpdating ? '🔄 Actualizando...' : '🔄 Actualizar'}
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.exportButton}
+            onPress={() => setShowExportModal(true)}
+          >
+            <Text style={styles.exportButtonText}>📤 Exportar</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -453,9 +611,9 @@ const ListeroStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 styles.inlineFilterChipSmall,
                 selectedPeriod === opt.value && styles.inlineFilterChipActive,
               ]}
-              onPress={() => {
+              onPress={async () => {
                 setSelectedPeriod(opt.value);
-                applyPeriodFilter(opt.value);
+                await applyPeriodFilter(opt.value);
               }}
             >
               <Text style={[
@@ -476,9 +634,9 @@ const ListeroStatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 styles.inlineFilterChipSmall,
                 selectedPeriod === opt.value && styles.inlineFilterChipActive,
               ]}
-              onPress={() => {
+              onPress={async () => {
                 setSelectedPeriod(opt.value);
-                applyPeriodFilter(opt.value);
+                await applyPeriodFilter(opt.value);
               }}
             >
               <Text style={[
@@ -932,6 +1090,29 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
     marginRight: 16,
   },
+  headerTitleContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  updateButton: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  updateButtonDisabled: {
+    backgroundColor: '#BBBBBB',
+  },
+  updateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   sidebarButton: {
     marginLeft: 4,
     marginBottom: 4,
@@ -939,8 +1120,9 @@ const styles = StyleSheet.create({
   headerControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginLeft: 'auto',
+    justifyContent: 'space-between',
+    flex: 1,
+    marginLeft: 12,
   },
   exportButton: {
     backgroundColor: '#27AE60',
