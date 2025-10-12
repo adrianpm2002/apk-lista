@@ -176,7 +176,7 @@ const useAdminStatistics = (options = {}) => {
         return [];
       }
 
-      const { period, startDate, endDate } = filters;
+      const { period, startDate, endDate, lottery, schedule } = filters;
       
       // Determinar qué vista usar según el período o filtro de fechas
       let viewConfig;
@@ -217,6 +217,16 @@ const useAdminStatistics = (options = {}) => {
         // Solo agregar filtro de estado_horario si no estamos usando vista optimizada
         if (!isOptimized) {
           query = query.eq('estado_horario', 'cerrada');
+        }
+
+        // Aplicar filtro de lotería si está especificado
+        if (lottery) {
+          query = query.eq('id_loteria', lottery);
+        }
+
+        // Aplicar filtro de horario si está especificado
+        if (schedule) {
+          query = query.eq('id_horario', schedule);
         }
         
         query = query.order('fecha_jugada', { ascending: false });
@@ -371,6 +381,25 @@ const useAdminStatistics = (options = {}) => {
   // Función principal para cargar datos de jugadas del admin - SIN setState para evitar bucles
   const loadPlaysData = useCallback(async (filters = {}) => {
     try {
+      // Si hay filtros específicos (como lottery), forzar la recarga
+      const hasSpecificFilters = filters?.lottery || filters?.schedule;
+      
+      // Prevenir ejecuciones concurrentes SOLO si no hay filtros específicos
+      if (loading && !hasSpecificFilters) {
+        return;
+      }
+      
+      // Si hay filtros específicos, limpiar datos inmediatamente
+      if (hasSpecificFilters) {
+        setTableData(prev => ({
+          ...prev,
+          plays: []
+        }));
+      }
+      
+      setLoading(true);
+      setError(null); // Limpiar errores previos
+      
       if (!userId) {
         return { groupedData: [], totals: {} };
       }
