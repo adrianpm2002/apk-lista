@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { statisticsCacheService } from '../services/statisticsCacheService';
 
 // Helper para convertir fecha local a string para consultas de base de datos
 const formatDateForQuery = (date) => {
@@ -16,6 +17,10 @@ const useCollectorStatistics = (options = {}) => {
   const [loading, setLoading] = useState(false); // Cambio: isLoading -> loading
   const [error, setError] = useState(null); // Agregado
   const [userId, setUserId] = useState(null);
+  
+  // Estados para cache
+  const [isDataFromCache, setIsDataFromCache] = useState(false);
+  const [cacheInfo, setCacheInfo] = useState(null);
   
   // Estados para compatibilidad con pantallas
   const [kpiData, setKpiData] = useState({}); // Agregado
@@ -172,13 +177,7 @@ const useCollectorStatistics = (options = {}) => {
         return [];
       }
 
-<<<<<<< HEAD
-      const { period, startDate, endDate } = filters;
-=======
-  // inicio de carga (silencioso)
-
       const { period, startDate, endDate, lottery, schedule } = filters;
->>>>>>> e6b5c97 (Fix: Corregir filtro de loterías en estadísticas y reducir altura del botón)
       
       // Determinar qué vista usar según el período o filtro de fechas
       let viewConfig;
@@ -345,25 +344,92 @@ const useCollectorStatistics = (options = {}) => {
     return Object.values(listeroGroups);
   };
 
+  // Funciones de manejo de cache
+  const loadDataFromCache = async (period = 'today') => {
+    if (!userId) return false;
+    
+    try {
+      console.log('🔍 [useCollectorStatistics] Checking cache for period:', period);
+      const cachedResult = await statisticsCacheService.getStatisticsFromCache('collector', period);
+      
+      if (cachedResult && cachedResult.data) {
+        console.log('✅ [useCollectorStatistics] Cache hit - using cached data');
+        
+        // Agrupar datos para vista de colector
+        const groupedData = groupDataForCollector(cachedResult.data);
+        
+        setTableData(prev => ({
+          ...prev,
+          plays: groupedData
+        }));
+        
+        // Calcular KPIs para compatibilidad con pantallas
+        const totals = getTotalsFromGroupedData(groupedData);
+        setKpiData(totals);
+        
+        setIsDataFromCache(true);
+        
+        // Obtener información del cache
+        const info = await statisticsCacheService.getCacheInfo('collector');
+        setCacheInfo(info);
+        
+        return true;
+      }
+      
+      console.log('❌ [useCollectorStatistics] Cache miss - no cached data found');
+      setIsDataFromCache(false);
+      return false;
+    } catch (error) {
+      console.error('❌ [useCollectorStatistics] Error loading from cache:', error);
+      setIsDataFromCache(false);
+      return false;
+    }
+  };
+
+  const saveDataToCache = async (data, period = 'today') => {
+    if (!userId || !data) return;
+    
+    try {
+      console.log('💾 [useCollectorStatistics] Saving data to cache for period:', period);
+      await statisticsCacheService.saveStatisticsToCache('collector', data, period);
+      
+      // Actualizar información del cache
+      const info = await statisticsCacheService.getCacheInfo('collector');
+      setCacheInfo(info);
+    } catch (error) {
+      console.error('❌ [useCollectorStatistics] Error saving to cache:', error);
+    }
+  };
+
+  const clearCache = async () => {
+    try {
+      await statisticsCacheService.clearStatisticsCache('collector');
+      setIsDataFromCache(false);
+      setCacheInfo(null);
+      console.log('🗑️ [useCollectorStatistics] Cache cleared');
+    } catch (error) {
+      console.error('❌ [useCollectorStatistics] Error clearing cache:', error);
+    }
+  };
+
   // Función principal para cargar datos de jugadas del colector
   const loadPlaysData = async (filters = {}) => {
     try {
-<<<<<<< HEAD
-      // Prevenir ejecuciones concurrentes
-      if (loading) {
-        return;
-      }
-      
-      setLoading(true);
-      setError(null); // Limpiar errores previos
-=======
-  // inicio carga (silencioso)
+      const { period } = filters;
       
       // Si hay filtros específicos (como lottery), forzar la recarga
       const hasSpecificFilters = filters?.lottery || filters?.schedule;
       
+      // Si no hay filtros específicos, intentar cargar desde cache primero
+      if (!hasSpecificFilters && period) {
+        const cacheLoaded = await loadDataFromCache(period);
+        if (cacheLoaded) {
+          return tableData?.plays || [];
+        }
+      }
+      
       // Prevenir ejecuciones concurrentes SOLO si no hay filtros específicos
-      if (isLoading && !hasSpecificFilters) {
+      if (loading && !hasSpecificFilters) {
         // ya cargando, abortar (silencioso)
         return;
       }
@@ -376,14 +442,16 @@ const useCollectorStatistics = (options = {}) => {
         }));
       }
       
-      setIsLoading(true);
->>>>>>> e6b5c97 (Fix: Corregir filtro de loterías en estadísticas y reducir altura del botón)
+      setLoading(true);
+      setError(null); // Limpiar errores previos
+      setIsDataFromCache(false); // Marcar que los datos no vienen del cache
       
       if (!userId) {
         setLoading(false);
         return;
       }
       
+      console.log('🔄 [useCollectorStatistics] Loading fresh data from database');
       const playsData = await loadCollectorPlaysData(userId, filters);
       
       // Agrupar datos para vista de colector
@@ -397,6 +465,11 @@ const useCollectorStatistics = (options = {}) => {
       // Calcular KPIs para compatibilidad con pantallas
       const totals = getTotalsFromGroupedData(groupedData);
       setKpiData(totals);
+      
+      // Guardar en cache si no hay filtros específicos
+      if (!hasSpecificFilters && period) {
+        await saveDataToCache(playsData, period);
+      }
       
       return groupedData;
       
@@ -580,6 +653,10 @@ const useCollectorStatistics = (options = {}) => {
     loading, // Cambio: isLoading -> loading
     error,
     
+    // Estados de cache
+    isDataFromCache,
+    cacheInfo,
+    
     // Estados legacy (para compatibilidad hacia atrás)
     isLoading: loading, // Mantener para compatibilidad
     dateRange,
@@ -588,6 +665,11 @@ const useCollectorStatistics = (options = {}) => {
     // Funciones (compatibilidad con pantallas)
     loadAllStats,
     applyFilters,
+    
+    // Funciones de cache
+    loadDataFromCache,
+    saveDataToCache,
+    clearCache,
     
     // Funciones legacy
     loadPlaysData,

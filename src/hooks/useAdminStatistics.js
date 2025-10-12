@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { statisticsCacheService } from '../services/statisticsCacheService';
 
 // Helper para convertir fecha local a string para consultas de base de datos
 const formatDateForQuery = (date) => {
@@ -16,6 +17,10 @@ const useAdminStatistics = (options = {}) => {
   const [loading, setLoading] = useState(false); // Cambio: isLoading -> loading
   const [error, setError] = useState(null); // Agregado
   const [userId, setUserId] = useState(null);
+  
+  // Estados para cache
+  const [isDataFromCache, setIsDataFromCache] = useState(false);
+  const [cacheInfo, setCacheInfo] = useState(null);
   
   // Estados para compatibilidad con pantallas
   const [kpiData, setKpiData] = useState({}); // Agregado
@@ -378,6 +383,74 @@ const useAdminStatistics = (options = {}) => {
     return Object.values(collectorGroups);
   };
 
+  // Funciones de manejo de cache
+  const loadDataFromCache = useCallback(async (period = 'today') => {
+    if (!userId) return false;
+    
+    try {
+      console.log('🔍 [useAdminStatistics] Checking cache for period:', period);
+      const cachedResult = await statisticsCacheService.getStatisticsFromCache('admin', period);
+      
+      if (cachedResult && cachedResult.data) {
+        console.log('✅ [useAdminStatistics] Cache hit - using cached data');
+        
+        // Agrupar datos para vista de admin
+        const groupedData = groupDataForAdmin(cachedResult.data);
+        
+        setTableData(prev => ({
+          ...prev,
+          plays: groupedData
+        }));
+        
+        // Calcular KPIs para compatibilidad con pantallas
+        const totals = getTotalsFromGroupedData(groupedData);
+        setKpiData(totals);
+        
+        setIsDataFromCache(true);
+        
+        // Obtener información del cache
+        const info = await statisticsCacheService.getCacheInfo('admin');
+        setCacheInfo(info);
+        
+        return true;
+      }
+      
+      console.log('❌ [useAdminStatistics] Cache miss - no cached data found');
+      setIsDataFromCache(false);
+      return false;
+    } catch (error) {
+      console.error('❌ [useAdminStatistics] Error loading from cache:', error);
+      setIsDataFromCache(false);
+      return false;
+    }
+  }, [userId]);
+
+  const saveDataToCache = useCallback(async (data, period = 'today') => {
+    if (!userId || !data) return;
+    
+    try {
+      console.log('💾 [useAdminStatistics] Saving data to cache for period:', period);
+      await statisticsCacheService.saveStatisticsToCache('admin', data, period);
+      
+      // Actualizar información del cache
+      const info = await statisticsCacheService.getCacheInfo('admin');
+      setCacheInfo(info);
+    } catch (error) {
+      console.error('❌ [useAdminStatistics] Error saving to cache:', error);
+    }
+  }, [userId]);
+
+  const clearCache = useCallback(async () => {
+    try {
+      await statisticsCacheService.clearStatisticsCache('admin');
+      setIsDataFromCache(false);
+      setCacheInfo(null);
+      console.log('🗑️ [useAdminStatistics] Cache cleared');
+    } catch (error) {
+      console.error('❌ [useAdminStatistics] Error clearing cache:', error);
+    }
+  }, []);
+
   // Función principal para cargar datos de jugadas del admin - SIN setState para evitar bucles
   const loadPlaysData = useCallback(async (filters = {}) => {
     try {
@@ -424,9 +497,17 @@ const useAdminStatistics = (options = {}) => {
   // Función loadAllStats para compatibilidad - SIN setState
   const loadAllStats = useCallback(async () => {
     try {
+      // Intentar cargar desde cache primero para el periodo 'today'
+      const cacheLoaded = await loadDataFromCache('today');
+      if (cacheLoaded) {
+        return tableData?.plays || [];
+      }
+      
       setLoading(true);
       setError(null);
+      setIsDataFromCache(false); // Marcar que los datos no vienen del cache
       
+      console.log('🔄 [useAdminStatistics] Loading fresh data from database');
       const result = await loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
       
       // Actualizar estados con los datos obtenidos
@@ -437,6 +518,10 @@ const useAdminStatistics = (options = {}) => {
       
       setKpiData(result.totals);
       
+      // Guardar en cache
+      const rawData = result.groupedData.flatMap(collector => collector.raw_plays || []);
+      await saveDataToCache(rawData, 'today');
+      
       return result.groupedData;
     } catch (error) {
       setError(error.message || 'Error al cargar estadísticas');
@@ -444,15 +529,29 @@ const useAdminStatistics = (options = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [loadPlaysData, dateRange.startDate, dateRange.endDate]);
+  }, [loadPlaysData, dateRange.startDate, dateRange.endDate, loadDataFromCache, saveDataToCache, tableData?.plays]);
 
   // Función applyFilters para compatibilidad
   const applyFilters = useCallback(async (filters) => {
     const { period, startDate, endDate, ...otherFilters } = filters;
     
     try {
+      // Si hay filtros específicos (como lottery), forzar la recarga
+      const hasSpecificFilters = otherFilters?.lottery || otherFilters?.schedule;
+      
+      // Si no hay filtros específicos, intentar cargar desde cache primero
+      if (!hasSpecificFilters && period) {
+        const cacheLoaded = await loadDataFromCache(period);
+        if (cacheLoaded) {
+          return tableData?.plays || [];
+        }
+      }
+      
       setLoading(true);
       setError(null);
+      setIsDataFromCache(false); // Marcar que los datos no vienen del cache
+      
+      console.log('🔄 [useAdminStatistics] Loading fresh data with filters');
       
       // Si se proporciona un período, convertirlo a fechas
       if (period) {
@@ -497,6 +596,12 @@ const useAdminStatistics = (options = {}) => {
         
         setKpiData(result.totals);
         
+        // Guardar en cache si no hay filtros específicos
+        if (!hasSpecificFilters) {
+          const rawData = result.groupedData.flatMap(collector => collector.raw_plays || []);
+          await saveDataToCache(rawData, period);
+        }
+        
         return result.groupedData;
       }
       
@@ -531,7 +636,7 @@ const useAdminStatistics = (options = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [loadPlaysData]);
+  }, [loadPlaysData, loadDataFromCache, saveDataToCache, dateRange.startDate, dateRange.endDate, tableData?.plays]);
 
   // Función para obtener el balance total del banco (suma de todos los balance_colector)
   const getBankBalance = () => {
@@ -642,6 +747,10 @@ const useAdminStatistics = (options = {}) => {
     loading, // Cambio: isLoading -> loading
     error,
     
+    // Estados de cache
+    isDataFromCache,
+    cacheInfo,
+    
     // Estados legacy (para compatibilidad hacia atrás)
     isLoading: loading, // Mantener para compatibilidad
     dateRange,
@@ -650,6 +759,11 @@ const useAdminStatistics = (options = {}) => {
     // Funciones (compatibilidad con pantallas)
     loadAllStats,
     applyFilters,
+    
+    // Funciones de cache
+    loadDataFromCache,
+    saveDataToCache,
+    clearCache,
     
     // Funciones principales
     loadPlaysData, // Función que solo retorna datos
