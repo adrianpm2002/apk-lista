@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
-import { statisticsCacheService } from '../services/statisticsCacheService';
 
 // Helper para convertir fecha local a string para consultas de base de datos
 const formatDateForQuery = (date) => {
@@ -14,20 +14,16 @@ const useAdminStatistics = (options = {}) => {
   const { enabled = true } = options;
   
   // Estados básicos (compatibilidad con pantallas)
-  const [loading, setLoading] = useState(false); // Cambio: isLoading -> loading
-  const [error, setError] = useState(null); // Agregado
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [userId, setUserId] = useState(null);
   
-  // Estados para cache
-  const [isDataFromCache, setIsDataFromCache] = useState(false);
-  const [cacheInfo, setCacheInfo] = useState(null);
-  
   // Estados para compatibilidad con pantallas
-  const [kpiData, setKpiData] = useState({}); // Agregado
-  const [chartData, setChartData] = useState([]); // Agregado
-  const [tableData, setTableData] = useState({ plays: [] }); // Mantener estructura para admin
-  const [lotteries, setLotteries] = useState([]); // Agregado
-  const [schedules, setSchedules] = useState([]); // Agregado
+  const [kpiData, setKpiData] = useState({});
+  const [chartData, setChartData] = useState([]);
+  const [tableData, setTableData] = useState({ plays: [] });
+  const [lotteries, setLotteries] = useState([]);
+  const [schedules, setSchedules] = useState([]);
   
   // Estado para el rango de fechas (hoy por defecto)
   const [dateRange, setDateRange] = useState({
@@ -383,67 +379,12 @@ const useAdminStatistics = (options = {}) => {
     return Object.values(collectorGroups);
   };
 
-  // Funciones de manejo de cache
-  const loadDataFromCache = useCallback(async (period = 'today') => {
-    if (!userId) return false;
-    
-    try {
-      const cachedResult = await statisticsCacheService.getStatisticsFromCache('admin', period);
-      
-      if (cachedResult && cachedResult.data) {
-        
-        // Agrupar datos para vista de admin
-        const groupedData = groupDataForAdmin(cachedResult.data);
-        
-        setTableData(prev => ({
-          ...prev,
-          plays: groupedData
-        }));
-        
-        // Calcular KPIs para compatibilidad con pantallas
-        const totals = getTotalsFromGroupedData(groupedData);
-        setKpiData(totals);
-        
-        setIsDataFromCache(true);
-        
-        // Obtener información del cache
-        const info = await statisticsCacheService.getCacheInfo('admin');
-        setCacheInfo(info);
-        
-        return true;
-      }
-      
-      setIsDataFromCache(false);
-      return false;
-    } catch (error) {
-      setIsDataFromCache(false);
-      return false;
-    }
-  }, [userId]);
+  const queryClient = useQueryClient();
 
-  const saveDataToCache = useCallback(async (data, period = 'today') => {
-    if (!userId || !data) return;
-    
-    try {
-      await statisticsCacheService.saveStatisticsToCache('admin', data, period);
-      
-      // Actualizar información del cache
-      const info = await statisticsCacheService.getCacheInfo('admin');
-      setCacheInfo(info);
-    } catch (error) {
-      // Error silencioso
-    }
-  }, [userId]);
-
-  const clearCache = useCallback(async () => {
-    try {
-      await statisticsCacheService.clearStatisticsCache('admin');
-      setIsDataFromCache(false);
-      setCacheInfo(null);
-    } catch (error) {
-      // Error silencioso
-    }
-  }, []);
+  // Función clearCache para invalidar cache de React Query
+  const clearCache = useCallback(() => {
+    queryClient.invalidateQueries(['admin-statistics', userId]);
+  }, [queryClient, userId]);
 
   // Función principal para cargar datos de jugadas del admin - SIN setState para evitar bucles
   const loadPlaysData = useCallback(async (filters = {}) => {
@@ -488,18 +429,11 @@ const useAdminStatistics = (options = {}) => {
     }
   }, [userId]); // Solo depende de userId
 
-  // Función loadAllStats para compatibilidad - SIN setState
+  // Función loadAllStats para compatibilidad
   const loadAllStats = useCallback(async () => {
     try {
-      // Intentar cargar desde cache primero para el periodo 'today'
-      const cacheLoaded = await loadDataFromCache('today');
-      if (cacheLoaded) {
-        return tableData?.plays || [];
-      }
-      
       setLoading(true);
       setError(null);
-      setIsDataFromCache(false); // Marcar que los datos no vienen del cache
       
       const result = await loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
       
@@ -511,10 +445,6 @@ const useAdminStatistics = (options = {}) => {
       
       setKpiData(result.totals);
       
-      // Guardar en cache
-      const rawData = result.groupedData.flatMap(collector => collector.raw_plays || []);
-      await saveDataToCache(rawData, 'today');
-      
       return result.groupedData;
     } catch (error) {
       setError(error.message || 'Error al cargar estadísticas');
@@ -522,7 +452,7 @@ const useAdminStatistics = (options = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [loadPlaysData, dateRange.startDate, dateRange.endDate, loadDataFromCache, saveDataToCache, tableData?.plays]);
+  }, [loadPlaysData, dateRange.startDate, dateRange.endDate]);
 
   // Función applyFilters para compatibilidad
   const applyFilters = useCallback(async (filters) => {
@@ -738,22 +668,16 @@ const useAdminStatistics = (options = {}) => {
     loading, // Cambio: isLoading -> loading
     error,
     
-    // Estados de cache
-    isDataFromCache,
-    cacheInfo,
-    
     // Estados legacy (para compatibilidad hacia atrás)
     isLoading: loading, // Mantener para compatibilidad
     dateRange,
     userId,
+    isDataFromCache: false, // React Query maneja el cache internamente
+    cacheInfo: null, // Ya no se usa
     
     // Funciones (compatibilidad con pantallas)
     loadAllStats,
     applyFilters,
-    
-    // Funciones de cache
-    loadDataFromCache,
-    saveDataToCache,
     clearCache,
     
     // Funciones principales

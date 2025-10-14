@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
-import { statisticsCacheService } from '../services/statisticsCacheService';
 
 // Helper para convertir fecha local a string para consultas de base de datos
 const formatDateForQuery = (date) => {
@@ -14,20 +14,16 @@ const useCollectorStatistics = (options = {}) => {
   const { enabled = true } = options;
   
   // Estados básicos (compatibilidad con pantallas)
-  const [loading, setLoading] = useState(false); // Cambio: isLoading -> loading
-  const [error, setError] = useState(null); // Agregado
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [userId, setUserId] = useState(null);
   
-  // Estados para cache
-  const [isDataFromCache, setIsDataFromCache] = useState(false);
-  const [cacheInfo, setCacheInfo] = useState(null);
-  
   // Estados para compatibilidad con pantallas
-  const [kpiData, setKpiData] = useState({}); // Agregado
-  const [chartData, setChartData] = useState([]); // Agregado
-  const [tableData, setTableData] = useState({ plays: [] }); // Mantener estructura para collector
-  const [lotteries, setLotteries] = useState([]); // Agregado
-  const [schedules, setSchedules] = useState([]); // Agregado
+  const [kpiData, setKpiData] = useState({});
+  const [chartData, setChartData] = useState([]);
+  const [tableData, setTableData] = useState({ plays: [] });
+  const [lotteries, setLotteries] = useState([]);
+  const [schedules, setSchedules] = useState([]);
   
   // Estado para el rango de fechas (hoy por defecto)
   const [dateRange, setDateRange] = useState({
@@ -344,101 +340,18 @@ const useCollectorStatistics = (options = {}) => {
     return Object.values(listeroGroups);
   };
 
-  // Funciones de manejo de cache
-  const loadDataFromCache = async (period = 'today') => {
-    if (!userId) return false;
-    
-    try {
-      const cachedResult = await statisticsCacheService.getStatisticsFromCache('collector', period);
-      
-      if (cachedResult && cachedResult.data) {
-        
-        // Agrupar datos para vista de colector
-        const groupedData = groupDataForCollector(cachedResult.data);
-        
-        setTableData(prev => ({
-          ...prev,
-          plays: groupedData
-        }));
-        
-        // Calcular KPIs para compatibilidad con pantallas
-        const totals = getTotalsFromGroupedData(groupedData);
-        setKpiData(totals);
-        
-        setIsDataFromCache(true);
-        
-        // Obtener información del cache
-        const info = await statisticsCacheService.getCacheInfo('collector');
-        setCacheInfo(info);
-        
-        return true;
-      }
-      
-      setIsDataFromCache(false);
-      return false;
-    } catch (error) {
-      setIsDataFromCache(false);
-      return false;
-    }
-  };
+  const queryClient = useQueryClient();
 
-  const saveDataToCache = async (data, period = 'today') => {
-    if (!userId || !data) return;
-    
-    try {
-      await statisticsCacheService.saveStatisticsToCache('collector', data, period);
-      
-      // Actualizar información del cache
-      const info = await statisticsCacheService.getCacheInfo('collector');
-      setCacheInfo(info);
-    } catch (error) {
-      // Error silencioso
-    }
-  };
-
-  const clearCache = async () => {
-    try {
-      await statisticsCacheService.clearStatisticsCache('collector');
-      setIsDataFromCache(false);
-      setCacheInfo(null);
-    } catch (error) {
-      // Error silencioso
-    }
-  };
+  // Función clearCache para invalidar cache de React Query
+  const clearCache = useCallback(() => {
+    queryClient.invalidateQueries(['collector-statistics', userId]);
+  }, [queryClient, userId]);
 
   // Función principal para cargar datos de jugadas del colector
   const loadPlaysData = async (filters = {}) => {
     try {
-      const { period } = filters;
-      
-      // Si hay filtros específicos (como lottery), forzar la recarga
-      const hasSpecificFilters = filters?.lottery || filters?.schedule;
-      
-      // Si no hay filtros específicos, intentar cargar desde cache primero
-      if (!hasSpecificFilters && period) {
-        const cacheLoaded = await loadDataFromCache(period);
-        if (cacheLoaded) {
-          return tableData?.plays || [];
-        }
-      }
-      
-      // Prevenir ejecuciones concurrentes SOLO si no hay filtros específicos
-      if (loading && !hasSpecificFilters) {
-        // ya cargando, abortar (silencioso)
-        return;
-      }
-      
-      // Si hay filtros específicos, limpiar datos inmediatamente
-      if (hasSpecificFilters) {
-        setTableData(prev => ({
-          ...prev,
-          plays: []
-        }));
-      }
-      
       setLoading(true);
-      setError(null); // Limpiar errores previos
-      setIsDataFromCache(false); // Marcar que los datos no vienen del cache
+      setError(null);
       
       if (!userId) {
         setLoading(false);
@@ -458,11 +371,6 @@ const useCollectorStatistics = (options = {}) => {
       // Calcular KPIs para compatibilidad con pantallas
       const totals = getTotalsFromGroupedData(groupedData);
       setKpiData(totals);
-      
-      // Guardar en cache si no hay filtros específicos
-      if (!hasSpecificFilters && period) {
-        await saveDataToCache(playsData, period);
-      }
       
       return groupedData;
       
@@ -643,25 +551,19 @@ const useCollectorStatistics = (options = {}) => {
     tableData, // Mantener estructura { plays: [] }
     lotteries,
     schedules,
-    loading, // Cambio: isLoading -> loading
+    loading,
     error,
-    
-    // Estados de cache
-    isDataFromCache,
-    cacheInfo,
     
     // Estados legacy (para compatibilidad hacia atrás)
     isLoading: loading, // Mantener para compatibilidad
     dateRange,
     userId,
+    isDataFromCache: false, // React Query maneja el cache internamente
+    cacheInfo: null, // Ya no se usa
     
     // Funciones (compatibilidad con pantallas)
     loadAllStats,
     applyFilters,
-    
-    // Funciones de cache
-    loadDataFromCache,
-    saveDataToCache,
     clearCache,
     
     // Funciones legacy

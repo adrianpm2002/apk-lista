@@ -7,10 +7,24 @@ import React, { useEffect } from 'react';
 import { Platform, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { AppStateProvider } from './src/contexts/AppStateContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ConnectionStatusIndicator from './src/components/ConnectionStatusIndicator';
+
+// Configuración de React Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // Datos frescos por 5 minutos
+      cacheTime: 60 * 60 * 1000, // Cache en memoria por 1 hora
+      retry: 2, // Reintentar 2 veces en caso de error
+      refetchOnWindowFocus: false, // No refetch al cambiar de ventana
+      refetchOnMount: false, // No refetch al montar si hay cache válido
+    },
+  },
+});
 
 function AppContent() {
   useEffect(() => {
@@ -37,11 +51,13 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppStateProvider>
-        <AppContent />
-      </AppStateProvider>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <AppStateProvider>
+          <AppContent />
+        </AppStateProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 
