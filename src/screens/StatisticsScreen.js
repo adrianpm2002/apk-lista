@@ -1,29 +1,5 @@
-<<<<<<< HEAD
 import React from 'react';
 import RoleBasedStatisticsRouter from './statistics/RoleBasedStatisticsRouter';
-=======
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  RefreshControl,
-  Modal,
-  Dimensions,
-  Platform,
-} from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import useStatistics from '../hooks/useStatistics';
-import { supabase } from '../supabaseClient';
-import StatisticsChart from '../components/StatisticsChart';
-import MultiSelectDropdown from '../components/MultiSelectDropdown';
-import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
-import ScreenWrapper from '../components/ScreenWrapper';
-import { createShadowStyle } from '../utils/shadowUtils';
->>>>>>> e6b5c97 (Fix: Corregir filtro de loterías en estadísticas y reducir altura del botón)
 
 const StatisticsScreen = ({ navigation, route, onModeVisibilityChange }) => {
   return (
@@ -35,12 +11,7 @@ const StatisticsScreen = ({ navigation, route, onModeVisibilityChange }) => {
   );
 };
 
-<<<<<<< HEAD
 export default StatisticsScreen;
-=======
-const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
-  // Estado local para usuario (listeros y colectores)
-  const [currentUserId, setCurrentUserId] = useState(null);
   
   // Para listeros y colectores - estadísticas simplificadas
   

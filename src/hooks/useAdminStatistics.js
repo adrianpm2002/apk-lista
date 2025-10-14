@@ -388,11 +388,9 @@ const useAdminStatistics = (options = {}) => {
     if (!userId) return false;
     
     try {
-      console.log('🔍 [useAdminStatistics] Checking cache for period:', period);
       const cachedResult = await statisticsCacheService.getStatisticsFromCache('admin', period);
       
       if (cachedResult && cachedResult.data) {
-        console.log('✅ [useAdminStatistics] Cache hit - using cached data');
         
         // Agrupar datos para vista de admin
         const groupedData = groupDataForAdmin(cachedResult.data);
@@ -415,11 +413,9 @@ const useAdminStatistics = (options = {}) => {
         return true;
       }
       
-      console.log('❌ [useAdminStatistics] Cache miss - no cached data found');
       setIsDataFromCache(false);
       return false;
     } catch (error) {
-      console.error('❌ [useAdminStatistics] Error loading from cache:', error);
       setIsDataFromCache(false);
       return false;
     }
@@ -429,14 +425,13 @@ const useAdminStatistics = (options = {}) => {
     if (!userId || !data) return;
     
     try {
-      console.log('💾 [useAdminStatistics] Saving data to cache for period:', period);
       await statisticsCacheService.saveStatisticsToCache('admin', data, period);
       
       // Actualizar información del cache
       const info = await statisticsCacheService.getCacheInfo('admin');
       setCacheInfo(info);
     } catch (error) {
-      console.error('❌ [useAdminStatistics] Error saving to cache:', error);
+      // Error silencioso
     }
   }, [userId]);
 
@@ -445,9 +440,8 @@ const useAdminStatistics = (options = {}) => {
       await statisticsCacheService.clearStatisticsCache('admin');
       setIsDataFromCache(false);
       setCacheInfo(null);
-      console.log('🗑️ [useAdminStatistics] Cache cleared');
     } catch (error) {
-      console.error('❌ [useAdminStatistics] Error clearing cache:', error);
+      // Error silencioso
     }
   }, []);
 
@@ -507,7 +501,6 @@ const useAdminStatistics = (options = {}) => {
       setError(null);
       setIsDataFromCache(false); // Marcar que los datos no vienen del cache
       
-      console.log('🔄 [useAdminStatistics] Loading fresh data from database');
       const result = await loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
       
       // Actualizar estados con los datos obtenidos
@@ -550,8 +543,6 @@ const useAdminStatistics = (options = {}) => {
       setLoading(true);
       setError(null);
       setIsDataFromCache(false); // Marcar que los datos no vienen del cache
-      
-      console.log('🔄 [useAdminStatistics] Loading fresh data with filters');
       
       // Si se proporciona un período, convertirlo a fechas
       if (period) {
@@ -735,7 +726,7 @@ const useAdminStatistics = (options = {}) => {
     
     // Usar la función simple que ya funcionaba
     loadAllStats();
-  }, [userId, enabled]); // SOLO estas dos dependencias
+  }, [userId, enabled, loadAllStats]); // Agregado loadAllStats
 
   return {
     // Estados (compatibilidad con pantallas)

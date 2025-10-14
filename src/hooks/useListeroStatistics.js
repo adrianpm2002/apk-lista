@@ -223,13 +223,11 @@ const useListeroStatistics = (options = {}) => {
 
         // Aplicar filtro de lotería si está especificado
         if (lottery) {
-          console.log('🎰 [useListeroStatistics] Filtering by lottery:', lottery, typeof lottery);
           query = query.eq('id_loteria', lottery);
         }
 
         // Aplicar filtro de horario si está especificado
         if (schedule) {
-          console.log('🕐 [useListeroStatistics] Filtering by schedule:', schedule);
           query = query.eq('id_horario', schedule);
         }
         
@@ -277,11 +275,9 @@ const useListeroStatistics = (options = {}) => {
     if (!userId) return false;
     
     try {
-      console.log('🔍 [useListeroStatistics] Checking cache for period:', period);
       const cachedResult = await statisticsCacheService.getStatisticsFromCache('listero', period);
       
       if (cachedResult && cachedResult.data) {
-        console.log('✅ [useListeroStatistics] Cache hit - using cached data');
         
         // Transformar datos para compatibilidad con componentes (similar a loadPlaysData)
         const formattedPlays = (cachedResult.data || [])
@@ -349,11 +345,9 @@ const useListeroStatistics = (options = {}) => {
         return true;
       }
       
-      console.log('❌ [useListeroStatistics] Cache miss - no cached data found');
       setIsDataFromCache(false);
       return false;
     } catch (error) {
-      console.error('❌ [useListeroStatistics] Error loading from cache:', error);
       setIsDataFromCache(false);
       return false;
     }
@@ -363,14 +357,13 @@ const useListeroStatistics = (options = {}) => {
     if (!userId || !data) return;
     
     try {
-      console.log('💾 [useListeroStatistics] Saving data to cache for period:', period);
       await statisticsCacheService.saveStatisticsToCache('listero', data, period);
       
       // Actualizar información del cache
       const info = await statisticsCacheService.getCacheInfo('listero');
       setCacheInfo(info);
     } catch (error) {
-      console.error('❌ [useListeroStatistics] Error saving to cache:', error);
+      // Error silencioso en cache
     }
   }, [userId]);
 
@@ -379,16 +372,14 @@ const useListeroStatistics = (options = {}) => {
       await statisticsCacheService.clearStatisticsCache('listero');
       setIsDataFromCache(false);
       setCacheInfo(null);
-      console.log('🗑️ [useListeroStatistics] Cache cleared');
     } catch (error) {
-      console.error('❌ [useListeroStatistics] Error clearing cache:', error);
+      // Error silencioso
     }
   }, []);
 
   // Función principal para cargar datos de jugadas del listero
   const loadPlaysData = useCallback(async (filters = {}) => {
     try {
-      console.log('📊 [useListeroStatistics] loadPlaysData called with filters:', JSON.stringify(filters, null, 2));
       
       const { period } = filters;
       
@@ -428,7 +419,6 @@ const useListeroStatistics = (options = {}) => {
         return;
       }
       
-      console.log('🔄 [useListeroStatistics] Loading fresh data from database');
       const playsData = await loadListeroPlaysData(userId, filters);
       
       // Transformar datos para compatibilidad con componentes

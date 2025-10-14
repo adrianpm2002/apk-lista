@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { statisticsCacheService } from '../services/statisticsCacheService';
 
@@ -349,11 +349,9 @@ const useCollectorStatistics = (options = {}) => {
     if (!userId) return false;
     
     try {
-      console.log('🔍 [useCollectorStatistics] Checking cache for period:', period);
       const cachedResult = await statisticsCacheService.getStatisticsFromCache('collector', period);
       
       if (cachedResult && cachedResult.data) {
-        console.log('✅ [useCollectorStatistics] Cache hit - using cached data');
         
         // Agrupar datos para vista de colector
         const groupedData = groupDataForCollector(cachedResult.data);
@@ -376,11 +374,9 @@ const useCollectorStatistics = (options = {}) => {
         return true;
       }
       
-      console.log('❌ [useCollectorStatistics] Cache miss - no cached data found');
       setIsDataFromCache(false);
       return false;
     } catch (error) {
-      console.error('❌ [useCollectorStatistics] Error loading from cache:', error);
       setIsDataFromCache(false);
       return false;
     }
@@ -390,14 +386,13 @@ const useCollectorStatistics = (options = {}) => {
     if (!userId || !data) return;
     
     try {
-      console.log('💾 [useCollectorStatistics] Saving data to cache for period:', period);
       await statisticsCacheService.saveStatisticsToCache('collector', data, period);
       
       // Actualizar información del cache
       const info = await statisticsCacheService.getCacheInfo('collector');
       setCacheInfo(info);
     } catch (error) {
-      console.error('❌ [useCollectorStatistics] Error saving to cache:', error);
+      // Error silencioso
     }
   };
 
@@ -406,9 +401,8 @@ const useCollectorStatistics = (options = {}) => {
       await statisticsCacheService.clearStatisticsCache('collector');
       setIsDataFromCache(false);
       setCacheInfo(null);
-      console.log('🗑️ [useCollectorStatistics] Cache cleared');
     } catch (error) {
-      console.error('❌ [useCollectorStatistics] Error clearing cache:', error);
+      // Error silencioso
     }
   };
 
@@ -451,7 +445,6 @@ const useCollectorStatistics = (options = {}) => {
         return;
       }
       
-      console.log('🔄 [useCollectorStatistics] Loading fresh data from database');
       const playsData = await loadCollectorPlaysData(userId, filters);
       
       // Agrupar datos para vista de colector
@@ -487,12 +480,12 @@ const useCollectorStatistics = (options = {}) => {
   };
 
   // Función loadAllStats para compatibilidad
-  const loadAllStats = async () => {
+  const loadAllStats = useCallback(async () => {
     return await loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
-  };
+  }, [dateRange.startDate, dateRange.endDate]);
 
   // Función applyFilters para compatibilidad
-  const applyFilters = async (filters) => {
+  const applyFilters = useCallback(async (filters) => {
     const { period, startDate, endDate, ...otherFilters } = filters;
     
     // Si se proporciona un período, convertirlo a fechas
@@ -538,7 +531,7 @@ const useCollectorStatistics = (options = {}) => {
     }
     
     return await loadPlaysData(filters);
-  };
+  }, [dateRange.startDate, dateRange.endDate]);
 
   // Función para obtener el balance total del banco (suma de balance_colector)
   const getBankBalance = () => {
@@ -629,7 +622,7 @@ const useCollectorStatistics = (options = {}) => {
     if (userId && !loading) {
       loadAllStats();
     }
-  }, [userId, enabled]);
+  }, [userId, enabled, loading, loadAllStats]);
 
   // Efecto para recargar cuando cambie el rango de fechas
   useEffect(() => {
