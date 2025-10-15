@@ -35,9 +35,11 @@ export const useListeroStatistics = (options = {}) => {
   const getViewByPeriod = (period) => {
     switch (period) {
       case 'today':
-        return { viewName: 'v_estadisticas_hoy', isOptimized: true, period: 'hoy' };
+        // HOY: Usar vista base (filtro local desde caché de 7d)
+        return { viewName: 'v_estadisticas', isOptimized: false, period: 'hoy' };
       case 'yesterday':
-        return { viewName: 'v_estadisticas_ayer', isOptimized: true, period: 'ayer' };
+        // AYER: Usar vista base (filtro local desde caché de 7d)
+        return { viewName: 'v_estadisticas', isOptimized: false, period: 'ayer' };
       case 'last7days':
         return { viewName: 'v_estadisticas_7d', isOptimized: true, period: 'últimos 7 días' };
       case 'last30days':
@@ -352,7 +354,7 @@ export const useListeroStatistics = (options = {}) => {
       if (hasCache) {
         const cachedResult = await statisticsCache.readFromCache(userId, cachePeriod);
         if (cachedResult && cachedResult.data && cachedResult.data.length > 0) {
-          console.log(`[useListeroStatistics] ⚡ Caché encontrado (${cachedResult.ageMinutes} min): ${cachedResult.data.length} registros`);
+          console.log(`[useListeroStatistics] ⚡ Caché encontrado (${cachedResult.age} min): ${cachedResult.data.length} registros`);
           
           // 🎯 APLICAR FILTRO LOCAL si es necesario (Hoy/Ayer)
           let dataToFormat = cachedResult.data;
@@ -477,24 +479,31 @@ export const useListeroStatistics = (options = {}) => {
     if (!enabled) return;
     const loadUserData = async () => {
       try {
+        console.log('[useListeroStatistics] 🔐 Cargando userId...');
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+          console.log('[useListeroStatistics] ✅ UserId obtenido:', user.id);
           setUserId(user.id);
+        } else {
+          console.warn('[useListeroStatistics] ⚠️ No se encontró usuario autenticado');
         }
       } catch (error) {
+        console.error('[useListeroStatistics] ❌ Error al cargar userId:', error);
       }
     };
 
     loadUserData();
   }, [enabled]);
 
-  // Efecto para cargar datos cuando se obtiene el userId
-  useEffect(() => {
-    if (!enabled) return;
-    if (userId && !isLoading) {
-      loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
-    }
-  }, [userId, enabled]);
+  // Efecto para cargar datos cuando se obtiene el userId (NO se ejecuta automáticamente)
+  // Este efecto está comentado porque ahora usamos carga progresiva desde StatisticsScreen
+  // useEffect(() => {
+  //   if (!enabled) return;
+  //   if (userId && !isLoading) {
+  //     console.log('[useListeroStatistics] 🚀 UserId disponible, cargando datos iniciales...');
+  //     loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
+  //   }
+  // }, [userId, enabled]);
 
   // Efecto para recargar cuando cambie el rango de fechas
   useEffect(() => {

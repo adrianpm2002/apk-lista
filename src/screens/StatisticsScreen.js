@@ -208,6 +208,19 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   }, [currentUserId]);
 
+  // 🚀 useEffect para carga progresiva automática cuando userId está disponible
+  useEffect(() => {
+    if (currentUserId && userRole === 'listero') {
+      console.log('[StatisticsScreen] 👤 UserId disponible, iniciando carga progresiva en 2 segundos...');
+      // Esperar 2 segundos para que el usuario vea la primera carga
+      const timer = setTimeout(() => {
+        progressiveLoadAllCaches();
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [currentUserId, userRole]);
+
   useEffect(() => {
     if (userRole && (userRole === 'collector' || userRole === 'colector' || userRole === 'admin')) {
       loadAllStats();
@@ -238,6 +251,47 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       await loadAllStats();
     } catch (error) {
       Alert.alert('Error', 'No se pudieron cargar las estadísticas iniciales');
+    }
+  };
+
+  // 🚀 CARGA PROGRESIVA AUTOMÁTICA DE CACHÉS
+  // Al abrir la pantalla, pre-cargar todos los cachés en background
+  const progressiveLoadAllCaches = async () => {
+    if (!currentUserId) {
+      console.log('[StatisticsScreen] ⏸️ No hay userId, saltando carga progresiva');
+      return;
+    }
+
+    // Solo para listero (por ahora)
+    if (userRole !== 'listero') {
+      console.log('[StatisticsScreen] ℹ️ Carga progresiva solo para listero (por ahora)');
+      return;
+    }
+
+    console.log('[StatisticsScreen] 🚀 Iniciando carga progresiva de cachés...');
+
+    try {
+      // 1. Cargar caché de 7 días (el más usado)
+      console.log('[StatisticsScreen] 📥 Paso 1/3: Cargando caché de 7 días...');
+      await loadPlaysData({ period: 'last7days' });
+
+      // Esperar 1 segundo antes de cargar el siguiente
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 2. Cargar caché de mes actual
+      console.log('[StatisticsScreen] 📥 Paso 2/3: Cargando caché de mes actual...');
+      await loadPlaysData({ period: 'last30days' });
+
+      // Esperar 1 segundo antes de cargar el siguiente
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 3. Cargar caché de mes pasado
+      console.log('[StatisticsScreen] 📥 Paso 3/3: Cargando caché de mes pasado...');
+      await loadPlaysData({ period: 'lastMonth' });
+
+      console.log('[StatisticsScreen] ✅ Carga progresiva completada');
+    } catch (error) {
+      console.error('[StatisticsScreen] ❌ Error en carga progresiva:', error);
     }
   };
 

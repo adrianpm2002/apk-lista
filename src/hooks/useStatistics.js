@@ -212,6 +212,12 @@ const useStatistics = () => {
 
   // Funciones de compatibilidad
   const loadAllStats = async () => {
+    // Guard: No ejecutar si no hay userId
+    if (!userId) {
+      console.log('[useStatistics] ⏸️ loadAllStats: No hay userId, saltando...');
+      return;
+    }
+    
     if (activeStats.loadPlaysData) {
       return activeStats.loadPlaysData({
         startDate: activeStats.dateRange?.startDate || new Date(new Date().setHours(0, 0, 0, 0)),
@@ -221,12 +227,24 @@ const useStatistics = () => {
   };
 
   const loadPlaysData = async (filters = {}) => {
+    // Guard: No ejecutar si no hay userId
+    if (!userId) {
+      console.log('[useStatistics] ⏸️ loadPlaysData: No hay userId, saltando...');
+      return;
+    }
+    
     if (activeStats.loadPlaysData) {
       return activeStats.loadPlaysData(filters);
     }
   };
 
   const applyFilters = async (filters = {}) => {
+    // Guard: No ejecutar si no hay userId
+    if (!userId) {
+      console.log('[useStatistics] ⏸️ applyFilters: No hay userId, saltando...');
+      return;
+    }
+    
     if (activeStats.loadPlaysData) {
       // Si recibimos un período específico, pasarlo directamente
       const { period, startDate, endDate, ...rest } = filters || {};
