@@ -1088,6 +1088,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 
                 const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
                 const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
+                const totalGananciaListero = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
                 
                 let totalGanancia = 0;
                 let totalBalance = 0;
@@ -1100,8 +1101,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                   totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
                 }
                 
-                // Cálculo Limpio: Bruto - Ganancia Colector
-                const totalLimpio = totalBruto - totalGanancia;
+                // Cálculo Limpio: Bruto - Ganancia Listero (para todos los roles)
+                const totalLimpio = totalBruto - totalGananciaListero;
                 
                 return (
                   <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
