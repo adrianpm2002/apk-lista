@@ -322,29 +322,33 @@ export const useListeroStatistics = (options = {}) => {
       }
       
       // Determinar el período para el caché
-      // Si es Hoy/Ayer, usar caché 'recent' (7 días) y filtrar localmente
+      // SOLO se cachea 'recent' (7 días) para evitar QuotaExceededError
+      // Períodos largos (mes/mes pasado) siempre se cargan desde Supabase
       let cachePeriod = 'recent'; // Default: 7 días
       let needsLocalFilter = false;
       let localFilterRange = null;
+      let canUseCache = false; // Variable para determinar si se puede usar caché
       
       if (isToday) {
         cachePeriod = 'recent';
         needsLocalFilter = true;
         localFilterRange = statisticsCache.getTodayRange();
+        canUseCache = true;
         console.log('[useListeroStatistics] 📅 Usando caché de 7 días + filtro local para HOY');
       } else if (isYesterday) {
         cachePeriod = 'recent';
         needsLocalFilter = true;
         localFilterRange = statisticsCache.getYesterdayRange();
+        canUseCache = true;
         console.log('[useListeroStatistics] 📅 Usando caché de 7 días + filtro local para AYER');
-      } else if (period === 'last30days' || isFilteringLast30Days(startDate, endDate)) {
-        cachePeriod = 'thisMonth';
-        console.log('[useListeroStatistics] 📅 Usando caché de MES ACTUAL');
-      } else if (period === 'lastMonth' || isFilteringLastMonth(startDate, endDate)) {
-        cachePeriod = 'lastMonth';
-        console.log('[useListeroStatistics] 📅 Usando caché de MES PASADO');
+      } else if (period === 'last7days') {
+        cachePeriod = 'recent';
+        canUseCache = true;
+        console.log('[useListeroStatistics] 📅 Usando caché de 7 DÍAS');
       } else {
-        console.log('[useListeroStatistics] � Usando caché de 7 DÍAS (default)');
+        // Períodos largos: NO cachear, cargar directo desde Supabase
+        canUseCache = false;
+        console.log(`[useListeroStatistics] 📡 Período largo (${period}): carga directa desde Supabase (sin caché)`);
       }
 
       console.log(`[useListeroStatistics] 🔍 Período de caché: ${cachePeriod}, Filtro local: ${needsLocalFilter}, Usa caché: ${canUseCache}`);
