@@ -519,13 +519,16 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 onValueChange={(value) => setSelectedLotteryDetails(value)}
                 style={styles.lotteryDropdown}
                 itemStyle={styles.lotteryDropdownItem}
+                mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
+                dropdownIconColor="#495057"
               >
-                <Picker.Item label="Todas" value="all" />
+                <Picker.Item label="Todas" value="all" color="#2c3e50" />
                 {uniqueLotteries.map(lottery => (
                   <Picker.Item 
                     key={`lottery-details-${lottery}`} 
                     label={lottery} 
-                    value={lottery} 
+                    value={lottery}
+                    color="#2c3e50"
                   />
                 ))}
               </Picker>
@@ -2080,15 +2083,19 @@ const styles = StyleSheet.create({
     borderColor: '#dee2e6',
     borderRadius: 8,
     overflow: 'hidden',
-    minHeight: 40,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   lotteryDropdown: {
-    height: 40,
+    height: Platform.OS === 'ios' ? 44 : 50,
     width: '100%',
+    color: '#2c3e50',
+    fontSize: 14,
   },
   lotteryDropdownItem: {
-    fontSize: 14,
-    height: 40,
+    fontSize: 16,
+    height: 50,
+    color: '#2c3e50',
   },
   customDateRow: {
     flexDirection: 'row',
