@@ -512,41 +512,24 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       <View style={styles.inlineFiltersWrapper}>
         {/* Fila 0: Filtro de Loterías (para listero en gráficos y detalles) */}
         {uniqueLotteries.length > 0 && (
-          <View style={[styles.inlineFiltersRow, { marginBottom: 6 }]}>
-            <Text style={{ fontSize: 12, fontWeight: '600', color: isDarkMode ? '#ecf0f1' : '#495057', marginRight: 8, alignSelf: 'center' }}>
-              Lotería:
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.inlineFilterChipSmall,
-                selectedLotteryDetails === 'all' && styles.inlineFilterChipActive,
-              ]}
-              onPress={() => setSelectedLotteryDetails('all')}
-            >
-              <Text style={[
-                styles.inlineFilterChipTextSmall,
-                selectedLotteryDetails === 'all' && styles.inlineFilterChipTextActive,
-              ]}>
-                Todas
-              </Text>
-            </TouchableOpacity>
-            {uniqueLotteries.map(lottery => (
-              <TouchableOpacity
-                key={`lottery-details-${lottery}`}
-                style={[
-                  styles.inlineFilterChipSmall,
-                  selectedLotteryDetails === lottery && styles.inlineFilterChipActive,
-                ]}
-                onPress={() => setSelectedLotteryDetails(lottery)}
+          <View style={[styles.inlineFiltersRow, { marginBottom: 6, alignItems: 'center' }]}>
+            <View style={styles.lotteryDropdownContainer}>
+              <Picker
+                selectedValue={selectedLotteryDetails}
+                onValueChange={(value) => setSelectedLotteryDetails(value)}
+                style={styles.lotteryDropdown}
+                itemStyle={styles.lotteryDropdownItem}
               >
-                <Text style={[
-                  styles.inlineFilterChipTextSmall,
-                  selectedLotteryDetails === lottery && styles.inlineFilterChipTextActive,
-                ]} numberOfLines={1}>
-                  {lottery.length > 12 ? lottery.substring(0, 12) + '...' : lottery}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                <Picker.Item label="🎰 Todas las loterías" value="all" />
+                {uniqueLotteries.map(lottery => (
+                  <Picker.Item 
+                    key={`lottery-details-${lottery}`} 
+                    label={`🎰 ${lottery}`} 
+                    value={lottery} 
+                  />
+                ))}
+              </Picker>
+            </View>
           </View>
         )}
         
@@ -2089,6 +2072,23 @@ const styles = StyleSheet.create({
   filterChipCompactTextActive: {
     color: '#ffffff',
     fontWeight: '600',
+  },
+  lotteryDropdownContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 8,
+    overflow: 'hidden',
+    minHeight: 40,
+  },
+  lotteryDropdown: {
+    height: 40,
+    width: '100%',
+  },
+  lotteryDropdownItem: {
+    fontSize: 14,
+    height: 40,
   },
   customDateRow: {
     flexDirection: 'row',
