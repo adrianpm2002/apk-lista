@@ -247,7 +247,7 @@ export const useAdminStatistics = (options = {}) => {
       // ============================================
       const cachedData = await readFromCache(userId, cachePeriod, 'admin');
       
-      if (cachedData) {
+      if (cachedData && cachedData._metadata) {
         const metadata = cachedData._metadata;
         const cacheAge = (Date.now() - metadata.timestamp) / (1000 * 60); // minutos
         

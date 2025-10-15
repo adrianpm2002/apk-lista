@@ -239,7 +239,7 @@ export const useCollectorStatistics = (options = {}) => {
       // ============================================
       const cachedData = await readFromCache(userId, cachePeriod, 'collector');
       
-      if (cachedData) {
+      if (cachedData && cachedData._metadata) {
         const metadata = cachedData._metadata;
         const cacheAge = (Date.now() - metadata.timestamp) / (1000 * 60); // minutos
         
