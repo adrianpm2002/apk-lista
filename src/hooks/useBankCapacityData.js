@@ -35,7 +35,7 @@ export function useBankCapacityData(bankId, options = {}) {
       // Filtrar filas con numero = null (son límites por defecto, no para mostrar)
       const validCapacities = capacities.filter(cap => cap.numero !== null && cap.numero !== '' && cap.numero !== undefined);
       
-      // Agrupar por horario+jugada+numero y sumar límites de todos los listeros
+      // Agrupar por horario+jugada+numero
       const aggregated = new Map();
       
       validCapacities.forEach(cap => {
@@ -49,20 +49,14 @@ export function useBankCapacityData(bankId, options = {}) {
             horarioNombre: cap.nombre_horario,
             jugada: cap.jugada,
             numero: cap.numero,
-            limite: 0,
-            usado: cap.bank_used_total || 0, // Uso total del banco (mismo en todas las filas)
+            usado: cap.bank_used_total || 0, // Uso total del banco
             abierto: true // La vista ya filtra por horarios abiertos
           });
         }
-        
-        const item = aggregated.get(key);
-        // Sumar límites efectivos de todos los listeros para obtener capacidad total del banco
-        item.limite += cap.effective_limit_listero || 0;
       });
 
-      // Convertir a array y calcular porcentajes
+      // Convertir a array
       const rows = Array.from(aggregated.values()).map(item => {
-        const pct = Math.min(100, item.limite ? (item.usado / item.limite) * 100 : 0);
         
         // Formatear número según la jugada (con validación adicional)
         let formattedNumber = item.numero || '';
@@ -78,8 +72,7 @@ export function useBankCapacityData(bankId, options = {}) {
         
         return {
           ...item,
-          numero: formattedNumber,
-          porcentaje: pct
+          numero: formattedNumber
         };
       });
 
@@ -89,8 +82,8 @@ export function useBankCapacityData(bankId, options = {}) {
         return true;
       });
 
-      // Ordenar por porcentaje descendente
-      filteredRows.sort((a, b) => b.porcentaje - a.porcentaje);
+      // Ordenar por usado descendente
+      filteredRows.sort((a, b) => b.usado - a.usado);
       
       setCapacityData(filteredRows);
       

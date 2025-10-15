@@ -22,6 +22,7 @@ const BankCapacityScreen = ({ navigation }) => {
   const [lotteryFilter, setLotteryFilter] = useState(null);
   const [scheduleFilter, setScheduleFilter] = useState(null);
   const [playTypeFilter, setPlayTypeFilter] = useState(null);
+  const [boteFilter, setBoteFilter] = useState('');
 
   // Labels para tipos de jugada
   const playTypeLabels = {
@@ -103,48 +104,56 @@ const BankCapacityScreen = ({ navigation }) => {
     return true;
   }), [capacityData, lotteryFilter, scheduleFilter, playTypeFilter]);
 
-  const filteredData = internallyFiltered.filter(item => 
-    !searchTerm || item.numero?.includes?.(searchTerm)
-  );
-
-  const sortedData = [...filteredData].sort((a, b) => {
-    if (sortBy === 'capacity') return b.porcentaje - a.porcentaje;
-    return parseInt(a.numero) - parseInt(b.numero);
+  const filteredData = internallyFiltered.filter(item => {
+    // Filtro de búsqueda
+    if (searchTerm && !item.numero?.includes?.(searchTerm)) return false;
+    
+    // Filtro de bote: solo mostrar números que exceden el bote
+    if (boteFilter) {
+      const boteAmount = parseFloat(boteFilter);
+      if (!isNaN(boteAmount) && item.usado <= boteAmount) return false;
+    }
+    
+    return true;
   });
 
-  const getCapacityColor = (pct) => 
-    pct >= 80 ? '#E74C3C' : pct >= 60 ? '#F39C12' : pct >= 40 ? '#F1C40F' : '#27AE60';
+  const sortedData = [...filteredData].sort((a, b) => {
+    if (sortBy === 'capacity') return b.usado - a.usado; // Ordenar por cantidad usada
+    return parseInt(a.numero) - parseInt(b.numero);
+  });
 
   const handleBack = () => {
     navigation.goBack();
   };
 
-  const renderCapacityItem = ({ item }) => (
-    <View style={styles.capacityItem}>
-      <View style={styles.numberContainer}>
-        <Text style={styles.numberText}>{item.numero}</Text>
-      </View>
-      <View style={styles.capacityInfo}>
-        <View style={styles.capacityBar}>
-          <View style={[
-            styles.capacityFill,
-            {
-              width: `${item.porcentaje}%`,
-              backgroundColor: getCapacityColor(item.porcentaje)
-            }
-          ]} />
+  const renderCapacityItem = ({ item }) => {
+    // Calcular el monto a mostrar (excedente si hay filtro bote, usado si no)
+    let displayAmount = item.usado;
+    if (boteFilter) {
+      const boteAmount = parseFloat(boteFilter);
+      if (!isNaN(boteAmount)) {
+        displayAmount = item.usado - boteAmount;
+      }
+    }
+    
+    return (
+      <View style={styles.capacityItem}>
+        <View style={styles.numberContainer}>
+          <Text style={styles.numberText}>{item.numero}</Text>
         </View>
-        <Text style={styles.capacityText}>
-          ${item.usado.toLocaleString()} / ${item.limite?.toLocaleString?.() || '—'}
-        </Text>
-        <Text style={styles.metaText}>
-          <Text style={styles.metaStrong}>{item.loteriaNombre}</Text> · 
-          <Text style={styles.metaStrong}> {item.horarioNombre}</Text> · 
-          <Text style={styles.metaJug}> {(playTypeLabels[item.jugada] || item.jugada).toUpperCase()}</Text>
-        </Text>
+        <View style={styles.capacityInfo}>
+          <Text style={styles.capacityText}>
+            ${displayAmount.toFixed(2)}
+          </Text>
+          <Text style={styles.metaText}>
+            <Text style={styles.metaStrong}>{item.loteriaNombre}</Text> · 
+            <Text style={styles.metaStrong}> {item.horarioNombre}</Text> · 
+            <Text style={styles.metaJug}> {(playTypeLabels[item.jugada] || item.jugada).toUpperCase()}</Text>
+          </Text>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -219,6 +228,34 @@ const BankCapacityScreen = ({ navigation }) => {
             />
           </View>
         )}
+
+        {/* Filtro de Bote */}
+        <View style={styles.boteContainer}>
+          <Text style={styles.boteLabel}>Filtro Bote:</Text>
+          <TextInput
+            style={styles.boteInput}
+            placeholder="$0.00"
+            value={boteFilter}
+            onChangeText={text => {
+              // Solo permitir números y punto decimal
+              let clean = text.replace(/[^\d.]/g, '');
+              const parts = clean.split('.');
+              if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
+              if (parts[1]) clean = parts[0] + '.' + parts[1].slice(0, 2);
+              setBoteFilter(clean);
+            }}
+            keyboardType="numeric"
+            placeholderTextColor="#95A5A6"
+          />
+          {boteFilter && (
+            <Pressable 
+              style={styles.clearBoteButton}
+              onPress={() => setBoteFilter('')}
+            >
+              <Text style={styles.clearBoteText}>✕</Text>
+            </Pressable>
+          )}
+        </View>
 
         {showFilters && (
           <View style={styles.filtersPanel}>
@@ -458,6 +495,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#F8F9FA',
   },
+  boteContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+  },
+  boteLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#495057',
+    marginRight: 12,
+  },
+  boteInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#DEE2E6',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 16,
+    backgroundColor: '#F8F9FA',
+  },
+  clearBoteButton: {
+    marginLeft: 8,
+    width: 32,
+    height: 32,
+    backgroundColor: '#E74C3C',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clearBoteText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
   filtersPanel: {
     padding: 12,
     backgroundColor: '#FFFFFF',
@@ -575,17 +650,6 @@ const styles = StyleSheet.create({
   },
   capacityInfo: {
     flex: 1,
-  },
-  capacityBar: {
-    height: 8,
-    backgroundColor: '#E9ECEF',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  capacityFill: {
-    height: '100%',
-    borderRadius: 4,
   },
   capacityText: {
     fontSize: 16,
