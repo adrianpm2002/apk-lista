@@ -1528,7 +1528,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                       <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(listero.total_bruto)}</Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 100 }]}>
-                      <Text style={[styles.excelCell, { color: '#3498db' }]} numberOfLines={1}>
+                      <Text style={styles.excelCell} numberOfLines={1}>
                         {formatSantiagoMoney(listero.total_bruto - listero.total_ganancia_listero)}
                       </Text>
                     </View>
@@ -2046,7 +2046,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     </View>
                     {(userRole === 'collector' || userRole === 'admin') && (
                       <View style={[styles.excelCellContainer, { width: 80 }]}>
-                        <Text style={[styles.excelCell, { color: '#3498db' }]} numberOfLines={1}>
+                        <Text style={styles.excelCell} numberOfLines={1}>
                           {formatSantiagoMoney(g.totalRecogido - (g.totalGananciaListero || 0))}
                         </Text>
                       </View>
