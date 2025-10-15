@@ -254,6 +254,7 @@ const useStatistics = () => {
     userRole,
     userId,
     loading: activeStats.isLoading || false,
+    isRefreshing: activeStats.isRefreshing || false,
     error: null,
 
     // Datos formateados para compatibilidad
