@@ -512,7 +512,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         {/* Fila 0: Filtro de Loterías (solo para listero en tab de detalles) */}
         {uniqueLotteries.length > 0 && (
           <View style={[styles.inlineFiltersRow, { marginBottom: 6 }]}>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#ecf0f1' : '#495057', marginRight: 8, alignSelf: 'center' }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#495057', marginRight: 8, alignSelf: 'center' }}>
               🎰
             </Text>
             <TouchableOpacity
