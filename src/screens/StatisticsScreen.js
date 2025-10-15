@@ -502,8 +502,53 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     // Preparar opciones de horario (sin "Todos")
     const scheduleOptions = (lotterySchedules || []).map(sch => ({ label: sch.nombre, value: sch.id }));
 
+    // Obtener loterías únicas del cache solo para listero en tab de detalles
+    const uniqueLotteries = (userRole === 'listero' && activeTab === 'details' && tableData?.plays) 
+      ? [...new Set(tableData.plays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort()
+      : [];
+
     return (
       <View style={styles.inlineFiltersWrapper}>
+        {/* Fila 0: Filtro de Loterías (solo para listero en tab de detalles) */}
+        {uniqueLotteries.length > 0 && (
+          <View style={[styles.inlineFiltersRow, { marginBottom: 6 }]}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#ecf0f1' : '#495057', marginRight: 8, alignSelf: 'center' }}>
+              🎰
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.inlineFilterChipSmall,
+                selectedLotteryDetails === 'all' && styles.inlineFilterChipActive,
+              ]}
+              onPress={() => setSelectedLotteryDetails('all')}
+            >
+              <Text style={[
+                styles.inlineFilterChipTextSmall,
+                selectedLotteryDetails === 'all' && styles.inlineFilterChipTextActive,
+              ]}>
+                Todas
+              </Text>
+            </TouchableOpacity>
+            {uniqueLotteries.map(lottery => (
+              <TouchableOpacity
+                key={`lottery-details-${lottery}`}
+                style={[
+                  styles.inlineFilterChipSmall,
+                  selectedLotteryDetails === lottery && styles.inlineFilterChipActive,
+                ]}
+                onPress={() => setSelectedLotteryDetails(lottery)}
+              >
+                <Text style={[
+                  styles.inlineFilterChipTextSmall,
+                  selectedLotteryDetails === lottery && styles.inlineFilterChipTextActive,
+                ]} numberOfLines={1}>
+                  {lottery.length > 12 ? lottery.substring(0, 12) + '...' : lottery}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        
         {/* Primera fila: Filtros de período básicos */}
         <View style={styles.inlineFiltersRow}>
           {firstRowOptions.map(opt => (
@@ -1234,44 +1279,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
         return (
           <View style={{ paddingHorizontal:8 }}>
-            {/* Filtro de Loterías */}
-            <View style={{ marginBottom: 12, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: isDarkMode ? '#ecf0f1' : '#495057', marginRight: 8 }}>
-                Lotería:
-              </Text>
-              <TouchableOpacity
-                style={[
-                  styles.inlineFilterChipSmall,
-                  selectedLotteryDetails === 'all' && styles.inlineFilterChipActive,
-                ]}
-                onPress={() => setSelectedLotteryDetails('all')}
-              >
-                <Text style={[
-                  styles.inlineFilterChipTextSmall,
-                  selectedLotteryDetails === 'all' && styles.inlineFilterChipTextActive,
-                ]}>
-                  Todas
-                </Text>
-              </TouchableOpacity>
-              {uniqueLotteries.map(lottery => (
-                <TouchableOpacity
-                  key={lottery}
-                  style={[
-                    styles.inlineFilterChipSmall,
-                    selectedLotteryDetails === lottery && styles.inlineFilterChipActive,
-                  ]}
-                  onPress={() => setSelectedLotteryDetails(lottery)}
-                >
-                  <Text style={[
-                    styles.inlineFilterChipTextSmall,
-                    selectedLotteryDetails === lottery && styles.inlineFilterChipTextActive,
-                  ]}>
-                    {lottery}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            
             <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
               <View style={styles.excelTable}>
                 <View style={styles.excelHeaderRow}>
