@@ -280,24 +280,53 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   // Función para agregar parles
   const agregarParle = () => {
     if (parleInput && precioParle) {
-      // Extraer números individuales (cada grupo de 4 dígitos)
-      const numerosArray = (parleInput.replace(/\D/g, '').match(/.{4}/g) || []);
-      if (numerosArray.length > 0) {
-        const precio = parseFloat(precioParle);
-        // Lógica corregida: candado abierto = precio individual, candado cerrado = precio total
-        const nuevasJugadas = numerosArray.map(num => ({
-          id: nextId + numerosArray.indexOf(num), // ID único
-          numeros: [num],
-          precioIndividual: candadoAbierto ? precio : precio / numerosArray.length,
-          precioTotal: candadoAbierto ? precio * numerosArray.length : precio,
-          esPrecioTotal: !candadoAbierto
-        }));
-        setJugadasParles([...jugadasParles, ...nuevasJugadas]);
-        setNextId(nextId + numerosArray.length);
-        // Limpiar inputs
-        setParleInput('');
-        setPrecioParle('');
+      const precio = parseFloat(precioParle);
+      if (isNaN(precio) || precio <= 0) {
+        Alert.alert("Error", "Ingresa un precio válido.");
+        return;
       }
+      
+      let numerosArray = [];
+      
+      if (candadoAbierto) {
+        // Candado abierto: agrupar en números de 4 dígitos
+        numerosArray = (parleInput.replace(/\D/g, '').match(/.{4}/g) || []);
+        if (numerosArray.length === 0) {
+          Alert.alert("Error", "Ingresa al menos un número de 4 dígitos.");
+          return;
+        }
+      } else {
+        // Candado cerrado: agrupar en números de 2 dígitos y generar todas las combinaciones
+        const pares = (parleInput.replace(/\D/g, '').match(/.{2}/g) || []);
+        if (pares.length < 2) {
+          Alert.alert("Error", "Ingresa al menos dos números de 2 dígitos.");
+          return;
+        }
+        
+        // Generar todas las combinaciones C(n,2)
+        for (let i = 0; i < pares.length; i++) {
+          for (let j = i + 1; j < pares.length; j++) {
+            numerosArray.push(pares[i] + pares[j]);
+          }
+        }
+      }
+      
+      const precioIndividual = parseFloat((precio / numerosArray.length).toFixed(2));
+      const precioTotal = parseFloat((precioIndividual * numerosArray.length).toFixed(2));
+      
+      const nuevasJugadas = numerosArray.map((num, idx) => ({
+        id: nextId + idx,
+        numeros: [num],
+        precioIndividual: precioIndividual,
+        precioTotal: precioTotal,
+        esPrecioTotal: !candadoAbierto
+      }));
+      
+      setJugadasParles([...jugadasParles, ...nuevasJugadas]);
+      setNextId(nextId + numerosArray.length);
+      // Limpiar inputs
+      setParleInput('');
+      setPrecioParle('');
     }
   };
   
@@ -753,18 +782,24 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                 <View style={{ flexDirection: 'column', alignItems: 'center', width: '100%', gap: 8 }}>
                   <TextInput
                     style={styles.input}
-                    placeholder="#"
+                    placeholder={candadoAbierto ? "1234 5678" : "12 34 56"}
                     placeholderTextColor="#7f8c8d"
                     value={parleInput}
                     onChangeText={text => {
-                      // Solo dígitos, máximo 20 caracteres
-                      let clean = text.replace(/\D/g, '').slice(0, 20);
-                      // Insertar espacio cada 4 dígitos
-                      let formatted = clean.replace(/(.{4})/g, '$1 ').trim();
+                      // Solo dígitos, sin límite
+                      let clean = text.replace(/\D/g, '');
+                      // Insertar espacio según el estado del candado
+                      let formatted;
+                      if (candadoAbierto) {
+                        // Espacio cada 4 dígitos
+                        formatted = clean.replace(/(.{4})/g, '$1 ').trim();
+                      } else {
+                        // Espacio cada 2 dígitos
+                        formatted = clean.replace(/(.{2})/g, '$1 ').trim();
+                      }
                       setParleInput(formatted);
                     }}
                     keyboardType="numeric"
-                    maxLength={24} // 20 dígitos + 4 espacios
                   />
                   <TextInput
                     style={styles.input}
@@ -789,7 +824,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                     </Text>
                   </TouchableOpacity>
                   <Text style={styles.candadoLabel}>
-                    {candadoAbierto ? 'Precio individual' : 'Precio total'}
+                    {candadoAbierto ? 'Desactivado' : 'Candado'}
                   </Text>
                   <TouchableOpacity 
                     style={styles.addButton}
