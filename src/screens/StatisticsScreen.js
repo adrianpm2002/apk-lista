@@ -1632,6 +1632,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         const colectorTotals = {
           total_bruto: 0,
           total_premio: 0,
+          total_ganancia_listero: 0,
           total_ganancia_colector: 0,
           balance_colector: 0
         };
@@ -1639,6 +1640,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         filteredListeros.forEach(listero => {
           colectorTotals.total_bruto += Number(listero.total_bruto || 0);
           colectorTotals.total_premio += Number(listero.total_premio || 0);
+          colectorTotals.total_ganancia_listero += Number(listero.total_ganancia_listero || 0);
           colectorTotals.total_ganancia_colector += Number(listero.total_ganancia_colector || 0);
           colectorTotals.balance_colector += Number(listero.balance_colector || 0);
         });
@@ -1683,6 +1685,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Colector</Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Bruto')}</Text>
+              <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Limpio')}</Text>
               <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Gan. Colector')}</Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Premios</Text>
               <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Balance')}</Text>
@@ -1709,6 +1712,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     <View style={[styles.excelCellContainer, { width: 100 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(colector.total_bruto)}</Text>
                     </View>
+                    <View style={[styles.excelCellContainer, { width: 100 }]}>
+                      <Text style={styles.excelCell} numberOfLines={1}>
+                        {formatSantiagoMoney((colector.total_bruto || 0) - (colector.total_ganancia_listero || 0))}
+                      </Text>
+                    </View>
                     <View style={[styles.excelCellContainer, { width: 110 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(colector.total_ganancia_colector)}</Text>
                     </View>
@@ -1730,6 +1738,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                         <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
                         <Text style={[styles.excelHeaderCell, { width: 100 }]}>Listero</Text>
                         <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Bruto')}</Text>
+                        <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Limpio')}</Text>
                         <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Gan. Listero')}</Text>
                         <Text style={[styles.excelHeaderCell, { width: 100 }]}>Premios</Text>
                         <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Bal. Listero')}</Text>
@@ -1758,6 +1767,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                               </View>
                               <View style={[styles.excelCellContainer, { width: 100 }]}>
                                 <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(listero.total_bruto)}</Text>
+                              </View>
+                              <View style={[styles.excelCellContainer, { width: 100 }]}>
+                                <Text style={styles.excelCell} numberOfLines={1}>
+                                  {formatSantiagoMoney((listero.total_bruto || 0) - (listero.total_ganancia_listero || 0))}
+                                </Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 110 }]}>
                                 <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(listero.total_ganancia_listero)}</Text>
