@@ -511,6 +511,7 @@ export const useAdminStatistics = (options = {}) => {
       // Calcular totales del colector
       collector.total_bruto = collector.raw_plays.reduce((sum, play) => sum + (play.monto_total || 0), 0);
       collector.total_premio = collector.raw_plays.reduce((sum, play) => sum + (play.monto_a_pagar || 0), 0);
+      collector.total_ganancia_listero = collector.raw_plays.reduce((sum, play) => sum + (play.ganancia_listero || 0), 0);
       collector.total_ganancia_colector = collector.raw_plays.reduce((sum, play) => sum + (play.ganancia_colector || 0), 0);
       collector.balance_colector = collector.raw_plays.reduce((sum, play) => sum + (play.balance_colector || 0), 0);
     });
