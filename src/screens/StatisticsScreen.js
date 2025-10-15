@@ -1499,6 +1499,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 30 }]}></Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Listero</Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Bruto')}</Text>
+              <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Limpio')}</Text>
               <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Gan. Listeros')}</Text>
               <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Gan. Colector')}</Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Premios</Text>
@@ -1525,6 +1526,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     </View>
                     <View style={[styles.excelCellContainer, { width: 100 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(listero.total_bruto)}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 100 }]}>
+                      <Text style={[styles.excelCell, { color: '#3498db' }]} numberOfLines={1}>
+                        {formatSantiagoMoney(listero.total_bruto - listero.total_ganancia_listero)}
+                      </Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 110 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(listero.total_ganancia_listero)}</Text>
@@ -1978,6 +1984,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 70 }]}>Horario</Text>
               <Text style={[styles.excelHeaderCell, { width: 80 }]}>Resultado</Text>
               <Text style={[styles.excelHeaderCell, { width: 80 }]}>{getSantiagoHeader('Bruto')}</Text>
+              {(userRole === 'collector' || userRole === 'admin') && (
+                <Text style={[styles.excelHeaderCell, { width: 80 }]}>{getSantiagoHeader('Limpio')}</Text>
+              )}
               {(userRole === 'collector' || userRole === 'admin') ? (
                 <>
                   <Text style={[styles.excelHeaderCell, { width: 80 }]}>{getSantiagoHeader('Gan. Listero')}</Text>
@@ -2035,6 +2044,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     <View style={[styles.excelCellContainer, { width: 80 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(g.totalRecogido)}</Text>
                     </View>
+                    {(userRole === 'collector' || userRole === 'admin') && (
+                      <View style={[styles.excelCellContainer, { width: 80 }]}>
+                        <Text style={[styles.excelCell, { color: '#3498db' }]} numberOfLines={1}>
+                          {formatSantiagoMoney(g.totalRecogido - (g.totalGananciaListero || 0))}
+                        </Text>
+                      </View>
+                    )}
                     {(userRole === 'collector' || userRole === 'admin') ? (
                       <>
                         <View style={[styles.excelCellContainer, { width: 80 }]}>
