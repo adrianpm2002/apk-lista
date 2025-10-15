@@ -208,37 +208,36 @@ export const useAdminStatistics = (options = {}) => {
   const loadAdminPlaysData = async (userId, filters = {}) => {
     try {
       if (!userId) {
-        console.log('[useAdminStatistics] userId no proporcionado');
         return [];
       }
 
-      const { period, startDate, endDate } = filters;
+      const { period, startDate, endDate, forceRefresh = false } = filters;
       
-      console.log('[useAdminStatistics] Cargando datos para período:', period);
+      // Si forceRefresh es true, saltar toda la lógica de caché y consultar directamente
+      if (forceRefresh) {
+        const freshData = await fetchAdminDataFromSupabase(userId, filters);
+        const cachePeriod = normalizePeriodForCache(period);
+        await saveToCache(userId, cachePeriod, freshData, 'admin');
+        return freshData;
+      }
       
       // Normalizar período para caché (last7days -> recent)
       const cachePeriod = normalizePeriodForCache(period);
-      console.log('[useAdminStatistics] Período para caché:', cachePeriod);
       
       // ============================================
       // OPTIMIZACIÓN 1: Filtrado local desde caché
       // ============================================
       // Si es filtro de hoy o ayer, intentar filtrar localmente desde caché de 7 días
       if (period === 'today' || period === 'yesterday') {
-        console.log('[useAdminStatistics] Intentando filtrar localmente desde caché de 7 días...');
         const cached7Days = await readFromCache(userId, 'recent', 'admin');
         
         if (cached7Days) {
-          console.log('[useAdminStatistics] ✓ Caché de 7 días encontrado, filtrando localmente');
           const range = period === 'today' ? getTodayRange() : getYesterdayRange();
           const filteredData = filterByDateRange(cached7Days, range.start, range.end, 'fecha_jugada');
           
           if (filteredData && filteredData.length >= 0) {
-            console.log(`[useAdminStatistics] ✓ Filtrado local exitoso: ${filteredData.length} registros`);
             return filteredData;
           }
-        } else {
-          console.log('[useAdminStatistics] Caché de 7 días no disponible, consultando Supabase');
         }
       }
       
@@ -251,30 +250,21 @@ export const useAdminStatistics = (options = {}) => {
         const metadata = cachedData._metadata;
         const cacheAge = (Date.now() - metadata.timestamp) / (1000 * 60); // minutos
         
-        console.log(`[useAdminStatistics] ✓ Caché encontrado (${cacheAge.toFixed(1)} min)`);
-        
         // Si el caché es reciente (< 10 min), usarlo directamente
         if (cacheAge < CACHE_REFRESH_THRESHOLD) {
-          console.log('[useAdminStatistics] ✓ Caché fresco, usando datos cacheados');
-          // Eliminar metadata antes de retornar
           const { _metadata, ...data } = cachedData;
           return data.plays || [];
         }
         
         // Si el caché es antiguo pero no demasiado (< 60 min), usarlo y refrescar en segundo plano
         if (cacheAge < 60) {
-          console.log('[useAdminStatistics] Caché antiguo, usando y refrescando en segundo plano');
-          
-          // Retornar datos cacheados inmediatamente
           const { _metadata, ...data } = cachedData;
           
           // Refrescar en segundo plano (sin await)
           (async () => {
             try {
-              console.log('[useAdminStatistics] 🔄 Iniciando refresco en segundo plano...');
               const freshData = await fetchAdminDataFromSupabase(userId, filters);
               await saveToCache(userId, cachePeriod, freshData, 'admin');
-              console.log('[useAdminStatistics] ✓ Refresco en segundo plano completado');
             } catch (err) {
               console.error('[useAdminStatistics] Error en refresco:', err.message);
             }
@@ -282,10 +272,6 @@ export const useAdminStatistics = (options = {}) => {
           
           return data.plays || [];
         }
-        
-        console.log('[useAdminStatistics] Caché muy antiguo, consultando Supabase');
-      } else {
-        console.log('[useAdminStatistics] Sin caché, consultando Supabase');
       }
       
       // ============================================
@@ -295,16 +281,11 @@ export const useAdminStatistics = (options = {}) => {
       
       // Guardar en caché según plataforma
       if (isMobile) {
-        // APK/IPA: Cachear todo sin límites
-        console.log('[useAdminStatistics] APK/IPA: Cacheando período:', cachePeriod);
         await saveToCache(userId, cachePeriod, freshData, 'admin');
       } else if (isWeb || isExpoGo) {
         // Expo Go/Web: Solo cachear 'recent' (7 días)
         if (cachePeriod === 'recent') {
-          console.log('[useAdminStatistics] Expo Go/Web: Cacheando solo período "recent"');
           await saveToCache(userId, cachePeriod, freshData, 'admin');
-        } else {
-          console.log('[useAdminStatistics] Expo Go/Web: Omitiendo caché para período:', cachePeriod);
         }
       }
       
@@ -393,12 +374,10 @@ export const useAdminStatistics = (options = {}) => {
         
         // Límite de seguridad para evitar bucles infinitos
         if (page > 250) { // Hasta 1.25M registros
-          console.log('[useAdminStatistics] Límite de páginas alcanzado (250)');
           break;
         }
       }
       
-      console.log(`[useAdminStatistics] ✓ ${allPlaysData.length} registros obtenidos de Supabase`);
       return allPlaysData || [];
       
     } catch (error) {

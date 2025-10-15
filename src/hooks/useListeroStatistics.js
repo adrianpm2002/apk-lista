@@ -311,26 +311,37 @@ export const useListeroStatistics = (options = {}) => {
     try {
       // Prevenir ejecuciones concurrentes
       if (isLoading) {
-        console.log('[useListeroStatistics] ⏸️ Ya hay una carga en progreso, saltando...');
         return;
       }
       
       if (!userId) {
-        console.warn('[useListeroStatistics] ⚠️ No hay userId, no se puede cargar datos');
         setIsLoading(false);
         return;
       }
 
-      const { period, startDate, endDate } = filters;
+      const { period, startDate, endDate, forceRefresh = false } = filters;
+      
+      // Si forceRefresh es true, saltar toda la lógica de caché y consultar directamente
+      if (forceRefresh) {
+        setIsLoading(true);
+        const freshData = await loadListeroPlaysData(userId, filters);
+        const formattedPlays = formatPlaysData(freshData);
+        setTableData(prev => ({ ...prev, plays: formattedPlays }));
+        
+        // Guardar en caché si es un período cacheable
+        const cachePeriod = period === 'today' || period === 'yesterday' ? 'recent' : period;
+        if (cachePeriod === 'recent' || cachePeriod === 'last7days') {
+          await statisticsCache.saveToCache(userId, cachePeriod, freshData);
+        }
+        
+        setIsLoading(false);
+        return formattedPlays;
+      }
       
       // 🔍 DETECCIÓN DE FILTROS LOCALES (Hoy/Ayer)
       const isToday = period === 'today' || isFilteringToday(startDate, endDate);
       const isYesterday = period === 'yesterday' || isFilteringYesterday(startDate, endDate);
       const useLocalFilter = isToday || isYesterday;
-      
-      if (useLocalFilter) {
-        console.log(`[useListeroStatistics] 🎯 Filtro local detectado: ${isToday ? 'HOY' : 'AYER'}`);
-      }
       
       // Determinar el período para el caché
       // MOBILE (Android/iOS): Cachea TODO (AsyncStorage ilimitado)
@@ -345,44 +356,24 @@ export const useListeroStatistics = (options = {}) => {
         needsLocalFilter = true;
         localFilterRange = statisticsCache.getTodayRange();
         canUseCache = true;
-        console.log('[useListeroStatistics] 📅 Usando caché de 7 días + filtro local para HOY');
       } else if (isYesterday) {
         cachePeriod = 'recent';
         needsLocalFilter = true;
         localFilterRange = statisticsCache.getYesterdayRange();
         canUseCache = true;
-        console.log('[useListeroStatistics] 📅 Usando caché de 7 días + filtro local para AYER');
       } else if (period === 'last7days') {
         cachePeriod = 'recent';
         canUseCache = true;
-        console.log('[useListeroStatistics] 📅 Usando caché de 7 DÍAS');
       } else if (period === 'last30days' || isFilteringLast30Days(startDate, endDate)) {
         cachePeriod = 'thisMonth';
-        // APK/IPA: cachea, EXPO GO/WEB: no cachea
         canUseCache = isMobile;
-        if (isMobile) {
-          console.log('[useListeroStatistics] 📱 APK/IPA: Usando caché de MES ACTUAL');
-        } else {
-          const platform = isExpoGo ? 'Expo Go' : 'Web';
-          console.log(`[useListeroStatistics] 🌐 ${platform}: Carga directa de MES ACTUAL (sin caché)`);
-        }
       } else if (period === 'lastMonth' || isFilteringLastMonth(startDate, endDate)) {
         cachePeriod = 'lastMonth';
-        // APK/IPA: cachea, EXPO GO/WEB: no cachea
         canUseCache = isMobile;
-        if (isMobile) {
-          console.log('[useListeroStatistics] 📱 APK/IPA: Usando caché de MES PASADO');
-        } else {
-          const platform = isExpoGo ? 'Expo Go' : 'Web';
-          console.log(`[useListeroStatistics] 🌐 ${platform}: Carga directa de MES PASADO (sin caché)`);
-        }
       } else {
         // Períodos custom: NO cachear en ninguna plataforma
         canUseCache = false;
-        console.log(`[useListeroStatistics] 📡 Período custom (${period}): carga directa desde Supabase (sin caché)`);
       }
-
-      console.log(`[useListeroStatistics] 🔍 Período de caché: ${cachePeriod}, Filtro local: ${needsLocalFilter}, Usa caché: ${canUseCache}`);
       
       // PASO 1: Intentar cargar desde caché primero (INSTANTÁNEO)
       // Solo si canUseCache es true (períodos cortos: 7 días, Hoy, Ayer)
@@ -474,7 +465,6 @@ export const useListeroStatistics = (options = {}) => {
                   plays: formattedFresh
                 }));
               } else {
-                console.log('[useListeroStatistics] ℹ️ No hay cambios en los datos');
               }
             } catch (error) {
               console.error('[useListeroStatistics] ❌ Error en actualización background:', error);
@@ -489,9 +479,7 @@ export const useListeroStatistics = (options = {}) => {
       
       // PASO 3: Si NO hay caché, cargar desde Supabase (primera vez o período largo)
       if (canUseCache) {
-        console.log('[useListeroStatistics] 📥 No hay caché, cargando desde Supabase...');
       } else {
-        console.log('[useListeroStatistics] 📡 Período largo: cargando directamente desde Supabase (sin caché)...');
       }
       setIsLoading(true);
       
@@ -534,10 +522,8 @@ export const useListeroStatistics = (options = {}) => {
     if (!enabled) return;
     const loadUserData = async () => {
       try {
-        console.log('[useListeroStatistics] 🔐 Cargando userId...');
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          console.log('[useListeroStatistics] ✅ UserId obtenido:', user.id);
           setUserId(user.id);
         } else {
           console.warn('[useListeroStatistics] ⚠️ No se encontró usuario autenticado');
@@ -555,7 +541,6 @@ export const useListeroStatistics = (options = {}) => {
   // useEffect(() => {
   //   if (!enabled) return;
   //   if (userId && !isLoading) {
-  //     console.log('[useListeroStatistics] 🚀 UserId disponible, cargando datos iniciales...');
   //     loadPlaysData({ startDate: dateRange.startDate, endDate: dateRange.endDate });
   //   }
   // }, [userId, enabled]);

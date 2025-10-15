@@ -256,7 +256,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Razón: Solo se cachean 7 días para evitar QuotaExceededError
   // Períodos largos (mes/mes pasado) se cargan bajo demanda desde Supabase sin caché
 
-  const applyPeriodFilter = (period) => {
+  const applyPeriodFilter = (period, forceRefresh = false) => {
     // Verificar que userId esté disponible antes de filtrar
     if (!currentUserId) {
       console.log('[StatisticsScreen] ⏸️ applyPeriodFilter: No hay userId, saltando...');
@@ -264,7 +264,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
 
     const filterParams = {
-      period: period
+      period: period,
+      forceRefresh: forceRefresh
     };
     
     setSelectedPeriod(period);
@@ -274,14 +275,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      // Reaplicar el período actual para recalcular start/end y sincronizar filtros
-      await applyPeriodFilter(selectedPeriod);
+      // Reaplicar el período actual con forceRefresh=true para ignorar caché
+      await applyPeriodFilter(selectedPeriod, true);
     } catch (error) {
       Alert.alert('Error', 'No se pudieron actualizar las estadísticas');
     } finally {
       setRefreshing(false);
     }
-  }, [selectedPeriod]);
+  }, [selectedPeriod, currentUserId]);
 
   const handleExport = async (format) => {
     try {

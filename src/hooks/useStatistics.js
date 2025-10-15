@@ -214,7 +214,6 @@ const useStatistics = () => {
   const loadAllStats = async () => {
     // Guard: No ejecutar si no hay userId
     if (!userId) {
-      console.log('[useStatistics] ⏸️ loadAllStats: No hay userId, saltando...');
       return;
     }
     
@@ -229,7 +228,6 @@ const useStatistics = () => {
   const loadPlaysData = async (filters = {}) => {
     // Guard: No ejecutar si no hay userId
     if (!userId) {
-      console.log('[useStatistics] ⏸️ loadPlaysData: No hay userId, saltando...');
       return;
     }
     
@@ -241,24 +239,23 @@ const useStatistics = () => {
   const applyFilters = async (filters = {}) => {
     // Guard: No ejecutar si no hay userId
     if (!userId) {
-      console.log('[useStatistics] ⏸️ applyFilters: No hay userId, saltando...');
       return;
     }
     
     if (activeStats.loadPlaysData) {
       // Si recibimos un período específico, pasarlo directamente
-      const { period, startDate, endDate, ...rest } = filters || {};
+      const { period, startDate, endDate, forceRefresh, ...rest } = filters || {};
       
       if (period) {
-        // Pasar el período directamente al hook específico
-        return activeStats.loadPlaysData({ period, ...rest });
+        // Pasar el período directamente al hook específico (incluyendo forceRefresh)
+        return activeStats.loadPlaysData({ period, forceRefresh, ...rest });
       }
       
       // Mantener compatibilidad con el sistema anterior de fechas
       if (startDate && endDate && typeof activeStats.updateDateRange === 'function') {
         activeStats.updateDateRange(startDate, endDate);
       }
-      return activeStats.loadPlaysData({ startDate, endDate, ...rest });
+      return activeStats.loadPlaysData({ startDate, endDate, forceRefresh, ...rest });
     }
   };
 

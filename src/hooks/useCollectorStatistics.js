@@ -200,37 +200,36 @@ export const useCollectorStatistics = (options = {}) => {
   const loadCollectorPlaysData = async (userId, filters = {}) => {
     try {
       if (!userId) {
-        console.log('[useCollectorStatistics] userId no proporcionado');
         return [];
       }
 
-      const { period, startDate, endDate } = filters;
+      const { period, startDate, endDate, forceRefresh = false } = filters;
       
-      console.log('[useCollectorStatistics] Cargando datos para período:', period);
+      // Si forceRefresh es true, saltar toda la lógica de caché y consultar directamente
+      if (forceRefresh) {
+        const freshData = await fetchCollectorDataFromSupabase(userId, filters);
+        const cachePeriod = normalizePeriodForCache(period);
+        await saveToCache(userId, cachePeriod, freshData, 'collector');
+        return freshData;
+      }
       
       // Normalizar período para caché (last7days -> recent)
       const cachePeriod = normalizePeriodForCache(period);
-      console.log('[useCollectorStatistics] Período para caché:', cachePeriod);
       
       // ============================================
       // OPTIMIZACIÓN 1: Filtrado local desde caché
       // ============================================
       // Si es filtro de hoy o ayer, intentar filtrar localmente desde caché de 7 días
       if (period === 'today' || period === 'yesterday') {
-        console.log('[useCollectorStatistics] Intentando filtrar localmente desde caché de 7 días...');
         const cached7Days = await readFromCache(userId, 'recent', 'collector');
         
         if (cached7Days) {
-          console.log('[useCollectorStatistics] ✓ Caché de 7 días encontrado, filtrando localmente');
           const range = period === 'today' ? getTodayRange() : getYesterdayRange();
           const filteredData = filterByDateRange(cached7Days, range.start, range.end, 'fecha_jugada');
           
           if (filteredData && filteredData.length >= 0) {
-            console.log(`[useCollectorStatistics] ✓ Filtrado local exitoso: ${filteredData.length} registros`);
             return filteredData;
           }
-        } else {
-          console.log('[useCollectorStatistics] Caché de 7 días no disponible, consultando Supabase');
         }
       }
       
@@ -243,30 +242,21 @@ export const useCollectorStatistics = (options = {}) => {
         const metadata = cachedData._metadata;
         const cacheAge = (Date.now() - metadata.timestamp) / (1000 * 60); // minutos
         
-        console.log(`[useCollectorStatistics] ✓ Caché encontrado (${cacheAge.toFixed(1)} min)`);
-        
         // Si el caché es reciente (< 10 min), usarlo directamente
         if (cacheAge < CACHE_REFRESH_THRESHOLD) {
-          console.log('[useCollectorStatistics] ✓ Caché fresco, usando datos cacheados');
-          // Eliminar metadata antes de retornar
           const { _metadata, ...data } = cachedData;
           return data.plays || [];
         }
         
         // Si el caché es antiguo pero no demasiado (< 60 min), usarlo y refrescar en segundo plano
         if (cacheAge < 60) {
-          console.log('[useCollectorStatistics] Caché antiguo, usando y refrescando en segundo plano');
-          
-          // Retornar datos cacheados inmediatamente
           const { _metadata, ...data } = cachedData;
           
           // Refrescar en segundo plano (sin await)
           (async () => {
             try {
-              console.log('[useCollectorStatistics] 🔄 Iniciando refresco en segundo plano...');
               const freshData = await fetchCollectorDataFromSupabase(userId, filters);
               await saveToCache(userId, cachePeriod, freshData, 'collector');
-              console.log('[useCollectorStatistics] ✓ Refresco en segundo plano completado');
             } catch (err) {
               console.error('[useCollectorStatistics] Error en refresco:', err.message);
             }
@@ -274,10 +264,6 @@ export const useCollectorStatistics = (options = {}) => {
           
           return data.plays || [];
         }
-        
-        console.log('[useCollectorStatistics] Caché muy antiguo, consultando Supabase');
-      } else {
-        console.log('[useCollectorStatistics] Sin caché, consultando Supabase');
       }
       
       // ============================================
@@ -287,16 +273,11 @@ export const useCollectorStatistics = (options = {}) => {
       
       // Guardar en caché según plataforma
       if (isMobile) {
-        // APK/IPA: Cachear todo sin límites
-        console.log('[useCollectorStatistics] APK/IPA: Cacheando período:', cachePeriod);
         await saveToCache(userId, cachePeriod, freshData, 'collector');
       } else if (isWeb || isExpoGo) {
         // Expo Go/Web: Solo cachear 'recent' (7 días)
         if (cachePeriod === 'recent') {
-          console.log('[useCollectorStatistics] Expo Go/Web: Cacheando solo período "recent"');
           await saveToCache(userId, cachePeriod, freshData, 'collector');
-        } else {
-          console.log('[useCollectorStatistics] Expo Go/Web: Omitiendo caché para período:', cachePeriod);
         }
       }
       
