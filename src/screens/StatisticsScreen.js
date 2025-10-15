@@ -1570,7 +1570,65 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Nueva tabla expandible para admin (TRES CAPAS - agrupa por colector -> listero -> lotería/horario)
   const renderAdminExpandableTable = () => {
     // Para admin, usar directamente los datos agrupados por colector del hook
-    const adminData = tableData?.plays || [];
+    let adminData = tableData?.plays || [];
+    
+    // Aplicar filtro de lotería si está seleccionada
+    if (selectedLotteryCollector !== 'all') {
+      adminData = adminData.map(colector => {
+        // Filtrar listeros que tengan jugadas de la lotería seleccionada
+        const filteredListeros = (colector.listeros || []).map(listero => {
+          // Filtrar jugadas del listero por lotería
+          const filteredPlays = (listero.plays || []).filter(play => {
+            const playLottery = play.loteria || play.nombre_loteria || 'Lotería';
+            return playLottery === selectedLotteryCollector;
+          });
+          
+          // Recalcular totales del listero
+          const totals = {
+            total_bruto: 0,
+            total_premio: 0,
+            total_ganancia_listero: 0,
+            total_ganancia_colector: 0,
+            balance_colector: 0
+          };
+          
+          filteredPlays.forEach(play => {
+            totals.total_bruto += Number(play.monto_total || 0);
+            totals.total_premio += Number(play.monto_a_pagar || 0);
+            totals.total_ganancia_listero += Number(play.ganancia_listero || 0);
+            totals.total_ganancia_colector += Number(play.ganancia_colector || 0);
+            totals.balance_colector += Number(play.balance_colector || 0);
+          });
+          
+          return {
+            ...listero,
+            plays: filteredPlays,
+            ...totals
+          };
+        }).filter(listero => listero.plays.length > 0); // Solo mantener listeros con jugadas
+        
+        // Recalcular totales del colector
+        const colectorTotals = {
+          total_bruto: 0,
+          total_premio: 0,
+          total_ganancia_colector: 0,
+          balance_colector: 0
+        };
+        
+        filteredListeros.forEach(listero => {
+          colectorTotals.total_bruto += Number(listero.total_bruto || 0);
+          colectorTotals.total_premio += Number(listero.total_premio || 0);
+          colectorTotals.total_ganancia_colector += Number(listero.total_ganancia_colector || 0);
+          colectorTotals.balance_colector += Number(listero.balance_colector || 0);
+        });
+        
+        return {
+          ...colector,
+          listeros: filteredListeros,
+          ...colectorTotals
+        };
+      }).filter(colector => colector.listeros.length > 0); // Solo mantener colectores con listeros
+    }
     
     if (!adminData || adminData.length === 0) {
       return (
