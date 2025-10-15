@@ -94,6 +94,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [selectedLottery, setSelectedLottery] = useState('all');
   const [selectedSchedule, setSelectedSchedule] = useState('all');
+  const [selectedLotteryDetails, setSelectedLotteryDetails] = useState('all'); // Filtro específico para la tabla de detalles
   const [lotterySchedules, setLotterySchedules] = useState([]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -1150,11 +1151,22 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           })}`;
         };
 
+        // Obtener loterías únicas del cache para el filtro
+        const uniqueLotteries = [...new Set(tableData.plays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort();
+
         // Agrupar por fecha + lotería + horario + resultado
         const map = new Map();
         
-        // Filtrar registros con fechas válidas antes de procesarlos
-        const validPlays = tableData.plays.filter(r => r.created_at);
+        // Filtrar registros con fechas válidas Y por lotería seleccionada
+        const validPlays = tableData.plays.filter(r => {
+          if (!r.created_at) return false;
+          // Aplicar filtro de lotería
+          if (selectedLotteryDetails !== 'all') {
+            const playLottery = r.loteria || r.nombre_loteria || 'Lotería';
+            if (playLottery !== selectedLotteryDetails) return false;
+          }
+          return true;
+        });
         
         for(const r of validPlays) {
           const dayKey = dayKeyOf(r.created_at);
@@ -1176,6 +1188,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               plays: [], 
               totalGananciaListero: 0,  // Suma de ganancia_listero
               totalRecogido: 0,         // Suma de bruto
+              totalLimpio: 0,           // Suma de limpio (bruto - ganancia)
               totalBalance: 0,          // Suma de balance_listero
               totalPagado: 0            // Suma de premios pagados
             });
@@ -1184,8 +1197,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           const group = map.get(key);
           
           // Acumular totales
-          group.totalGananciaListero += Number(r.ganancia_listero || 0);
-          group.totalRecogido += Number(r.bruto || 0);
+          const bruto = Number(r.bruto || 0);
+          const ganancia = Number(r.ganancia_listero || 0);
+          group.totalGananciaListero += ganancia;
+          group.totalRecogido += bruto;
+          group.totalLimpio += (bruto - ganancia);  // Limpio = Bruto - Ganancia
           group.totalBalance += Number(r.balance_listero || 0);
           group.totalPagado += Number(r.premio || 0);
           
@@ -1218,6 +1234,44 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
         return (
           <View style={{ paddingHorizontal:8 }}>
+            {/* Filtro de Loterías */}
+            <View style={{ marginBottom: 12, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: isDarkMode ? '#ecf0f1' : '#495057', marginRight: 8 }}>
+                Lotería:
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.inlineFilterChipSmall,
+                  selectedLotteryDetails === 'all' && styles.inlineFilterChipActive,
+                ]}
+                onPress={() => setSelectedLotteryDetails('all')}
+              >
+                <Text style={[
+                  styles.inlineFilterChipTextSmall,
+                  selectedLotteryDetails === 'all' && styles.inlineFilterChipTextActive,
+                ]}>
+                  Todas
+                </Text>
+              </TouchableOpacity>
+              {uniqueLotteries.map(lottery => (
+                <TouchableOpacity
+                  key={lottery}
+                  style={[
+                    styles.inlineFilterChipSmall,
+                    selectedLotteryDetails === lottery && styles.inlineFilterChipActive,
+                  ]}
+                  onPress={() => setSelectedLotteryDetails(lottery)}
+                >
+                  <Text style={[
+                    styles.inlineFilterChipTextSmall,
+                    selectedLotteryDetails === lottery && styles.inlineFilterChipTextActive,
+                  ]}>
+                    {lottery}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            
             <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableContainer}>
               <View style={styles.excelTable}>
                 <View style={styles.excelHeaderRow}>
@@ -1227,6 +1281,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                   <Text style={[styles.excelHeaderCell, { width: 80 }]}>Horario</Text>
                   <Text style={[styles.excelHeaderCell, { width: 70 }]}>Resultado</Text>
                   <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Bruto')}</Text>
+                  <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Limpio')}</Text>
                   <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Ganancia')}</Text>
                   <Text style={[styles.excelHeaderCell, { width: 100 }]}>Premio</Text>
                   <Text style={[styles.excelHeaderCell, { width: 100 }]}>{getSantiagoHeader('Balance')}</Text>
@@ -1263,6 +1318,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                         </View>
                         <View style={[styles.excelCellContainer, { width: 100 }]}>
                           <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(g.totalRecogido)}</Text>
+                        </View>
+                        <View style={[styles.excelCellContainer, { width: 100 }]}>
+                          <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(g.totalLimpio)}</Text>
                         </View>
                         <View style={[styles.excelCellContainer, { width: 100 }]}>
                           <Text style={styles.excelCell} numberOfLines={1}>{formatSantiagoMoney(g.totalGananciaListero)}</Text>
