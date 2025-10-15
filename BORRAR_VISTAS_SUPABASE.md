@@ -13,11 +13,12 @@ Se han realizado los siguientes cambios:
 - ✅ Comentado useEffect de carga automática (ahora se hace desde StatisticsScreen)
 
 ### 3. **Cambio de Vistas Optimizadas**
-- ✅ **HOY**: Ahora usa `v_estadisticas` (vista base) + filtro local
-- ✅ **AYER**: Ahora usa `v_estadisticas` (vista base) + filtro local
+- ✅ **HOY**: Ahora usa `v_estadisticas_7d` + filtro local (ACTUALIZADO en commit 5c4a385)
+- ✅ **AYER**: Ahora usa `v_estadisticas_7d` + filtro local (ACTUALIZADO en commit 5c4a385)
 - ✅ **7 DÍAS**: Sigue usando `v_estadisticas_7d` ✅
 - ✅ **ESTE MES**: Sigue usando `v_estadisticas_mes` ✅
 - ✅ **MES PASADO**: Sigue usando `v_estadisticas_mes_pasado` ✅
+- ✅ **CUSTOM**: Usa `v_estadisticas` (vista base) como fallback ✅
 
 ### 4. **Carga Progresiva Automática**
 - ✅ Implementada en `StatisticsScreen.js`
@@ -56,9 +57,10 @@ DROP VIEW IF EXISTS v_estadisticas_ayer;
 
 Estas vistas **SÍ se siguen usando** y son importantes para el rendimiento:
 
-### ✅ `v_estadisticas_7d`
-- **Usado para:** Filtro "Últimos 7 días"
-- **Razón:** Vista optimizada es más rápida que filtrar por fecha
+### ✅ `v_estadisticas_7d` 🔥 (MÁS USADA)
+- **Usado para:** "Últimos 7 días", "Hoy" (filtro local), "Ayer" (filtro local)
+- **Razón:** Vista optimizada + filtrado local = máxima eficiencia
+- **ACTUALIZADO:** Ahora también se usa para Hoy y Ayer (commit 5c4a385)
 
 ### ✅ `v_estadisticas_mes`
 - **Usado para:** Filtro "Este mes"
@@ -69,8 +71,9 @@ Estas vistas **SÍ se siguen usando** y son importantes para el rendimiento:
 - **Razón:** Vista optimizada es más rápida que filtrar por fecha
 
 ### ✅ `v_estadisticas` (vista base)
-- **Usado para:** Filtros personalizados y fallback
-- **Razón:** Vista base necesaria para toda la funcionalidad
+- **Usado para:** Rangos de fechas personalizados fuera de cachés
+- **Razón:** Fallback necesario para casos custom (ej: hace 2 meses)
+- **Ejemplo:** Usuario selecciona del 1 al 15 de agosto (fuera de cachés actuales)
 
 ---
 
