@@ -2,9 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * Módulo de caché para estadísticas de usuario
- * - Caché por usuario y período
+ * - Caché SOLO para últimos 7 días ('recent')
  * - Caché infinito (nunca expira automáticamente)
- * - Carga progresiva (7d → mes → mes pasado)
+ * - NO cachea períodos largos (mes/mes pasado) para evitar QuotaExceededError
  */
 
 const CACHE_VERSION = '1.0';
@@ -27,13 +27,19 @@ const getMetadataKey = (userId) => {
 /**
  * Guardar datos en caché
  * @param {string} userId - ID del usuario
- * @param {string} period - Período ('recent', 'thisMonth', 'lastMonth')
+ * @param {string} period - Período (solo 'recent' soportado)
  * @param {Array} data - Datos a guardar
  */
 export const saveToCache = async (userId, period, data) => {
   try {
     if (!userId || !period || !data) {
       console.warn('[StatisticsCache] Parámetros inválidos para guardar en caché');
+      return false;
+    }
+
+    // Solo cachear 'recent' (7 días) para evitar QuotaExceededError
+    if (period !== 'recent') {
+      console.log(`[StatisticsCache] ⏭️ Saltando caché para período: ${period} (solo se cachea 'recent')`);
       return false;
     }
 
@@ -61,7 +67,7 @@ export const saveToCache = async (userId, period, data) => {
 /**
  * Leer datos del caché
  * @param {string} userId - ID del usuario
- * @param {string} period - Período ('recent', 'thisMonth', 'lastMonth')
+ * @param {string} period - Período (solo 'recent' soportado)
  * @returns {Object|null} Datos del caché o null si no existe
  */
 export const readFromCache = async (userId, period) => {
@@ -173,9 +179,8 @@ export const clearCache = async (userId, period) => {
  */
 export const clearAllCache = async (userId) => {
   try {
-    const periods = ['recent', 'thisMonth', 'lastMonth'];
-    const promises = periods.map(period => clearCache(userId, period));
-    await Promise.all(promises);
+    // Solo limpiar 'recent' ya que es el único período cacheado
+    await clearCache(userId, 'recent');
     
     // Limpiar metadatos
     const metadataKey = getMetadataKey(userId);
@@ -238,16 +243,15 @@ export const getCacheStats = async (userId) => {
     const metadata = await getCacheMetadata(userId);
     const stats = {};
     
-    for (const period of ['recent', 'thisMonth', 'lastMonth']) {
-      const hasCache = await hasCacheFor(userId, period);
-      stats[period] = {
-        exists: hasCache,
-        lastUpdated: metadata[period]?.lastUpdated || null,
-        age: metadata[period]?.lastUpdated 
-          ? Math.floor((Date.now() - metadata[period].lastUpdated) / 60000) 
-          : null,
-      };
-    }
+    // Solo verificar 'recent' ya que es el único período cacheado
+    const hasCache = await hasCacheFor(userId, 'recent');
+    stats.recent = {
+      exists: hasCache,
+      lastUpdated: metadata.recent?.lastUpdated || null,
+      age: metadata.recent?.lastUpdated 
+        ? Math.floor((Date.now() - metadata.recent.lastUpdated) / 60000) 
+        : null,
+    };
     
     return stats;
   } catch (error) {

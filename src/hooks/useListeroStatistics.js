@@ -347,12 +347,13 @@ export const useListeroStatistics = (options = {}) => {
         console.log('[useListeroStatistics] � Usando caché de 7 DÍAS (default)');
       }
 
-      console.log(`[useListeroStatistics] 🔍 Período de caché: ${cachePeriod}, Filtro local: ${needsLocalFilter}`);
+      console.log(`[useListeroStatistics] 🔍 Período de caché: ${cachePeriod}, Filtro local: ${needsLocalFilter}, Usa caché: ${canUseCache}`);
       
       // PASO 1: Intentar cargar desde caché primero (INSTANTÁNEO)
-      const hasCache = await statisticsCache.hasCacheFor(userId, cachePeriod);
+      // Solo si canUseCache es true (períodos cortos: 7 días, Hoy, Ayer)
+      const hasCache = canUseCache ? await statisticsCache.hasCacheFor(userId, cachePeriod) : false;
       
-      if (hasCache) {
+      if (hasCache && canUseCache) {
         const cachedResult = await statisticsCache.readFromCache(userId, cachePeriod);
         if (cachedResult && cachedResult.data && cachedResult.data.length > 0) {
           console.log(`[useListeroStatistics] ⚡ Caché encontrado (${cachedResult.age} min): ${cachedResult.data.length} registros`);
@@ -401,9 +402,13 @@ export const useListeroStatistics = (options = {}) => {
               
               const freshData = await loadListeroPlaysData(userId, fetchFilters);
               
-              // Guardar en caché (siempre guardar el conjunto completo del período)
-              await statisticsCache.saveToCache(userId, cachePeriod, freshData);
-              console.log(`[useListeroStatistics] 💾 Caché actualizado: ${cachePeriod} (${freshData.length} registros)`);
+              // Guardar en caché solo si canUseCache es true (períodos cortos)
+              if (canUseCache) {
+                await statisticsCache.saveToCache(userId, cachePeriod, freshData);
+                console.log(`[useListeroStatistics] 💾 Caché actualizado: ${cachePeriod} (${freshData.length} registros)`);
+              } else {
+                console.log(`[useListeroStatistics] ℹ️ Período largo: no se guarda en caché (${freshData.length} registros)`);
+              }
               
               // 🎯 APLICAR FILTRO LOCAL a los datos frescos si es necesario
               let freshDataToFormat = freshData;
@@ -439,14 +444,20 @@ export const useListeroStatistics = (options = {}) => {
         }
       }
       
-      // PASO 3: Si NO hay caché, cargar desde Supabase (primera vez)
-      console.log('[useListeroStatistics] 📥 No hay caché, cargando desde Supabase...');
+      // PASO 3: Si NO hay caché, cargar desde Supabase (primera vez o período largo)
+      if (canUseCache) {
+        console.log('[useListeroStatistics] 📥 No hay caché, cargando desde Supabase...');
+      } else {
+        console.log('[useListeroStatistics] 📡 Período largo: cargando directamente desde Supabase (sin caché)...');
+      }
       setIsLoading(true);
       
       const playsData = await loadListeroPlaysData(userId, filters);
       
-      // Guardar en caché para próximas veces
-      await statisticsCache.saveToCache(userId, cachePeriod, playsData);
+      // Guardar en caché solo si canUseCache es true (períodos cortos)
+      if (canUseCache) {
+        await statisticsCache.saveToCache(userId, cachePeriod, playsData);
+      }
       
       // Transformar y mostrar datos
       const formattedPlays = formatPlaysData(playsData);
