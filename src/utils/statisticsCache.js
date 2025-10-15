@@ -1,14 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 /**
  * Módulo de caché para estadísticas de usuario
- * - Caché SOLO para últimos 7 días ('recent')
+ * - MOBILE (Android/iOS): Cachea TODO (recent, thisMonth, lastMonth) - AsyncStorage ilimitado
+ * - WEB: Solo cachea 'recent' (7 días) - localStorage limitado a ~5-10MB
  * - Caché infinito (nunca expira automáticamente)
- * - NO cachea períodos largos (mes/mes pasado) para evitar QuotaExceededError
  */
 
 const CACHE_VERSION = '1.0';
 const CACHE_PREFIX = 'stats_v1';
+
+// Detectar si estamos en mobile (Android/iOS) o web
+const isMobile = Platform.OS === 'android' || Platform.OS === 'ios';
+const isWeb = Platform.OS === 'web';
 
 /**
  * Generar clave de caché para un usuario y período específico
@@ -27,7 +32,7 @@ const getMetadataKey = (userId) => {
 /**
  * Guardar datos en caché
  * @param {string} userId - ID del usuario
- * @param {string} period - Período (solo 'recent' soportado)
+ * @param {string} period - Período ('recent', 'thisMonth', 'lastMonth')
  * @param {Array} data - Datos a guardar
  */
 export const saveToCache = async (userId, period, data) => {
@@ -37,10 +42,15 @@ export const saveToCache = async (userId, period, data) => {
       return false;
     }
 
-    // Solo cachear 'recent' (7 días) para evitar QuotaExceededError
-    if (period !== 'recent') {
-      console.log(`[StatisticsCache] ⏭️ Saltando caché para período: ${period} (solo se cachea 'recent')`);
+    // En WEB: Solo cachear 'recent' (7 días) para evitar QuotaExceededError
+    // En MOBILE: Cachear todo (AsyncStorage ilimitado)
+    if (isWeb && period !== 'recent') {
+      console.log(`[StatisticsCache] ⏭️ Web: Saltando caché para período largo: ${period}`);
       return false;
+    }
+
+    if (isMobile) {
+      console.log(`[StatisticsCache] 📱 Mobile: Cacheando período: ${period}`);
     }
 
     const key = getCacheKey(userId, period);
@@ -179,8 +189,10 @@ export const clearCache = async (userId, period) => {
  */
 export const clearAllCache = async (userId) => {
   try {
-    // Solo limpiar 'recent' ya que es el único período cacheado
-    await clearCache(userId, 'recent');
+    // En MOBILE: limpiar todos los períodos
+    // En WEB: solo 'recent' (pero limpiamos todos por si acaso)
+    const periods = ['recent', 'thisMonth', 'lastMonth'];
+    await Promise.all(periods.map(period => clearCache(userId, period)));
     
     // Limpiar metadatos
     const metadataKey = getMetadataKey(userId);
@@ -243,15 +255,18 @@ export const getCacheStats = async (userId) => {
     const metadata = await getCacheMetadata(userId);
     const stats = {};
     
-    // Solo verificar 'recent' ya que es el único período cacheado
-    const hasCache = await hasCacheFor(userId, 'recent');
-    stats.recent = {
-      exists: hasCache,
-      lastUpdated: metadata.recent?.lastUpdated || null,
-      age: metadata.recent?.lastUpdated 
-        ? Math.floor((Date.now() - metadata.recent.lastUpdated) / 60000) 
-        : null,
-    };
+    // Verificar todos los períodos (mobile cachea todo, web solo 'recent')
+    const periods = ['recent', 'thisMonth', 'lastMonth'];
+    for (const period of periods) {
+      const hasCache = await hasCacheFor(userId, period);
+      stats[period] = {
+        exists: hasCache,
+        lastUpdated: metadata[period]?.lastUpdated || null,
+        age: metadata[period]?.lastUpdated 
+          ? Math.floor((Date.now() - metadata[period].lastUpdated) / 60000) 
+          : null,
+      };
+    }
     
     return stats;
   } catch (error) {

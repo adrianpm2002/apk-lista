@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import { supabase } from '../supabaseClient';
 import * as statisticsCache from '../utils/statisticsCache';
+
+// Detectar si estamos en mobile (Android/iOS) o web
+const isMobile = Platform.OS === 'android' || Platform.OS === 'ios';
+const isWeb = Platform.OS === 'web';
 
 // Helper para convertir fecha local a string para consultas de base de datos
 const formatDateForQuery = (date) => {
@@ -322,8 +327,8 @@ export const useListeroStatistics = (options = {}) => {
       }
       
       // Determinar el período para el caché
-      // SOLO se cachea 'recent' (7 días) para evitar QuotaExceededError
-      // Períodos largos (mes/mes pasado) siempre se cargan desde Supabase
+      // MOBILE (Android/iOS): Cachea TODO (AsyncStorage ilimitado)
+      // WEB: Solo cachea 'recent' (7 días) para evitar QuotaExceededError en localStorage
       let cachePeriod = 'recent'; // Default: 7 días
       let needsLocalFilter = false;
       let localFilterRange = null;
@@ -345,10 +350,28 @@ export const useListeroStatistics = (options = {}) => {
         cachePeriod = 'recent';
         canUseCache = true;
         console.log('[useListeroStatistics] 📅 Usando caché de 7 DÍAS');
+      } else if (period === 'last30days' || isFilteringLast30Days(startDate, endDate)) {
+        cachePeriod = 'thisMonth';
+        // MOBILE: cachea, WEB: no cachea
+        canUseCache = isMobile;
+        if (isMobile) {
+          console.log('[useListeroStatistics] 📱 Mobile: Usando caché de MES ACTUAL');
+        } else {
+          console.log('[useListeroStatistics] 🌐 Web: Carga directa de MES ACTUAL (sin caché)');
+        }
+      } else if (period === 'lastMonth' || isFilteringLastMonth(startDate, endDate)) {
+        cachePeriod = 'lastMonth';
+        // MOBILE: cachea, WEB: no cachea
+        canUseCache = isMobile;
+        if (isMobile) {
+          console.log('[useListeroStatistics] 📱 Mobile: Usando caché de MES PASADO');
+        } else {
+          console.log('[useListeroStatistics] 🌐 Web: Carga directa de MES PASADO (sin caché)');
+        }
       } else {
-        // Períodos largos: NO cachear, cargar directo desde Supabase
+        // Períodos custom: NO cachear en ninguna plataforma
         canUseCache = false;
-        console.log(`[useListeroStatistics] 📡 Período largo (${period}): carga directa desde Supabase (sin caché)`);
+        console.log(`[useListeroStatistics] 📡 Período custom (${period}): carga directa desde Supabase (sin caché)`);
       }
 
       console.log(`[useListeroStatistics] 🔍 Período de caché: ${cachePeriod}, Filtro local: ${needsLocalFilter}, Usa caché: ${canUseCache}`);
