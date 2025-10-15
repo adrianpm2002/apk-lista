@@ -421,8 +421,8 @@ export const useListeroStatistics = (options = {}) => {
           setIsLoading(false);
           
           // PASO 2: Background refresh INTELIGENTE
-          // Solo actualizar si caché tiene más de 5 minutos de antigüedad
-          const CACHE_REFRESH_THRESHOLD = 5; // minutos
+          // Solo actualizar si caché tiene más de 10 minutos de antigüedad
+          const CACHE_REFRESH_THRESHOLD = 10; // minutos
           
           if (cachedResult.age < CACHE_REFRESH_THRESHOLD) {
             console.log(`[useListeroStatistics] ⏭️ Caché muy reciente (${cachedResult.age} min), saltando background refresh`);
