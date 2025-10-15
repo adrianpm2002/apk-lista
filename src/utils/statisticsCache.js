@@ -3,15 +3,18 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 /**
- * Módulo de caché para estadísticas de usuario
+ * Módulo de caché para estadísticas de usuario (Listero, Colector, Admin)
  * - MOBILE COMPILADO (APK/IPA): Cachea TODO (recent, thisMonth, lastMonth) - AsyncStorage ilimitado
  * - EXPO GO: Solo cachea 'recent' (7 días) - usa localStorage, limitado a ~5-10MB
  * - WEB: Solo cachea 'recent' (7 días) - localStorage limitado a ~5-10MB
  * - Caché infinito (nunca expira automáticamente)
+ * - Soporta múltiples roles con prefijos: listero_, collector_, admin_
  */
 
 const CACHE_VERSION = '1.0';
-const CACHE_PREFIX = 'stats_v1';
+const CACHE_PREFIX_LISTERO = 'stats_listero_v1';
+const CACHE_PREFIX_COLLECTOR = 'stats_collector_v1';
+const CACHE_PREFIX_ADMIN = 'stats_admin_v1';
 
 // Detectar si estamos en Expo Go (usa localStorage como web)
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -23,17 +26,34 @@ const isMobile = !isExpoGo && (Platform.OS === 'android' || Platform.OS === 'ios
 const isWeb = Platform.OS === 'web' || isExpoGo;
 
 /**
+ * Obtener prefijo de caché según el rol
+ */
+const getCachePrefix = (role = 'listero') => {
+  switch (role) {
+    case 'collector':
+    case 'colector':
+      return CACHE_PREFIX_COLLECTOR;
+    case 'admin':
+      return CACHE_PREFIX_ADMIN;
+    default:
+      return CACHE_PREFIX_LISTERO;
+  }
+};
+
+/**
  * Generar clave de caché para un usuario y período específico
  */
-const getCacheKey = (userId, period) => {
-  return `${CACHE_PREFIX}_${userId}_${period}`;
+const getCacheKey = (userId, period, role = 'listero') => {
+  const prefix = getCachePrefix(role);
+  return `${prefix}_${userId}_${period}`;
 };
 
 /**
  * Generar clave de metadatos
  */
-const getMetadataKey = (userId) => {
-  return `${CACHE_PREFIX}_${userId}_metadata`;
+const getMetadataKey = (userId, role = 'listero') => {
+  const prefix = getCachePrefix(role);
+  return `${prefix}_${userId}_metadata`;
 };
 
 /**
@@ -41,8 +61,9 @@ const getMetadataKey = (userId) => {
  * @param {string} userId - ID del usuario
  * @param {string} period - Período ('recent', 'thisMonth', 'lastMonth')
  * @param {Array} data - Datos a guardar
+ * @param {string} role - Rol del usuario ('listero', 'collector', 'admin')
  */
-export const saveToCache = async (userId, period, data) => {
+export const saveToCache = async (userId, period, data, role = 'listero') => {
   try {
     if (!userId || !period || !data) {
       console.warn('[StatisticsCache] Parámetros inválidos para guardar en caché');
@@ -53,31 +74,32 @@ export const saveToCache = async (userId, period, data) => {
     // APK/IPA: Cachear todo (AsyncStorage ilimitado)
     if (isWeb && period !== 'recent') {
       const platform = isExpoGo ? 'Expo Go' : 'Web';
-      console.log(`[StatisticsCache] ⏭️ ${platform}: Saltando caché para período largo: ${period}`);
+      console.log(`[StatisticsCache] ⏭️ ${platform} [${role}]: Saltando caché para período largo: ${period}`);
       return false;
     }
 
     if (isMobile) {
-      console.log(`[StatisticsCache] 📱 APK/IPA: Cacheando período: ${period}`);
+      console.log(`[StatisticsCache] 📱 APK/IPA [${role}]: Cacheando período: ${period}`);
     }
 
-    const key = getCacheKey(userId, period);
+    const key = getCacheKey(userId, period, role);
     const cacheData = {
       data,
       timestamp: Date.now(),
       version: CACHE_VERSION,
       period,
+      role,
     };
 
     await AsyncStorage.setItem(key, JSON.stringify(cacheData));
     
     // Actualizar metadatos
-    await updateMetadata(userId, period);
+    await updateMetadata(userId, period, role);
     
-    console.log(`[StatisticsCache] ✅ Guardado en caché: ${period} (${data.length} registros)`);
+    console.log(`[StatisticsCache] ✅ Guardado en caché [${role}]: ${period} (${data.length} registros)`);
     return true;
   } catch (error) {
-    console.error('[StatisticsCache] ❌ Error al guardar en caché:', error);
+    console.error(`[StatisticsCache] ❌ Error al guardar en caché [${role}]:`, error);
     return false;
   }
 };
@@ -86,20 +108,21 @@ export const saveToCache = async (userId, period, data) => {
  * Leer datos del caché
  * @param {string} userId - ID del usuario
  * @param {string} period - Período (solo 'recent' soportado)
+ * @param {string} role - Rol del usuario ('listero', 'collector', 'admin')
  * @returns {Object|null} Datos del caché o null si no existe
  */
-export const readFromCache = async (userId, period) => {
+export const readFromCache = async (userId, period, role = 'listero') => {
   try {
     if (!userId || !period) {
       console.warn('[StatisticsCache] Parámetros inválidos para leer del caché');
       return null;
     }
 
-    const key = getCacheKey(userId, period);
+    const key = getCacheKey(userId, period, role);
     const cachedData = await AsyncStorage.getItem(key);
 
     if (!cachedData) {
-      console.log(`[StatisticsCache] ℹ️ No hay caché para: ${period}`);
+      console.log(`[StatisticsCache] ℹ️ No hay caché para [${role}]: ${period}`);
       return null;
     }
 
@@ -107,15 +130,15 @@ export const readFromCache = async (userId, period) => {
     
     // Verificar versión
     if (parsed.version !== CACHE_VERSION) {
-      console.log(`[StatisticsCache] ⚠️ Versión de caché obsoleta, eliminando...`);
-      await clearCache(userId, period);
+      console.log(`[StatisticsCache] ⚠️ Versión de caché obsoleta [${role}], eliminando...`);
+      await clearCache(userId, period, role);
       return null;
     }
 
     const age = Date.now() - parsed.timestamp;
     const ageMinutes = Math.floor(age / 60000);
     
-    console.log(`[StatisticsCache] ✅ Caché leído: ${period} (${parsed.data.length} registros, ${ageMinutes} min antiguos)`);
+    console.log(`[StatisticsCache] ✅ Caché leído [${role}]: ${period} (${parsed.data.length} registros, ${ageMinutes} min antiguos)`);
     
     return {
       data: parsed.data,
@@ -123,7 +146,7 @@ export const readFromCache = async (userId, period) => {
       age: ageMinutes,
     };
   } catch (error) {
-    console.error('[StatisticsCache] ❌ Error al leer del caché:', error);
+    console.error(`[StatisticsCache] ❌ Error al leer del caché [${role}]:`, error);
     return null;
   }
 };
@@ -131,13 +154,13 @@ export const readFromCache = async (userId, period) => {
 /**
  * Verificar si existe caché para un período
  */
-export const hasCacheFor = async (userId, period) => {
+export const hasCacheFor = async (userId, period, role = 'listero') => {
   try {
-    const key = getCacheKey(userId, period);
+    const key = getCacheKey(userId, period, role);
     const value = await AsyncStorage.getItem(key);
     return value !== null;
   } catch (error) {
-    console.error('[StatisticsCache] Error al verificar caché:', error);
+    console.error(`[StatisticsCache] Error al verificar caché [${role}]:`, error);
     return false;
   }
 };
@@ -145,9 +168,9 @@ export const hasCacheFor = async (userId, period) => {
 /**
  * Actualizar metadatos del caché
  */
-const updateMetadata = async (userId, period) => {
+const updateMetadata = async (userId, period, role = 'listero') => {
   try {
-    const metadataKey = getMetadataKey(userId);
+    const metadataKey = getMetadataKey(userId, role);
     const existingMetadata = await AsyncStorage.getItem(metadataKey);
     
     const metadata = existingMetadata ? JSON.parse(existingMetadata) : {};
@@ -159,20 +182,20 @@ const updateMetadata = async (userId, period) => {
     
     await AsyncStorage.setItem(metadataKey, JSON.stringify(metadata));
   } catch (error) {
-    console.error('[StatisticsCache] Error al actualizar metadatos:', error);
+    console.error(`[StatisticsCache] Error al actualizar metadatos [${role}]:`, error);
   }
 };
 
 /**
  * Obtener metadatos del caché
  */
-export const getCacheMetadata = async (userId) => {
+export const getCacheMetadata = async (userId, role = 'listero') => {
   try {
-    const metadataKey = getMetadataKey(userId);
+    const metadataKey = getMetadataKey(userId, role);
     const metadata = await AsyncStorage.getItem(metadataKey);
     return metadata ? JSON.parse(metadata) : {};
   } catch (error) {
-    console.error('[StatisticsCache] Error al obtener metadatos:', error);
+    console.error(`[StatisticsCache] Error al obtener metadatos [${role}]:`, error);
     return {};
   }
 };
@@ -180,14 +203,14 @@ export const getCacheMetadata = async (userId) => {
 /**
  * Limpiar caché de un período específico
  */
-export const clearCache = async (userId, period) => {
+export const clearCache = async (userId, period, role = 'listero') => {
   try {
-    const key = getCacheKey(userId, period);
+    const key = getCacheKey(userId, period, role);
     await AsyncStorage.removeItem(key);
-    console.log(`[StatisticsCache] 🗑️ Caché eliminado: ${period}`);
+    console.log(`[StatisticsCache] 🗑️ Caché eliminado [${role}]: ${period}`);
     return true;
   } catch (error) {
-    console.error('[StatisticsCache] Error al limpiar caché:', error);
+    console.error(`[StatisticsCache] Error al limpiar caché [${role}]:`, error);
     return false;
   }
 };
@@ -195,21 +218,21 @@ export const clearCache = async (userId, period) => {
 /**
  * Limpiar todo el caché de un usuario
  */
-export const clearAllCache = async (userId) => {
+export const clearAllCache = async (userId, role = 'listero') => {
   try {
     // En MOBILE: limpiar todos los períodos
     // En WEB: solo 'recent' (pero limpiamos todos por si acaso)
     const periods = ['recent', 'thisMonth', 'lastMonth'];
-    await Promise.all(periods.map(period => clearCache(userId, period)));
+    await Promise.all(periods.map(period => clearCache(userId, period, role)));
     
     // Limpiar metadatos
-    const metadataKey = getMetadataKey(userId);
+    const metadataKey = getMetadataKey(userId, role);
     await AsyncStorage.removeItem(metadataKey);
     
-    console.log(`[StatisticsCache] 🗑️ Todo el caché eliminado para usuario: ${userId}`);
+    console.log(`[StatisticsCache] 🗑️ Todo el caché eliminado [${role}] para usuario: ${userId}`);
     return true;
   } catch (error) {
-    console.error('[StatisticsCache] Error al limpiar todo el caché:', error);
+    console.error(`[StatisticsCache] Error al limpiar todo el caché [${role}]:`, error);
     return false;
   }
 };
