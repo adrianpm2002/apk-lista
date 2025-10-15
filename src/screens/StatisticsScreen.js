@@ -94,7 +94,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [selectedLottery, setSelectedLottery] = useState('all');
   const [selectedSchedule, setSelectedSchedule] = useState('all');
-  const [selectedLotteryDetails, setSelectedLotteryDetails] = useState('all'); // Filtro específico para la tabla de detalles
+  const [selectedLotteryDetails, setSelectedLotteryDetails] = useState('all'); // Filtro específico para la tabla de detalles (listero)
+  const [selectedLotteryCollector, setSelectedLotteryCollector] = useState('all'); // Filtro específico para collector/admin
   const [lotterySchedules, setLotterySchedules] = useState([]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -104,7 +105,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [groupedData, setGroupedData] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false); // Modo oscuro (desactivado por defecto)
-  const [showLotteryModal, setShowLotteryModal] = useState(false); // Modal para seleccionar lotería
+  const [showLotteryModal, setShowLotteryModal] = useState(false); // Modal para seleccionar lotería (listero)
+  const [showLotteryModalCollector, setShowLotteryModalCollector] = useState(false); // Modal para seleccionar lotería (collector/admin)
   
   // Estados para modo Santiago
   const [modoSantiago, setModoSantiago] = useState(false);
@@ -505,14 +507,40 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     const scheduleOptions = (lotterySchedules || []).map(sch => ({ label: sch.nombre, value: sch.id }));
 
     // Obtener loterías únicas del cache para listero en tabs de gráficos y detalles
-    const uniqueLotteries = (userRole === 'listero' && (activeTab === 'charts' || activeTab === 'details') && tableData?.plays) 
+    const uniqueLotteriesListero = (userRole === 'listero' && (activeTab === 'charts' || activeTab === 'details') && tableData?.plays) 
       ? [...new Set(tableData.plays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort()
       : [];
+      
+    // Obtener loterías únicas para collector/admin en tabs de gráficos y detalles
+    let uniqueLotteriesCollector = [];
+    if ((userRole === 'collector' || userRole === 'admin') && (activeTab === 'charts' || activeTab === 'details') && tableData?.plays) {
+      let allPlays = [];
+      if (userRole === 'collector' || userRole === 'colector') {
+        const collectorData = tableData.plays || [];
+        collectorData.forEach(listero => {
+          if (listero.plays && Array.isArray(listero.plays)) {
+            allPlays = allPlays.concat(listero.plays);
+          }
+        });
+      } else if (userRole === 'admin') {
+        const adminData = tableData.plays || [];
+        adminData.forEach(colector => {
+          if (colector.listeros && Array.isArray(colector.listeros)) {
+            colector.listeros.forEach(listero => {
+              if (listero.plays && Array.isArray(listero.plays)) {
+                allPlays = allPlays.concat(listero.plays);
+              }
+            });
+          }
+        });
+      }
+      uniqueLotteriesCollector = [...new Set(allPlays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort();
+    }
 
     return (
       <View style={styles.inlineFiltersWrapper}>
         {/* Fila 0: Filtro de Loterías (para listero en gráficos y detalles) */}
-        {uniqueLotteries.length > 0 && (
+        {uniqueLotteriesListero.length > 0 && (
           <View style={[styles.inlineFiltersRow, { marginBottom: 6, alignItems: 'center' }]}>
             <TouchableOpacity
               style={styles.lotterySelector}
@@ -520,6 +548,21 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             >
               <Text style={styles.lotterySelectorText} numberOfLines={1}>
                 {selectedLotteryDetails === 'all' ? 'Todas' : selectedLotteryDetails}
+              </Text>
+              <Text style={styles.lotterySelectorIcon}>▼</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {/* Fila 0: Filtro de Loterías (para collector/admin en gráficos y detalles) */}
+        {uniqueLotteriesCollector.length > 0 && (
+          <View style={[styles.inlineFiltersRow, { marginBottom: 6, alignItems: 'center' }]}>
+            <TouchableOpacity
+              style={styles.lotterySelector}
+              onPress={() => setShowLotteryModalCollector(true)}
+            >
+              <Text style={styles.lotterySelectorText} numberOfLines={1}>
+                {selectedLotteryCollector === 'all' ? 'Todas' : selectedLotteryCollector}
               </Text>
               <Text style={styles.lotterySelectorIcon}>▼</Text>
             </TouchableOpacity>
@@ -871,6 +914,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         }
       });
     }
+    
+    // Filtrar jugadas por lotería seleccionada
+    const filteredPlays = allPlays.filter(play => {
+      if (selectedLotteryCollector !== 'all') {
+        const playLottery = play.loteria || play.nombre_loteria || 'Lotería';
+        return playLottery === selectedLotteryCollector;
+      }
+      return true;
+    });
 
     return (
       <ScrollView
@@ -898,13 +950,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         )}
         
         {/* Gráfico de Balance basado en datos reales por día */}
-        {allPlays && allPlays.length > 0 && (()=>{
+        {filteredPlays && filteredPlays.length > 0 && (()=>{
           const fmtShort = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
           
           // Agrupar jugadas por fecha y calcular balance diario
           const dailyBalanceMap = new Map();
           
-          allPlays.forEach(play => {
+          filteredPlays.forEach(play => {
             // Validar que fecha_jugada exista y sea una fecha válida
             if (!play.fecha_jugada) {
               return; // Saltar esta jugada si no tiene fecha
@@ -1362,7 +1414,41 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Nueva tabla expandible para collector (SEGUNDA CAPA - agrupa por lotería y horario)
   const renderCollectorExpandableTable = () => {
     // Para colectores, usar directamente los datos agrupados del hook (ya vienen agrupados por listero)
-    const collectorData = tableData?.plays || [];
+    let collectorData = tableData?.plays || [];
+    
+    // Aplicar filtro de lotería si está seleccionada
+    if (selectedLotteryCollector !== 'all') {
+      collectorData = collectorData.map(listero => {
+        // Filtrar las jugadas del listero por lotería
+        const filteredPlays = (listero.plays || []).filter(play => {
+          const playLottery = play.loteria || play.nombre_loteria || 'Lotería';
+          return playLottery === selectedLotteryCollector;
+        });
+        
+        // Recalcular totales basados en las jugadas filtradas
+        const totals = {
+          total_bruto: 0,
+          total_premio: 0,
+          total_ganancia_listero: 0,
+          total_ganancia_colector: 0,
+          balance_colector: 0
+        };
+        
+        filteredPlays.forEach(play => {
+          totals.total_bruto += Number(play.monto_total || 0);
+          totals.total_premio += Number(play.monto_a_pagar || 0);
+          totals.total_ganancia_listero += Number(play.ganancia_listero || 0);
+          totals.total_ganancia_colector += Number(play.ganancia_colector || 0);
+          totals.balance_colector += Number(play.balance_colector || 0);
+        });
+        
+        return {
+          ...listero,
+          plays: filteredPlays,
+          ...totals
+        };
+      }).filter(listero => listero.plays.length > 0); // Solo mantener listeros con jugadas
+    }
     
     if (!collectorData || collectorData.length === 0) {
       return (
@@ -2058,6 +2144,107 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     );
   };
 
+  // Renderizar modal de selección de lotería para collector/admin
+  const renderLotteryModalCollector = () => {
+    let allPlays = [];
+    if (userRole === 'collector' || userRole === 'colector') {
+      const collectorData = tableData?.plays || [];
+      collectorData.forEach(listero => {
+        if (listero.plays && Array.isArray(listero.plays)) {
+          allPlays = allPlays.concat(listero.plays);
+        }
+      });
+    } else if (userRole === 'admin') {
+      const adminData = tableData?.plays || [];
+      adminData.forEach(colector => {
+        if (colector.listeros && Array.isArray(colector.listeros)) {
+          colector.listeros.forEach(listero => {
+            if (listero.plays && Array.isArray(listero.plays)) {
+              allPlays = allPlays.concat(listero.plays);
+            }
+          });
+        }
+      });
+    }
+    
+    const uniqueLotteries = [...new Set(allPlays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort();
+
+    if (uniqueLotteries.length === 0) return null;
+
+    return (
+      <Modal
+        visible={showLotteryModalCollector}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowLotteryModalCollector(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowLotteryModalCollector(false)}
+        >
+          <View style={styles.lotteryModalContent}>
+            <Text style={styles.modalTitle}>Seleccionar Lotería</Text>
+            
+            <ScrollView style={styles.lotteryList}>
+              <TouchableOpacity
+                style={[
+                  styles.lotteryOption,
+                  selectedLotteryCollector === 'all' && styles.lotteryOptionSelected
+                ]}
+                onPress={() => {
+                  setSelectedLotteryCollector('all');
+                  setShowLotteryModalCollector(false);
+                }}
+              >
+                <Text style={[
+                  styles.lotteryOptionText,
+                  selectedLotteryCollector === 'all' && styles.lotteryOptionTextSelected
+                ]}>
+                  Todas
+                </Text>
+                {selectedLotteryCollector === 'all' && (
+                  <Text style={styles.checkmark}>✓</Text>
+                )}
+              </TouchableOpacity>
+
+              {uniqueLotteries.map(lottery => (
+                <TouchableOpacity
+                  key={`lottery-modal-collector-${lottery}`}
+                  style={[
+                    styles.lotteryOption,
+                    selectedLotteryCollector === lottery && styles.lotteryOptionSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedLotteryCollector(lottery);
+                    setShowLotteryModalCollector(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.lotteryOptionText,
+                    selectedLotteryCollector === lottery && styles.lotteryOptionTextSelected
+                  ]}>
+                    {lottery}
+                  </Text>
+                  {selectedLotteryCollector === lottery && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setShowLotteryModalCollector(false)}
+            >
+              <Text style={styles.cancelButtonText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    );
+  };
+
   // Renderizar contenido según el tab activo
   const renderActiveTabContent = () => {
     switch (activeTab) {
@@ -2094,6 +2281,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
       {renderExportModal()}
       {renderLotteryModal()}
+      {renderLotteryModalCollector()}
 
       <SideBarWrapper
         isVisible={sidebarVisible}
