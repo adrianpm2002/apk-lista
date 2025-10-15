@@ -37,6 +37,15 @@ const getYesterdayRange = () => {
   return { start, end };
 };
 
+// Función para normalizar el período al nombre de caché
+const normalizePeriodForCache = (period) => {
+  // Mapear 'last7days' a 'recent' para consistencia con sistema de caché
+  if (period === 'last7days') {
+    return 'recent';
+  }
+  return period;
+};
+
 export const useCollectorStatistics = (options = {}) => {
   const { enabled = true } = options;
   // Estados básicos
@@ -199,6 +208,10 @@ export const useCollectorStatistics = (options = {}) => {
       
       console.log('[useCollectorStatistics] Cargando datos para período:', period);
       
+      // Normalizar período para caché (last7days -> recent)
+      const cachePeriod = normalizePeriodForCache(period);
+      console.log('[useCollectorStatistics] Período para caché:', cachePeriod);
+      
       // ============================================
       // OPTIMIZACIÓN 1: Filtrado local desde caché
       // ============================================
@@ -224,7 +237,7 @@ export const useCollectorStatistics = (options = {}) => {
       // ============================================
       // OPTIMIZACIÓN 2: Verificar caché antes de consultar Supabase
       // ============================================
-      const cachedData = await readFromCache(userId, period, 'collector');
+      const cachedData = await readFromCache(userId, cachePeriod, 'collector');
       
       if (cachedData) {
         const metadata = cachedData._metadata;
@@ -252,7 +265,7 @@ export const useCollectorStatistics = (options = {}) => {
             try {
               console.log('[useCollectorStatistics] 🔄 Iniciando refresco en segundo plano...');
               const freshData = await fetchCollectorDataFromSupabase(userId, filters);
-              await saveToCache(userId, period, freshData, 'collector');
+              await saveToCache(userId, cachePeriod, freshData, 'collector');
               console.log('[useCollectorStatistics] ✓ Refresco en segundo plano completado');
             } catch (err) {
               console.error('[useCollectorStatistics] Error en refresco:', err.message);
@@ -275,15 +288,15 @@ export const useCollectorStatistics = (options = {}) => {
       // Guardar en caché según plataforma
       if (isMobile) {
         // APK/IPA: Cachear todo sin límites
-        console.log('[useCollectorStatistics] APK/IPA: Cacheando período:', period);
-        await saveToCache(userId, period, freshData, 'collector');
+        console.log('[useCollectorStatistics] APK/IPA: Cacheando período:', cachePeriod);
+        await saveToCache(userId, cachePeriod, freshData, 'collector');
       } else if (isWeb || isExpoGo) {
         // Expo Go/Web: Solo cachear 'recent' (7 días)
-        if (period === 'recent') {
+        if (cachePeriod === 'recent') {
           console.log('[useCollectorStatistics] Expo Go/Web: Cacheando solo período "recent"');
-          await saveToCache(userId, period, freshData, 'collector');
+          await saveToCache(userId, cachePeriod, freshData, 'collector');
         } else {
-          console.log('[useCollectorStatistics] Expo Go/Web: Omitiendo caché para período:', period);
+          console.log('[useCollectorStatistics] Expo Go/Web: Omitiendo caché para período:', cachePeriod);
         }
       }
       

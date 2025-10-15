@@ -41,6 +41,15 @@ const getYesterdayRange = () => {
   return { start, end };
 };
 
+// Función para normalizar el período al nombre de caché
+const normalizePeriodForCache = (period) => {
+  // Mapear 'last7days' a 'recent' para consistencia con sistema de caché
+  if (period === 'last7days') {
+    return 'recent';
+  }
+  return period;
+};
+
 export const useAdminStatistics = (options = {}) => {
   const { enabled = true } = options;
   // Estados básicos
@@ -207,6 +216,10 @@ export const useAdminStatistics = (options = {}) => {
       
       console.log('[useAdminStatistics] Cargando datos para período:', period);
       
+      // Normalizar período para caché (last7days -> recent)
+      const cachePeriod = normalizePeriodForCache(period);
+      console.log('[useAdminStatistics] Período para caché:', cachePeriod);
+      
       // ============================================
       // OPTIMIZACIÓN 1: Filtrado local desde caché
       // ============================================
@@ -232,7 +245,7 @@ export const useAdminStatistics = (options = {}) => {
       // ============================================
       // OPTIMIZACIÓN 2: Verificar caché antes de consultar Supabase
       // ============================================
-      const cachedData = await readFromCache(userId, period, 'admin');
+      const cachedData = await readFromCache(userId, cachePeriod, 'admin');
       
       if (cachedData) {
         const metadata = cachedData._metadata;
@@ -260,7 +273,7 @@ export const useAdminStatistics = (options = {}) => {
             try {
               console.log('[useAdminStatistics] 🔄 Iniciando refresco en segundo plano...');
               const freshData = await fetchAdminDataFromSupabase(userId, filters);
-              await saveToCache(userId, period, freshData, 'admin');
+              await saveToCache(userId, cachePeriod, freshData, 'admin');
               console.log('[useAdminStatistics] ✓ Refresco en segundo plano completado');
             } catch (err) {
               console.error('[useAdminStatistics] Error en refresco:', err.message);
@@ -283,15 +296,15 @@ export const useAdminStatistics = (options = {}) => {
       // Guardar en caché según plataforma
       if (isMobile) {
         // APK/IPA: Cachear todo sin límites
-        console.log('[useAdminStatistics] APK/IPA: Cacheando período:', period);
-        await saveToCache(userId, period, freshData, 'admin');
+        console.log('[useAdminStatistics] APK/IPA: Cacheando período:', cachePeriod);
+        await saveToCache(userId, cachePeriod, freshData, 'admin');
       } else if (isWeb || isExpoGo) {
         // Expo Go/Web: Solo cachear 'recent' (7 días)
-        if (period === 'recent') {
+        if (cachePeriod === 'recent') {
           console.log('[useAdminStatistics] Expo Go/Web: Cacheando solo período "recent"');
-          await saveToCache(userId, period, freshData, 'admin');
+          await saveToCache(userId, cachePeriod, freshData, 'admin');
         } else {
-          console.log('[useAdminStatistics] Expo Go/Web: Omitiendo caché para período:', period);
+          console.log('[useAdminStatistics] Expo Go/Web: Omitiendo caché para período:', cachePeriod);
         }
       }
       
