@@ -576,7 +576,6 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
              id_precio: ((userRole === 'collector' || userRole === 'admin') && effectiveRole === 'listero') ? buildGainsData() : null,
            }; // sin ganancia
 
-          console.log('Creating listero with data:', insertData);
 
           if (effectiveRole === 'listero' && enableSpecificLimits && userRole !== 'collector') {
             const limitsObj = {};
@@ -2142,3 +2141,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

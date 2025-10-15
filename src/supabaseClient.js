@@ -34,9 +34,7 @@ const supabaseOptions = {
 
 // Solo habilitar logging en desarrollo
 if (envConfig.enableLogging) {
-  console.log('🔧 Supabase client configurado para desarrollo');
 } else {
-  console.log('🔒 Supabase client configurado para producción');
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, supabaseOptions);

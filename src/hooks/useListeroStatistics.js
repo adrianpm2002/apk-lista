@@ -382,26 +382,20 @@ export const useListeroStatistics = (options = {}) => {
       if (hasCache && canUseCache) {
         const cachedResult = await statisticsCache.readFromCache(userId, cachePeriod);
         if (cachedResult && cachedResult.data && cachedResult.data.length > 0) {
-          console.log(`[useListeroStatistics] ⚡ Caché encontrado (${cachedResult.age} min): ${cachedResult.data.length} registros`);
           
           // 🎯 APLICAR FILTRO LOCAL si es necesario (Hoy/Ayer)
           let dataToFormat = cachedResult.data;
           
           if (needsLocalFilter && localFilterRange) {
-            const beforeFilter = dataToFormat.length;
             dataToFormat = statisticsCache.filterByDateRange(
               dataToFormat,
               localFilterRange.startDate,
               localFilterRange.endDate
             );
-            const afterFilter = dataToFormat.length;
-            console.log(`[useListeroStatistics] 🔍 Filtro local aplicado: ${beforeFilter} → ${afterFilter} registros`);
-            console.log(`[useListeroStatistics] 📅 Rango: ${localFilterRange.startDate.toLocaleString()} - ${localFilterRange.endDate.toLocaleString()}`);
           }
           
           // Cargar datos del caché INMEDIATAMENTE (filtrados si aplica)
           const formattedPlays = formatPlaysData(dataToFormat);
-          console.log(`[useListeroStatistics] ✅ Mostrando ${formattedPlays.length} registros en UI`);
           
           setTableData(prev => ({
             ...prev,
@@ -416,11 +410,9 @@ export const useListeroStatistics = (options = {}) => {
           const CACHE_REFRESH_THRESHOLD = 10; // minutos
           
           if (cachedResult.age < CACHE_REFRESH_THRESHOLD) {
-            console.log(`[useListeroStatistics] ⏭️ Caché muy reciente (${cachedResult.age} min), saltando background refresh`);
             return formattedPlays;
           }
           
-          console.log(`[useListeroStatistics] 🔄 Caché antiguo (${cachedResult.age} min), iniciando actualización en background...`);
           setIsRefreshing(true);
           
           // Fetch de Supabase en background
@@ -432,39 +424,31 @@ export const useListeroStatistics = (options = {}) => {
                 ? { period: 'last7days', startDate: null, endDate: null }
                 : filters;
               
-              console.log(`[useListeroStatistics] 📡 Fetch background con filtros:`, fetchFilters);
-              
+                  
               const freshData = await loadListeroPlaysData(userId, fetchFilters);
               
               // Guardar en caché solo si canUseCache es true (períodos cortos)
               if (canUseCache) {
                 await statisticsCache.saveToCache(userId, cachePeriod, freshData);
-                console.log(`[useListeroStatistics] 💾 Caché actualizado: ${cachePeriod} (${freshData.length} registros)`);
-              } else {
-                console.log(`[useListeroStatistics] ℹ️ Período largo: no se guarda en caché (${freshData.length} registros)`);
               }
               
               // 🎯 APLICAR FILTRO LOCAL a los datos frescos si es necesario
               let freshDataToFormat = freshData;
               if (needsLocalFilter && localFilterRange) {
-                const beforeFilter = freshDataToFormat.length;
                 freshDataToFormat = statisticsCache.filterByDateRange(
                   freshDataToFormat,
                   localFilterRange.startDate,
                   localFilterRange.endDate
                 );
-                console.log(`[useListeroStatistics] 🔍 Filtro local aplicado a datos frescos: ${beforeFilter} → ${freshDataToFormat.length} registros`);
               }
               
               // Actualizar UI solo si hay cambios
               const formattedFresh = formatPlaysData(freshDataToFormat);
               if (JSON.stringify(formattedFresh) !== JSON.stringify(formattedPlays)) {
-                console.log(`[useListeroStatistics] ✅ Datos actualizados en background (${formattedFresh.length} registros)`);
                 setTableData(prev => ({
                   ...prev,
                   plays: formattedFresh
                 }));
-              } else {
               }
             } catch (error) {
               console.error('[useListeroStatistics] ❌ Error en actualización background:', error);
@@ -570,3 +554,5 @@ export const useListeroStatistics = (options = {}) => {
     updateDateRange
   };
 };
+
+

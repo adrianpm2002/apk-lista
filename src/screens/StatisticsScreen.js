@@ -216,7 +216,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // ✅ Verificación de userId disponible (solo para logging/debug)
   useEffect(() => {
     if (currentUserId && userRole === 'listero') {
-      console.log('[StatisticsScreen] 👤 UserId disponible, caché se cargará bajo demanda');
     }
   }, [currentUserId, userRole]);
 
@@ -229,7 +228,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // ELIMINADO: Monitor de userRole innecesario que solo tenía un console.log comentado
   // useEffect(() => {
   //   if (userRole) {
-  //     // console.log('🔄 [StatisticsScreen] UserRole changed to:', userRole, '(for sidebar)');
   //   }
   // }, [userRole]);
 
@@ -259,7 +257,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const applyPeriodFilter = (period, forceRefresh = false) => {
     // Verificar que userId esté disponible antes de filtrar
     if (!currentUserId) {
-      console.log('[StatisticsScreen] ⏸️ applyPeriodFilter: No hay userId, saltando...');
       return;
     }
 
@@ -3240,4 +3237,6 @@ const styles = StyleSheet.create({
 });
 
 export default StatisticsScreen;
+
+
 

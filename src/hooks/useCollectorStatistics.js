@@ -363,12 +363,10 @@ export const useCollectorStatistics = (options = {}) => {
         
         // Límite de seguridad para evitar bucles infinitos
         if (page > 250) { // Hasta 1.25M registros
-          console.log('[useCollectorStatistics] Límite de páginas alcanzado (250)');
-          break;
+              break;
         }
       }
       
-      console.log(`[useCollectorStatistics] ✓ ${allPlaysData.length} registros obtenidos de Supabase`);
       return allPlaysData || [];
       
     } catch (error) {
@@ -587,3 +585,5 @@ export const useCollectorStatistics = (options = {}) => {
     getTotals
   };
 };
+
+

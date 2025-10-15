@@ -74,12 +74,10 @@ export const saveToCache = async (userId, period, data, role = 'listero') => {
     // APK/IPA: Cachear todo (AsyncStorage ilimitado)
     if (isWeb && period !== 'recent') {
       const platform = isExpoGo ? 'Expo Go' : 'Web';
-      console.log(`[StatisticsCache] ⏭️ ${platform} [${role}]: Saltando caché para período largo: ${period}`);
       return false;
     }
 
     if (isMobile) {
-      console.log(`[StatisticsCache] 📱 APK/IPA [${role}]: Cacheando período: ${period}`);
     }
 
     const key = getCacheKey(userId, period, role);
@@ -96,7 +94,6 @@ export const saveToCache = async (userId, period, data, role = 'listero') => {
     // Actualizar metadatos
     await updateMetadata(userId, period, role);
     
-    console.log(`[StatisticsCache] ✅ Guardado en caché [${role}]: ${period} (${data.length} registros)`);
     return true;
   } catch (error) {
     console.error(`[StatisticsCache] ❌ Error al guardar en caché [${role}]:`, error);
@@ -122,7 +119,6 @@ export const readFromCache = async (userId, period, role = 'listero') => {
     const cachedData = await AsyncStorage.getItem(key);
 
     if (!cachedData) {
-      console.log(`[StatisticsCache] ℹ️ No hay caché para [${role}]: ${period}`);
       return null;
     }
 
@@ -130,15 +126,12 @@ export const readFromCache = async (userId, period, role = 'listero') => {
     
     // Verificar versión
     if (parsed.version !== CACHE_VERSION) {
-      console.log(`[StatisticsCache] ⚠️ Versión de caché obsoleta [${role}], eliminando...`);
       await clearCache(userId, period, role);
       return null;
     }
 
     const age = Date.now() - parsed.timestamp;
     const ageMinutes = Math.floor(age / 60000);
-    
-    console.log(`[StatisticsCache] ✅ Caché leído [${role}]: ${period} (${parsed.data.length} registros, ${ageMinutes} min antiguos)`);
     
     return {
       data: parsed.data,
@@ -207,7 +200,6 @@ export const clearCache = async (userId, period, role = 'listero') => {
   try {
     const key = getCacheKey(userId, period, role);
     await AsyncStorage.removeItem(key);
-    console.log(`[StatisticsCache] 🗑️ Caché eliminado [${role}]: ${period}`);
     return true;
   } catch (error) {
     console.error(`[StatisticsCache] Error al limpiar caché [${role}]:`, error);
@@ -229,7 +221,6 @@ export const clearAllCache = async (userId, role = 'listero') => {
     const metadataKey = getMetadataKey(userId, role);
     await AsyncStorage.removeItem(metadataKey);
     
-    console.log(`[StatisticsCache] 🗑️ Todo el caché eliminado [${role}] para usuario: ${userId}`);
     return true;
   } catch (error) {
     console.error(`[StatisticsCache] Error al limpiar todo el caché [${role}]:`, error);
@@ -318,3 +309,5 @@ export default {
   getYesterdayRange,
   getCacheStats,
 };
+
+

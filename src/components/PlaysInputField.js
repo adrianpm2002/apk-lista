@@ -142,8 +142,7 @@ const PlaysInputField = ({
       )}
       {label && pasteButtonOverlay && <Text style={styles.label}>{label}</Text>}
       <Pressable style={[styles.tokensBox, hasError && styles.inputError]} onPress={()=> {
-        console.log('PlaysInputField: Attempting to focus hidden input');
-        // Forzar blur y luego focus para asegurar que el teclado aparezca
+          // Forzar blur y luego focus para asegurar que el teclado aparezca
         if (hiddenInputRef.current) {
           hiddenInputRef.current.blur();
           setTimeout(() => {
@@ -264,3 +263,4 @@ const styles = StyleSheet.create({
 });
 
 export default PlaysInputField;
+

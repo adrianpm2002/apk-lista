@@ -5,7 +5,6 @@ export const usePullToRefresh = (onRefreshCallback) => {
   
   const onRefresh = useCallback(async () => {
     if (!onRefreshCallback) {
-      console.log('Pull to refresh: no callback provided');
       return;
     }
     
@@ -21,3 +20,4 @@ export const usePullToRefresh = (onRefreshCallback) => {
 
   return { refreshing, onRefresh };
 };
+

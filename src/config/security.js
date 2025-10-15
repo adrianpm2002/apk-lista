@@ -41,7 +41,6 @@ export function validateApiResponse(response) {
 // Función para limpiar tokens comprometidos
 function clearLocalTokens() {
   // Implementar limpieza de tokens según el sistema de storage usado
-  console.log('🔒 Limpiando tokens de autenticación');
 }
 
 // Configuración de desarrollo vs producción

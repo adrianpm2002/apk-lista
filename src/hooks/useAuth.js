@@ -19,7 +19,6 @@ export const useAuth = () => {
 
     // Listener para cambios de estado de autenticación
     const handleAuthStateChange = async (event, session) => {
-      console.log('useAuth: Estado de auth cambió:', event);
       
       if (event === 'SIGNED_IN' && session) {
         setSession(session);
@@ -207,3 +206,4 @@ export const useAuth = () => {
 };
 
 export default useAuth;
+
