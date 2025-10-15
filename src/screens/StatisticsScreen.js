@@ -103,6 +103,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [groupedData, setGroupedData] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState('');
+  const [isDarkMode, setIsDarkMode] = useState(false); // Modo oscuro (desactivado por defecto)
   
   // Estados para modo Santiago
   const [modoSantiago, setModoSantiago] = useState(false);
@@ -502,18 +503,18 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     // Preparar opciones de horario (sin "Todos")
     const scheduleOptions = (lotterySchedules || []).map(sch => ({ label: sch.nombre, value: sch.id }));
 
-    // Obtener loterías únicas del cache solo para listero en tab de detalles
-    const uniqueLotteries = (userRole === 'listero' && activeTab === 'details' && tableData?.plays) 
+    // Obtener loterías únicas del cache para listero en tabs de gráficos y detalles
+    const uniqueLotteries = (userRole === 'listero' && (activeTab === 'charts' || activeTab === 'details') && tableData?.plays) 
       ? [...new Set(tableData.plays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort()
       : [];
 
     return (
       <View style={styles.inlineFiltersWrapper}>
-        {/* Fila 0: Filtro de Loterías (solo para listero en tab de detalles) */}
+        {/* Fila 0: Filtro de Loterías (para listero en gráficos y detalles) */}
         {uniqueLotteries.length > 0 && (
           <View style={[styles.inlineFiltersRow, { marginBottom: 6 }]}>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#495057', marginRight: 8, alignSelf: 'center' }}>
-              🎰
+            <Text style={{ fontSize: 12, fontWeight: '600', color: isDarkMode ? '#ecf0f1' : '#495057', marginRight: 8, alignSelf: 'center' }}>
+              Lotería:
             </Text>
             <TouchableOpacity
               style={[
@@ -724,10 +725,19 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       {tableData?.plays && tableData.plays.length > 0 && (()=>{
         const fmtShort = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
         
+        // Filtrar jugadas por lotería seleccionada
+        const filteredPlays = tableData.plays.filter(play => {
+          if (selectedLotteryDetails !== 'all') {
+            const playLottery = play.loteria || play.nombre_loteria || 'Lotería';
+            return playLottery === selectedLotteryDetails;
+          }
+          return true;
+        });
+        
         // Agrupar jugadas por fecha y calcular balance diario
         const dailyBalanceMap = new Map();
         
-        tableData.plays.forEach(play => {
+        filteredPlays.forEach(play => {
           // Validar que created_at exista y sea una fecha válida
           if (!play.created_at) {
             return; // Saltar esta jugada si no tiene fecha
@@ -829,8 +839,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             />
             {/* KPIs del período debajo del gráfico */}
             {(() => {
-              // Calcular totales del período desde tableData.plays (datos reales)
-              const playsInPeriod = tableData?.plays || [];
+              // Calcular totales del período desde datos filtrados
+              const playsInPeriod = filteredPlays || [];
               
               const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.bruto) || 0), 0);
               const totalGananciaListero = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
