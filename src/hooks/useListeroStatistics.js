@@ -309,15 +309,42 @@ export const useListeroStatistics = (options = {}) => {
 
       const { period, startDate, endDate } = filters;
       
+      // 🔍 DETECCIÓN DE FILTROS LOCALES (Hoy/Ayer)
+      const isToday = period === 'today' || isFilteringToday(startDate, endDate);
+      const isYesterday = period === 'yesterday' || isFilteringYesterday(startDate, endDate);
+      const useLocalFilter = isToday || isYesterday;
+      
+      if (useLocalFilter) {
+        console.log(`[useListeroStatistics] 🎯 Filtro local detectado: ${isToday ? 'HOY' : 'AYER'}`);
+      }
+      
       // Determinar el período para el caché
+      // Si es Hoy/Ayer, usar caché 'recent' (7 días) y filtrar localmente
       let cachePeriod = 'recent'; // Default: 7 días
-      if (period === 'last30days' || isFilteringLast30Days(startDate, endDate)) {
+      let needsLocalFilter = false;
+      let localFilterRange = null;
+      
+      if (isToday) {
+        cachePeriod = 'recent';
+        needsLocalFilter = true;
+        localFilterRange = statisticsCache.getTodayRange();
+        console.log('[useListeroStatistics] 📅 Usando caché de 7 días + filtro local para HOY');
+      } else if (isYesterday) {
+        cachePeriod = 'recent';
+        needsLocalFilter = true;
+        localFilterRange = statisticsCache.getYesterdayRange();
+        console.log('[useListeroStatistics] 📅 Usando caché de 7 días + filtro local para AYER');
+      } else if (period === 'last30days' || isFilteringLast30Days(startDate, endDate)) {
         cachePeriod = 'thisMonth';
+        console.log('[useListeroStatistics] 📅 Usando caché de MES ACTUAL');
       } else if (period === 'lastMonth' || isFilteringLastMonth(startDate, endDate)) {
         cachePeriod = 'lastMonth';
+        console.log('[useListeroStatistics] 📅 Usando caché de MES PASADO');
+      } else {
+        console.log('[useListeroStatistics] � Usando caché de 7 DÍAS (default)');
       }
 
-      console.log(`[useListeroStatistics] 🔍 Cargando datos para período: ${cachePeriod}`);
+      console.log(`[useListeroStatistics] 🔍 Período de caché: ${cachePeriod}, Filtro local: ${needsLocalFilter}`);
       
       // PASO 1: Intentar cargar desde caché primero (INSTANTÁNEO)
       const hasCache = await statisticsCache.hasCacheFor(userId, cachePeriod);
@@ -327,8 +354,25 @@ export const useListeroStatistics = (options = {}) => {
         if (cachedResult && cachedResult.data && cachedResult.data.length > 0) {
           console.log(`[useListeroStatistics] ⚡ Caché encontrado (${cachedResult.ageMinutes} min): ${cachedResult.data.length} registros`);
           
-          // Cargar datos del caché INMEDIATAMENTE
-          const formattedPlays = formatPlaysData(cachedResult.data);
+          // 🎯 APLICAR FILTRO LOCAL si es necesario (Hoy/Ayer)
+          let dataToFormat = cachedResult.data;
+          
+          if (needsLocalFilter && localFilterRange) {
+            const beforeFilter = dataToFormat.length;
+            dataToFormat = statisticsCache.filterByDateRange(
+              dataToFormat,
+              localFilterRange.startDate,
+              localFilterRange.endDate
+            );
+            const afterFilter = dataToFormat.length;
+            console.log(`[useListeroStatistics] 🔍 Filtro local aplicado: ${beforeFilter} → ${afterFilter} registros`);
+            console.log(`[useListeroStatistics] 📅 Rango: ${localFilterRange.startDate.toLocaleString()} - ${localFilterRange.endDate.toLocaleString()}`);
+          }
+          
+          // Cargar datos del caché INMEDIATAMENTE (filtrados si aplica)
+          const formattedPlays = formatPlaysData(dataToFormat);
+          console.log(`[useListeroStatistics] ✅ Mostrando ${formattedPlays.length} registros en UI`);
+          
           setTableData(prev => ({
             ...prev,
             plays: formattedPlays
@@ -344,15 +388,36 @@ export const useListeroStatistics = (options = {}) => {
           // Fetch de Supabase en background
           setTimeout(async () => {
             try {
-              const freshData = await loadListeroPlaysData(userId, filters);
+              // Para filtros locales (Hoy/Ayer), actualizar el caché de 7 días completo
+              // NO los datos específicos del día
+              const fetchFilters = needsLocalFilter 
+                ? { period: 'last7days', startDate: null, endDate: null }
+                : filters;
               
-              // Guardar en caché
+              console.log(`[useListeroStatistics] 📡 Fetch background con filtros:`, fetchFilters);
+              
+              const freshData = await loadListeroPlaysData(userId, fetchFilters);
+              
+              // Guardar en caché (siempre guardar el conjunto completo del período)
               await statisticsCache.saveToCache(userId, cachePeriod, freshData);
+              console.log(`[useListeroStatistics] 💾 Caché actualizado: ${cachePeriod} (${freshData.length} registros)`);
+              
+              // 🎯 APLICAR FILTRO LOCAL a los datos frescos si es necesario
+              let freshDataToFormat = freshData;
+              if (needsLocalFilter && localFilterRange) {
+                const beforeFilter = freshDataToFormat.length;
+                freshDataToFormat = statisticsCache.filterByDateRange(
+                  freshDataToFormat,
+                  localFilterRange.startDate,
+                  localFilterRange.endDate
+                );
+                console.log(`[useListeroStatistics] 🔍 Filtro local aplicado a datos frescos: ${beforeFilter} → ${freshDataToFormat.length} registros`);
+              }
               
               // Actualizar UI solo si hay cambios
-              const formattedFresh = formatPlaysData(freshData);
+              const formattedFresh = formatPlaysData(freshDataToFormat);
               if (JSON.stringify(formattedFresh) !== JSON.stringify(formattedPlays)) {
-                console.log('[useListeroStatistics] ✅ Datos actualizados en background');
+                console.log(`[useListeroStatistics] ✅ Datos actualizados en background (${formattedFresh.length} registros)`);
                 setTableData(prev => ({
                   ...prev,
                   plays: formattedFresh
