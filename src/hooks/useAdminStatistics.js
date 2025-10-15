@@ -1,5 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { supabase } from '../supabaseClient';
+import { 
+  saveToCache, 
+  readFromCache, 
+  filterByDateRange 
+} from '../utils/statisticsCache';
+
+// Constantes para cache
+const CACHE_REFRESH_THRESHOLD = 10; // minutos
+
+// Detección de plataforma
+const isExpoGo = Constants.appOwnership === 'expo';
+const isMobile = !isExpoGo && (Platform.OS === 'android' || Platform.OS === 'ios');
+const isWeb = Platform.OS === 'web' || isExpoGo;
 
 // Helper para convertir fecha local a string para consultas de base de datos
 const formatDateForQuery = (date) => {
@@ -7,6 +22,23 @@ const formatDateForQuery = (date) => {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+// Función para obtener rango de hoy
+const getTodayRange = () => {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+  return { start, end };
+};
+
+// Función para obtener rango de ayer
+const getYesterdayRange = () => {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0, 0);
+  const end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
+  return { start, end };
 };
 
 export const useAdminStatistics = (options = {}) => {
@@ -167,11 +199,113 @@ export const useAdminStatistics = (options = {}) => {
   const loadAdminPlaysData = async (userId, filters = {}) => {
     try {
       if (!userId) {
+        console.log('[useAdminStatistics] userId no proporcionado');
         return [];
       }
 
-  // inicio de carga (silencioso)
+      const { period, startDate, endDate } = filters;
+      
+      console.log('[useAdminStatistics] Cargando datos para período:', period);
+      
+      // ============================================
+      // OPTIMIZACIÓN 1: Filtrado local desde caché
+      // ============================================
+      // Si es filtro de hoy o ayer, intentar filtrar localmente desde caché de 7 días
+      if (period === 'today' || period === 'yesterday') {
+        console.log('[useAdminStatistics] Intentando filtrar localmente desde caché de 7 días...');
+        const cached7Days = await readFromCache(userId, 'recent', 'admin');
+        
+        if (cached7Days) {
+          console.log('[useAdminStatistics] ✓ Caché de 7 días encontrado, filtrando localmente');
+          const range = period === 'today' ? getTodayRange() : getYesterdayRange();
+          const filteredData = filterByDateRange(cached7Days, range.start, range.end, 'fecha_jugada');
+          
+          if (filteredData && filteredData.length >= 0) {
+            console.log(`[useAdminStatistics] ✓ Filtrado local exitoso: ${filteredData.length} registros`);
+            return filteredData;
+          }
+        } else {
+          console.log('[useAdminStatistics] Caché de 7 días no disponible, consultando Supabase');
+        }
+      }
+      
+      // ============================================
+      // OPTIMIZACIÓN 2: Verificar caché antes de consultar Supabase
+      // ============================================
+      const cachedData = await readFromCache(userId, period, 'admin');
+      
+      if (cachedData) {
+        const metadata = cachedData._metadata;
+        const cacheAge = (Date.now() - metadata.timestamp) / (1000 * 60); // minutos
+        
+        console.log(`[useAdminStatistics] ✓ Caché encontrado (${cacheAge.toFixed(1)} min)`);
+        
+        // Si el caché es reciente (< 10 min), usarlo directamente
+        if (cacheAge < CACHE_REFRESH_THRESHOLD) {
+          console.log('[useAdminStatistics] ✓ Caché fresco, usando datos cacheados');
+          // Eliminar metadata antes de retornar
+          const { _metadata, ...data } = cachedData;
+          return data.plays || [];
+        }
+        
+        // Si el caché es antiguo pero no demasiado (< 60 min), usarlo y refrescar en segundo plano
+        if (cacheAge < 60) {
+          console.log('[useAdminStatistics] Caché antiguo, usando y refrescando en segundo plano');
+          
+          // Retornar datos cacheados inmediatamente
+          const { _metadata, ...data } = cachedData;
+          
+          // Refrescar en segundo plano (sin await)
+          (async () => {
+            try {
+              console.log('[useAdminStatistics] 🔄 Iniciando refresco en segundo plano...');
+              const freshData = await fetchAdminDataFromSupabase(userId, filters);
+              await saveToCache(userId, period, freshData, 'admin');
+              console.log('[useAdminStatistics] ✓ Refresco en segundo plano completado');
+            } catch (err) {
+              console.error('[useAdminStatistics] Error en refresco:', err.message);
+            }
+          })();
+          
+          return data.plays || [];
+        }
+        
+        console.log('[useAdminStatistics] Caché muy antiguo, consultando Supabase');
+      } else {
+        console.log('[useAdminStatistics] Sin caché, consultando Supabase');
+      }
+      
+      // ============================================
+      // OPTIMIZACIÓN 3: Consultar Supabase y guardar en caché
+      // ============================================
+      const freshData = await fetchAdminDataFromSupabase(userId, filters);
+      
+      // Guardar en caché según plataforma
+      if (isMobile) {
+        // APK/IPA: Cachear todo sin límites
+        console.log('[useAdminStatistics] APK/IPA: Cacheando período:', period);
+        await saveToCache(userId, period, freshData, 'admin');
+      } else if (isWeb || isExpoGo) {
+        // Expo Go/Web: Solo cachear 'recent' (7 días)
+        if (period === 'recent') {
+          console.log('[useAdminStatistics] Expo Go/Web: Cacheando solo período "recent"');
+          await saveToCache(userId, period, freshData, 'admin');
+        } else {
+          console.log('[useAdminStatistics] Expo Go/Web: Omitiendo caché para período:', period);
+        }
+      }
+      
+      return freshData;
+      
+    } catch (error) {
+      console.error('[useAdminStatistics] Error en loadAdminPlaysData:', error);
+      return [];
+    }
+  };
 
+  // Función auxiliar para consultar Supabase (lógica original extraída)
+  const fetchAdminDataFromSupabase = async (userId, filters = {}) => {
+    try {
       const { period, startDate, endDate } = filters;
       
       // Determinar qué vista usar según el período o filtro de fechas
@@ -230,10 +364,9 @@ export const useAdminStatistics = (options = {}) => {
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) {
+          console.error('[useAdminStatistics] Error en consulta Supabase:', error);
           return [];
         }
-        
-  // progreso por página (silencioso)
         
         if (playsData && playsData.length > 0) {
           allPlaysData = allPlaysData.concat(playsData);
@@ -247,17 +380,16 @@ export const useAdminStatistics = (options = {}) => {
         
         // Límite de seguridad para evitar bucles infinitos
         if (page > 250) { // Hasta 1.25M registros
+          console.log('[useAdminStatistics] Límite de páginas alcanzado (250)');
           break;
         }
-        
-        // Mostrar progreso cada 10 páginas
-        // progreso cada 10 páginas (omitido)
       }
-      // total obtenido (silencioso)
-
+      
+      console.log(`[useAdminStatistics] ✓ ${allPlaysData.length} registros obtenidos de Supabase`);
       return allPlaysData || [];
       
     } catch (error) {
+      console.error('[useAdminStatistics] Error en fetchAdminDataFromSupabase:', error);
       return [];
     }
   };
