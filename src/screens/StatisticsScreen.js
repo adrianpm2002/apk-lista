@@ -234,11 +234,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   }, [userRole, tableData]);
 
-  useEffect(() => {
-    if (selectedPeriod !== 'custom' && currentUserId) {
-      applyPeriodFilter(selectedPeriod);
-    }
-  }, [selectedPeriod, selectedLottery, selectedSchedule]);
+  // ❌ ELIMINADO: useEffect que causaba renderizado duplicado
+  // Razón: Al cambiar selectedLottery/selectedSchedule re-aplicaba filtro automáticamente
+  // Nuevo comportamiento: Usuario aplica filtros manualmente cuando sea necesario
+  // Los datos de "Hoy" se cargan automáticamente al iniciar, otros períodos bajo demanda
 
   const loadInitialData = async () => {
     try {

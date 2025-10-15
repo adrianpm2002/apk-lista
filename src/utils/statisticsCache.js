@@ -1,9 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 /**
  * Módulo de caché para estadísticas de usuario
- * - MOBILE (Android/iOS): Cachea TODO (recent, thisMonth, lastMonth) - AsyncStorage ilimitado
+ * - MOBILE COMPILADO (APK/IPA): Cachea TODO (recent, thisMonth, lastMonth) - AsyncStorage ilimitado
+ * - EXPO GO: Solo cachea 'recent' (7 días) - usa localStorage, limitado a ~5-10MB
  * - WEB: Solo cachea 'recent' (7 días) - localStorage limitado a ~5-10MB
  * - Caché infinito (nunca expira automáticamente)
  */
@@ -11,9 +13,14 @@ import { Platform } from 'react-native';
 const CACHE_VERSION = '1.0';
 const CACHE_PREFIX = 'stats_v1';
 
-// Detectar si estamos en mobile (Android/iOS) o web
-const isMobile = Platform.OS === 'android' || Platform.OS === 'ios';
-const isWeb = Platform.OS === 'web';
+// Detectar si estamos en Expo Go (usa localStorage como web)
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Detectar plataforma
+// Expo Go siempre cachea como web (localStorage limitado)
+// APK/IPA compilado cachea todo (AsyncStorage ilimitado)
+const isMobile = !isExpoGo && (Platform.OS === 'android' || Platform.OS === 'ios');
+const isWeb = Platform.OS === 'web' || isExpoGo;
 
 /**
  * Generar clave de caché para un usuario y período específico
@@ -42,15 +49,16 @@ export const saveToCache = async (userId, period, data) => {
       return false;
     }
 
-    // En WEB: Solo cachear 'recent' (7 días) para evitar QuotaExceededError
-    // En MOBILE: Cachear todo (AsyncStorage ilimitado)
+    // EXPO GO + WEB: Solo cachear 'recent' (7 días) para evitar QuotaExceededError
+    // APK/IPA: Cachear todo (AsyncStorage ilimitado)
     if (isWeb && period !== 'recent') {
-      console.log(`[StatisticsCache] ⏭️ Web: Saltando caché para período largo: ${period}`);
+      const platform = isExpoGo ? 'Expo Go' : 'Web';
+      console.log(`[StatisticsCache] ⏭️ ${platform}: Saltando caché para período largo: ${period}`);
       return false;
     }
 
     if (isMobile) {
-      console.log(`[StatisticsCache] 📱 Mobile: Cacheando período: ${period}`);
+      console.log(`[StatisticsCache] 📱 APK/IPA: Cacheando período: ${period}`);
     }
 
     const key = getCacheKey(userId, period);

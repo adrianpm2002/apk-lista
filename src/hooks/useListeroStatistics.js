@@ -1,11 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { supabase } from '../supabaseClient';
 import * as statisticsCache from '../utils/statisticsCache';
 
-// Detectar si estamos en mobile (Android/iOS) o web
-const isMobile = Platform.OS === 'android' || Platform.OS === 'ios';
-const isWeb = Platform.OS === 'web';
+// Detectar si estamos en Expo Go (usa localStorage como web)
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Detectar plataforma
+// Expo Go cachea como web (localStorage limitado)
+// APK/IPA compilado cachea todo (AsyncStorage ilimitado)
+const isMobile = !isExpoGo && (Platform.OS === 'android' || Platform.OS === 'ios');
+const isWeb = Platform.OS === 'web' || isExpoGo;
 
 // Helper para convertir fecha local a string para consultas de base de datos
 const formatDateForQuery = (date) => {
@@ -352,21 +358,23 @@ export const useListeroStatistics = (options = {}) => {
         console.log('[useListeroStatistics] 📅 Usando caché de 7 DÍAS');
       } else if (period === 'last30days' || isFilteringLast30Days(startDate, endDate)) {
         cachePeriod = 'thisMonth';
-        // MOBILE: cachea, WEB: no cachea
+        // APK/IPA: cachea, EXPO GO/WEB: no cachea
         canUseCache = isMobile;
         if (isMobile) {
-          console.log('[useListeroStatistics] 📱 Mobile: Usando caché de MES ACTUAL');
+          console.log('[useListeroStatistics] 📱 APK/IPA: Usando caché de MES ACTUAL');
         } else {
-          console.log('[useListeroStatistics] 🌐 Web: Carga directa de MES ACTUAL (sin caché)');
+          const platform = isExpoGo ? 'Expo Go' : 'Web';
+          console.log(`[useListeroStatistics] 🌐 ${platform}: Carga directa de MES ACTUAL (sin caché)`);
         }
       } else if (period === 'lastMonth' || isFilteringLastMonth(startDate, endDate)) {
         cachePeriod = 'lastMonth';
-        // MOBILE: cachea, WEB: no cachea
+        // APK/IPA: cachea, EXPO GO/WEB: no cachea
         canUseCache = isMobile;
         if (isMobile) {
-          console.log('[useListeroStatistics] 📱 Mobile: Usando caché de MES PASADO');
+          console.log('[useListeroStatistics] 📱 APK/IPA: Usando caché de MES PASADO');
         } else {
-          console.log('[useListeroStatistics] 🌐 Web: Carga directa de MES PASADO (sin caché)');
+          const platform = isExpoGo ? 'Expo Go' : 'Web';
+          console.log(`[useListeroStatistics] 🌐 ${platform}: Carga directa de MES PASADO (sin caché)`);
         }
       } else {
         // Períodos custom: NO cachear en ninguna plataforma
@@ -412,8 +420,16 @@ export const useListeroStatistics = (options = {}) => {
           // Indicar que terminó la carga inicial (desde caché)
           setIsLoading(false);
           
-          // PASO 2: Actualizar en background sin bloquear UI
-          console.log('[useListeroStatistics] 🔄 Iniciando actualización en background...');
+          // PASO 2: Background refresh INTELIGENTE
+          // Solo actualizar si caché tiene más de 5 minutos de antigüedad
+          const CACHE_REFRESH_THRESHOLD = 5; // minutos
+          
+          if (cachedResult.age < CACHE_REFRESH_THRESHOLD) {
+            console.log(`[useListeroStatistics] ⏭️ Caché muy reciente (${cachedResult.age} min), saltando background refresh`);
+            return formattedPlays;
+          }
+          
+          console.log(`[useListeroStatistics] 🔄 Caché antiguo (${cachedResult.age} min), iniciando actualización en background...`);
           setIsRefreshing(true);
           
           // Fetch de Supabase en background
