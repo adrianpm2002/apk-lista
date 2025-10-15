@@ -865,23 +865,24 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               const totalGananciaListero = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
               const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.premio) || 0), 0);
               const totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_listero) || 0), 0); // Usar balance_listero real
-              const totalLimpio = totalBruto - totalPagado; // Limpio = Bruto - Pagado
+              // Cálculo Limpio: Bruto - Premios Pagados
+              const totalLimpio = totalBruto - totalPagado;
               
               return (
                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
-                  <View style={{ flexBasis:'48%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                    <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Bruto')} / {getSantiagoHeader('Limpio')}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatSantiagoMoney(totalBruto)}</Text>
-                      <Text style={{ fontSize:14, color:'#6c757d' }}>/</Text>
-                      <Text style={{ fontSize:16, fontWeight:'800', color:'#3498db' }}>{formatSantiagoMoney(totalLimpio)}</Text>
-                    </View>
+                  <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                    <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Bruto')}</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatSantiagoMoney(totalBruto)}</Text>
                   </View>
-                  <View style={{ flexBasis:'48%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                  <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                    <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Limpio')}</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color:'#3498db' }}>{formatSantiagoMoney(totalLimpio)}</Text>
+                  </View>
+                  <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                     <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Ganancia')}</Text>
                     <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatSantiagoMoney(totalGananciaListero)}</Text>
                   </View>
-                  <View style={{ flexBasis:'48%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                  <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                     <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Balance')}</Text>
                     <Text style={{ fontSize:16, fontWeight:'800', color: getSantiagoValue(totalBalance)>=0? '#27AE60':'#e74c3c' }}>{formatSantiagoMoney(totalBalance)}</Text>
                   </View>
@@ -1087,7 +1088,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 
                 const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
                 const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
-                const totalLimpio = totalBruto - totalPagado; // Limpio = Bruto - Pagado
+                // Cálculo Limpio: Bruto - Premios a Pagar
+                const totalLimpio = totalBruto - totalPagado;
                 
                 let totalGanancia = 0;
                 let totalBalance = 0;
@@ -1102,23 +1104,24 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 
                 return (
                   <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
-                    <View style={{ flexBasis:'48%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                      <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Bruto')} / {getSantiagoHeader('Limpio')}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatSantiagoMoney(totalBruto)}</Text>
-                        <Text style={{ fontSize:14, color:'#6c757d' }}>/</Text>
-                        <Text style={{ fontSize:16, fontWeight:'800', color:'#3498db' }}>{formatSantiagoMoney(totalLimpio)}</Text>
-                      </View>
+                    <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                      <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Bruto')}</Text>
+                      <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatSantiagoMoney(totalBruto)}</Text>
+                    </View>
+                    
+                    <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                      <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Limpio')}</Text>
+                      <Text style={{ fontSize:16, fontWeight:'800', color:'#3498db' }}>{formatSantiagoMoney(totalLimpio)}</Text>
                     </View>
                     
                     {(userRole === 'collector' || userRole === 'colector') && (
-                      <View style={{ flexBasis:'48%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                      <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                         <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Ganancia')}</Text>
                         <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatSantiagoMoney(totalGanancia)}</Text>
                       </View>
                     )}
                     
-                    <View style={{ flexBasis:'48%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                    <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                       <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Balance')}</Text>
                       <Text style={{ fontSize:16, fontWeight:'800', color: getSantiagoValue(totalBalance)>=0? '#27AE60':'#e74c3c' }}>{formatSantiagoMoney(totalBalance)}</Text>
                     </View>
