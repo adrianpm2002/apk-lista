@@ -865,8 +865,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               const totalGananciaListero = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
               const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.premio) || 0), 0);
               const totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_listero) || 0), 0); // Usar balance_listero real
-              // Cálculo Limpio: Bruto - Premios Pagados
-              const totalLimpio = totalBruto - totalPagado;
+              // Cálculo Limpio: Bruto - Ganancia Listero
+              const totalLimpio = totalBruto - totalGananciaListero;
               
               return (
                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
@@ -1088,8 +1088,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 
                 const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
                 const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
-                // Cálculo Limpio: Bruto - Premios a Pagar
-                const totalLimpio = totalBruto - totalPagado;
                 
                 let totalGanancia = 0;
                 let totalBalance = 0;
@@ -1101,6 +1099,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                   totalGanancia = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
                   totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
                 }
+                
+                // Cálculo Limpio: Bruto - Ganancia Colector
+                const totalLimpio = totalBruto - totalGanancia;
                 
                 return (
                   <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
