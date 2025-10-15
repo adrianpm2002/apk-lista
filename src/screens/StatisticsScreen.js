@@ -104,6 +104,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [groupedData, setGroupedData] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false); // Modo oscuro (desactivado por defecto)
+  const [showLotteryModal, setShowLotteryModal] = useState(false); // Modal para seleccionar lotería
   
   // Estados para modo Santiago
   const [modoSantiago, setModoSantiago] = useState(false);
@@ -513,26 +514,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         {/* Fila 0: Filtro de Loterías (para listero en gráficos y detalles) */}
         {uniqueLotteries.length > 0 && (
           <View style={[styles.inlineFiltersRow, { marginBottom: 6, alignItems: 'center' }]}>
-            <View style={styles.lotteryDropdownContainer}>
-              <Picker
-                selectedValue={selectedLotteryDetails}
-                onValueChange={(value) => setSelectedLotteryDetails(value)}
-                style={styles.lotteryDropdown}
-                itemStyle={styles.lotteryDropdownItem}
-                mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
-                dropdownIconColor="#495057"
-              >
-                <Picker.Item label="Todas" value="all" color="#2c3e50" />
-                {uniqueLotteries.map(lottery => (
-                  <Picker.Item 
-                    key={`lottery-details-${lottery}`} 
-                    label={lottery} 
-                    value={lottery}
-                    color="#2c3e50"
-                  />
-                ))}
-              </Picker>
-            </View>
+            <TouchableOpacity
+              style={styles.lotterySelector}
+              onPress={() => setShowLotteryModal(true)}
+            >
+              <Text style={styles.lotterySelectorText} numberOfLines={1}>
+                {selectedLotteryDetails === 'all' ? 'Todas' : selectedLotteryDetails}
+              </Text>
+              <Text style={styles.lotterySelectorIcon}>▼</Text>
+            </TouchableOpacity>
           </View>
         )}
         
@@ -1986,6 +1976,88 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     </Modal>
   );
 
+  // Renderizar modal de selección de lotería
+  const renderLotteryModal = () => {
+    const uniqueLotteries = (userRole === 'listero' && (activeTab === 'charts' || activeTab === 'details') && tableData?.plays) 
+      ? [...new Set(tableData.plays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort()
+      : [];
+
+    if (uniqueLotteries.length === 0) return null;
+
+    return (
+      <Modal
+        visible={showLotteryModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowLotteryModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowLotteryModal(false)}
+        >
+          <View style={styles.lotteryModalContent}>
+            <Text style={styles.modalTitle}>Seleccionar Lotería</Text>
+            
+            <ScrollView style={styles.lotteryList}>
+              <TouchableOpacity
+                style={[
+                  styles.lotteryOption,
+                  selectedLotteryDetails === 'all' && styles.lotteryOptionSelected
+                ]}
+                onPress={() => {
+                  setSelectedLotteryDetails('all');
+                  setShowLotteryModal(false);
+                }}
+              >
+                <Text style={[
+                  styles.lotteryOptionText,
+                  selectedLotteryDetails === 'all' && styles.lotteryOptionTextSelected
+                ]}>
+                  Todas
+                </Text>
+                {selectedLotteryDetails === 'all' && (
+                  <Text style={styles.checkmark}>✓</Text>
+                )}
+              </TouchableOpacity>
+
+              {uniqueLotteries.map(lottery => (
+                <TouchableOpacity
+                  key={`lottery-modal-${lottery}`}
+                  style={[
+                    styles.lotteryOption,
+                    selectedLotteryDetails === lottery && styles.lotteryOptionSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedLotteryDetails(lottery);
+                    setShowLotteryModal(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.lotteryOptionText,
+                    selectedLotteryDetails === lottery && styles.lotteryOptionTextSelected
+                  ]}>
+                    {lottery}
+                  </Text>
+                  {selectedLotteryDetails === lottery && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setShowLotteryModal(false)}
+            >
+              <Text style={styles.cancelButtonText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    );
+  };
+
   // Renderizar contenido según el tab activo
   const renderActiveTabContent = () => {
     switch (activeTab) {
@@ -2021,6 +2093,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       </View>
 
       {renderExportModal()}
+      {renderLotteryModal()}
 
       <SideBarWrapper
         isVisible={sidebarVisible}
@@ -2076,26 +2149,68 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
   },
-  lotteryDropdownContainer: {
+  lotterySelector: {
     flex: 1,
     backgroundColor: '#f8f9fa',
     borderWidth: 1,
     borderColor: '#dee2e6',
     borderRadius: 8,
-    overflow: 'hidden',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     minHeight: 44,
-    justifyContent: 'center',
   },
-  lotteryDropdown: {
-    height: Platform.OS === 'ios' ? 44 : 50,
-    width: '100%',
-    color: '#2c3e50',
+  lotterySelectorText: {
     fontSize: 14,
-  },
-  lotteryDropdownItem: {
-    fontSize: 16,
-    height: 50,
     color: '#2c3e50',
+    fontWeight: '500',
+    flex: 1,
+  },
+  lotterySelectorIcon: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginLeft: 8,
+  },
+  lotteryModalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 20,
+    marginTop: 'auto',
+    marginBottom: 20,
+    maxHeight: '70%',
+    ...createShadowStyle(8),
+  },
+  lotteryList: {
+    maxHeight: 400,
+  },
+  lotteryOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  lotteryOptionSelected: {
+    backgroundColor: '#e8f5e9',
+  },
+  lotteryOptionText: {
+    fontSize: 16,
+    color: '#2c3e50',
+    flex: 1,
+  },
+  lotteryOptionTextSelected: {
+    color: '#27AE60',
+    fontWeight: '600',
+  },
+  checkmark: {
+    fontSize: 20,
+    color: '#27AE60',
+    fontWeight: 'bold',
   },
   customDateRow: {
     flexDirection: 'row',
