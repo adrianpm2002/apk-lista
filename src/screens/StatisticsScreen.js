@@ -520,11 +520,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 style={styles.lotteryDropdown}
                 itemStyle={styles.lotteryDropdownItem}
               >
-                <Picker.Item label="🎰 Todas las loterías" value="all" />
+                <Picker.Item label="Todas" value="all" />
                 {uniqueLotteries.map(lottery => (
                   <Picker.Item 
                     key={`lottery-details-${lottery}`} 
-                    label={`🎰 ${lottery}`} 
+                    label={lottery} 
                     value={lottery} 
                   />
                 ))}
