@@ -1,11 +1,18 @@
 # 📋 Optimización de Caché AsyncStorage - Resumen Final
 
-## ✅ **ESTADO ACTUAL**
+## ✅ **ESTADO ACTUAL** (ACTUALIZADO)
 
-### 🎯 Estrategia Implementada
-- **Solo se cachea**: Últimos 7 días (`recent`)
+### 🎯 Estrategia Implementada - MULTI-PLATAFORMA
+
+#### **📱 ANDROID/iOS (Mobile)**
+- **Se cachea**: Últimos 7 días, Mes actual, Mes pasado
+- **AsyncStorage**: Prácticamente ilimitado
+- **Ventaja**: Carga instantánea para todos los períodos
+
+#### **🌐 WEB**
+- **Se cachea**: Solo últimos 7 días (`recent`)
 - **NO se cachea**: Mes actual, mes pasado (períodos largos)
-- **Razón**: Evitar `QuotaExceededError` por límites de AsyncStorage (~5-10MB en web)
+- **Razón**: localStorage limitado a ~5-10MB, evitar `QuotaExceededError`
 
 ---
 
