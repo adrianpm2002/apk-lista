@@ -35,11 +35,11 @@ export const useListeroStatistics = (options = {}) => {
   const getViewByPeriod = (period) => {
     switch (period) {
       case 'today':
-        // HOY: Usar vista base (filtro local desde caché de 7d)
-        return { viewName: 'v_estadisticas', isOptimized: false, period: 'hoy' };
+        // HOY: Usar vista de 7 días + filtro local (más eficiente)
+        return { viewName: 'v_estadisticas_7d', isOptimized: true, period: 'hoy' };
       case 'yesterday':
-        // AYER: Usar vista base (filtro local desde caché de 7d)
-        return { viewName: 'v_estadisticas', isOptimized: false, period: 'ayer' };
+        // AYER: Usar vista de 7 días + filtro local (más eficiente)
+        return { viewName: 'v_estadisticas_7d', isOptimized: true, period: 'ayer' };
       case 'last7days':
         return { viewName: 'v_estadisticas_7d', isOptimized: true, period: 'últimos 7 días' };
       case 'last30days':
@@ -47,6 +47,7 @@ export const useListeroStatistics = (options = {}) => {
       case 'lastMonth':
         return { viewName: 'v_estadisticas_mes_pasado', isOptimized: true, period: 'mes pasado' };
       default:
+        // Fallback para rangos personalizados fuera de cachés
         return { viewName: 'v_estadisticas', isOptimized: false, period: 'custom' };
     }
   };
