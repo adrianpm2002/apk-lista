@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import * as statisticsCache from '../utils/statisticsCache';
 
 // Helper para convertir fecha local a string para consultas de base de datos
 const formatDateForQuery = (date) => {
@@ -23,6 +24,12 @@ export const useListeroStatistics = (options = {}) => {
     startDate: new Date(new Date().setHours(0, 0, 0, 0)), // Hoy 00:00:00
     endDate: new Date(new Date().setHours(23, 59, 59, 999)) // Hoy 23:59:59
   });
+  
+  // Estado para controlar si hay actualización en background
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Ref para evitar múltiples cargas background simultáneas
+  const backgroundLoadingRef = useRef(false);
 
   // Mapeo directo de período a vista optimizada
   const getViewByPeriod = (period) => {
@@ -243,62 +250,138 @@ export const useListeroStatistics = (options = {}) => {
     }
   };
 
-  // Función principal para cargar datos de jugadas del listero
+  // Helper para transformar datos raw a formato de componentes
+  const formatPlaysData = (playsData) => {
+    return (playsData || [])
+      .filter(j => {
+        // Filtro: verificar que fecha_jugada existe y es válida
+        if (!j.fecha_jugada) return false;
+        if (j.fecha_jugada === null || j.fecha_jugada === undefined) return false;
+        if (typeof j.fecha_jugada === 'string' && j.fecha_jugada.trim() === '') return false;
+        
+        const testDate = new Date(j.fecha_jugada);
+        if (isNaN(testDate.getTime())) return false;
+        
+        return true;
+      })
+      .map(j => ({
+        id: j.id_listero + '_' + j.fecha_jugada,
+        created_at: j.fecha_jugada,
+        fecha: new Date(j.fecha_jugada).toLocaleDateString('es-ES'),
+        hora: new Date(j.fecha_jugada).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+        loteria: j.nombre_loteria || 'N/A',
+        horario: j.nombre_horario || 'N/A',
+        jugada: j.tipo_jugada || 'N/A',
+        numeros: j.numeros_jugados || 'N/A',
+        monto: j.monto_total || 0,
+        nota: j.nota || '',
+        // Campos básicos para compatibilidad
+        play_type: j.tipo_jugada || 'N/A',
+        bruto: j.monto_total || 0,
+        resultado: j.resultado || 'Pendiente',
+        premio: j.monto_a_pagar || 0,
+        pagado: j.monto_a_pagar || 0,
+        // Campos específicos para listero
+        ganancia: j.ganancia_listero || 0,
+        balance: j.balance_listero || 0,
+        ganancia_listero: j.ganancia_listero || 0,
+        balance_listero: j.balance_listero || 0,
+        // IDs para filtrado
+        id_listero: j.id_listero || null,
+        listero_username: j.listero_username || ''
+      }));
+  };
+
+  // Función principal para cargar datos de jugadas del listero CON CACHÉ
   const loadPlaysData = async (filters = {}) => {
     try {
       // Prevenir ejecuciones concurrentes
       if (isLoading) {
+        console.log('[useListeroStatistics] ⏸️ Ya hay una carga en progreso, saltando...');
         return;
       }
       
-      setIsLoading(true);
-      
       if (!userId) {
+        console.warn('[useListeroStatistics] ⚠️ No hay userId, no se puede cargar datos');
         setIsLoading(false);
         return;
       }
+
+      const { period, startDate, endDate } = filters;
+      
+      // Determinar el período para el caché
+      let cachePeriod = 'recent'; // Default: 7 días
+      if (period === 'last30days' || isFilteringLast30Days(startDate, endDate)) {
+        cachePeriod = 'thisMonth';
+      } else if (period === 'lastMonth' || isFilteringLastMonth(startDate, endDate)) {
+        cachePeriod = 'lastMonth';
+      }
+
+      console.log(`[useListeroStatistics] 🔍 Cargando datos para período: ${cachePeriod}`);
+      
+      // PASO 1: Intentar cargar desde caché primero (INSTANTÁNEO)
+      const hasCache = await statisticsCache.hasCacheFor(userId, cachePeriod);
+      
+      if (hasCache) {
+        const cachedResult = await statisticsCache.readFromCache(userId, cachePeriod);
+        if (cachedResult && cachedResult.data && cachedResult.data.length > 0) {
+          console.log(`[useListeroStatistics] ⚡ Caché encontrado (${cachedResult.ageMinutes} min): ${cachedResult.data.length} registros`);
+          
+          // Cargar datos del caché INMEDIATAMENTE
+          const formattedPlays = formatPlaysData(cachedResult.data);
+          setTableData(prev => ({
+            ...prev,
+            plays: formattedPlays
+          }));
+          
+          // Indicar que terminó la carga inicial (desde caché)
+          setIsLoading(false);
+          
+          // PASO 2: Actualizar en background sin bloquear UI
+          console.log('[useListeroStatistics] 🔄 Iniciando actualización en background...');
+          setIsRefreshing(true);
+          
+          // Fetch de Supabase en background
+          setTimeout(async () => {
+            try {
+              const freshData = await loadListeroPlaysData(userId, filters);
+              
+              // Guardar en caché
+              await statisticsCache.saveToCache(userId, cachePeriod, freshData);
+              
+              // Actualizar UI solo si hay cambios
+              const formattedFresh = formatPlaysData(freshData);
+              if (JSON.stringify(formattedFresh) !== JSON.stringify(formattedPlays)) {
+                console.log('[useListeroStatistics] ✅ Datos actualizados en background');
+                setTableData(prev => ({
+                  ...prev,
+                  plays: formattedFresh
+                }));
+              } else {
+                console.log('[useListeroStatistics] ℹ️ No hay cambios en los datos');
+              }
+            } catch (error) {
+              console.error('[useListeroStatistics] ❌ Error en actualización background:', error);
+            } finally {
+              setIsRefreshing(false);
+            }
+          }, 0);
+          
+          return formattedPlays;
+        }
+      }
+      
+      // PASO 3: Si NO hay caché, cargar desde Supabase (primera vez)
+      console.log('[useListeroStatistics] 📥 No hay caché, cargando desde Supabase...');
+      setIsLoading(true);
       
       const playsData = await loadListeroPlaysData(userId, filters);
       
-      // Transformar datos para compatibilidad con componentes
-      const formattedPlays = (playsData || [])
-        .filter(j => {
-          // Filtro: verificar que fecha_jugada existe y es válida
-          if (!j.fecha_jugada) return false;
-          if (j.fecha_jugada === null || j.fecha_jugada === undefined) return false;
-          if (typeof j.fecha_jugada === 'string' && j.fecha_jugada.trim() === '') return false;
-          
-          const testDate = new Date(j.fecha_jugada);
-          if (isNaN(testDate.getTime())) return false;
-          
-          return true;
-        })
-        .map(j => ({
-          id: j.id_listero + '_' + j.fecha_jugada,
-          created_at: j.fecha_jugada,
-          fecha: new Date(j.fecha_jugada).toLocaleDateString('es-ES'),
-          hora: new Date(j.fecha_jugada).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-          loteria: j.nombre_loteria || 'N/A',
-          horario: j.nombre_horario || 'N/A',
-          jugada: j.tipo_jugada || 'N/A',
-          numeros: j.numeros_jugados || 'N/A',
-          monto: j.monto_total || 0,
-          nota: j.nota || '',
-          // Campos básicos para compatibilidad
-          play_type: j.tipo_jugada || 'N/A',
-          bruto: j.monto_total || 0,
-          resultado: j.resultado || 'Pendiente',
-          premio: j.monto_a_pagar || 0,
-          pagado: j.monto_a_pagar || 0,
-          // Campos específicos para listero
-          ganancia: j.ganancia_listero || 0,
-          balance: j.balance_listero || 0,
-          ganancia_listero: j.ganancia_listero || 0,
-          balance_listero: j.balance_listero || 0,
-          // IDs para filtrado
-          id_listero: j.id_listero || null,
-          listero_username: j.listero_username || ''
-        }));
+      // Guardar en caché para próximas veces
+      await statisticsCache.saveToCache(userId, cachePeriod, playsData);
+      
+      // Transformar y mostrar datos
+      const formattedPlays = formatPlaysData(playsData);
       
       setTableData(prev => ({
         ...prev,
@@ -308,6 +391,7 @@ export const useListeroStatistics = (options = {}) => {
       return formattedPlays;
       
     } catch (error) {
+      console.error('[useListeroStatistics] ❌ Error al cargar datos:', error);
       setTableData(prev => ({
         ...prev,
         plays: []
@@ -362,6 +446,7 @@ export const useListeroStatistics = (options = {}) => {
   return {
     // Estados
     isLoading,
+    isRefreshing,
     tableData,
     dateRange,
     userId,
