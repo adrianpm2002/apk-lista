@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, FlatList, ActivityIndicator } from 'react-native';
-import { useBankCapacityData } from '../hooks/useBankCapacityData';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { supabase } from '../supabaseClient';
@@ -10,11 +9,9 @@ const BankCapacityScreen = ({ navigation }) => {
   const [currentBankId, setCurrentBankId] = useState(null);
   const [userRole, setUserRole] = useState(null);
   
-  const { capacityData, loading, error, refresh } = useBankCapacityData(currentBankId, { 
-    includeClosed: false, 
-    hideZero: true,
-    auto: true 
-  });
+  const [capacityData, setCapacityData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('capacity');
@@ -34,11 +31,47 @@ const BankCapacityScreen = ({ navigation }) => {
     'tripleta': 'Tripleta'
   };
 
-  useEffect(() => {
-    if (currentBankId) {
-      refresh();
+  // Función para cargar capacidades del banco
+  const fetchBankCapacities = useCallback(async () => {
+    if (!currentBankId) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('v_capacidades_banco')
+        .select('*')
+        .eq('id_banco', currentBankId);
+      
+      if (fetchError) throw fetchError;
+      
+      // Mapear datos a la estructura esperada
+      const mappedData = (data || []).map(item => ({
+        loteriaId: String(item.id_loteria),
+        loteriaNombre: item.nombre_loteria,
+        horarioId: item.id_horario,
+        horarioNombre: item.nombre_horario,
+        jugada: item.jugada,
+        numero: item.numero,
+        usado: item.used_today_banco || 0,
+        abierto: true
+      }));
+      
+      setCapacityData(mappedData);
+    } catch (e) {
+      setError(e.message || 'Error cargando capacidad del banco');
+      console.error('Error fetching bank capacities:', e);
+    } finally {
+      setLoading(false);
     }
   }, [currentBankId]);
+
+  useEffect(() => {
+    if (currentBankId) {
+      fetchBankCapacities();
+    }
+  }, [currentBankId, fetchBankCapacities]);
 
   // Obtener rol del usuario y bank ID
   useEffect(() => {
@@ -187,7 +220,7 @@ const BankCapacityScreen = ({ navigation }) => {
           </View>
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
-            <Pressable onPress={refresh} style={styles.retryButton}>
+            <Pressable onPress={fetchBankCapacities} style={styles.retryButton}>
               <Text style={styles.retryButtonText}>Reintentar</Text>
             </Pressable>
           </View>
@@ -213,7 +246,7 @@ const BankCapacityScreen = ({ navigation }) => {
           <Pressable style={styles.iconButton} onPress={() => setShowFilters(f => !f)}>
             <Text style={styles.iconButtonText}>⚙️</Text>
           </Pressable>
-          <Pressable style={styles.iconButton} onPress={refresh}>
+          <Pressable style={styles.iconButton} onPress={fetchBankCapacities}>
             <Text style={styles.iconButtonText}>🔄</Text>
           </Pressable>
         </View>
