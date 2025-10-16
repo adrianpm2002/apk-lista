@@ -10,6 +10,7 @@ import {
   Modal,
   Dimensions,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import useStatistics from '../hooks/useStatistics';
@@ -135,6 +136,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [customModalVisible, setCustomModalVisible] = useState(false);
   const [customStartDate, setCustomStartDate] = useState(new Date());
   const [customEndDate, setCustomEndDate] = useState(new Date());
+  
+  // Estado de carga local para mostrar feedback visual
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
   
   // Estados para modo Santiago
   const [modoSantiago, setModoSantiago] = useState(false);
@@ -280,7 +284,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Razón: Solo se cachean 7 días para evitar QuotaExceededError
   // Períodos largos (mes/mes pasado) se cargan bajo demanda desde Supabase sin caché
 
-  const applyPeriodFilter = (period, customStart = null, customEnd = null, forceRefresh = false) => {
+  const applyPeriodFilter = async (period, customStart = null, customEnd = null, forceRefresh = false) => {
     // Verificar que userId esté disponible antes de filtrar
     if (!currentUserId) {
       return;
@@ -293,23 +297,34 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       return;
     }
 
-    const filterParams = {
-      period: period,
-      forceRefresh: forceRefresh
-    };
+    // Activar indicador de carga
+    setIsLoadingStats(true);
 
-    // Si es un rango personalizado, agregar las fechas
-    if (period === 'custom' && customStart && customEnd) {
-      filterParams.customStartDate = customStart;
-      filterParams.customEndDate = customEnd;
+    try {
+      const filterParams = {
+        period: period,
+        forceRefresh: forceRefresh
+      };
+
+      // Si es un rango personalizado, agregar las fechas
+      if (period === 'custom' && customStart && customEnd) {
+        filterParams.customStartDate = customStart;
+        filterParams.customEndDate = customEnd;
+      }
+      
+      setSelectedPeriod(period);
+      await applyFilters(filterParams);
+    } finally {
+      // Desactivar indicador de carga después de un pequeño delay para UX
+      setTimeout(() => setIsLoadingStats(false), 300);
     }
-    
-    setSelectedPeriod(period);
-    applyFilters(filterParams);
   };
 
   // Cargar rango personalizado directamente desde Supabase (fuera del cache)
   const loadCustomRangeFromSupabase = async (startDate, endDate) => {
+    // Activar indicador de carga
+    setIsLoadingStats(true);
+    
     try {
       // Validación de parámetros
       if (!startDate || !endDate) {
@@ -350,22 +365,27 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         directData: data // Pasar los datos directamente
       };
 
-      applyFilters(filterParams);
+      await applyFilters(filterParams);
     } catch (error) {
       console.error('Error al cargar rango personalizado:', error);
       Alert.alert('Error', 'No se pudieron cargar las estadísticas del rango seleccionado');
+    } finally {
+      // Desactivar indicador de carga
+      setTimeout(() => setIsLoadingStats(false), 300);
     }
   };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    setIsLoadingStats(true);
     try {
       // Reaplicar el período actual con forceRefresh=true para ignorar caché
-      await applyPeriodFilter(selectedPeriod, true);
+      await applyPeriodFilter(selectedPeriod, null, null, true);
     } catch (error) {
       Alert.alert('Error', 'No se pudieron actualizar las estadísticas');
     } finally {
       setRefreshing(false);
+      setTimeout(() => setIsLoadingStats(false), 300);
     }
   }, [selectedPeriod, currentUserId]);
 
@@ -2444,45 +2464,53 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Renderizar modal de fecha personalizada
   const renderCustomDateModal = () => {
-    const handleApplyCustomDates = () => {
-      // Validar que las fechas existan
-      if (!customStartDate || !customEndDate) {
-        Alert.alert('Error', 'Debe seleccionar ambas fechas');
-        return;
-      }
+    const handleApplyCustomDates = async () => {
+      try {
+        // Validar que las fechas existan
+        if (!customStartDate || !customEndDate) {
+          Alert.alert('Error', 'Debe seleccionar ambas fechas');
+          return;
+        }
 
-      // Normalizar fechas a medianoche para comparación correcta
-      const normalizedStart = new Date(customStartDate);
-      normalizedStart.setHours(0, 0, 0, 0);
-      
-      const normalizedEnd = new Date(customEndDate);
-      normalizedEnd.setHours(23, 59, 59, 999);
+        // Crear nuevas instancias de Date para evitar mutación
+        const normalizedStart = new Date(customStartDate.getTime());
+        normalizedStart.setHours(0, 0, 0, 0);
+        
+        const normalizedEnd = new Date(customEndDate.getTime());
+        normalizedEnd.setHours(23, 59, 59, 999);
 
-      // Validar que la fecha de inicio no sea mayor que la fecha de fin
-      if (normalizedStart > normalizedEnd) {
-        Alert.alert('Error', 'La fecha de inicio no puede ser mayor que la fecha de fin');
-        return;
-      }
+        // Validar que la fecha de inicio no sea mayor que la fecha de fin
+        if (normalizedStart > normalizedEnd) {
+          Alert.alert('Error', 'La fecha de inicio no puede ser mayor que la fecha de fin');
+          return;
+        }
 
-      // Verificar si el rango está dentro de los últimos 30 días (29 días atrás + hoy = 30 días)
-      const today = new Date();
-      today.setHours(23, 59, 59, 999);
-      const thirtyDaysAgo = new Date(today);
-      thirtyDaysAgo.setDate(today.getDate() - 29);
-      thirtyDaysAgo.setHours(0, 0, 0, 0);
+        // Verificar si el rango está dentro de los últimos 30 días (29 días atrás + hoy = 30 días)
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 29);
+        thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-      const isWithinCache = normalizedStart >= thirtyDaysAgo && normalizedEnd <= today;
+        const isWithinCache = normalizedStart >= thirtyDaysAgo && normalizedEnd <= today;
 
-      // Aplicar filtro personalizado
-      setSelectedPeriod('custom');
-      setCustomModalVisible(false);
+        // Cerrar modal ANTES de cargar para mejor UX
+        setCustomModalVisible(false);
 
-      if (isWithinCache) {
-        // Usar filtrado local del cache (pasamos fechas normalizadas)
-        applyPeriodFilter('custom', normalizedStart, normalizedEnd);
-      } else {
-        // Consultar Supabase directamente (pasamos fechas normalizadas)
-        loadCustomRangeFromSupabase(normalizedStart, normalizedEnd);
+        // Aplicar filtro personalizado
+        setSelectedPeriod('custom');
+
+        if (isWithinCache) {
+          // Usar filtrado local del cache (pasamos fechas normalizadas)
+          await applyPeriodFilter('custom', normalizedStart, normalizedEnd);
+        } else {
+          // Consultar Supabase directamente (pasamos fechas normalizadas)
+          await loadCustomRangeFromSupabase(normalizedStart, normalizedEnd);
+        }
+      } catch (error) {
+        console.error('[StatisticsScreen] Error en handleApplyCustomDates:', error);
+        Alert.alert('Error', 'No se pudo aplicar el filtro personalizado. Intenta de nuevo.');
+        setIsLoadingStats(false);
       }
     };
 
@@ -2575,6 +2603,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       {renderHeader()}
       {renderTabs()}
       
+      {/* Banner de carga superior */}
+      {isLoadingStats && (
+        <View style={styles.loadingBanner}>
+          <ActivityIndicator size="small" color="#27AE60" />
+          <Text style={styles.loadingText}>Cargando estadísticas...</Text>
+        </View>
+      )}
+      
       <View style={styles.content}>
         {renderActiveTabContent()}
       </View>
@@ -2596,6 +2632,34 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const styles = StyleSheet.create({
+  // Banner de carga superior
+  loadingBanner: {
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    right: 0,
+    backgroundColor: '#E8F8F5',
+    borderBottomWidth: 1,
+    borderBottomColor: '#27AE60',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  loadingText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#27AE60',
+    fontWeight: '600',
+  },
+  
   filtersPanel:{ backgroundColor:'#F8F9FA', borderWidth:1, borderColor:'#E1E8E3', borderRadius:10, padding:8, margin:8 },
   filtersPanelDark:{ backgroundColor:'#2C3E50', borderColor:'#5D6D7E' },
   
