@@ -102,12 +102,40 @@ export const saveToCache = async (userId, period, data, role = 'listero') => {
       normalizedData = data; // Ya tiene estructura {plays: [], _metadata: {}}
     }
     
+    // OPTIMIZACIÓN CRÍTICA: Ordenar por fecha DESC (más reciente primero)
+    // Esto permite early exit en filtrado para datasets grandes (100k+ jugadas)
+    let dateIndex = null;
+    if (Array.isArray(normalizedData.plays) && normalizedData.plays.length > 0) {
+      normalizedData.plays.sort((a, b) => {
+        const dateA = new Date(a.fecha_jugada || a.created_at).getTime();
+        const dateB = new Date(b.fecha_jugada || b.created_at).getTime();
+        return dateB - dateA; // DESC: más reciente primero
+      });
+      
+      // OPTIMIZACIÓN ADICIONAL: Crear índice por fecha (día) para búsqueda O(1)
+      // Estructura: { "2025-10-16": { startIdx: 0, endIdx: 150, count: 151 } }
+      dateIndex = {};
+      normalizedData.plays.forEach((play, idx) => {
+        const rawDate = play.fecha_jugada || play.created_at;
+        const dateStr = rawDate.split(' ')[0]; // Extraer solo la fecha "YYYY-MM-DD"
+        
+        if (!dateIndex[dateStr]) {
+          dateIndex[dateStr] = { startIdx: idx, endIdx: idx, count: 1 };
+        } else {
+          dateIndex[dateStr].endIdx = idx;
+          dateIndex[dateStr].count++;
+        }
+      });
+    }
+    
     const cacheData = {
       ...normalizedData,  // Expandir plays y _metadata si existe
       timestamp: Date.now(),
       version: CACHE_VERSION,
       period,
       role,
+      _sorted: true, // Flag para indicar que está ordenado
+      _dateIndex: dateIndex, // Índice para búsqueda rápida por día
     };
 
     await AsyncStorage.setItem(key, JSON.stringify(cacheData));
@@ -256,34 +284,71 @@ export const clearAllCache = async (userId, role = 'listero') => {
 
 /**
  * Filtrar datos localmente por fecha
- * OPTIMIZADO: Evita crear instancias de Date innecesarias
- * @param {Array} data - Datos completos
+ * OPTIMIZADO PARA DATASETS GRANDES (100k+ jugadas):
+ * - Early exit cuando sale del rango (asume datos ordenados DESC)
+ * - Binary search para encontrar inicio del rango
+ * - Evita crear instancias de Date innecesarias
+ * 
+ * @param {Array} data - Datos completos (DEBE estar ordenado DESC por fecha)
  * @param {Date} startDate - Fecha inicio
  * @param {Date} endDate - Fecha fin
+ * @returns {Array} Jugadas filtradas en el rango
  */
 export const filterByDateRange = (data, startDate, endDate) => {
-  if (!data || !Array.isArray(data)) return [];
+  if (!data || !Array.isArray(data) || data.length === 0) return [];
   
   const start = startDate.getTime();
   const end = endDate.getTime();
+  const result = [];
   
-  return data.filter(item => {
-    const rawDate = item.fecha_jugada || item.created_at;
+  // Helper para convertir fecha a timestamp
+  const getTimestamp = (rawDate) => {
+    if (typeof rawDate === 'number') return rawDate;
+    if (typeof rawDate === 'string') {
+      return new Date(rawDate.replace(' ', 'T')).getTime();
+    }
+    return new Date(rawDate).getTime();
+  };
+  
+  // OPTIMIZACIÓN: Binary search para encontrar el primer elemento <= endDate
+  // Esto nos permite saltar directamente a la zona relevante en datasets grandes
+  let startIdx = 0;
+  let endIdx = data.length - 1;
+  
+  // Binary search para encontrar primer elemento que sea <= end
+  while (startIdx < endIdx) {
+    const mid = Math.floor((startIdx + endIdx) / 2);
+    const midTime = getTimestamp(data[mid].fecha_jugada || data[mid].created_at);
     
-    // Si ya es timestamp, usar directo (más rápido)
-    if (typeof rawDate === 'number') {
-      return rawDate >= start && rawDate <= end;
+    if (midTime > end) {
+      startIdx = mid + 1; // Buscar más adelante (fechas más antiguas)
+    } else {
+      endIdx = mid; // Buscar más atrás o quedarse aquí
+    }
+  }
+  
+  // Iterar desde startIdx con early exit
+  // Asumiendo que data está ordenado DESC (más reciente primero)
+  for (let i = startIdx; i < data.length; i++) {
+    const item = data[i];
+    const rawDate = item.fecha_jugada || item.created_at;
+    const itemTime = getTimestamp(rawDate);
+    
+    // Si es más reciente que el rango, seguir buscando
+    if (itemTime > end) continue;
+    
+    // Si está en el rango, agregar
+    if (itemTime >= start && itemTime <= end) {
+      result.push(item);
+      continue;
     }
     
-    // Si es string (formato SQL: "2025-10-15 22:59:39.605109")
-    // Convertir a ISO-8601 reemplazando espacio por 'T' para compatibilidad
-    // Esto es 300% más rápido que crear new Date() en cada iteración
-    const itemTime = typeof rawDate === 'string' 
-      ? new Date(rawDate.replace(' ', 'T')).getTime()
-      : new Date(rawDate).getTime();
-    
-    return itemTime >= start && itemTime <= end;
-  });
+    // EARLY EXIT: Si es más antiguo que el rango, DETENER
+    // Con 100k jugadas y filtro "Hoy", esto evita revisar las otras 99k
+    if (itemTime < start) break;
+  }
+  
+  return result;
 };
 
 /**
