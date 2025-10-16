@@ -242,20 +242,9 @@ const useStatistics = () => {
       return;
     }
     
-    if (activeStats.loadPlaysData) {
-      // Si recibimos un período específico, pasarlo directamente
-      const { period, startDate, endDate, forceRefresh, ...rest } = filters || {};
-      
-      if (period) {
-        // Pasar el período directamente al hook específico (incluyendo forceRefresh)
-        return activeStats.loadPlaysData({ period, forceRefresh, ...rest });
-      }
-      
-      // Mantener compatibilidad con el sistema anterior de fechas
-      if (startDate && endDate && typeof activeStats.updateDateRange === 'function') {
-        activeStats.updateDateRange(startDate, endDate);
-      }
-      return activeStats.loadPlaysData({ startDate, endDate, forceRefresh, ...rest });
+    if (activeStats.applyFilters) {
+      // Pasar filtros directamente al hook específico
+      return activeStats.applyFilters(filters);
     }
   };
 
@@ -268,7 +257,7 @@ const useStatistics = () => {
     // Estados básicos
     // userRole removido - ahora se obtiene directamente en StatisticsScreen
     userId,
-    loading: activeStats.isLoading || false,
+    loading: activeStats.loading || false,
     isRefreshing: activeStats.isRefreshing || false,
     error: null,
 

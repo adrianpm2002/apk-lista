@@ -278,19 +278,60 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       return;
     }
 
-    const filterParams = {
-      period: period,
-      forceRefresh: forceRefresh
-    };
-
-    // Si es un rango personalizado, agregar las fechas
+    // Convertir el período a fechas
+    let startDate, endDate;
+    
     if (period === 'custom' && customStart && customEnd) {
-      filterParams.customStartDate = customStart;
-      filterParams.customEndDate = customEnd;
+      startDate = customStart;
+      endDate = customEnd;
+    } else {
+      // Calcular fechas según el período
+      const now = new Date();
+      endDate = new Date(now);
+      endDate.setHours(23, 59, 59, 999);
+      
+      switch (period) {
+        case 'today':
+          startDate = new Date(now);
+          startDate.setHours(0, 0, 0, 0);
+          break;
+          
+        case 'yesterday':
+          startDate = new Date(now);
+          startDate.setDate(startDate.getDate() - 1);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(now);
+          endDate.setDate(endDate.getDate() - 1);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+          
+        case 'last7days':
+          startDate = new Date(now);
+          startDate.setDate(startDate.getDate() - 6);
+          startDate.setHours(0, 0, 0, 0);
+          break;
+          
+        case 'last30days':
+          startDate = new Date(now);
+          startDate.setDate(startDate.getDate() - 29);
+          startDate.setHours(0, 0, 0, 0);
+          break;
+          
+        default:
+          // Por defecto, hoy
+          startDate = new Date(now);
+          startDate.setHours(0, 0, 0, 0);
+      }
     }
     
     setSelectedPeriod(period);
-    await applyFilters(filterParams);
+    
+    // Pasar fechas concretas al hook
+    await applyFilters({
+      startDate,
+      endDate,
+      forceRefresh
+    });
   };
 
   // Cargar rango personalizado directamente desde Supabase (fuera del cache)
