@@ -679,7 +679,27 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               </Text>
               {/* Mostrar jugadas de fijos y corridos */}
               {jugadasFijosYCorridos.map((jugada, index) => (
-                <View key={`fijo-${index}`} style={styles.jugadaContainer}>
+                <TouchableOpacity
+                  key={`fijo-${index}`}
+                  style={styles.jugadaContainer}
+                  activeOpacity={0.7}
+                  onLongPress={() => {
+                    Alert.alert(
+                      'Eliminar jugada',
+                      `¿Deseas eliminar el número ${jugada.numero}?`,
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        {
+                          text: 'Eliminar',
+                          style: 'destructive',
+                          onPress: () => {
+                            setJugadasFijosYCorridos(prev => prev.filter((_, i) => i !== index));
+                          }
+                        }
+                      ]
+                    );
+                  }}
+                >
                   <Text style={styles.numeroText}>
                     {jugada.numero}
                   </Text>
@@ -695,7 +715,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                       </Text>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
               {/* Inputs para agregar números dentro de la lista */}
               <View style={styles.inputContainerInsideList}>
@@ -756,7 +776,27 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               </Text>
               {/* Mostrar jugadas de parles uno al lado del otro como fijos y corridos */}
               {jugadasParles.map((jugada, index) => (
-                <View key={`parle-${index}`} style={styles.jugadaContainer}>
+                <TouchableOpacity
+                  key={`parle-${index}`}
+                  style={styles.jugadaContainer}
+                  activeOpacity={0.7}
+                  onLongPress={() => {
+                    Alert.alert(
+                      'Eliminar parle',
+                      `¿Deseas eliminar el parle ${jugada.numeros[0]}?`,
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        {
+                          text: 'Eliminar',
+                          style: 'destructive',
+                          onPress: () => {
+                            setJugadasParles(prev => prev.filter((_, i) => i !== index));
+                          }
+                        }
+                      ]
+                    );
+                  }}
+                >
                   <Text style={styles.numeroText}>
                     {jugada.numeros[0]}
                   </Text>
@@ -767,7 +807,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                       </Text>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
               {/* Inputs para agregar parles dentro de la lista */}
               <View style={styles.inputContainerInsideList}>
@@ -837,7 +877,27 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                 const precioNum = Number(jugada.precio);
                 const precioStr = Number.isInteger(precioNum) ? precioNum.toString() : precioNum.toFixed(2);
                 return (
-                  <View key={`centena-${index}`} style={styles.centenaContainer}>
+                  <TouchableOpacity
+                    key={`centena-${index}`}
+                    style={styles.centenaContainer}
+                    activeOpacity={0.7}
+                    onLongPress={() => {
+                      Alert.alert(
+                        'Eliminar centena',
+                        `¿Deseas eliminar la centena ${jugada.numero}?`,
+                        [
+                          { text: 'Cancelar', style: 'cancel' },
+                          {
+                            text: 'Eliminar',
+                            style: 'destructive',
+                            onPress: () => {
+                              setJugadasCentenas(prev => prev.filter((_, i) => i !== index));
+                            }
+                          }
+                        ]
+                      );
+                    }}
+                  >
                     <Text style={styles.numeroCentenaText}>
                       {jugada.numero}
                     </Text>
@@ -846,7 +906,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                         ${precioStr}
                       </Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
               {/* Inputs para agregar centenas dentro de la lista */}
