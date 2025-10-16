@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, Modal, StyleSheet, Pressable, TextInput, ScrollView, FlatList } from 'react-native';
+import { matchesSearchTerm, formatNumberInput } from '../utils/numberSearchUtils';
 
 const CapacityModal = ({ isVisible, onClose, selectedLottery, capacityData = [], loading=false, error=null, getScheduleLabel, playTypeLabels }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,7 +44,7 @@ const CapacityModal = ({ isVisible, onClose, selectedLottery, capacityData = [],
     return true;
   }),[filteredRaw, lotteryFilter, scheduleFilter, playTypeFilter]);
 
-  const filteredData = internallyFiltered.filter(item => !searchTerm || item.numero?.includes?.(searchTerm));
+  const filteredData = internallyFiltered.filter(item => matchesSearchTerm(item.numero, searchTerm));
 
   const sortedData = [...filteredData].sort((a,b)=>{
     if(sortBy==='capacity') return b.porcentaje - a.porcentaje;
@@ -135,7 +136,7 @@ const CapacityModal = ({ isVisible, onClose, selectedLottery, capacityData = [],
           )}
           {showSearch && (
             <View style={styles.searchContainer}>
-              <TextInput style={styles.searchInput} placeholder="Buscar número..." value={searchTerm} onChangeText={setSearchTerm} keyboardType="number-pad" />
+              <TextInput style={styles.searchInput} placeholder="Buscar número..." value={searchTerm} onChangeText={text => setSearchTerm(formatNumberInput(text))} keyboardType="number-pad" />
             </View>
           )}
           <View style={styles.sortContainer}>

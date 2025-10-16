@@ -4,6 +4,7 @@ import { useBankCapacityData } from '../hooks/useBankCapacityData';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { supabase } from '../supabaseClient';
+import { matchesSearchTerm, formatNumberInput } from '../utils/numberSearchUtils';
 
 const BankCapacityScreen = ({ navigation }) => {
   const [currentBankId, setCurrentBankId] = useState(null);
@@ -105,8 +106,8 @@ const BankCapacityScreen = ({ navigation }) => {
   }), [capacityData, lotteryFilter, scheduleFilter, playTypeFilter]);
 
   const filteredData = internallyFiltered.filter(item => {
-    // Filtro de búsqueda
-    if (searchTerm && !item.numero?.includes?.(searchTerm)) return false;
+    // Filtro de búsqueda con soporte para variantes canónicas (parle 4 dígitos, tripleta 6 dígitos)
+    if (searchTerm && !matchesSearchTerm(item.numero, searchTerm)) return false;
     
     // Filtro de bote: solo mostrar números que exceden el bote
     if (boteFilter) {
@@ -223,8 +224,9 @@ const BankCapacityScreen = ({ navigation }) => {
               style={styles.searchInput}
               placeholder="Buscar número..."
               value={searchTerm}
-              onChangeText={setSearchTerm}
+              onChangeText={text => setSearchTerm(formatNumberInput(text))}
               placeholderTextColor="#95A5A6"
+              keyboardType="numeric"
             />
           </View>
         )}
