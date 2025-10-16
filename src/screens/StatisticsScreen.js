@@ -2603,11 +2603,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       {renderHeader()}
       {renderTabs()}
       
-      {/* Banner de carga superior */}
+      {/* Banner de carga superior compacto */}
       {isLoadingStats && (
         <View style={styles.loadingBanner}>
           <ActivityIndicator size="small" color="#27AE60" />
-          <Text style={styles.loadingText}>Cargando estadísticas...</Text>
+          <Text style={styles.loadingText}>Cargando...</Text>
         </View>
       )}
       
@@ -2632,7 +2632,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const styles = StyleSheet.create({
-  // Banner de carga superior
+  // Banner de carga superior (compacto y profesional)
   loadingBanner: {
     position: 'absolute',
     top: 60,
@@ -2641,23 +2641,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8F8F5',
     borderBottomWidth: 1,
     borderBottomColor: '#27AE60',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
-    elevation: 3,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
   },
   loadingText: {
-    marginLeft: 8,
-    fontSize: 14,
+    marginLeft: 6,
+    fontSize: 12,
     color: '#27AE60',
-    fontWeight: '600',
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
   
   filtersPanel:{ backgroundColor:'#F8F9FA', borderWidth:1, borderColor:'#E1E8E3', borderRadius:10, padding:8, margin:8 },

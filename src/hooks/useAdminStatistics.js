@@ -261,6 +261,8 @@ export const useAdminStatistics = (options = {}) => {
   };
   
   // Helper: Filtrar jugadas por rango de fechas según período
+  // OPTIMIZADO: Elimina filtrado redundante
+  // Los datos ya vienen filtrados del flujo principal (loadPlaysData)
   const filterPlaysByDateRange = (plays, period, startDate, endDate) => {
     if (!plays || plays.length === 0) return [];
     
@@ -270,40 +272,14 @@ export const useAdminStatistics = (options = {}) => {
       return [];
     }
     
-    // Si hay fechas personalizadas, usarlas
+    // Si vienen fechas explícitas, aplicar filtro directo
     if (startDate && endDate) {
-      return filterByDateRange(plays, startDate, endDate, 'fecha_jugada');
+      return filterByDateRange(plays, startDate, endDate);
     }
     
-    // Filtrar según período predefinido
-    switch (period) {
-      case 'today': {
-        const range = getTodayRange();
-        return filterByDateRange(plays, range.start, range.end, 'fecha_jugada');
-      }
-      case 'yesterday': {
-        const range = getYesterdayRange();
-        return filterByDateRange(plays, range.start, range.end, 'fecha_jugada');
-      }
-      case 'last7days': {
-        const today = new Date();
-        const sevenDaysAgo = new Date(today);
-        sevenDaysAgo.setDate(today.getDate() - 6);
-        const start = new Date(sevenDaysAgo.getFullYear(), sevenDaysAgo.getMonth(), sevenDaysAgo.getDate(), 0, 0, 0);
-        const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
-        return filterByDateRange(plays, start, end, 'fecha_jugada');
-      }
-      case 'last30days': {
-        const today = new Date();
-        const thirtyDaysAgo = new Date(today);
-        thirtyDaysAgo.setDate(today.getDate() - 29);
-        const start = new Date(thirtyDaysAgo.getFullYear(), thirtyDaysAgo.getMonth(), thirtyDaysAgo.getDate(), 0, 0, 0);
-        const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
-        return filterByDateRange(plays, start, end, 'fecha_jugada');
-      }
-      default:
-        return plays;
-    }
+    // Para períodos predefinidos, los datos ya están filtrados por loadPlaysData
+    // No es necesario recalcular rangos ni re-filtrar
+    return plays;
   };
 
   // Función para carga inicial: trae últimos 30 días completos
