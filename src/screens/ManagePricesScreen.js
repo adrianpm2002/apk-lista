@@ -304,7 +304,29 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
   };
 
   const updateWinningPrice = (playType, priceType, value) => {
-    const numericValue = value.replace(/[^0-9]/g, '');
+    let numericValue = value;
+    
+    // Si es un campo de porcentaje (collectorPct o listeroPct), permitir decimales
+    if (priceType === 'collectorPct' || priceType === 'listeroPct') {
+      // Reemplazar coma por punto para normalizar
+      numericValue = value.replace(/,/g, '.');
+      // Permitir números decimales (dígitos y un solo punto)
+      numericValue = numericValue.replace(/[^0-9.]/g, '');
+      // Evitar múltiples puntos decimales
+      const parts = numericValue.split('.');
+      if (parts.length > 2) {
+        numericValue = parts[0] + '.' + parts.slice(1).join('');
+      }
+      // Validar que no exceda 100%
+      const numValue = parseFloat(numericValue);
+      if (!isNaN(numValue) && numValue > 100) {
+        numericValue = '100';
+      }
+    } else {
+      // Para precios regulares y limitados, solo números enteros
+      numericValue = value.replace(/[^0-9]/g, '');
+    }
+    
     setWinningPrices(prev => ({
       ...prev,
       [playType]: { ...prev[playType], [priceType]: numericValue }
@@ -846,7 +868,7 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
                         value={winningPrices[pt.id].collectorPct}
                         onChangeText={v => updateWinningPrice(pt.id, 'collectorPct', v)}
                         placeholder="0"
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
                         hasError={!!modalFieldErrors[pt.id]?.collectorPct}
                       />
                     </View>
@@ -856,7 +878,7 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
                         value={winningPrices[pt.id].listeroPct}
                         onChangeText={v => updateWinningPrice(pt.id, 'listeroPct', v)}
                         placeholder="0"
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
                         hasError={!!modalFieldErrors[pt.id]?.listeroPct}
                       />
                     </View>
