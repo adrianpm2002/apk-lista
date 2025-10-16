@@ -28,13 +28,13 @@ const useStatistics = () => {
           .eq('id', user.id)
           .single();
 
-        if (!error && profile) {
-          setUserRole(profile.role || 'listero');
+        if (!error && profile && profile.role) {
+          setUserRole(profile.role);
           setUserId(user.id);
         }
       } catch (error) {
-        // Mantener fallback silencioso a 'listero' si hay error
-        setUserRole('listero');
+        // Error crítico: no hacer nada, dejar userRole como null
+        // StatisticsScreen manejará el error y redirigirá
       }
     };
 
@@ -266,7 +266,7 @@ const useStatistics = () => {
   // Interface de compatibilidad con el hook original
   return {
     // Estados básicos
-    userRole,
+    // userRole removido - ahora se obtiene directamente en StatisticsScreen
     userId,
     loading: activeStats.isLoading || false,
     isRefreshing: activeStats.isRefreshing || false,

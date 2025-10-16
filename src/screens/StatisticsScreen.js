@@ -55,17 +55,21 @@ const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
-  // Estado local para usuario (listeros y colectores)
+  // Estado local para usuario y rol
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   
-  // Para listeros y colectores - estadísticas simplificadas
-  
-  // Cargar bankId del usuario y perfil completo (consolidado)
+  // Cargar perfil del usuario y validar rol
   useEffect(() => {
     const loadUserProfile = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
+          Alert.alert(
+            'Error de conexión',
+            'No se pudo verificar tu rol. Por favor, inicia sesión nuevamente.',
+            [{ text: 'OK', onPress: () => navigation.replace('Login') }]
+          );
           return;
         }
         
@@ -75,17 +79,35 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           .eq('id', user.id)
           .single();
           
-        if (error || !profile) {
+        if (error || !profile || !profile.role) {
+          Alert.alert(
+            'Error de conexión',
+            'No se pudo verificar tu rol. Por favor, inicia sesión nuevamente.',
+            [{ text: 'OK', onPress: () => navigation.replace('Login') }]
+          );
           return;
         }
         
-        if (profile.role !== 'listero' && profile.role !== 'colector' && profile.role !== 'collector' && profile.role !== 'admin') {
+        // Validar que el rol sea válido (admin, collector, listero)
+        const validRoles = ['admin', 'collector', 'colector', 'listero'];
+        if (!validRoles.includes(profile.role)) {
+          Alert.alert(
+            'Error de conexión',
+            'Rol de usuario no válido. Por favor, inicia sesión nuevamente.',
+            [{ text: 'OK', onPress: () => navigation.replace('Login') }]
+          );
           return;
         }
         
+        setUserRole(profile.role);
         setCurrentUserId(user.id);
         
       } catch (e) {
+        Alert.alert(
+          'Error de conexión',
+          'No se pudo verificar tu rol. Por favor, inicia sesión nuevamente.',
+          [{ text: 'OK', onPress: () => navigation.replace('Login') }]
+        );
       }
     };
     
@@ -174,7 +196,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     }
   };
 
-  // Hook de estadísticas
+  // Hook de estadísticas (userRole ya no viene del hook, se obtiene arriba)
   const {
     kpiData,
     chartData,
@@ -187,8 +209,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     loadPlaysData,
     applyFilters,
     clearData,
-    // Nuevas propiedades para colectores
-    userRole,
   } = useStatistics();
 
   // Opciones de períodos
