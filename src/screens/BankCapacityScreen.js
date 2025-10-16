@@ -180,9 +180,11 @@ const BankCapacityScreen = ({ navigation }) => {
             ${displayAmount.toFixed(2)}
           </Text>
           <Text style={styles.metaText}>
-            <Text style={styles.metaStrong}>{item.loteriaNombre}</Text> · 
-            <Text style={styles.metaStrong}> {item.horarioNombre}</Text> · 
-            <Text style={styles.metaJug}> {(playTypeLabels[item.jugada] || item.jugada).toUpperCase()}</Text>
+            <Text style={styles.metaStrong}>{item.loteriaNombre}</Text>
+            {' · '}
+            <Text style={styles.metaStrong}>{item.horarioNombre}</Text>
+            {' · '}
+            <Text style={styles.metaJug}>{(playTypeLabels[item.jugada] || item.jugada).toUpperCase()}</Text>
           </Text>
         </View>
       </View>
