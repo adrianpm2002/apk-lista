@@ -331,14 +331,6 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     }
   };
   
-  // Función para manejar el input de centenas (auto-salto después de 3 dígitos)
-  const manejarCentenaNumero = (text) => {
-    const numeros = text.replace(/\D/g, '');
-    if (numeros.length <= 3) {
-      setCentenaNumero(numeros);
-    }
-  };
-  
   // Función para agregar centenas
   const agregarCentena = () => {
     // Extraer todos los números de tres dígitos
@@ -713,14 +705,13 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                   placeholderTextColor="#7f8c8d"
                   value={numero}
                   onChangeText={text => {
-                    // Solo dígitos, máximo 20 caracteres
-                    let clean = text.replace(/\D/g, '').slice(0, 20);
+                    // Solo dígitos, sin límite
+                    let clean = text.replace(/\D/g, '');
                     // Insertar espacio cada dos dígitos
                     let formatted = clean.replace(/(.{2})/g, '$1 ').trim();
                     setNumero(formatted);
                   }}
                   keyboardType="numeric"
-                  maxLength={29} // 20 dígitos + 9 espacios
                 />
                 <TextInput
                   style={styles.input}
@@ -867,14 +858,13 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
                     placeholderTextColor="#7f8c8d"
                     value={centenaNumero}
                     onChangeText={text => {
-                      // Solo dígitos, máximo 18 caracteres (6 centenas)
-                      let clean = text.replace(/\D/g, '').slice(0, 18);
+                      // Solo dígitos, sin límite
+                      let clean = text.replace(/\D/g, '');
                       // Insertar espacio cada 3 dígitos
                       let formatted = clean.replace(/(.{3})/g, '$1 ').trim();
                       setCentenaNumero(formatted);
                     }}
                     keyboardType="numeric"
-                    maxLength={23} // 18 dígitos + 5 espacios
                   />
                   <TextInput
                     style={styles.input}
