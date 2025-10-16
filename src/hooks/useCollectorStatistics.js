@@ -252,12 +252,13 @@ export const useCollectorStatistics = (options = {}) => {
     await loadPlaysData({ forceRefresh: true });
   };
 
-  // Cargar datos cuando userId está disponible
-  useEffect(() => {
-    if (userId && enabled) {
-      loadPlaysData();
-    }
-  }, [userId, enabled]);
+  // ❌ ELIMINADO: Carga automática causaba double-loading y race conditions
+  // StatisticsScreen controla cuándo cargar vía applyPeriodFilter('today')
+  // useEffect(() => {
+  //   if (userId && enabled) {
+  //     loadPlaysData();
+  //   }
+  // }, [userId, enabled]);
 
   return {
     tableData,

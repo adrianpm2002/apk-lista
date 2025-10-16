@@ -37,6 +37,8 @@ export const useListeroStatistics = (options = {}) => {
   // Detectar userId (se ejecuta cuando enabled cambia)
   useEffect(() => {
     const detectUserId = async () => {
+      console.log('[useListeroStatistics] detectUserId effect - enabled:', enabled);
+      
       if (!enabled) {
         setUserId(null); // Limpiar userId si se deshabilita
         return;
@@ -44,6 +46,7 @@ export const useListeroStatistics = (options = {}) => {
       
       try {
         const { data: { user } } = await supabase.auth.getUser();
+        console.log('[useListeroStatistics] User detected:', user?.id);
         if (user) {
           setUserId(user.id);
         }
@@ -106,11 +109,22 @@ export const useListeroStatistics = (options = {}) => {
    * Cargar datos con estrategia de caché inteligente
    */
   const loadPlaysData = async (filters = {}) => {
-    if (!userId || !enabled) return;
-    if (loadingRef.current) return; // Evitar cargas simultáneas
+    console.log('[useListeroStatistics] loadPlaysData called with filters:', filters);
+    console.log('[useListeroStatistics] Current state - userId:', userId, 'enabled:', enabled);
+    
+    if (!userId || !enabled) {
+      console.log('[useListeroStatistics] Skipping load - missing userId or not enabled');
+      return;
+    }
+    
+    if (loadingRef.current) {
+      console.log('[useListeroStatistics] Skipping load - already loading');
+      return; // Evitar cargas simultáneas
+    }
 
     loadingRef.current = true;
     setIsLoading(true);
+    console.log('[useListeroStatistics] Starting data load...');
 
     try {
       const {
@@ -258,12 +272,13 @@ export const useListeroStatistics = (options = {}) => {
     await loadPlaysData({ forceRefresh: true });
   };
 
-  // Cargar datos cuando userId está disponible
-  useEffect(() => {
-    if (userId && enabled) {
-      loadPlaysData();
-    }
-  }, [userId, enabled]);
+  // ❌ ELIMINADO: Carga automática causaba double-loading y race conditions
+  // StatisticsScreen controla cuándo cargar vía applyPeriodFilter('today')
+  // useEffect(() => {
+  //   if (userId && enabled) {
+  //     loadPlaysData();
+  //   }
+  // }, [userId, enabled]);
 
   return {
     tableData,

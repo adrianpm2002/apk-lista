@@ -15,12 +15,22 @@ const useStatistics = () => {
   const collectorStats = useCollectorStatistics({ enabled: userRole === 'collector' || userRole === 'colector' });
   const adminStats = useAdminStatistics({ enabled: userRole === 'admin' });
 
+  console.log('[useStatistics] Current state - userRole:', userRole, 'userId:', userId);
+  console.log('[useStatistics] listeroStats enabled:', userRole === 'listero');
+  console.log('[useStatistics] listeroStats data:', listeroStats.tableData?.plays?.length, 'plays');
+
   // Detectar el rol del usuario
   useEffect(() => {
     const detectUserRole = async () => {
+      console.log('[useStatistics] Detecting user role...');
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          console.log('[useStatistics] No user found');
+          return;
+        }
+
+        console.log('[useStatistics] User found:', user.id);
 
         const { data: profile, error } = await supabase
           .from('profiles')
@@ -29,10 +39,14 @@ const useStatistics = () => {
           .single();
 
         if (!error && profile && profile.role) {
+          console.log('[useStatistics] Role detected:', profile.role);
           setUserRole(profile.role);
           setUserId(user.id);
+        } else {
+          console.error('[useStatistics] Error getting profile:', error);
         }
       } catch (error) {
+        console.error('[useStatistics] Exception detecting role:', error);
         // Error crítico: no hacer nada, dejar userRole como null
         // StatisticsScreen manejará el error y redirigirá
       }
