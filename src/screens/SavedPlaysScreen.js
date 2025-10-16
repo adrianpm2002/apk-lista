@@ -49,6 +49,65 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [copiedBanner, setCopiedBanner] = useState(false);
 
+  // Función auxiliar para cargar jugadas con una vista específica
+  const loadSavedPlaysWithView = async (viewName, userId) => {
+    try {
+      setIsLoading(true);
+      
+      const { data, error } = await supabase
+        .from(viewName)
+        .select('*')
+        .eq('id_listero', userId)
+        .order('fecha_jugada', { ascending: false });
+        
+      if (error) throw error;
+      
+      // Mapear los datos de la view al formato esperado por la UI
+      const mapped = (data || []).map(r => {
+        // Extraer hora en formato AM/PM
+        const timestamp = new Date(r.fecha_jugada);
+        
+        // Calcular monto total (cantidad de números × monto unitario)
+        const numbersCount = (r.numeros_jugados || '').split(',').filter(Boolean).length;
+        const calculatedTotal = Number((r.monto_unitario * numbersCount).toFixed(2));
+        
+        // Determinar estado del resultado
+        const hasResult = r.resultado !== null && r.resultado !== undefined;
+        const hasWin = hasResult && r.numeros_ganadores_jugada && r.numeros_ganadores_jugada.length > 0;
+        
+        // Crear set de números ganadores para resaltado
+        const winningTokens = new Set(r.numeros_ganadores_jugada || []);
+        
+        return {
+          id: r.id_jugada,
+          lottery: r.nombre_loteria || 'Lotería',
+          lotteryId: r.id_loteria || 'unknown',
+          schedule: r.nombre_horario || 'Horario',
+          scheduleId: r.id_horario || 'unknown',
+          scheduleStart: r.hora_inicio || null,
+          scheduleEnd: r.hora_fin || null,
+          playType: r.tipo_jugada,
+          numbers: r.numeros_jugados,
+          amount: r.monto_unitario,
+          total: calculatedTotal,
+          note: r.nota || '',
+          hasPrize: hasWin,
+          prize: hasResult ? (hasWin ? 'bingo' : 'no cogió premio') : 'pendiente',
+          payAmount: r.monto_a_pagar || 0,
+          result: hasResult ? r.resultado : 'no disponible',
+          timestamp: timestamp,
+          winningTokens: winningTokens
+        };
+      });
+      
+      setSavedPlays(mapped);
+    } catch(e) { 
+      console.error('Error loading saved plays:', e);
+    } finally { 
+      setIsLoading(false); 
+    }
+  };
+
   const loadSavedPlays = async () => {
     try {
       setIsLoading(true);
@@ -117,52 +176,48 @@ const SavedPlaysScreen = ({ navigation, route }) => {
     }
   };
 
-  // Función para cargar el modo Santiago del banco
-  const loadModoSantiago = async () => {
-    try {
-      const { data: userRes } = await supabase.auth.getUser();
-      const userId = userRes?.user?.id;
-      if (!userId) return;
-
-      // Obtener el banco del listero actual
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id_banco')
-        .eq('id', userId)
-        .single();
-
-      if (profile?.id_banco) {
-        // Obtener configuración del banco
-        const { data: bankProfile } = await supabase
-          .from('profiles')
-          .select('modo_santiago, porciento')
-          .eq('id', profile.id_banco)
-          .single();
-
-        if (bankProfile) {
-          setModoSantiago(bankProfile.modo_santiago || false);
-          setPorcentajeSantiago(bankProfile.porciento || 100);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading modo Santiago:', error);
-    }
-  };
-
   useFocusEffect(useCallback(()=> { 
     const loadData = async () => {
-      await loadModoSantiago(); // Cargar primero el modo Santiago
-      await loadSavedPlays();    // Luego cargar las jugadas con la view correcta
+      // Cargar modo Santiago y jugadas en secuencia sin disparar el useEffect
+      try {
+        const { data: userRes } = await supabase.auth.getUser();
+        const userId = userRes?.user?.id;
+        if (!userId) return;
+
+        // Obtener el banco del listero actual
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id_banco')
+          .eq('id', userId)
+          .single();
+
+        if (profile?.id_banco) {
+          // Obtener configuración del banco
+          const { data: bankProfile } = await supabase
+            .from('profiles')
+            .select('modo_santiago, porciento')
+            .eq('id', profile.id_banco)
+            .single();
+
+          if (bankProfile) {
+            // Actualizar estados sin disparar useEffect
+            const santiago = bankProfile.modo_santiago || false;
+            const porciento = bankProfile.porciento || 100;
+            setModoSantiago(santiago);
+            setPorcentajeSantiago(porciento);
+            
+            // Cargar jugadas directamente con la vista correcta
+            const viewName = santiago ? 'v_registro_diario_santiago' : 'v_registro_diario';
+            await loadSavedPlaysWithView(viewName, userId);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+        setIsLoading(false);
+      }
     };
     loadData();
   },[]));
-  
-  // Recargar jugadas cuando cambie el modo Santiago
-  useEffect(() => {
-    if (modoSantiago !== null) { // Solo si ya se cargó el modo Santiago
-      loadSavedPlays();
-    }
-  }, [modoSantiago]);
 
   // Derivar opciones dinámicas cada vez que cambian las jugadas cargadas
   useEffect(()=> {
