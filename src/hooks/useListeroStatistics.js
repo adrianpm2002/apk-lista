@@ -177,7 +177,16 @@ export const useListeroStatistics = (options = {}) => {
     try {
       if (!lastDate) return await fetchInitialData(userId);
       
-      const startStr = formatDateForQuery(lastDate) + ' 00:00:00';
+      // OPTIMIZACIÓN: Restar 10 horas a la fecha más reciente para capturar jugadas
+      // de horarios que abrieron al mismo tiempo pero cierran más tarde
+      // Ejemplo: Dos horarios abren 8:00 AM, uno cierra 10:00 AM (más reciente en caché)
+      // pero el otro cierra 12:00 PM → necesitamos las jugadas de 8:00-12:00 del segundo
+      const adjustedLastDate = new Date(lastDate);
+      adjustedLastDate.setHours(adjustedLastDate.getHours() - 10);
+      
+      const startStr = formatDateForQuery(adjustedLastDate) + ' ' + 
+                       String(adjustedLastDate.getHours()).padStart(2, '0') + ':' +
+                       String(adjustedLastDate.getMinutes()).padStart(2, '0') + ':00';
       const today = new Date();
       const endStr = formatDateForQuery(today) + ' 23:59:59';
       
