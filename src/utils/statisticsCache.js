@@ -4,11 +4,12 @@ import Constants from 'expo-constants';
 
 /**
  * Módulo de caché para estadísticas de usuario (Listero, Colector, Admin)
- * - MOBILE COMPILADO (APK/IPA): Cachea TODO (recent, thisMonth, lastMonth) - AsyncStorage ilimitado
- * - EXPO GO: Solo cachea 'recent' (7 días) - usa localStorage, limitado a ~5-10MB
- * - WEB: Solo cachea 'recent' (7 días) - localStorage limitado a ~5-10MB
+ * - MOBILE COMPILADO (APK/IPA): Cachea TODO (recent, cache_30days, etc.) - AsyncStorage ilimitado
+ * - EXPO GO: Solo cachea 'recent' y 'cache_30days' - usa localStorage, limitado a ~5-10MB
+ * - WEB: Solo cachea 'recent' y 'cache_30days' - localStorage limitado a ~5-10MB
  * - Caché infinito (nunca expira automáticamente)
  * - Soporta múltiples roles con prefijos: listero_, collector_, admin_
+ * - Estructura retornada: {plays: [], _metadata: {timestamp, age, period, role}}
  */
 
 const CACHE_VERSION = '1.0';
@@ -59,21 +60,32 @@ const getMetadataKey = (userId, role = 'listero') => {
 /**
  * Guardar datos en caché
  * @param {string} userId - ID del usuario
- * @param {string} period - Período ('recent', 'thisMonth', 'lastMonth')
- * @param {Array} data - Datos a guardar
+ * @param {string} period - Período ('recent', 'thisMonth', 'lastMonth', 'cache_30days')
+ * @param {Array|Object} data - Datos a guardar (array de plays o objeto con estructura {plays: [], _metadata: {}})
  * @param {string} role - Rol del usuario ('listero', 'collector', 'admin')
  */
 export const saveToCache = async (userId, period, data, role = 'listero') => {
   try {
-    if (!userId || !period || !data) {
-      console.warn('[StatisticsCache] Parámetros inválidos para guardar en caché');
+    if (!userId || !period) {
+      console.warn('[StatisticsCache] Parámetros inválidos para guardar en caché', { userId, period });
       return false;
     }
 
-    // EXPO GO + WEB: Solo cachear 'recent' (7 días) para evitar QuotaExceededError
+    // Validar que data no sea null/undefined (arrays vacíos son válidos)
+    if (data === null || data === undefined) {
+      console.warn('[StatisticsCache] Datos nulos o indefinidos', { userId, period });
+      return false;
+    }
+
+    // Validar que data sea array o objeto con plays
+    if (!Array.isArray(data) && (!data.plays || !Array.isArray(data.plays))) {
+      console.warn('[StatisticsCache] Datos inválidos: debe ser array o {plays: []}');
+      return false;
+    }
+
+    // EXPO GO + WEB: Solo cachear 'recent' y 'cache_30days' para evitar QuotaExceededError
     // APK/IPA: Cachear todo (AsyncStorage ilimitado)
-    if (isWeb && period !== 'recent') {
-      const platform = isExpoGo ? 'Expo Go' : 'Web';
+    if (isWeb && period !== 'recent' && period !== 'cache_30days') {
       return false;
     }
 
@@ -81,8 +93,17 @@ export const saveToCache = async (userId, period, data, role = 'listero') => {
     }
 
     const key = getCacheKey(userId, period, role);
+    
+    // Normalizar estructura: si es array, convertir a {plays: []}
+    let normalizedData;
+    if (Array.isArray(data)) {
+      normalizedData = { plays: data };
+    } else {
+      normalizedData = data; // Ya tiene estructura {plays: [], _metadata: {}}
+    }
+    
     const cacheData = {
-      data,
+      ...normalizedData,  // Expandir plays y _metadata si existe
       timestamp: Date.now(),
       version: CACHE_VERSION,
       period,
@@ -104,9 +125,9 @@ export const saveToCache = async (userId, period, data, role = 'listero') => {
 /**
  * Leer datos del caché
  * @param {string} userId - ID del usuario
- * @param {string} period - Período (solo 'recent' soportado)
+ * @param {string} period - Período ('recent', 'cache_30days', etc.)
  * @param {string} role - Rol del usuario ('listero', 'collector', 'admin')
- * @returns {Object|null} Datos del caché o null si no existe
+ * @returns {Object|null} Datos del caché con estructura {plays: [], _metadata: {timestamp, age}} o null si no existe
  */
 export const readFromCache = async (userId, period, role = 'listero') => {
   try {
@@ -133,10 +154,15 @@ export const readFromCache = async (userId, period, role = 'listero') => {
     const age = Date.now() - parsed.timestamp;
     const ageMinutes = Math.floor(age / 60000);
     
+    // Retornar estructura compatible con hooks nuevos
     return {
-      data: parsed.data,
-      timestamp: parsed.timestamp,
-      age: ageMinutes,
+      plays: parsed.plays || parsed.data || [], // Soportar ambas estructuras (legacy y nueva)
+      _metadata: {
+        timestamp: parsed.timestamp,
+        age: ageMinutes,
+        period: parsed.period,
+        role: parsed.role,
+      },
     };
   } catch (error) {
     console.error(`[StatisticsCache] ❌ Error al leer del caché [${role}]:`, error);

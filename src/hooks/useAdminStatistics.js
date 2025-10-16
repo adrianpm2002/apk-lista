@@ -69,320 +69,320 @@ export const useAdminStatistics = (options = {}) => {
   const loadingRef = useRef(false);
   const abortControllerRef = useRef(null);
 
-  // Mapeo directo de período a vista optimizada
-  const getViewByPeriod = (period) => {
-    switch (period) {
-      case 'today':
-        return { viewName: 'v_estadisticas_hoy', isOptimized: true, period: 'hoy' };
-      case 'yesterday':
-        return { viewName: 'v_estadisticas_ayer', isOptimized: true, period: 'ayer' };
-      case 'last7days':
-        return { viewName: 'v_estadisticas_7d', isOptimized: true, period: 'últimos 7 días' };
-      case 'last30days':
-        return { viewName: 'v_estadisticas_mes', isOptimized: true, period: 'este mes' };
-      case 'lastMonth':
-        return { viewName: 'v_estadisticas_mes_pasado', isOptimized: true, period: 'mes pasado' };
-      default:
-        return { viewName: 'v_estadisticas', isOptimized: false, period: 'custom' };
-    }
+  // Helper para calcular fecha de inicio del caché (últimos 30 días)
+  const getCacheStartDate = () => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 29); // Hace 29 días + hoy = 30 días
+    return new Date(thirtyDaysAgo.getFullYear(), thirtyDaysAgo.getMonth(), thirtyDaysAgo.getDate(), 0, 0, 0, 0);
   };
 
-  // Helper para detectar si el filtro es para el día de hoy
-  const isFilteringToday = (startDate, endDate) => {
+  // Helper para verificar si un rango de fechas está dentro del caché (últimos 30 días)
+  const isWithinCacheRange = (startDate, endDate) => {
     if (!startDate || !endDate) return false;
     
+    const cacheStart = getCacheStartDate();
     const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
     
     const filterStart = new Date(startDate);
     const filterEnd = new Date(endDate);
     
-    return filterStart.getTime() >= todayStart.getTime() && 
-           filterEnd.getTime() <= todayEnd.getTime();
+    // El rango solicitado debe estar completamente dentro del rango de caché
+    return filterStart >= cacheStart && filterEnd <= todayEnd;
   };
 
-  // Helper para detectar si el filtro es para ayer
-  const isFilteringYesterday = (startDate, endDate) => {
-    if (!startDate || !endDate) return false;
-    
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-    const yesterdayEnd = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
-    
-    const filterStart = new Date(startDate);
-    const filterEnd = new Date(endDate);
-    
-    return filterStart.getTime() >= yesterdayStart.getTime() && 
-           filterEnd.getTime() <= yesterdayEnd.getTime();
-  };
-
-  // Helper para detectar si el filtro es para los últimos 7 días
-  const isFilteringLast7Days = (startDate, endDate) => {
-    if (!startDate || !endDate) return false;
-    
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
-    
-    const filterStart = new Date(startDate);
-    const filterEnd = new Date(endDate);
-    
-    // Verificar si el rango corresponde aproximadamente a "últimos 7 días"
-    // Permitir una tolerancia de algunos minutos para diferencias de tiempo
-    const timeDiffStart = Math.abs(filterStart.getTime() - sevenDaysAgo.getTime());
-    const timeDiffEnd = Math.abs(filterEnd.getTime() - now.getTime());
-    
-    // Tolerancia de 5 minutos (300000 ms)
-    const tolerance = 5 * 60 * 1000;
-    
-    return timeDiffStart <= tolerance && timeDiffEnd <= tolerance;
-  };
-
-  // Helper para detectar si el filtro es para los últimos 30 días (Este mes)
-  const isFilteringLast30Days = (startDate, endDate) => {
-    if (!startDate || !endDate) return false;
-    
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
-    
-    const filterStart = new Date(startDate);
-    const filterEnd = new Date(endDate);
-    
-    // Verificar si el rango corresponde aproximadamente a "últimos 30 días"
-    // Permitir una tolerancia de algunos minutos para diferencias de tiempo
-    const timeDiffStart = Math.abs(filterStart.getTime() - thirtyDaysAgo.getTime());
-    const timeDiffEnd = Math.abs(filterEnd.getTime() - now.getTime());
-    
-    // Tolerancia de 5 minutos (300000 ms)
-    const tolerance = 5 * 60 * 1000;
-    
-    return timeDiffStart <= tolerance && timeDiffEnd <= tolerance;
-  };
-
-  // Helper para detectar si el filtro es para el mes pasado
-  const isFilteringLastMonth = (startDate, endDate) => {
-    if (!startDate || !endDate) return false;
-    
-    const now = new Date();
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-    
-    const filterStart = new Date(startDate);
-    const filterEnd = new Date(endDate);
-    
-    // Verificar si el rango corresponde exactamente al mes pasado
-    // Comparar año, mes y día
-    const startMatches = filterStart.getFullYear() === lastMonthStart.getFullYear() &&
-                        filterStart.getMonth() === lastMonthStart.getMonth() &&
-                        filterStart.getDate() === lastMonthStart.getDate();
-    
-    const endMatches = filterEnd.getFullYear() === lastMonthEnd.getFullYear() &&
-                      filterEnd.getMonth() === lastMonthEnd.getMonth() &&
-                      filterEnd.getDate() === lastMonthEnd.getDate();
-    
-    return startMatches && endMatches;
-  };
-
-  // Helper para determinar qué vista usar según el filtro de fechas
-  const getOptimizedView = (startDate, endDate) => {
-    if (isFilteringToday(startDate, endDate)) {
-      return { viewName: 'v_estadisticas_hoy', isOptimized: true, period: 'hoy' };
-    }
-    if (isFilteringYesterday(startDate, endDate)) {
-      return { viewName: 'v_estadisticas_ayer', isOptimized: true, period: 'ayer' };
-    }
-    if (isFilteringLast7Days(startDate, endDate)) {
-      return { viewName: 'v_estadisticas_7d', isOptimized: true, period: 'últimos 7 días' };
-    }
-    if (isFilteringLast30Days(startDate, endDate)) {
-      return { viewName: 'v_estadisticas_mes', isOptimized: true, period: 'este mes' };
-    }
-    if (isFilteringLastMonth(startDate, endDate)) {
-      return { viewName: 'v_estadisticas_mes_pasado', isOptimized: true, period: 'mes pasado' };
-    }
-    return { viewName: 'v_estadisticas', isOptimized: false, period: 'custom' };
-  };
-
-  // Función específica para cargar datos de ADMIN con agrupación jerárquica completa
+  // Función específica para cargar datos de ADMIN con merge incremental
   const loadAdminPlaysData = async (userId, filters = {}) => {
     try {
       if (!userId) {
         return [];
       }
 
-      const { period, startDate, endDate, forceRefresh = false } = filters;
+      const { period, startDate, endDate, customStartDate, customEndDate, directData, forceRefresh = false } = filters;
       
-      // Si forceRefresh es true, saltar toda la lógica de caché y consultar directamente
-      if (forceRefresh) {
-        const freshData = await fetchAdminDataFromSupabase(userId, filters);
-        const cachePeriod = normalizePeriodForCache(period);
-        await saveToCache(userId, cachePeriod, freshData, 'admin');
-        return freshData;
+      // Si se proporciona directData (consulta directa desde StatisticsScreen), usarlo
+      if (directData) {
+        return directData;
       }
       
-      // Normalizar período para caché (last7days -> recent)
-      const cachePeriod = normalizePeriodForCache(period);
+      // Calcular fechas según el período si no vienen explícitas
+      let calculatedStartDate = customStartDate || startDate;
+      let calculatedEndDate = customEndDate || endDate;
       
-      // ============================================
-      // OPTIMIZACIÓN 1: Filtrado local desde caché
-      // ============================================
-      // Si es filtro de hoy o ayer, intentar filtrar localmente desde caché de 7 días
-      if (period === 'today' || period === 'yesterday') {
-        const cached7Days = await readFromCache(userId, 'recent', 'admin');
+      // Si no vienen fechas, calcularlas según el período
+      if (!calculatedStartDate || !calculatedEndDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
         
-        if (cached7Days) {
-          const range = period === 'today' ? getTodayRange() : getYesterdayRange();
-          const filteredData = filterByDateRange(cached7Days, range.start, range.end, 'fecha_jugada');
-          
-          if (filteredData && filteredData.length >= 0) {
-            return filteredData;
-          }
+        switch (period) {
+          case 'today':
+            calculatedStartDate = new Date(today);
+            calculatedEndDate = new Date(today);
+            calculatedEndDate.setHours(23, 59, 59, 999);
+            break;
+          case 'yesterday':
+            calculatedStartDate = new Date(today);
+            calculatedStartDate.setDate(today.getDate() - 1);
+            calculatedEndDate = new Date(calculatedStartDate);
+            calculatedEndDate.setHours(23, 59, 59, 999);
+            break;
+          case 'last7days':
+            calculatedStartDate = new Date(today);
+            calculatedStartDate.setDate(today.getDate() - 6);
+            calculatedEndDate = new Date(today);
+            calculatedEndDate.setHours(23, 59, 59, 999);
+            break;
+          case 'last30days':
+            calculatedStartDate = new Date(today);
+            calculatedStartDate.setDate(today.getDate() - 29);
+            calculatedEndDate = new Date(today);
+            calculatedEndDate.setHours(23, 59, 59, 999);
+            break;
+          default:
+            // Sin período específico, usar 30 días por defecto
+            calculatedStartDate = new Date(today);
+            calculatedStartDate.setDate(today.getDate() - 29);
+            calculatedEndDate = new Date(today);
+            calculatedEndDate.setHours(23, 59, 59, 999);
         }
       }
       
-      // ============================================
-      // OPTIMIZACIÓN 2: Verificar caché antes de consultar Supabase
-      // ============================================
-      const cachedData = await readFromCache(userId, cachePeriod, 'admin');
+      const finalStartDate = calculatedStartDate;
+      const finalEndDate = calculatedEndDate;
+      
+      // Leer caché existente (siempre usamos 'cache_30days' ahora)
+      const cachedData = await readFromCache(userId, 'cache_30days', 'admin');
+      let cachedPlays = [];
+      let cacheMetadata = null;
       
       if (cachedData && cachedData._metadata) {
-        const metadata = cachedData._metadata;
-        const cacheAge = (Date.now() - metadata.timestamp) / (1000 * 60); // minutos
+        cacheMetadata = cachedData._metadata;
+        const { _metadata, ...data } = cachedData;
+        cachedPlays = data.plays || [];
+      }
+      
+      // ============================================
+      // CASO 1: ForceRefresh (Pull-to-refresh)
+      // ============================================
+      if (forceRefresh) {
+        // Actualización incremental: solo traer jugadas nuevas
+        const lastDate = getMaxFechaJugada(cachedPlays);
+        const newPlays = await fetchIncrementalData(userId, lastDate);
         
-        // Si el caché es reciente (< 10 min), usarlo directamente
+        // Merge transaccional: solo si se completó la consulta
+        if (newPlays) {
+          const mergedPlays = mergePlaysByIdJugada(cachedPlays, newPlays);
+          await saveToCache(userId, 'cache_30days', mergedPlays, 'admin');
+          
+          // Filtrar según el rango solicitado
+          return filterPlaysByDateRange(mergedPlays, period, finalStartDate, finalEndDate);
+        }
+        
+        // Si falla, retornar caché existente
+        return filterPlaysByDateRange(cachedPlays, period, finalStartDate, finalEndDate);
+      }
+      
+      // ============================================
+      // CASO 2: Caché reciente (< 10 min)
+      // ============================================
+      if (cacheMetadata) {
+        const cacheAge = (Date.now() - cacheMetadata.timestamp) / (1000 * 60);
+        
         if (cacheAge < CACHE_REFRESH_THRESHOLD) {
-          const { _metadata, ...data } = cachedData;
-          return data.plays || [];
+          // Caché fresco, usar directamente
+          return filterPlaysByDateRange(cachedPlays, period, finalStartDate, finalEndDate);
+        }
+      }
+      
+      // ============================================
+      // CASO 3: Sin caché o caché antiguo (>= 10 min)
+      // ============================================
+      // Determinar si podemos usar caché + incremental o necesitamos carga completa
+      const lastDate = getMaxFechaJugada(cachedPlays);
+      
+      if (cachedPlays.length > 0 && lastDate) {
+        // Tenemos caché: hacer actualización incremental
+        const newPlays = await fetchIncrementalData(userId, lastDate);
+        
+        if (newPlays) {
+          const mergedPlays = mergePlaysByIdJugada(cachedPlays, newPlays);
+          await saveToCache(userId, 'cache_30days', mergedPlays, 'admin');
+          return filterPlaysByDateRange(mergedPlays, period, finalStartDate, finalEndDate);
         }
         
-        // Si el caché es antiguo pero no demasiado (< 60 min), usarlo y refrescar en segundo plano
-        if (cacheAge < 60) {
-          const { _metadata, ...data } = cachedData;
-          
-          // Refrescar en segundo plano (sin await)
-          (async () => {
-            try {
-              const freshData = await fetchAdminDataFromSupabase(userId, filters);
-              await saveToCache(userId, cachePeriod, freshData, 'admin');
-            } catch (err) {
-              console.error('[useAdminStatistics] Error en refresco:', err.message);
-            }
-          })();
-          
-          return data.plays || [];
+        // Si falla la actualización, usar caché existente
+        return filterPlaysByDateRange(cachedPlays, period, finalStartDate, finalEndDate);
+      } else {
+        // Sin caché: carga completa inicial (últimos 30 días)
+        const initialData = await fetchInitialData(userId);
+        
+        if (initialData) {
+          await saveToCache(userId, 'cache_30days', initialData, 'admin');
+          return filterPlaysByDateRange(initialData, period, finalStartDate, finalEndDate);
         }
+        
+        return [];
       }
-      
-      // ============================================
-      // OPTIMIZACIÓN 3: Consultar Supabase y guardar en caché
-      // ============================================
-      const freshData = await fetchAdminDataFromSupabase(userId, filters);
-      
-      // Guardar en caché según plataforma
-      if (isMobile) {
-        await saveToCache(userId, cachePeriod, freshData, 'admin');
-      } else if (isWeb || isExpoGo) {
-        // Expo Go/Web: Solo cachear 'recent' (7 días)
-        if (cachePeriod === 'recent') {
-          await saveToCache(userId, cachePeriod, freshData, 'admin');
-        }
-      }
-      
-      return freshData;
       
     } catch (error) {
       console.error('[useAdminStatistics] Error en loadAdminPlaysData:', error);
       return [];
     }
   };
+  
+  // Helper: Obtener la fecha máxima de jugada del caché
+  const getMaxFechaJugada = (plays) => {
+    if (!plays || plays.length === 0) return null;
+    
+    const maxDate = plays.reduce((max, play) => {
+      const playDate = new Date(play.fecha_jugada);
+      return playDate > max ? playDate : max;
+    }, new Date(0));
+    
+    return maxDate;
+  };
+  
+  // Helper: Merge de jugadas por id_jugada (evita duplicados)
+  const mergePlaysByIdJugada = (existingPlays, newPlays) => {
+    const playMap = new Map();
+    
+    // Agregar jugadas existentes
+    existingPlays.forEach(play => {
+      playMap.set(play.id_jugada, play);
+    });
+    
+    // Agregar/actualizar con jugadas nuevas
+    newPlays.forEach(play => {
+      playMap.set(play.id_jugada, play);
+    });
+    
+    return Array.from(playMap.values());
+  };
+  
+  // Helper: Filtrar jugadas por rango de fechas según período
+  const filterPlaysByDateRange = (plays, period, startDate, endDate) => {
+    if (!plays || plays.length === 0) return [];
+    
+    // Si es custom pero faltan fechas, retornar array vacío (caso de error)
+    if (period === 'custom' && (!startDate || !endDate)) {
+      console.warn('[useAdminStatistics] Período custom sin fechas válidas');
+      return [];
+    }
+    
+    // Si hay fechas personalizadas, usarlas
+    if (startDate && endDate) {
+      return filterByDateRange(plays, startDate, endDate, 'fecha_jugada');
+    }
+    
+    // Filtrar según período predefinido
+    switch (period) {
+      case 'today': {
+        const range = getTodayRange();
+        return filterByDateRange(plays, range.start, range.end, 'fecha_jugada');
+      }
+      case 'yesterday': {
+        const range = getYesterdayRange();
+        return filterByDateRange(plays, range.start, range.end, 'fecha_jugada');
+      }
+      case 'last7days': {
+        const today = new Date();
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(today.getDate() - 6);
+        const start = new Date(sevenDaysAgo.getFullYear(), sevenDaysAgo.getMonth(), sevenDaysAgo.getDate(), 0, 0, 0);
+        const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+        return filterByDateRange(plays, start, end, 'fecha_jugada');
+      }
+      case 'last30days': {
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 29);
+        const start = new Date(thirtyDaysAgo.getFullYear(), thirtyDaysAgo.getMonth(), thirtyDaysAgo.getDate(), 0, 0, 0);
+        const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+        return filterByDateRange(plays, start, end, 'fecha_jugada');
+      }
+      default:
+        return plays;
+    }
+  };
 
-  // Función auxiliar para consultar Supabase (lógica original extraída)
-  const fetchAdminDataFromSupabase = async (userId, filters = {}) => {
+  // Función para carga inicial: trae últimos 30 días completos
+  const fetchInitialData = async (userId) => {
     try {
-      const { period, startDate, endDate } = filters;
+      const cacheStart = getCacheStartDate();
+      const startStr = formatDateForQuery(cacheStart) + ' 00:00:00';
+      const today = new Date();
+      const endStr = formatDateForQuery(today) + ' 23:59:59';
       
-      // Determinar qué vista usar según el período o filtro de fechas
-      let viewConfig;
-      if (period) {
-        // Usar mapeo directo por período (nueva funcionalidad)
-        viewConfig = getViewByPeriod(period);
-      } else {
-        // Usar detección por fechas (funcionalidad legacy)
-        viewConfig = getOptimizedView(startDate, endDate);
-      }
+      return await fetchFromSupabaseWithPagination(userId, startStr, endStr);
+    } catch (error) {
+      console.error('[useAdminStatistics] Error en fetchInitialData:', error);
+      return [];
+    }
+  };
+  
+  // Función para actualización incremental: trae solo jugadas nuevas
+  const fetchIncrementalData = async (userId, lastDate) => {
+    try {
+      if (!lastDate) return await fetchInitialData(userId);
       
-      const { viewName, isOptimized } = viewConfig;
+      // Consultar jugadas con fecha_jugada > lastDate
+      const startStr = formatDateForQuery(lastDate) + ' 00:00:00';
+      const today = new Date();
+      const endStr = formatDateForQuery(today) + ' 23:59:59';
       
-      // Formatear fechas si están disponibles y no estamos usando vista optimizada
-      let dateFilters = {};
-      if (startDate && endDate && !isOptimized) {
-        const startStr = formatDateForQuery(startDate) + ' 00:00:00';
-        const endStr = formatDateForQuery(endDate) + ' 23:59:59';
-        dateFilters = {
-          startStr,
-          endStr
-        };
-      }
-
-      // Obtener todos los datos usando paginación optimizada (filtrar por id_banco del admin)
+      return await fetchFromSupabaseWithPagination(userId, startStr, endStr, true);
+    } catch (error) {
+      console.error('[useAdminStatistics] Error en fetchIncrementalData:', error);
+      return [];
+    }
+  };
+  
+  // Función genérica para consultar Supabase con paginación
+  const fetchFromSupabaseWithPagination = async (userId, startStr, endStr, isIncremental = false) => {
+    try {
       let allPlaysData = [];
       let page = 0;
-      // Supabase tiene límite máximo de 1000 registros por consulta
       const pageSize = 1000;
       let hasMore = true;
       
-  // inicio paginación (silencioso)
-      
       while (hasMore) {
         let query = supabase
-          .from(viewName)
+          .from('v_estadisticas')
           .select('*')
-          .eq('id_banco', userId); // ADMIN filtra por su id_banco
-
-        // Solo agregar filtro de estado_horario si no estamos usando vista optimizada
-        if (!isOptimized) {
-          query = query.eq('estado_horario', 'cerrada');
-        }
-        
-        query = query.order('fecha_jugada', { ascending: false });
-
-        // Solo aplicar filtros de fecha si no estamos usando vista optimizada
-        if (dateFilters.startStr && dateFilters.endStr && !isOptimized) {
-          query = query
-            .gte('fecha_jugada', dateFilters.startStr)
-            .lte('fecha_jugada', dateFilters.endStr);
-        }
+          .eq('id_banco', userId)
+          .gte('fecha_jugada', startStr)
+          .lte('fecha_jugada', endStr)
+          .order('fecha_jugada', { ascending: false });
 
         const { data: playsData, error } = await query
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) {
           console.error('[useAdminStatistics] Error en consulta Supabase:', error);
-          return [];
+          // Si es actualización incremental y falla, retornar null para usar caché
+          return isIncremental ? null : [];
         }
         
         if (playsData && playsData.length > 0) {
           allPlaysData = allPlaysData.concat(playsData);
-          // CORRIGIENDO: Si obtienes exactamente 1000 registros, continuar
-          const shouldContinue = playsData.length === 1000;
-          hasMore = shouldContinue;
+          hasMore = playsData.length === 1000;
           page++;
         } else {
           hasMore = false;
         }
         
-        // Límite de seguridad para evitar bucles infinitos
-        if (page > 250) { // Hasta 1.25M registros
+        // Límite de seguridad
+        if (page > 250) {
           break;
         }
       }
       
-      return allPlaysData || [];
+      return allPlaysData;
       
     } catch (error) {
-      console.error('[useAdminStatistics] Error en fetchAdminDataFromSupabase:', error);
-      return [];
+      console.error('[useAdminStatistics] Error en fetchFromSupabaseWithPagination:', error);
+      return isIncremental ? null : [];
     }
   };
 

@@ -17,6 +17,7 @@ import { supabase } from '../supabaseClient';
 import StatisticsChart from '../components/StatisticsChart';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import ScreenWrapper from '../components/ScreenWrapper';
+import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 
 // Importación condicional para exportación PDF
@@ -108,6 +109,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [showLotteryModal, setShowLotteryModal] = useState(false); // Modal para seleccionar lotería (listero)
   const [showLotteryModalCollector, setShowLotteryModalCollector] = useState(false); // Modal para seleccionar lotería (collector/admin)
   
+  // Estados para filtro de fecha personalizada
+  const [customModalVisible, setCustomModalVisible] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState(new Date());
+  const [customEndDate, setCustomEndDate] = useState(new Date());
+  
   // Estados para modo Santiago
   const [modoSantiago, setModoSantiago] = useState(false);
   const [porcentajeSantiago, setPorcentajeSantiago] = useState(100);
@@ -189,9 +195,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const periodOptions = [
     { label: 'Hoy', value: 'today' },
     { label: 'Ayer', value: 'yesterday' },
-    { label: 'Mes pasado', value: 'lastMonth' },
     { label: 'Últimos 7 días', value: 'last7days' },
-  { label: 'Este mes', value: 'last30days' },
+    { label: 'Últimos 30 días', value: 'last30days' },
+    { label: 'Personalizado', value: 'custom' },
   ];
 
   // Tabs de navegación
@@ -254,9 +260,16 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Razón: Solo se cachean 7 días para evitar QuotaExceededError
   // Períodos largos (mes/mes pasado) se cargan bajo demanda desde Supabase sin caché
 
-  const applyPeriodFilter = (period, forceRefresh = false) => {
+  const applyPeriodFilter = (period, customStart = null, customEnd = null, forceRefresh = false) => {
     // Verificar que userId esté disponible antes de filtrar
     if (!currentUserId) {
+      return;
+    }
+
+    // Validación crítica: si es custom, DEBE tener fechas
+    if (period === 'custom' && (!customStart || !customEnd)) {
+      console.error('[StatisticsScreen] applyPeriodFilter: período custom sin fechas válidas');
+      Alert.alert('Error', 'Debe seleccionar fechas de inicio y fin');
       return;
     }
 
@@ -264,9 +277,64 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       period: period,
       forceRefresh: forceRefresh
     };
+
+    // Si es un rango personalizado, agregar las fechas
+    if (period === 'custom' && customStart && customEnd) {
+      filterParams.customStartDate = customStart;
+      filterParams.customEndDate = customEnd;
+    }
     
     setSelectedPeriod(period);
     applyFilters(filterParams);
+  };
+
+  // Cargar rango personalizado directamente desde Supabase (fuera del cache)
+  const loadCustomRangeFromSupabase = async (startDate, endDate) => {
+    try {
+      // Validación de parámetros
+      if (!startDate || !endDate) {
+        console.error('[StatisticsScreen] loadCustomRangeFromSupabase: fechas inválidas', { startDate, endDate });
+        Alert.alert('Error', 'Las fechas seleccionadas no son válidas');
+        return;
+      }
+
+      // Formatear fechas para consulta (formato SQL estándar)
+      const startStr = startDate.toISOString().split('T')[0] + ' 00:00:00';
+      const endStr = endDate.toISOString().split('T')[0] + ' 23:59:59';
+
+      let query = supabase
+        .from('v_estadisticas')
+        .select('*')
+        .gte('fecha_jugada', startStr)
+        .lte('fecha_jugada', endStr)
+        .order('fecha_jugada', { ascending: false });
+
+      // Aplicar filtro según rol
+      if (userRole === 'admin' || userRole === 'banco') {
+        query = query.eq('id_banco', currentUserId);
+      } else if (userRole === 'collector' || userRole === 'colector') {
+        query = query.eq('id_colector', currentUserId);
+      } else if (userRole === 'listero') {
+        query = query.eq('id_listero', currentUserId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Aplicar filtros locales con los datos obtenidos
+      const filterParams = {
+        period: 'custom',
+        customStartDate: startDate,
+        customEndDate: endDate,
+        directData: data // Pasar los datos directamente
+      };
+
+      applyFilters(filterParams);
+    } catch (error) {
+      console.error('Error al cargar rango personalizado:', error);
+      Alert.alert('Error', 'No se pudieron cargar las estadísticas del rango seleccionado');
+    }
   };
 
   const onRefresh = useCallback(async () => {
@@ -494,8 +562,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     ];
 
     const secondRowOptions = [
-      { label: 'Este mes', value: 'last30days' },
-      { label: 'Mes pasado', value: 'lastMonth' },
+      { label: 'Últimos 30 días', value: 'last30days' },
+      { label: 'Personalizado', value: 'custom' },
     ];
 
     // Preparar opciones de lotería (sin "Todas")
@@ -602,8 +670,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 selectedPeriod === opt.value && styles.inlineFilterChipActive,
               ]}
               onPress={() => {
-                setSelectedPeriod(opt.value);
-                applyPeriodFilter(opt.value);
+                if (opt.value === 'custom') {
+                  console.log('[StatisticsScreen] Abriendo modal de fechas personalizadas');
+                  setCustomModalVisible(true);
+                } else {
+                  setSelectedPeriod(opt.value);
+                  applyPeriodFilter(opt.value);
+                }
               }}
             >
               <Text style={[
@@ -673,8 +746,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           current === value && styles.filterChipCompactActive,
         ]}
         onPress={() => {
-          setter(value);
-          applyPeriodFilter(value);
+          if (value === 'custom') {
+            setCustomModalVisible(true);
+          } else {
+            setter(value);
+            applyPeriodFilter(value);
+          }
         }}
       >
         <Text style={[
@@ -689,8 +766,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       { label: 'Hoy', value: 'today' },
       { label: 'Ayer', value: 'yesterday' },
       { label: '7 días', value: 'last7days' },
-  { label: 'Este mes', value: 'last30days' },
-      { label: 'Mes pasado', value: 'lastMonth' },
+      { label: '30 días', value: 'last30days' },
+      { label: 'Personalizado', value: 'custom' },
     ];
 
     return (
@@ -707,9 +784,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     const titleMap = {
       'today': 'Ganancias vs Pérdidas (Hoy)',
       'yesterday': 'Ganancias vs Pérdidas (Ayer)',
-      'lastMonth': 'Ganancias vs Pérdidas (Mes pasado)',
       'last7days': 'Ganancias vs Pérdidas (Últimos 7 días)',
       'last30days': 'Ganancias vs Pérdidas (Últimos 30 días)',
+      'custom': 'Ganancias vs Pérdidas (Personalizado)',
     };
     return titleMap[selectedPeriod] || 'Ganancias vs Pérdidas';
   };
@@ -2346,6 +2423,109 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     );
   };
 
+  // Renderizar modal de fecha personalizada
+  const renderCustomDateModal = () => {
+    const handleApplyCustomDates = () => {
+      // Validar que las fechas existan
+      if (!customStartDate || !customEndDate) {
+        Alert.alert('Error', 'Debe seleccionar ambas fechas');
+        return;
+      }
+
+      // Normalizar fechas a medianoche para comparación correcta
+      const normalizedStart = new Date(customStartDate);
+      normalizedStart.setHours(0, 0, 0, 0);
+      
+      const normalizedEnd = new Date(customEndDate);
+      normalizedEnd.setHours(23, 59, 59, 999);
+
+      // Validar que la fecha de inicio no sea mayor que la fecha de fin
+      if (normalizedStart > normalizedEnd) {
+        Alert.alert('Error', 'La fecha de inicio no puede ser mayor que la fecha de fin');
+        return;
+      }
+
+      // Verificar si el rango está dentro de los últimos 30 días (29 días atrás + hoy = 30 días)
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(today.getDate() - 29);
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+      const isWithinCache = normalizedStart >= thirtyDaysAgo && normalizedEnd <= today;
+
+      // Aplicar filtro personalizado
+      setSelectedPeriod('custom');
+      setCustomModalVisible(false);
+
+      if (isWithinCache) {
+        // Usar filtrado local del cache (pasamos fechas normalizadas)
+        applyPeriodFilter('custom', normalizedStart, normalizedEnd);
+      } else {
+        // Consultar Supabase directamente (pasamos fechas normalizadas)
+        loadCustomRangeFromSupabase(normalizedStart, normalizedEnd);
+      }
+    };
+
+    return (
+      <Modal
+        visible={customModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setCustomModalVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setCustomModalVisible(false)}
+        >
+          <TouchableOpacity 
+            activeOpacity={1} 
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.lotteryModalContent}>
+              <Text style={styles.modalTitle}>Seleccionar Rango de Fechas</Text>
+              
+              <View style={styles.datePickerContainer}>
+                <Text style={styles.dateLabel}>Fecha de Inicio:</Text>
+                <DateTimePickerWrapper
+                  value={customStartDate}
+                  onChange={(date) => setCustomStartDate(date)}
+                  maximumDate={new Date()}
+                />
+              </View>
+
+              <View style={styles.datePickerContainer}>
+                <Text style={styles.dateLabel}>Fecha de Fin:</Text>
+                <DateTimePickerWrapper
+                  value={customEndDate}
+                  onChange={(date) => setCustomEndDate(date)}
+                  maximumDate={new Date()}
+                />
+              </View>
+
+              <View style={styles.modalButtonsRow}>
+                <TouchableOpacity
+                  style={styles.applyButton}
+                  onPress={handleApplyCustomDates}
+                >
+                  <Text style={styles.applyButtonText}>Aplicar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setCustomModalVisible(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    );
+  };
+
   // Renderizar contenido según el tab activo
   const renderActiveTabContent = () => {
     switch (activeTab) {
@@ -2383,6 +2563,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       {renderExportModal()}
       {renderLotteryModal()}
       {renderLotteryModalCollector()}
+      {renderCustomDateModal()}
 
       <SideBarWrapper
         isVisible={sidebarVisible}
@@ -3233,6 +3414,21 @@ const styles = StyleSheet.create({
   },
   filterSection: {
     marginBottom: 16,
+  },
+  datePickerContainer: {
+    marginVertical: 12,
+    width: '100%',
+  },
+  dateLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  modalButtonsRow: {
+    flexDirection: 'row',
+    marginTop: 20,
+    gap: 12,
   },
 });
 
