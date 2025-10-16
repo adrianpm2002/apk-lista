@@ -289,14 +289,14 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       let numerosArray = [];
       
       if (candadoAbierto) {
-        // Candado abierto: agrupar en números de 4 dígitos
+        // Candado DESACTIVADO: ingreso números de 4 dígitos directamente
         numerosArray = (parleInput.replace(/\D/g, '').match(/.{4}/g) || []);
         if (numerosArray.length === 0) {
           Alert.alert("Error", "Ingresa al menos un número de 4 dígitos.");
           return;
         }
       } else {
-        // Candado cerrado: agrupar en números de 2 dígitos y generar todas las combinaciones
+        // Candado ACTIVADO: ingreso números de 2 dígitos y genero combinaciones
         const pares = (parleInput.replace(/\D/g, '').match(/.{2}/g) || []);
         if (pares.length < 2) {
           Alert.alert("Error", "Ingresa al menos dos números de 2 dígitos.");
@@ -311,8 +311,9 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         }
       }
       
-      const precioIndividual = parseFloat((precio / numerosArray.length).toFixed(2));
-      const precioTotal = parseFloat((precioIndividual * numerosArray.length).toFixed(2));
+      // En AMBOS casos: el monto ingresado es el precio individual por parle
+      const precioIndividual = parseFloat(precio.toFixed(2));
+      const precioTotal = precioIndividual; // Cada jugada guarda su precio individual
       
       const nuevasJugadas = numerosArray.map((num, idx) => ({
         id: nextId + idx,
