@@ -671,7 +671,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               ]}
               onPress={() => {
                 if (opt.value === 'custom') {
-                  console.log('[StatisticsScreen] Abriendo modal de fechas personalizadas');
                   setCustomModalVisible(true);
                 } else {
                   setSelectedPeriod(opt.value);

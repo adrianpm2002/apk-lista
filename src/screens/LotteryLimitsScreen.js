@@ -156,8 +156,6 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
 
   const loadLotteryLimits = async (lotteryId) => {
     try {
-      console.log('[lottery_limits] Cargando límites para lotería:', lotteryId);
-      
       const { data, error } = await supabase
         .from('limite_loteria')
         .select('id, limites')
@@ -189,11 +187,9 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
       }
       
       if (data) {
-        console.log('[lottery_limits] Límites cargados:', data);
         setLimitsRecordId(data.id);
         setCurrentLimits(data.limites || {});
       } else {
-        console.log('[lottery_limits] No existen límites para esta lotería');
         setLimitsRecordId(null);
         setCurrentLimits({});
       }
@@ -225,11 +221,8 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
         }
       });
 
-      console.log('[lottery_limits] Guardando límites:', processedLimits);
-
       if (limitsRecordId) {
         // Actualizar registro existente
-        console.log('[lottery_limits] Actualizando registro existente:', limitsRecordId);
         const { error } = await supabase
           .from('limite_loteria')
           .update({ limites: processedLimits })
@@ -241,7 +234,6 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
         }
       } else {
         // Crear nuevo registro
-        console.log('[lottery_limits] Creando nuevo registro para lotería:', selectedLottery.id);
         const { data, error } = await supabase
           .from('limite_loteria')
           .insert({
@@ -268,7 +260,6 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
         }
         
         if (data) {
-          console.log('[lottery_limits] Registro creado con ID:', data.id);
           setLimitsRecordId(data.id);
         }
       }
