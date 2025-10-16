@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -126,7 +126,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [activeTab, setActiveTab] = useState('charts');
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [groupedData, setGroupedData] = useState([]);
+  
+  // ✅ OPTIMIZADO: groupedData ahora usa useMemo para evitar recalcular en cada render
+  const groupedData = useMemo(() => {
+    if (userRole === 'admin' && tableData && tableData.plays) {
+      return tableData.plays;
+    }
+    return [];
+  }, [userRole, tableData]);
+  
   const [selectedGroup, setSelectedGroup] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false); // Modo oscuro (desactivado por defecto)
   const [showLotteryModal, setShowLotteryModal] = useState(false); // Modal para seleccionar lotería (listero)
@@ -227,42 +235,18 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     { id: 'details', title: 'Detalles', icon: '📋' },
   ];
 
-  // Cargar datos iniciales
+  // ✅ CONSOLIDADO: Cargar datos iniciales solo cuando userId y userRole estén disponibles
   useEffect(() => {
-    loadInitialData();
-    loadModoSantiago();
-    applyPeriodFilter('today');
-  }, []);
-
-  useEffect(() => {
-    if (currentUserId) {
-      applyPeriodFilter(selectedPeriod);
-    }
-  }, [currentUserId]);
-
-  // ✅ Verificación de userId disponible (solo para logging/debug)
-  useEffect(() => {
-    if (currentUserId && userRole === 'listero') {
+    if (currentUserId && userRole) {
+      const initialize = async () => {
+        await loadModoSantiago();
+        await applyPeriodFilter('today');
+      };
+      initialize();
     }
   }, [currentUserId, userRole]);
 
-  useEffect(() => {
-    if (userRole && (userRole === 'collector' || userRole === 'colector' || userRole === 'admin')) {
-      loadAllStats();
-    }
-  }, [userRole]);
-
-  // ELIMINADO: Monitor de userRole innecesario que solo tenía un console.log comentado
-  // useEffect(() => {
-  //   if (userRole) {
-  //   }
-  // }, [userRole]);
-
-  useEffect(() => {
-    if (userRole === 'admin' && tableData && tableData.plays) {
-      setGroupedData(tableData.plays);
-    }
-  }, [userRole, tableData]);
+  // ✅ OPTIMIZADO: Actualizar datos agrupados para admin con useMemo (ver abajo)
 
   // ❌ ELIMINADO: useEffect que causaba renderizado duplicado
   // Razón: Al cambiar selectedLottery/selectedSchedule re-aplicaba filtro automáticamente

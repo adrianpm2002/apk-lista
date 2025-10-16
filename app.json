@@ -54,7 +54,8 @@
         {
           "backgroundModes": ["background-fetch"]
         }
-      ]
+      ],
+      "react-native-sqlite-storage"
     ],
     "owner": "lazaroadrian0803"
   }
