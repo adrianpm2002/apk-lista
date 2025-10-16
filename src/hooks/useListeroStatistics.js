@@ -34,12 +34,17 @@ export const useListeroStatistics = (options = {}) => {
   // Ref para evitar múltiples cargas simultáneas
   const loadingRef = useRef(false);
 
-  // Detectar userId
+  // Detectar userId (se ejecuta cuando enabled cambia)
   useEffect(() => {
     const detectUserId = async () => {
+      if (!enabled) {
+        setUserId(null); // Limpiar userId si se deshabilita
+        return;
+      }
+      
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (user && enabled) {
+        if (user) {
           setUserId(user.id);
         }
       } catch (error) {
