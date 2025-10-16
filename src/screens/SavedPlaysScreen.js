@@ -279,12 +279,11 @@ const SavedPlaysScreen = ({ navigation, route }) => {
 
   const onRefresh = async () => { setIsRefreshing(true); await loadSavedPlays(); setIsRefreshing(false); };
 
-  // Totales: Recogido = suma de monto_total de TODAS las jugadas del día (sin filtrar)
-  // Pendiente = suma de las jugadas (filtradas) cuyo resultado no está disponible
-  const totalRecogido = savedPlays.reduce((s,p)=> s + (p.total || 0), 0);
+  // Totales calculados sobre las jugadas FILTRADAS (respeta lotería, horario, tipo de jugada seleccionados)
+  const totalRecogido = filteredPlays.reduce((s,p)=> s + (p.total || 0), 0);
   const pendientePago = filteredPlays.filter(p=> p.result==='no disponible').reduce((s,p)=> s + (p.total || 0),0);
-  // Pagado = suma de premios pagados del día (todas las jugadas de hoy con resultado; las perdidas aportan 0)
-  const totalPagadoDia = savedPlays.reduce((s,p)=> s + (p.payAmount || 0), 0);
+  // Pagado = suma de premios pagados (solo jugadas con resultado en el filtro actual)
+  const totalPagadoDia = filteredPlays.reduce((s,p)=> s + (p.payAmount || 0), 0);
 
   const formatTime = ts => ts.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',hour12:true});
 
