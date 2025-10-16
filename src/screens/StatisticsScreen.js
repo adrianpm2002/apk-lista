@@ -126,15 +126,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [activeTab, setActiveTab] = useState('charts');
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  
-  // ✅ OPTIMIZADO: groupedData ahora usa useMemo para evitar recalcular en cada render
-  const groupedData = useMemo(() => {
-    if (userRole === 'admin' && tableData && tableData.plays) {
-      return tableData.plays;
-    }
-    return [];
-  }, [userRole, tableData]);
-  
   const [selectedGroup, setSelectedGroup] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false); // Modo oscuro (desactivado por defecto)
   const [showLotteryModal, setShowLotteryModal] = useState(false); // Modal para seleccionar lotería (listero)
@@ -219,6 +210,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     applyFilters,
     clearData,
   } = useStatistics();
+  
+  // ✅ OPTIMIZADO: groupedData ahora usa useMemo para evitar recalcular en cada render
+  // DEBE estar DESPUÉS de useStatistics para que tableData esté definido
+  const groupedData = useMemo(() => {
+    if (userRole === 'admin' && tableData && tableData.plays) {
+      return tableData.plays;
+    }
+    return [];
+  }, [userRole, tableData]);
 
   // Opciones de períodos
   const periodOptions = [
