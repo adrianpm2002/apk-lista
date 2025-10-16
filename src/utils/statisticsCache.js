@@ -190,6 +190,8 @@ export const readFromCache = async (userId, period, role = 'listero') => {
         age: ageMinutes,
         period: parsed.period,
         role: parsed.role,
+        sorted: parsed._sorted || false, // Indica si está ordenado DESC
+        dateIndex: parsed._dateIndex || null, // Índice por fecha si existe
       },
     };
   } catch (error) {

@@ -257,7 +257,15 @@ export const useAdminStatistics = (options = {}) => {
       playMap.set(play.id_jugada, play);
     });
     
-    return Array.from(playMap.values());
+    // CRÍTICO: Re-ordenar después del merge para mantener orden DESC
+    const merged = Array.from(playMap.values());
+    merged.sort((a, b) => {
+      const dateA = new Date(a.fecha_jugada || a.created_at).getTime();
+      const dateB = new Date(b.fecha_jugada || b.created_at).getTime();
+      return dateB - dateA; // DESC: más reciente primero
+    });
+    
+    return merged;
   };
   
   // Helper: Filtrar jugadas por rango de fechas según período
