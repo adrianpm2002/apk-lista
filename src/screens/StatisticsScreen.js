@@ -137,9 +137,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [customStartDate, setCustomStartDate] = useState(new Date());
   const [customEndDate, setCustomEndDate] = useState(new Date());
   
-  // Estado de carga local para mostrar feedback visual
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
-  
   // Estados para modo Santiago
   const [modoSantiago, setModoSantiago] = useState(false);
   const [porcentajeSantiago, setPorcentajeSantiago] = useState(100);
@@ -297,34 +294,23 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       return;
     }
 
-    // Activar indicador de carga
-    setIsLoadingStats(true);
+    const filterParams = {
+      period: period,
+      forceRefresh: forceRefresh
+    };
 
-    try {
-      const filterParams = {
-        period: period,
-        forceRefresh: forceRefresh
-      };
-
-      // Si es un rango personalizado, agregar las fechas
-      if (period === 'custom' && customStart && customEnd) {
-        filterParams.customStartDate = customStart;
-        filterParams.customEndDate = customEnd;
-      }
-      
-      setSelectedPeriod(period);
-      await applyFilters(filterParams);
-    } finally {
-      // Desactivar indicador de carga después de un pequeño delay para UX
-      setTimeout(() => setIsLoadingStats(false), 300);
+    // Si es un rango personalizado, agregar las fechas
+    if (period === 'custom' && customStart && customEnd) {
+      filterParams.customStartDate = customStart;
+      filterParams.customEndDate = customEnd;
     }
+    
+    setSelectedPeriod(period);
+    await applyFilters(filterParams);
   };
 
   // Cargar rango personalizado directamente desde Supabase (fuera del cache)
   const loadCustomRangeFromSupabase = async (startDate, endDate) => {
-    // Activar indicador de carga
-    setIsLoadingStats(true);
-    
     try {
       // Validación de parámetros
       if (!startDate || !endDate) {
@@ -369,15 +355,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     } catch (error) {
       console.error('Error al cargar rango personalizado:', error);
       Alert.alert('Error', 'No se pudieron cargar las estadísticas del rango seleccionado');
-    } finally {
-      // Desactivar indicador de carga
-      setTimeout(() => setIsLoadingStats(false), 300);
     }
   };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setIsLoadingStats(true);
     try {
       // Reaplicar el período actual con forceRefresh=true para ignorar caché
       await applyPeriodFilter(selectedPeriod, null, null, true);
@@ -385,7 +367,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       Alert.alert('Error', 'No se pudieron actualizar las estadísticas');
     } finally {
       setRefreshing(false);
-      setTimeout(() => setIsLoadingStats(false), 300);
     }
   }, [selectedPeriod, currentUserId]);
 
@@ -2510,7 +2491,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       } catch (error) {
         console.error('[StatisticsScreen] Error en handleApplyCustomDates:', error);
         Alert.alert('Error', 'No se pudo aplicar el filtro personalizado. Intenta de nuevo.');
-        setIsLoadingStats(false);
       }
     };
 
@@ -2603,8 +2583,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       {renderHeader()}
       {renderTabs()}
       
-      {/* Banner de carga superior compacto */}
-      {isLoadingStats && (
+      {/* Banner de carga superior compacto - Sincronizado con estado del hook */}
+      {loading && (
         <View style={styles.loadingBanner}>
           <ActivityIndicator size="small" color="#27AE60" />
           <Text style={styles.loadingText}>Cargando...</Text>
