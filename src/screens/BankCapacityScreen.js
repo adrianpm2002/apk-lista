@@ -242,15 +242,62 @@ const BankCapacityScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.toolbarRow}>
-          <Pressable style={styles.iconButton} onPress={() => setShowSearch(s => !s)}>
-            <Text style={styles.iconButtonText}>🔍</Text>
-          </Pressable>
-          <Pressable style={styles.iconButton} onPress={() => setShowFilters(f => !f)}>
-            <Text style={styles.iconButtonText}>⚙️</Text>
-          </Pressable>
-          <Pressable style={styles.iconButton} onPress={fetchBankCapacities}>
-            <Text style={styles.iconButtonText}>🔄</Text>
-          </Pressable>
+          <View style={styles.toolbarLeft}>
+            <Pressable style={styles.iconButton} onPress={() => setShowSearch(s => !s)}>
+              <Text style={styles.iconButtonText}>🔍</Text>
+            </Pressable>
+            <Pressable style={styles.iconButton} onPress={() => setShowFilters(f => !f)}>
+              <Text style={styles.iconButtonText}>⚙️</Text>
+            </Pressable>
+            <Pressable style={styles.iconButton} onPress={fetchBankCapacities}>
+              <Text style={styles.iconButtonText}>🔄</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.toolbarCenter}>
+            <Text style={styles.boteLabel}>Bote:</Text>
+            <TextInput
+              style={styles.boteInput}
+              placeholder="$0.00"
+              value={boteFilter}
+              onChangeText={text => {
+                let clean = text.replace(/[^\d.]/g, '');
+                const parts = clean.split('.');
+                if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
+                if (parts[1]) clean = parts[0] + '.' + parts[1].slice(0, 2);
+                setBoteFilter(clean);
+              }}
+              keyboardType="numeric"
+              placeholderTextColor="#95A5A6"
+            />
+            {boteFilter && (
+              <Pressable 
+                style={styles.clearBoteButton}
+                onPress={() => setBoteFilter('')}
+              >
+                <Text style={styles.clearBoteText}>✕</Text>
+              </Pressable>
+            )}
+          </View>
+
+          <View style={styles.toolbarRight}>
+            <Pressable 
+              onPress={() => setSortBy('capacity')} 
+              style={[styles.sortButtonCompact, sortBy === 'capacity' && styles.sortButtonActive]}
+            >
+              <Text style={[styles.sortButtonTextCompact, sortBy === 'capacity' && styles.sortButtonTextActive]}>
+                💰
+              </Text>
+            </Pressable>
+            <Pressable 
+              onPress={() => setSortBy('number')} 
+              style={[styles.sortButtonCompact, sortBy === 'number' && styles.sortButtonActive]}
+            >
+              <Text style={[styles.sortButtonTextCompact, sortBy === 'number' && styles.sortButtonTextActive]}>
+                🔢
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         {showSearch && (
@@ -265,34 +312,6 @@ const BankCapacityScreen = ({ navigation }) => {
             />
           </View>
         )}
-
-        {/* Filtro de Bote */}
-        <View style={styles.boteContainer}>
-          <Text style={styles.boteLabel}>Filtro Bote:</Text>
-          <TextInput
-            style={styles.boteInput}
-            placeholder="$0.00"
-            value={boteFilter}
-            onChangeText={text => {
-              // Solo permitir números y punto decimal
-              let clean = text.replace(/[^\d.]/g, '');
-              const parts = clean.split('.');
-              if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
-              if (parts[1]) clean = parts[0] + '.' + parts[1].slice(0, 2);
-              setBoteFilter(clean);
-            }}
-            keyboardType="numeric"
-            placeholderTextColor="#95A5A6"
-          />
-          {boteFilter && (
-            <Pressable 
-              style={styles.clearBoteButton}
-              onPress={() => setBoteFilter('')}
-            >
-              <Text style={styles.clearBoteText}>✕</Text>
-            </Pressable>
-          )}
-        </View>
 
         {showFilters && (
           <View style={styles.filtersPanel}>
@@ -390,26 +409,6 @@ const BankCapacityScreen = ({ navigation }) => {
           </View>
         )}
 
-        <View style={styles.sortRow}>
-          <Text style={styles.sortLabel}>Ordenar por:</Text>
-          <Pressable 
-            onPress={() => setSortBy('capacity')} 
-            style={[styles.sortButton, sortBy === 'capacity' && styles.sortButtonActive]}
-          >
-            <Text style={[styles.sortButtonText, sortBy === 'capacity' && styles.sortButtonTextActive]}>
-              Capacidad
-            </Text>
-          </Pressable>
-          <Pressable 
-            onPress={() => setSortBy('number')} 
-            style={[styles.sortButton, sortBy === 'number' && styles.sortButtonActive]}
-          >
-            <Text style={[styles.sortButtonText, sortBy === 'number' && styles.sortButtonTextActive]}>
-              Número
-            </Text>
-          </Pressable>
-        </View>
-
         {sortedData.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>
@@ -498,10 +497,27 @@ const styles = StyleSheet.create({
   },
   toolbarRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E9ECEF',
+    gap: 12,
+  },
+  toolbarLeft: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  toolbarCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  toolbarRight: {
+    flexDirection: 'row',
+    gap: 8,
   },
   iconButton: {
     width: 40,
@@ -510,7 +526,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
     borderWidth: 1,
     borderColor: '#DEE2E6',
   },
@@ -532,43 +547,55 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#F8F9FA',
   },
-  boteContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
-  },
   boteLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#495057',
-    marginRight: 12,
+    whiteSpace: 'nowrap',
   },
   boteInput: {
     flex: 1,
     borderWidth: 1,
     borderColor: '#DEE2E6',
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 14,
     backgroundColor: '#F8F9FA',
+    minWidth: 80,
   },
   clearBoteButton: {
-    marginLeft: 8,
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     backgroundColor: '#E74C3C',
-    borderRadius: 16,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
   clearBoteText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#FFFFFF',
     fontWeight: 'bold',
+  },
+  sortButtonCompact: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#DEE2E6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sortButtonActive: {
+    backgroundColor: '#3498DB',
+    borderColor: '#3498DB',
+  },
+  sortButtonTextCompact: {
+    fontSize: 18,
+  },
+  sortButtonTextActive: {
+    color: '#FFFFFF',
   },
   filtersPanel: {
     padding: 12,
@@ -608,41 +635,6 @@ const styles = StyleSheet.create({
     color: '#495057',
   },
   filterChipTextActive: {
-    color: '#FFFFFF',
-  },
-  sortRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
-  },
-  sortLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#495057',
-    marginRight: 12,
-  },
-  sortButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: '#F8F9FA',
-    borderWidth: 1,
-    borderColor: '#DEE2E6',
-    marginRight: 8,
-  },
-  sortButtonActive: {
-    backgroundColor: '#3498DB',
-    borderColor: '#3498DB',
-  },
-  sortButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#495057',
-  },
-  sortButtonTextActive: {
     color: '#FFFFFF',
   },
   emptyContainer: {
