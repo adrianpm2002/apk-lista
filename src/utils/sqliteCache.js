@@ -1,8 +1,12 @@
-import SQLite from 'react-native-sqlite-storage';
+import { Platform } from 'react-native';
 
-// Configuración de SQLite
-SQLite.DEBUG(false); // Cambiar a true para debugging
-SQLite.enablePromise(true);
+// Solo importar SQLite en móvil
+let SQLite = null;
+if (Platform.OS !== 'web') {
+  SQLite = require('react-native-sqlite-storage');
+  SQLite.DEBUG(false); // Cambiar a true para debugging
+  SQLite.enablePromise(true);
+}
 
 const DB_NAME = 'statistics.db';
 const DB_VERSION = 1;
@@ -19,6 +23,12 @@ let dbInstance = null;
  * Obtiene o crea instancia de base de datos
  */
 const getDatabase = async () => {
+  // Guard: SQLite solo disponible en móvil
+  if (Platform.OS === 'web' || !SQLite) {
+    console.warn('[SQLiteCache] SQLite not available on web platform');
+    return null;
+  }
+
   if (dbInstance) {
     return dbInstance;
   }
@@ -322,12 +332,19 @@ const getTableName = (role) => {
  * Guardar jugadas en caché
  */
 export const savePlaysToCache = async (userId, role, plays) => {
+  // Guard: Retornar vacío en web
+  if (Platform.OS === 'web' || !SQLite) {
+    return { success: true, saved: 0 };
+  }
+
   if (!userId || !role || !plays || plays.length === 0) {
     return { success: false, saved: 0 };
   }
 
   try {
     const db = await getDatabase();
+    if (!db) return { success: false, saved: 0 };
+    
     const tableName = getTableName(role);
     const now = Date.now();
 
@@ -428,12 +445,19 @@ export const savePlaysToCache = async (userId, role, plays) => {
  * Leer jugadas del caché con filtros
  */
 export const readPlaysFromCache = async (userId, role, filters = {}) => {
+  // Guard: Retornar vacío en web
+  if (Platform.OS === 'web' || !SQLite) {
+    return [];
+  }
+
   if (!userId || !role) {
     return [];
   }
 
   try {
     const db = await getDatabase();
+    if (!db) return [];
+    
     const tableName = getTableName(role);
     
     const { startDate, endDate, loteria, horario } = filters;
@@ -511,8 +535,14 @@ export const readPlaysFromCache = async (userId, role, filters = {}) => {
  * Verificar si necesita actualización incremental
  */
 export const needsIncrementalUpdate = async (userId, role) => {
+  // Guard: En web siempre retornar false (no actualizar)
+  if (Platform.OS === 'web' || !SQLite) {
+    return false;
+  }
+
   try {
     const db = await getDatabase();
+    if (!db) return false;
     
     const [results] = await db.executeSql(
       `SELECT value, updated_at FROM cache_metadata 
@@ -539,8 +569,15 @@ export const needsIncrementalUpdate = async (userId, role) => {
  * Actualizar timestamp de última actualización incremental
  */
 export const updateIncrementalTimestamp = async (userId, role) => {
+  // Guard: En web no hacer nada
+  if (Platform.OS === 'web' || !SQLite) {
+    return true;
+  }
+
   try {
     const db = await getDatabase();
+    if (!db) return false;
+    
     const now = Date.now();
 
     await db.executeSql(
@@ -561,8 +598,15 @@ export const updateIncrementalTimestamp = async (userId, role) => {
  * Limpiar registros antiguos (> 30 días)
  */
 export const cleanOldRecords = async (userId, role) => {
+  // Guard: En web no hacer nada
+  if (Platform.OS === 'web' || !SQLite) {
+    return 0;
+  }
+
   try {
     const db = await getDatabase();
+    if (!db) return 0;
+    
     const tableName = getTableName(role);
     
     const cutoffDate = new Date();
@@ -590,8 +634,14 @@ export const cleanOldRecords = async (userId, role) => {
  * Borrar todo el caché de un usuario (logout)
  */
 export const clearUserCache = async (userId) => {
+  // Guard: En web no hacer nada
+  if (Platform.OS === 'web' || !SQLite) {
+    return true;
+  }
+
   try {
     const db = await getDatabase();
+    if (!db) return false;
 
     await db.transaction(async (tx) => {
       await tx.executeSql('DELETE FROM listero_plays WHERE user_id = ?', [userId]);
@@ -612,8 +662,14 @@ export const clearUserCache = async (userId) => {
  * Borrar TODA la base de datos (para troubleshooting)
  */
 export const clearAllCache = async () => {
+  // Guard: En web no hacer nada
+  if (Platform.OS === 'web' || !SQLite) {
+    return true;
+  }
+
   try {
     const db = await getDatabase();
+    if (!db) return false;
 
     await db.transaction(async (tx) => {
       await tx.executeSql('DELETE FROM listero_plays');
@@ -634,8 +690,15 @@ export const clearAllCache = async () => {
  * Obtener estadísticas del caché
  */
 export const getCacheStats = async (userId, role) => {
+  // Guard: En web retornar vacío
+  if (Platform.OS === 'web' || !SQLite) {
+    return { count: 0, oldest: null, newest: null, tableName: null };
+  }
+
   try {
     const db = await getDatabase();
+    if (!db) return { count: 0, oldest: null, newest: null, tableName: null };
+    
     const tableName = getTableName(role);
 
     const [countResult] = await db.executeSql(
@@ -689,6 +752,11 @@ const formatDateForSQL = (date) => {
  * Cerrar conexión a la base de datos
  */
 export const closeDatabase = async () => {
+  // Guard: En web no hacer nada
+  if (Platform.OS === 'web' || !SQLite) {
+    return;
+  }
+
   if (dbInstance) {
     try {
       await dbInstance.close();
