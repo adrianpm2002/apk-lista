@@ -2,16 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import * as SQLiteCache from '../utils/sqliteCache';
 
-// Helper para convertir fecha local a string para consultas de base de datos
-const formatDateForQuery = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-};
+// 🎯 FIX: Usar toISOString() consistente con SQLiteCache
+// No necesitamos helper local, usaremos date.toISOString() directamente
 
 const CACHE_DAYS = 30; // Cachear últimos 30 días
 
@@ -143,8 +135,9 @@ export const useCollectorStatistics = (options = {}) => {
    */
   const loadFromSupabase = async (userId, startDate, endDate) => {
     try {
-      const startStr = formatDateForQuery(startDate);
-      const endStr = formatDateForQuery(endDate);
+      // 🎯 FIX: Usar toISOString() para compatibilidad con formato ISO
+      const startStr = startDate.toISOString();
+      const endStr = endDate.toISOString();
 
       let allPlaysData = [];
       let page = 0;
@@ -263,9 +256,10 @@ export const useCollectorStatistics = (options = {}) => {
         console.log('🐛 [DEBUG COLLECTOR]    📆 Fecha inicio solicitada:', startDate.toLocaleDateString('es-CU'));
         console.log('🐛 [DEBUG COLLECTOR]    ❓ ¿Caché cubre rango completo?', cacheCoversRange ? '✅ SÍ' : '❌ NO');
         
-        // 🎯 FIX CRÍTICO: SOLO usar caché si cubre el rango COMPLETO Y tiene datos
-        // Cambio: >= 0 (siempre true) → > 0 (requiere datos)
-        if (cacheCoversRange && filteredCachedPlays.length > 0) {
+        // 🎯 FIX: Confiar en cobertura de caché incluso si está vacío
+        // Si el caché cubre el rango, significa que consultamos Supabase antes
+        // y NO había datos en ese rango. No consultar de nuevo innecesariamente.
+        if (cacheCoversRange) {
           // Agrupar datos del cache FILTRADOS
           const groupedCachedData = groupDataForCollector(filteredCachedPlays);
           

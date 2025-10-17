@@ -348,96 +348,110 @@ export const savePlaysToCache = async (userId, role, plays) => {
     const tableName = getTableName(role);
     const now = Date.now();
 
-    let savedCount = 0;
+    // 🎯 FIX CRÍTICO: Usar Promises correctamente en transacciones SQLite
+    // react-native-sqlite-storage NO soporta async/await dentro de transacciones
+    return new Promise((resolve, reject) => {
+      db.transaction(
+        (tx) => {
+          // Usar forEach en lugar de for...of con await
+          plays.forEach((play) => {
+            try {
+              // Convertir arrays a JSON strings si existen
+              const numeros_ganadores = Array.isArray(play.numeros_ganadores) 
+                ? JSON.stringify(play.numeros_ganadores) 
+                : play.numeros_ganadores;
+              
+              const numeros_ganadores_jugada = Array.isArray(play.numeros_ganadores_jugada)
+                ? JSON.stringify(play.numeros_ganadores_jugada)
+                : play.numeros_ganadores_jugada;
 
-    // Usar transacción para mejor rendimiento
-    await db.transaction(async (tx) => {
-      for (const play of plays) {
-        try {
-          // Convertir arrays a JSON strings si existen
-          const numeros_ganadores = Array.isArray(play.numeros_ganadores) 
-            ? JSON.stringify(play.numeros_ganadores) 
-            : play.numeros_ganadores;
-          
-          const numeros_ganadores_jugada = Array.isArray(play.numeros_ganadores_jugada)
-            ? JSON.stringify(play.numeros_ganadores_jugada)
-            : play.numeros_ganadores_jugada;
+              const numeros_limitados_por_horario = Array.isArray(play.numeros_limitados_por_horario)
+                ? JSON.stringify(play.numeros_limitados_por_horario)
+                : play.numeros_limitados_por_horario;
 
-          const numeros_limitados_por_horario = Array.isArray(play.numeros_limitados_por_horario)
-            ? JSON.stringify(play.numeros_limitados_por_horario)
-            : play.numeros_limitados_por_horario;
+              const configuracion_precio = typeof play.configuracion_precio === 'object'
+                ? JSON.stringify(play.configuracion_precio)
+                : play.configuracion_precio;
 
-          const configuracion_precio = typeof play.configuracion_precio === 'object'
-            ? JSON.stringify(play.configuracion_precio)
-            : play.configuracion_precio;
+              // Redondear valores decimales a 2 lugares
+              const roundTo2 = (value) => value ? parseFloat(parseFloat(value).toFixed(2)) : 0;
 
-          // Redondear valores decimales a 2 lugares
-          const roundTo2 = (value) => value ? parseFloat(parseFloat(value).toFixed(2)) : 0;
-
-          await tx.executeSql(
-            `INSERT OR REPLACE INTO ${tableName} (
-              id_jugada, fecha_jugada, id_listero, id_colector, id_banco,
-              id_loteria, id_horario, id_resultado, id_precio,
-              listero_username, colector_username, tipo_jugada, numeros_jugados,
-              monto_unitario, monto_total, nota, nombre_loteria, nombre_horario,
-              resultado, numeros_ganadores, numeros_ganadores_jugada, monto_a_pagar,
-              hora_inicio, hora_fin, configuracion_precio, regular, limitado,
-              numeros_limitados_por_horario, pct_listero, pct_colector,
-              ganancia_listero, ganancia_colector, balance_listero, balance_colector,
-              estado_horario, cached_at, user_id
-            ) VALUES (
-              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            )`,
-            [
-              play.id_jugada,
-              play.fecha_jugada,
-              play.id_listero,
-              play.id_colector || null,
-              play.id_banco || null,
-              play.id_loteria || null,
-              play.id_horario || null,
-              play.id_resultado || null,
-              play.id_precio || null,
-              play.listero_username || null,
-              play.colector_username || null,
-              play.tipo_jugada || null,
-              play.numeros_jugados || null,
-              roundTo2(play.monto_unitario),
-              roundTo2(play.monto_total),
-              play.nota || null,
-              play.nombre_loteria || null,
-              play.nombre_horario || null,
-              play.resultado || null,
-              numeros_ganadores,
-              numeros_ganadores_jugada,
-              roundTo2(play.monto_a_pagar),
-              play.hora_inicio || null,
-              play.hora_fin || null,
-              configuracion_precio,
-              roundTo2(play.regular),
-              roundTo2(play.limitado),
-              numeros_limitados_por_horario,
-              roundTo2(play.pct_listero),
-              roundTo2(play.pct_colector),
-              roundTo2(play.ganancia_listero),
-              roundTo2(play.ganancia_colector),
-              roundTo2(play.balance_listero),
-              roundTo2(play.balance_colector),
-              play.estado_horario || null,
-              now,
-              userId
-            ]
-          );
-          savedCount++;
-        } catch (error) {
-          console.warn('[SQLiteCache] Error saving play:', play.id_jugada, error.message);
+              tx.executeSql(
+                `INSERT OR REPLACE INTO ${tableName} (
+                  id_jugada, fecha_jugada, id_listero, id_colector, id_banco,
+                  id_loteria, id_horario, id_resultado, id_precio,
+                  listero_username, colector_username, tipo_jugada, numeros_jugados,
+                  monto_unitario, monto_total, nota, nombre_loteria, nombre_horario,
+                  resultado, numeros_ganadores, numeros_ganadores_jugada, monto_a_pagar,
+                  hora_inicio, hora_fin, configuracion_precio, regular, limitado,
+                  numeros_limitados_por_horario, pct_listero, pct_colector,
+                  ganancia_listero, ganancia_colector, balance_listero, balance_colector,
+                  estado_horario, cached_at, user_id
+                ) VALUES (
+                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                )`,
+                [
+                  play.id_jugada,
+                  play.fecha_jugada,
+                  play.id_listero,
+                  play.id_colector || null,
+                  play.id_banco || null,
+                  play.id_loteria || null,
+                  play.id_horario || null,
+                  play.id_resultado || null,
+                  play.id_precio || null,
+                  play.listero_username || null,
+                  play.colector_username || null,
+                  play.tipo_jugada || null,
+                  play.numeros_jugados || null,
+                  roundTo2(play.monto_unitario),
+                  roundTo2(play.monto_total),
+                  play.nota || null,
+                  play.nombre_loteria || null,
+                  play.nombre_horario || null,
+                  play.resultado || null,
+                  numeros_ganadores,
+                  numeros_ganadores_jugada,
+                  roundTo2(play.monto_a_pagar),
+                  play.hora_inicio || null,
+                  play.hora_fin || null,
+                  configuracion_precio,
+                  roundTo2(play.regular),
+                  roundTo2(play.limitado),
+                  numeros_limitados_por_horario,
+                  roundTo2(play.pct_listero),
+                  roundTo2(play.pct_colector),
+                  roundTo2(play.ganancia_listero),
+                  roundTo2(play.ganancia_colector),
+                  roundTo2(play.balance_listero),
+                  roundTo2(play.balance_colector),
+                  play.estado_horario || null,
+                  now,
+                  userId
+                ],
+                null, // success callback (no hacer nada por cada insert)
+                (tx, error) => {
+                  console.warn('[SQLiteCache] Error saving play:', play.id_jugada, error.message);
+                }
+              );
+            } catch (error) {
+              console.warn('[SQLiteCache] Error preparing play:', play.id_jugada, error.message);
+            }
+          });
+        },
+        (error) => {
+          // Error en la transacción completa
+          console.error('[SQLiteCache] Transaction failed:', error);
+          reject({ success: false, saved: 0, error: error.message });
+        },
+        () => {
+          // Éxito - la transacción se completó
+          console.log(`[SQLiteCache] ✅ Transaction completed: Saved ${plays.length} plays to ${tableName}`);
+          resolve({ success: true, saved: plays.length });
         }
-      }
+      );
     });
-
-    console.log(`[SQLiteCache] Saved ${savedCount}/${plays.length} plays to ${tableName}`);
-    return { success: true, saved: savedCount };
   } catch (error) {
     console.error('[SQLiteCache] Error in savePlaysToCache:', error);
     return { success: false, saved: 0, error: error.message };
@@ -736,19 +750,15 @@ export const getCacheStats = async (userId, role) => {
 // ========================================
 
 /**
- * Formatear fecha para consultas SQL
+ * Formatear fecha para SQL
+ * 🎯 FIX CRÍTICO: Usar ISO string para compatibilidad total
  */
 const formatDateForSQL = (date) => {
   if (typeof date === 'string') return date;
   
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  // Usar toISOString() para formato consistente con Supabase
+  // Formato: "2025-10-17T04:26:10.195Z"
+  return date.toISOString();
 };
 
 /**
