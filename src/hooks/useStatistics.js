@@ -64,23 +64,42 @@ const useStatistics = () => {
     try {
       const plays = activeStats.tableData?.plays || [];
       
+      // 🎯 FIX: Validación más estricta de tipos
       if (!Array.isArray(plays)) {
+        console.warn('[useStatistics] plays no es un array:', typeof plays);
+        return [];
+      }
+      
+      // Validar que hay un rol válido
+      if (!userRole) {
         return [];
       }
       
       if (userRole === 'listero') {
-      const totals = plays.reduce((acc, play) => {
-        const bruto = Number(play.monto_total) || 0;
-        const ganancia = Number(play.ganancia_listero) || 0;
-        const premio = Number(play.monto_a_pagar) || 0;
-        const balance = Number(play.balance_listero) || 0;
+        // Filtrar plays válidos (que tengan las propiedades necesarias)
+        const validPlays = plays.filter(play => 
+          play && typeof play === 'object' && 'monto_total' in play
+        );
         
-        acc.bruto += bruto;
-        acc.ganancia += ganancia;
-        acc.premio += premio;
-        acc.balance += balance;
-        return acc;
-      }, { bruto: 0, ganancia: 0, premio: 0, balance: 0 });
+        const totals = validPlays.reduce((acc, play) => {
+          // Usar parseFloat con validación de números finitos
+          const bruto = parseFloat(play.monto_total) || 0;
+          const ganancia = parseFloat(play.ganancia_listero) || 0;
+          const premio = parseFloat(play.monto_a_pagar) || 0;
+          const balance = parseFloat(play.balance_listero) || 0;
+          
+          // Validar que los números son finitos (no NaN, no Infinity)
+          if (!isFinite(bruto) || !isFinite(ganancia) || !isFinite(premio) || !isFinite(balance)) {
+            console.warn('[useStatistics] Valores no finitos en play:', play.id_jugada);
+            return acc;
+          }
+          
+          acc.bruto += bruto;
+          acc.ganancia += ganancia;
+          acc.premio += premio;
+          acc.balance += balance;
+          return acc;
+        }, { bruto: 0, ganancia: 0, premio: 0, balance: 0 });
 
       // Limpio = Bruto - Ganancia
       const limpio = totals.bruto - totals.ganancia;
@@ -138,6 +157,17 @@ const useStatistics = () => {
         balance_banco: 0
       };
 
+      // 🎯 FIX: Validar que los valores sean números finitos
+      const validateNumber = (value) => {
+        const num = parseFloat(value);
+        return isFinite(num) ? num : 0;
+      };
+
+      const bruto = validateNumber(totals.total_bruto);
+      const premio = validateNumber(totals.total_premio);
+      const ganancia = validateNumber(totals.total_ganancia_colector);
+      const balance = validateNumber(totals.balance_banco);
+
       return [
         {
           title: 'Listeros',
@@ -149,27 +179,35 @@ const useStatistics = () => {
         },
         {
           title: 'Bruto Total',
-          value: totals.total_bruto,
+          value: bruto,
           change: 0,
           trend: 'neutral',
           icon: '💰',
-          formattedValue: `$${totals.total_bruto.toLocaleString()}`
+          formattedValue: `$${bruto.toFixed(2)}`
         },
         {
-          title: 'Premios',
-          value: totals.total_premio,
+          title: 'Premio',
+          value: premio,
           change: 0,
           trend: 'neutral',
           icon: '🏆',
-          formattedValue: `$${totals.total_premio.toLocaleString()}`
+          formattedValue: `$${premio.toFixed(2)}`
+        },
+        {
+          title: 'Ganancia',
+          value: ganancia,
+          change: 0,
+          trend: ganancia >= 0 ? 'up' : 'down',
+          icon: '📈',
+          formattedValue: `$${ganancia.toFixed(2)}`
         },
         {
           title: 'Balance Banco',
-          value: totals.balance_banco,
+          value: balance,
           change: 0,
-          trend: totals.balance_banco >= 0 ? 'up' : 'down',
+          trend: balance >= 0 ? 'up' : 'down',
           icon: '🏦',
-          formattedValue: `$${totals.balance_banco.toLocaleString()}`
+          formattedValue: `$${balance.toFixed(2)}`
         }
       ];
     }

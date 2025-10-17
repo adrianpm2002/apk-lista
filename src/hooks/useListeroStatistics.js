@@ -7,6 +7,16 @@ import * as SQLiteCache from '../utils/sqliteCache';
 
 const CACHE_DAYS = 30; // Cachear últimos 30 días
 
+// 🎯 Sistema de logs condicionales (solo en desarrollo)
+// En producción (__DEV__ === false), estos logs se eliminan automáticamente
+const DEBUG_ENABLED = __DEV__; // Cambiar a false para deshabilitar logs incluso en dev
+
+const debugLog = (...args) => {
+  if (DEBUG_ENABLED) {
+    console.log(...args);
+  }
+};
+
 export const useListeroStatistics = (options = {}) => {
   const { enabled = true } = options;
   

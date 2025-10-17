@@ -351,6 +351,9 @@ export const savePlaysToCache = async (userId, role, plays) => {
     // 🎯 FIX CRÍTICO: Usar Promises correctamente en transacciones SQLite
     // react-native-sqlite-storage NO soporta async/await dentro de transacciones
     return new Promise((resolve, reject) => {
+      let savedCount = 0;
+      let errorCount = 0;
+      
       db.transaction(
         (tx) => {
           // Usar forEach en lugar de for...of con await
@@ -373,8 +376,11 @@ export const savePlaysToCache = async (userId, role, plays) => {
                 ? JSON.stringify(play.configuracion_precio)
                 : play.configuracion_precio;
 
-              // Redondear valores decimales a 2 lugares
-              const roundTo2 = (value) => value ? parseFloat(parseFloat(value).toFixed(2)) : 0;
+              // 🎯 FIX: Redondear y validar valores decimales (no NaN, no Infinity)
+              const roundTo2 = (value) => {
+                const num = parseFloat(value);
+                return (!isNaN(num) && isFinite(num)) ? parseFloat(num.toFixed(2)) : 0;
+              };
 
               tx.executeSql(
                 `INSERT OR REPLACE INTO ${tableName} (
@@ -430,9 +436,15 @@ export const savePlaysToCache = async (userId, role, plays) => {
                   now,
                   userId
                 ],
-                null, // success callback (no hacer nada por cada insert)
+                () => {
+                  // Success callback: incrementar contador
+                  savedCount++;
+                },
                 (tx, error) => {
+                  // Error callback: incrementar contador de errores
+                  errorCount++;
                   console.warn('[SQLiteCache] Error saving play:', play.id_jugada, error.message);
+                  return false; // Continuar con las demás inserciones
                 }
               );
             } catch (error) {
@@ -442,13 +454,17 @@ export const savePlaysToCache = async (userId, role, plays) => {
         },
         (error) => {
           // Error en la transacción completa
-          console.error('[SQLiteCache] Transaction failed:', error);
-          reject({ success: false, saved: 0, error: error.message });
+          console.error('[SQLiteCache] ❌ Transaction failed:', error.message);
+          reject({ success: false, saved: savedCount, errors: errorCount, error: error.message });
         },
         () => {
           // Éxito - la transacción se completó
-          console.log(`[SQLiteCache] ✅ Transaction completed: Saved ${plays.length} plays to ${tableName}`);
-          resolve({ success: true, saved: plays.length });
+          if (errorCount > 0) {
+            console.warn(`[SQLiteCache] ⚠️ Transaction completed with errors: ${savedCount}/${plays.length} saved, ${errorCount} failed`);
+          } else {
+            console.log(`[SQLiteCache] ✅ Transaction completed: ${savedCount}/${plays.length} plays saved to ${tableName}`);
+          }
+          resolve({ success: true, saved: savedCount, errors: errorCount });
         }
       );
     });
