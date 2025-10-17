@@ -1205,14 +1205,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 </View>
               </View>
               
-              {/* Gráfico solo si hay datos */}
-              {playsInPeriod.length > 0 ? (() => {
-          const fmtShort = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
-          
-          // Agrupar jugadas por fecha y calcular balance diario
-          const dailyBalanceMap = new Map();
-          
-          filteredPlays.forEach(play => {
+              {/* Gráfico de Balance Diario - SIEMPRE visible */}
+              {(() => {
+                const fmtShort = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+                
+                // Agrupar jugadas por fecha y calcular balance diario
+                const dailyBalanceMap = new Map();
+                
+                playsInPeriod.forEach(play => {
             // Validar que fecha_jugada exista y sea una fecha válida
             if (!play.fecha_jugada) {
               return; // Saltar esta jugada si no tiene fecha
@@ -1318,11 +1318,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             label: labelFormat(day.d)
           }));
           
-          // Para un solo día, asegurar que el gráfico tenga contexto
-          if (series.length === 1) {
-            // Agregar contexto al gráfico para un solo punto
-          }
-          
           return (
             <View>
               <StatisticsChart
@@ -1333,17 +1328,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               />
             </View>
           );
-        })() : (
-          /* Mensaje cuando no hay datos para gráfico */
-          <View style={[styles.kpiCard, { backgroundColor: '#f8f9fa', marginTop: 8 }]}>
-            <Text style={[styles.kpiTitle, { color: '#333333' }]}>
-              📊 Sin Datos para Gráfico
-            </Text>
-            <Text style={[styles.kpiValue, { color: '#666666' }]}>
-              No hay jugadas en el período seleccionado para mostrar el gráfico
-            </Text>
-          </View>
-        )}
+        })()}
             </>
           );
         })()}
