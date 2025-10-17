@@ -234,11 +234,22 @@ export const useAdminStatistics = (options = {}) => {
     setIsLoading(true);
 
     try {
-      const {
-        startDate = dateRange.startDate,
-        endDate = dateRange.endDate,
+      // 🎯 FIX: Recalcular fechas "hoy" si no vienen en filters para evitar fechas obsoletas
+      let {
+        startDate = null,
+        endDate = null,
         forceRefresh = false
       } = filters;
+      
+      // Si no hay startDate/endDate, usar "hoy" recién calculado
+      if (!startDate || !endDate) {
+        const now = new Date();
+        startDate = new Date(now.setHours(0, 0, 0, 0));
+        endDate = new Date(now.setHours(23, 59, 59, 999));
+        console.log('🐛 [DEBUG ADMIN] ⚠️ No hay fechas en filters, usando HOY recién calculado');
+      }
+      
+      console.log('🐛 [DEBUG ADMIN] 📅 Fechas finales - start:', startDate.toISOString(), 'end:', endDate.toISOString());
 
       // 1. Intentar leer del caché SQLite primero
       let cachedPlays = [];
