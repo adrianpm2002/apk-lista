@@ -114,9 +114,14 @@ export const useCollectorStatistics = (options = {}) => {
         if (user) {
           setUserId(user.id);
           
-          const endDate = new Date();
-          const startDate = new Date();
-          startDate.setDate(startDate.getDate() - 30);
+          // 🎯 FIX: Cargar solo HOY en la primera carga, no 30 días
+          const today = new Date();
+          const startDate = new Date(today);
+          startDate.setHours(0, 0, 0, 0);
+          const endDate = new Date(today);
+          endDate.setHours(23, 59, 59, 999);
+          
+          console.log('🐛 [DEBUG COLLECTOR] 🚀 Inicialización - Cargando SOLO HOY:', startDate.toLocaleDateString());
           
           // Pasar userId explícitamente porque setUserId es asíncrono
           loadPlaysData({ 
@@ -258,9 +263,9 @@ export const useCollectorStatistics = (options = {}) => {
         console.log('🐛 [DEBUG COLLECTOR]    📆 Fecha inicio solicitada:', startDate.toLocaleDateString('es-CU'));
         console.log('🐛 [DEBUG COLLECTOR]    ❓ ¿Caché cubre rango completo?', cacheCoversRange ? '✅ SÍ' : '❌ NO');
         
-        // 🎯 FIX CRÍTICO: SOLO usar caché si cubre el rango COMPLETO
-        // No usar caché parcial aunque tenga algunos datos
-        if (cacheCoversRange && filteredCachedPlays.length >= 0) {
+        // 🎯 FIX CRÍTICO: SOLO usar caché si cubre el rango COMPLETO Y tiene datos
+        // Cambio: >= 0 (siempre true) → > 0 (requiere datos)
+        if (cacheCoversRange && filteredCachedPlays.length > 0) {
           // Agrupar datos del cache FILTRADOS
           const groupedCachedData = groupDataForCollector(filteredCachedPlays);
           
