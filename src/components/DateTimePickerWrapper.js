@@ -8,7 +8,11 @@ if (Platform.OS === 'web') {
   DateTimePicker = ({ value, onChange, mode = 'date', maximumDate, minimumDate, ...props }) => {
     const handleChange = (event) => {
       const selectedDate = new Date(event.target.value);
-      onChange && onChange(event, selectedDate);
+      // Llamar onChange solo con la fecha (segundo parámetro)
+      // para mantener compatibilidad con el uso en StatisticsScreen
+      if (onChange) {
+        onChange(selectedDate);
+      }
     };
 
     const formatValue = () => {
