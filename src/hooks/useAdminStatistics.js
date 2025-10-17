@@ -250,27 +250,38 @@ export const useAdminStatistics = (options = {}) => {
       }
       
       console.log('🐛 [DEBUG ADMIN] 📅 Fechas finales - start:', startDate.toISOString(), 'end:', endDate.toISOString());
+      console.log('🐛 [DEBUG ADMIN] 🔄 forceRefresh:', forceRefresh ? 'SÍ (saltará caché)' : 'NO (intentará caché primero)');
 
       // 1. Intentar leer del caché SQLite primero
+      console.log('🐛 [DEBUG ADMIN] 🔍 PASO 1: Intentando leer desde CACHÉ SQLite...');
       let cachedPlays = [];
       try {
         // Leer TODO el caché disponible (sin filtro de fechas aún)
         cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'admin', {});
-        console.log('🐛 [DEBUG ADMIN] Caché leído:', cachedPlays.length, 'registros');
+        console.log('🐛 [DEBUG ADMIN] 📦 Caché leído:', cachedPlays.length, 'registros');
       } catch (cacheError) {
-        console.log('🐛 [DEBUG ADMIN] Error leyendo caché:', cacheError.message);
+        console.log('🐛 [DEBUG ADMIN] ❌ Error leyendo caché:', cacheError.message);
         cachedPlays = [];
       }
 
+      console.log('🐛 [DEBUG ADMIN] 🔍 PASO 2: Evaluando si usar caché o consultar Supabase...');
+      console.log('🐛 [DEBUG ADMIN]    - Caché tiene:', cachedPlays.length, 'registros');
+      console.log('🐛 [DEBUG ADMIN]    - forceRefresh:', forceRefresh);
+
       // 2. Si hay datos en caché, verificar si cubren el rango solicitado
       if (cachedPlays.length > 0 && !forceRefresh) {
+        console.log('🐛 [DEBUG ADMIN]    ✅ Condición 1 cumplida: Caché NO está vacío');
+        console.log('🐛 [DEBUG ADMIN]    ✅ Condición 2 cumplida: NO es forceRefresh');
+        console.log('🐛 [DEBUG ADMIN] 🔍 PASO 3: Filtrando caché por rango de fechas...');
+
         // Filtrar por el rango solicitado
         const filteredCachedPlays = cachedPlays.filter(play => {
           const playDate = new Date(play.fecha_jugada);
           return playDate >= startDate && playDate <= endDate;
         });
         
-        console.log('🐛 [DEBUG ADMIN] Después del filtro:', filteredCachedPlays.length, 'registros');
+        console.log('🐛 [DEBUG ADMIN]    📊 Después del filtro:', filteredCachedPlays.length, 'registros');
+        console.log('🐛 [DEBUG ADMIN] 🔍 PASO 4: Verificando cobertura del caché...');
         
         // Verificar si el caché cubre el rango completo
         const oldestCached = cachedPlays.length > 0 
@@ -279,7 +290,9 @@ export const useAdminStatistics = (options = {}) => {
         
         const cacheCoversRange = oldestCached && oldestCached <= startDate;
         
-        console.log('🐛 [DEBUG ADMIN] ¿Caché cubre rango?', cacheCoversRange, '- Oldest:', oldestCached?.toLocaleDateString());
+        console.log('🐛 [DEBUG ADMIN]    📆 Fecha más antigua en caché:', oldestCached?.toLocaleDateString('es-CU'));
+        console.log('🐛 [DEBUG ADMIN]    📆 Fecha inicio solicitada:', startDate.toLocaleDateString('es-CU'));
+        console.log('🐛 [DEBUG ADMIN]    ❓ ¿Caché cubre rango completo?', cacheCoversRange ? '✅ SÍ' : '❌ NO');
         
         // 🎯 FIX CRÍTICO: SOLO usar caché si cubre el rango COMPLETO
         // No usar caché parcial aunque tenga algunos datos
@@ -287,7 +300,9 @@ export const useAdminStatistics = (options = {}) => {
           // Agrupar datos FILTRADOS antes de setear
           const groupedData = groupDataForAdmin(filteredCachedPlays);
           
-          console.log('🐛 [DEBUG ADMIN] ✅ Usando CACHÉ -', filteredCachedPlays.length, 'jugadas filtradas →', groupedData.length, 'colectores agrupados');
+          console.log('🐛 [DEBUG ADMIN] ✅ DECISIÓN: Usando CACHÉ -', filteredCachedPlays.length, 'jugadas filtradas →', groupedData.length, 'grupos');
+          console.log('🐛 [DEBUG ADMIN] ⏭️ Saltando consulta a Supabase');
+                    console.log('🐛 [DEBUG ADMIN] ✅ Usando CACHÉ -', filteredCachedPlays.length, 'jugadas filtradas →', groupedData.length, 'colectores agrupados');
           
           // Actualizar debugInfo
           setDebugInfo({
@@ -315,11 +330,31 @@ export const useAdminStatistics = (options = {}) => {
           setIsLoading(false);
           loadingRef.current = false;
           return;
+        } else {
+          console.log('🐛 [DEBUG ADMIN] ❌ DECISIÓN: Caché NO cubre rango completo');
+          console.log('🐛 [DEBUG ADMIN]    ❌ Razón: cacheCoversRange =', cacheCoversRange);
+          console.log('🐛 [DEBUG ADMIN] 🌐 Continuando a consulta de Supabase...');
         }
+      } else {
+        // Caché vacío o forceRefresh
+        if (cachedPlays.length === 0) {
+          console.log('🐛 [DEBUG ADMIN]    ❌ Condición 1 NO cumplida: Caché está VACÍO');
+        }
+        if (forceRefresh) {
+          console.log('🐛 [DEBUG ADMIN]    ❌ Condición 2 NO cumplida: ES forceRefresh (pull-to-refresh)');
+        }
+        console.log('🐛 [DEBUG ADMIN] 🌐 Saltando caché, irá directo a Supabase');
       }
 
       // 3. No hay caché suficiente o forceRefresh: cargar desde Supabase
-      console.log('🐛 [DEBUG ADMIN] ⚠️ Caché insuficiente, consultando SUPABASE...');
+      console.log('🐛 [DEBUG ADMIN] 🔍 PASO 5: Consultando SUPABASE...');
+      if (forceRefresh) {
+        console.log('🐛 [DEBUG ADMIN]    📌 Motivo: forceRefresh=true (pull-to-refresh)');
+      } else if (cachedPlays.length === 0) {
+        console.log('🐛 [DEBUG ADMIN]    📌 Motivo: Caché vacío');
+      } else {
+        console.log('🐛 [DEBUG ADMIN]    📌 Motivo: Caché no cubre rango solicitado');
+      }
       
       // 🎯 Consultar últimos 30 días para cachear, pero mostrar solo el rango solicitado
       const cacheStart = new Date();

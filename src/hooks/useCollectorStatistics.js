@@ -214,27 +214,38 @@ export const useCollectorStatistics = (options = {}) => {
       }
       
       console.log('🐛 [DEBUG COLLECTOR] 📅 Fechas finales - start:', startDate.toISOString(), 'end:', endDate.toISOString());
+      console.log('🐛 [DEBUG COLLECTOR] 🔄 forceRefresh:', forceRefresh ? 'SÍ (saltará caché)' : 'NO (intentará caché primero)');
 
       // 1. Intentar leer del caché SQLite primero
+      console.log('🐛 [DEBUG COLLECTOR] 🔍 PASO 1: Intentando leer desde CACHÉ SQLite...');
       let cachedPlays = [];
       try {
         // Leer TODO el caché disponible (sin filtro de fechas aún)
         cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'collector', {});
-        console.log('🐛 [DEBUG COLLECTOR] Caché leído:', cachedPlays.length, 'registros');
+        console.log('🐛 [DEBUG COLLECTOR] 📦 Caché leído:', cachedPlays.length, 'registros');
       } catch (cacheError) {
-        console.log('🐛 [DEBUG COLLECTOR] Error leyendo caché:', cacheError.message);
+        console.log('🐛 [DEBUG COLLECTOR] ❌ Error leyendo caché:', cacheError.message);
         cachedPlays = [];
       }
 
+      console.log('🐛 [DEBUG COLLECTOR] 🔍 PASO 2: Evaluando si usar caché o consultar Supabase...');
+      console.log('🐛 [DEBUG COLLECTOR]    - Caché tiene:', cachedPlays.length, 'registros');
+      console.log('🐛 [DEBUG COLLECTOR]    - forceRefresh:', forceRefresh);
+
       // 2. Si hay datos en caché, verificar si cubren el rango solicitado
       if (cachedPlays.length > 0 && !forceRefresh) {
+        console.log('🐛 [DEBUG COLLECTOR]    ✅ Condición 1 cumplida: Caché NO está vacío');
+        console.log('🐛 [DEBUG COLLECTOR]    ✅ Condición 2 cumplida: NO es forceRefresh');
+        console.log('🐛 [DEBUG COLLECTOR] 🔍 PASO 3: Filtrando caché por rango de fechas...');
+
         // Filtrar por el rango solicitado
         const filteredCachedPlays = cachedPlays.filter(play => {
           const playDate = new Date(play.fecha_jugada);
           return playDate >= startDate && playDate <= endDate;
         });
         
-        console.log('🐛 [DEBUG COLLECTOR] Después del filtro:', filteredCachedPlays.length, 'registros');
+        console.log('🐛 [DEBUG COLLECTOR]    📊 Después del filtro:', filteredCachedPlays.length, 'registros');
+        console.log('🐛 [DEBUG COLLECTOR] 🔍 PASO 4: Verificando cobertura del caché...');
         
         // Verificar si el caché cubre el rango completo
         const oldestCached = cachedPlays.length > 0 
@@ -243,7 +254,9 @@ export const useCollectorStatistics = (options = {}) => {
         
         const cacheCoversRange = oldestCached && oldestCached <= startDate;
         
-        console.log('🐛 [DEBUG COLLECTOR] ¿Caché cubre rango?', cacheCoversRange, '- Oldest:', oldestCached?.toLocaleDateString());
+        console.log('🐛 [DEBUG COLLECTOR]    📆 Fecha más antigua en caché:', oldestCached?.toLocaleDateString('es-CU'));
+        console.log('🐛 [DEBUG COLLECTOR]    📆 Fecha inicio solicitada:', startDate.toLocaleDateString('es-CU'));
+        console.log('🐛 [DEBUG COLLECTOR]    ❓ ¿Caché cubre rango completo?', cacheCoversRange ? '✅ SÍ' : '❌ NO');
         
         // 🎯 FIX CRÍTICO: SOLO usar caché si cubre el rango COMPLETO
         // No usar caché parcial aunque tenga algunos datos
@@ -251,7 +264,8 @@ export const useCollectorStatistics = (options = {}) => {
           // Agrupar datos del cache FILTRADOS
           const groupedCachedData = groupDataForCollector(filteredCachedPlays);
           
-          console.log('🐛 [DEBUG COLLECTOR] ✅ Usando CACHÉ -', filteredCachedPlays.length, 'jugadas filtradas →', groupedCachedData.length, 'listeros agrupados');
+          console.log('🐛 [DEBUG COLLECTOR] ✅ DECISIÓN: Usando CACHÉ -', filteredCachedPlays.length, 'jugadas filtradas →', groupedCachedData.length, 'listeros agrupados');
+          console.log('🐛 [DEBUG COLLECTOR] ⏭️ Saltando consulta a Supabase');
           
           // Actualizar debugInfo
           setDebugInfo({
@@ -279,11 +293,31 @@ export const useCollectorStatistics = (options = {}) => {
           setIsLoading(false);
           loadingRef.current = false;
           return;
+        } else {
+          console.log('🐛 [DEBUG COLLECTOR] ❌ DECISIÓN: Caché NO cubre rango completo');
+          console.log('🐛 [DEBUG COLLECTOR]    ❌ Razón: cacheCoversRange =', cacheCoversRange);
+          console.log('🐛 [DEBUG COLLECTOR] 🌐 Continuando a consulta de Supabase...');
         }
+      } else {
+        // Caché vacío o forceRefresh
+        if (cachedPlays.length === 0) {
+          console.log('🐛 [DEBUG COLLECTOR]    ❌ Condición 1 NO cumplida: Caché está VACÍO');
+        }
+        if (forceRefresh) {
+          console.log('🐛 [DEBUG COLLECTOR]    ❌ Condición 2 NO cumplida: ES forceRefresh (pull-to-refresh)');
+        }
+        console.log('🐛 [DEBUG COLLECTOR] 🌐 Saltando caché, irá directo a Supabase');
       }
 
       // 3. No hay caché suficiente o forceRefresh: cargar desde Supabase
-      console.log('🐛 [DEBUG COLLECTOR] ⚠️ Caché insuficiente, consultando SUPABASE...');
+      console.log('🐛 [DEBUG COLLECTOR] 🔍 PASO 5: Consultando SUPABASE...');
+      if (forceRefresh) {
+        console.log('🐛 [DEBUG COLLECTOR]    📌 Motivo: forceRefresh=true (pull-to-refresh)');
+      } else if (cachedPlays.length === 0) {
+        console.log('🐛 [DEBUG COLLECTOR]    📌 Motivo: Caché vacío');
+      } else {
+        console.log('🐛 [DEBUG COLLECTOR]    📌 Motivo: Caché no cubre rango solicitado');
+      }
       
       // 🎯 Consultar últimos 30 días para cachear, pero mostrar solo el rango solicitado
       const cacheStart = new Date();

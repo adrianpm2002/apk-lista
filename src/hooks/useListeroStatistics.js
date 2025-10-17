@@ -159,21 +159,29 @@ export const useListeroStatistics = (options = {}) => {
       }
       
       console.log('🐛 [DEBUG LISTERO] 📅 Fechas finales - start:', startDate.toISOString(), 'end:', endDate.toISOString());
+      console.log('🐛 [DEBUG LISTERO] 🔄 forceRefresh:', forceRefresh ? 'SÍ (saltará caché)' : 'NO (intentará caché primero)');
 
       // 1. Intentar leer del caché SQLite primero
+      console.log('🐛 [DEBUG LISTERO] 🔍 PASO 1: Intentando leer desde CACHÉ SQLite...');
       let cachedPlays = [];
       try{
         // Leer TODO el caché disponible (sin filtro de fechas aún)
         cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'listero', {});
-        console.log('🐛 [DEBUG] Caché leído:', cachedPlays.length, 'registros');
+        console.log('🐛 [DEBUG LISTERO] 📦 Caché leído:', cachedPlays.length, 'registros');
       } catch (cacheError) {
-        console.log('🐛 [DEBUG] Error leyendo caché:', cacheError);
+        console.log('🐛 [DEBUG LISTERO] ❌ Error leyendo caché:', cacheError);
         cachedPlays = [];
       }
 
       // 2. Si hay datos en caché, verificar si cubren el rango solicitado
+      console.log('🐛 [DEBUG LISTERO] 🔍 PASO 2: Evaluando si usar caché o consultar Supabase...');
+      console.log('🐛 [DEBUG LISTERO]    - Caché tiene:', cachedPlays.length, 'registros');
+      console.log('🐛 [DEBUG LISTERO]    - forceRefresh:', forceRefresh);
+      
       if (cachedPlays.length > 0 && !forceRefresh) {
-        console.log('🐛 [DEBUG] Hay caché disponible, filtrando...');
+        console.log('🐛 [DEBUG LISTERO]    ✅ Condición 1 cumplida: Caché NO está vacío');
+        console.log('🐛 [DEBUG LISTERO]    ✅ Condición 2 cumplida: NO es forceRefresh');
+        console.log('🐛 [DEBUG LISTERO] 🔍 PASO 3: Filtrando caché por rango de fechas...');
         
         // Filtrar por el rango solicitado
         const filteredCachedPlays = cachedPlays.filter(play => {
@@ -181,7 +189,7 @@ export const useListeroStatistics = (options = {}) => {
           return playDate >= startDate && playDate <= endDate;
         });
         
-        console.log('🐛 [DEBUG] Después del filtro:', filteredCachedPlays.length, 'registros');
+        console.log('🐛 [DEBUG LISTERO]    📊 Después del filtro:', filteredCachedPlays.length, 'registros');
         
         // Verificar si el caché cubre el rango completo
         // Si encontramos datos O si el rango está dentro de los últimos 30 días cacheados
@@ -189,17 +197,19 @@ export const useListeroStatistics = (options = {}) => {
           ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
           : null;
         
-        console.log('🐛 [DEBUG] Fecha más antigua en caché:', oldestCached?.toLocaleDateString());
-        console.log('🐛 [DEBUG] Fecha inicio solicitada:', startDate.toLocaleDateString());
+        console.log('🐛 [DEBUG LISTERO] 🔍 PASO 4: Verificando cobertura del caché...');
+        console.log('🐛 [DEBUG LISTERO]    📆 Fecha más antigua en caché:', oldestCached?.toLocaleDateString());
+        console.log('🐛 [DEBUG LISTERO]    📆 Fecha inicio solicitada:', startDate.toLocaleDateString());
         
         const cacheCoversRange = oldestCached && oldestCached <= startDate;
         
-        console.log('🐛 [DEBUG] ¿Caché cubre rango?', cacheCoversRange);
+        console.log('🐛 [DEBUG LISTERO]    ❓ ¿Caché cubre rango completo?', cacheCoversRange ? '✅ SÍ' : '❌ NO');
         
         // 🎯 FIX CRÍTICO: SOLO usar caché si cubre el rango COMPLETO
         // No usar caché parcial aunque tenga algunos datos
         if (cacheCoversRange && filteredCachedPlays.length >= 0) {
-          console.log('🐛 [DEBUG] ✅ Usando CACHÉ -', filteredCachedPlays.length, 'jugadas');
+          console.log('🐛 [DEBUG LISTERO] ✅ DECISIÓN: Usando CACHÉ -', filteredCachedPlays.length, 'jugadas');
+          console.log('🐛 [DEBUG LISTERO] ⏭️ Saltando consulta a Supabase');
           
           // 🐛 DEBUG: Actualizar metadata
           setDebugInfo({
@@ -227,11 +237,25 @@ export const useListeroStatistics = (options = {}) => {
           setIsLoading(false);
           loadingRef.current = false;
           return;
+        } else {
+          console.log('🐛 [DEBUG LISTERO] ❌ DECISIÓN: Caché NO cubre rango completo');
+          console.log('🐛 [DEBUG LISTERO]    ❌ Razón: cacheCoversRange =', cacheCoversRange);
+          console.log('🐛 [DEBUG LISTERO] 🌐 Continuando a consulta de Supabase...');
         }
+      } else {
+        // Caché vacío o forceRefresh
+        if (cachedPlays.length === 0) {
+          console.log('🐛 [DEBUG LISTERO]    ❌ Condición 1 NO cumplida: Caché está VACÍO');
+        }
+        if (forceRefresh) {
+          console.log('🐛 [DEBUG LISTERO]    ❌ Condición 2 NO cumplida: ES forceRefresh (pull-to-refresh)');
+        }
+        console.log('🐛 [DEBUG LISTERO] 🌐 Saltando caché, irá directo a Supabase');
       }
 
       // 3. No hay caché suficiente o forceRefresh: cargar desde Supabase
-      console.log('🐛 [DEBUG] ⚠️ Caché insuficiente, consultando SUPABASE...');
+      console.log('🐛 [DEBUG LISTERO] 🔍 PASO 5: Consultando SUPABASE...');
+      console.log('🐛 [DEBUG LISTERO]    📌 Motivo:', forceRefresh ? 'forceRefresh=true' : cachedPlays.length === 0 ? 'Caché vacío' : 'Caché no cubre rango');
       
       // 🎯 Consultar últimos 30 días para cachear, pero mostrar solo el rango solicitado
       const cacheStart = new Date();
