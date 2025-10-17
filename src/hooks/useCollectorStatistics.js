@@ -13,9 +13,21 @@ const CACHE_DAYS = 30; // Cachear últimos 30 días
  */
 const groupDataForCollector = (rawData) => {
   try {
-    // 🎯 FIX: Validación más estricta con logs
-    if (!rawData || !Array.isArray(rawData) || rawData.length === 0) {
-      debugLog('[useCollectorStatistics] ⚠️ No hay datos para agrupar');
+    // 🎯 FIX: Diagnóstico completo de entrada
+    debugLog('[useCollectorStatistics] 📊 ENTRADA groupDataForCollector:', {
+      esArray: Array.isArray(rawData),
+      longitud: rawData?.length || 0,
+      primerElemento: rawData?.[0] ? '✅ existe' : '❌ no existe',
+      tipoRawData: typeof rawData
+    });
+    
+    if (!rawData || !Array.isArray(rawData)) {
+      debugLog('[useCollectorStatistics] ⚠️ rawData no es array válido');
+      return [];
+    }
+    
+    if (rawData.length === 0) {
+      debugLog('[useCollectorStatistics] ⚠️ rawData está vacío');
       return [];
     }
 
@@ -58,10 +70,15 @@ const groupDataForCollector = (rawData) => {
     });
 
     const result = Object.values(listeroGroups);
-    debugLog('[useCollectorStatistics] ✅ Resultado:', result.length, 'listeros agrupados');
+    debugLog('[useCollectorStatistics] ✅ SALIDA groupDataForCollector:', {
+      gruposCreados: result.length,
+      totalJugadas: rawData.length,
+      listeroIds: result.map(g => g.id)
+    });
     return result;
   } catch (error) {
-    console.error('[useCollectorStatistics] ❌ Error agrupando datos:', error);
+    console.error('[useCollectorStatistics] ❌ ERROR FATAL en groupDataForCollector:', error);
+    console.error('[useCollectorStatistics] Stack:', error.stack);
     return [];
   }
 };

@@ -572,17 +572,35 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           <TouchableOpacity
             style={{
               backgroundColor: '#D32F2F',
-              padding: 8,
-              borderRadius: 4,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 6,
               marginLeft: 8,
+              elevation: 3,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 3.84,
             }}
             onPress={async () => {
               console.log('=== 🔍 DEBUG DATABASE PRESSED ===');
-              await debugDatabase();
+              console.log('__DEV__:', __DEV__);
+              console.log('debugDatabase disponible:', typeof debugDatabase);
+              
+              try {
+                if (debugDatabase) {
+                  await debugDatabase();
+                } else {
+                  console.error('❌ debugDatabase no está disponible');
+                }
+              } catch (error) {
+                console.error('❌ Error ejecutando debugDatabase:', error);
+              }
+              
               console.log('=== 🔍 END DEBUG ===');
             }}
           >
-            <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>🔍 DEBUG</Text>
+            <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>🔍 DEBUG DB</Text>
           </TouchableOpacity>
         )}
         

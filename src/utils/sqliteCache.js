@@ -507,16 +507,37 @@ export const savePlaysToCache = async (userId, role, plays) => {
     
     console.log(`[SQLiteCache] 🎉 GUARDADO COMPLETADO: ${totalSaved}/${plays.length} jugadas (${totalErrors} errores)`);
     
-    // Verificación final: leer de la base de datos para confirmar
+    // Verificación inmediata: contar directamente en la tabla
+    try {
+      const [countResult] = await db.executeSql(
+        `SELECT COUNT(*) as count FROM ${tableName} WHERE user_id = ?`,
+        [userId]
+      );
+      const actualCount = countResult.rows.item(0).count;
+      console.log(`[SQLiteCache] 🔍 VERIFICACIÓN INMEDIATA (COUNT): ${actualCount} registros en tabla ${tableName}`);
+      
+      if (actualCount === 0 && totalSaved > 0) {
+        console.error(`[SQLiteCache] ⚠️ ERROR CRÍTICO: Se guardaron ${totalSaved} pero COUNT devuelve 0`);
+        console.error(`[SQLiteCache] 🔧 Posibles causas: transacción fallida, userId incorrecto, tabla incorrecta`);
+      } else if (actualCount !== totalSaved) {
+        console.warn(`[SQLiteCache] ⚠️ DISCREPANCIA: Guardados=${totalSaved}, COUNT=${actualCount}`);
+      } else {
+        console.log(`[SQLiteCache] ✅ ÉXITO: COUNT coincide con guardados (${actualCount})`);
+      }
+    } catch (countError) {
+      console.error('[SQLiteCache] ❌ Error en COUNT verification:', countError.message);
+    }
+    
+    // Verificación secundaria: leer usando readPlaysFromCache
     try {
       const verification = await readPlaysFromCache(userId, role, {});
-      console.log(`[SQLiteCache] 🔍 VERIFICACIÓN FINAL: ${verification.length} jugadas en caché SQLite`);
+      console.log(`[SQLiteCache] 🔍 VERIFICACIÓN SECUNDARIA (READ): ${verification.length} jugadas en caché`);
       
       if (verification.length === 0 && totalSaved > 0) {
-        console.error(`[SQLiteCache] ⚠️ ADVERTENCIA: Se guardaron ${totalSaved} pero la verificación devuelve 0`);
+        console.error(`[SQLiteCache] ⚠️ ADVERTENCIA: READ devuelve 0 pero COUNT puede diferir`);
       }
     } catch (verifyError) {
-      console.warn('[SQLiteCache] Error en verificación:', verifyError.message);
+      console.warn('[SQLiteCache] Error en READ verification:', verifyError.message);
     }
     
     return { success: true, saved: totalSaved, failed: totalErrors };
