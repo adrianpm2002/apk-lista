@@ -301,12 +301,23 @@ export const useCollectorStatistics = (options = {}) => {
       }
 
       // 5. Filtrar por el rango solicitado y agrupar
-      const filteredPlays = playsData.filter(play => {
+      console.log('🐛 [DEBUG COLLECTOR] 🎯 FILTRO - startDate:', startDate.toISOString());
+      console.log('🐛 [DEBUG COLLECTOR] 🎯 FILTRO - endDate:', endDate.toISOString());
+      console.log('🐛 [DEBUG COLLECTOR] 🎯 FILTRO - Aplicando a', playsData.length, 'registros...');
+      
+      const filteredPlays = playsData.filter((play, index) => {
         const playDate = new Date(play.fecha_jugada);
-        return playDate >= startDate && playDate <= endDate;
+        const isInRange = playDate >= startDate && playDate <= endDate;
+        
+        // Log detallado de las primeras 5 jugadas
+        if (index < 5) {
+          console.log(`🐛 [DEBUG COLLECTOR] Jugada ${index}: ${play.fecha_jugada} → ${isInRange ? '✅ PASA' : '❌ NO PASA'}`);
+        }
+        
+        return isInRange;
       });
       
-      console.log('🐛 [DEBUG COLLECTOR] Después del filtro:', filteredPlays.length, 'jugadas para mostrar');
+      console.log('🐛 [DEBUG COLLECTOR] Después del filtro:', filteredPlays.length, '/', playsData.length, 'jugadas para mostrar');
       
       // 🐛 DEBUG: Calcular fecha más antigua de los datos cargados
       const oldestPlay = playsData.length > 0
