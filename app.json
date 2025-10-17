@@ -41,11 +41,6 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
-    "extra": {
-      "eas": {
-        "projectId": "ff8415f9-a7cd-425b-a1aa-f6e2b418633b"
-      }
-    },
     "plugins": [
       "expo-splash-screen",
       "expo-notifications",
@@ -56,7 +51,6 @@
         }
       ],
       "react-native-sqlite-storage"
-    ],
-    "owner": "lazaroadrian0803"
+    ]
   }
 }
