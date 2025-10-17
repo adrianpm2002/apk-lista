@@ -1454,20 +1454,36 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         // Agrupar por fecha + lotería + horario + resultado
         const map = new Map();
         
-        // Filtrar registros con fechas válidas Y por lotería seleccionada
+        // Filtrar registros con fechas válidas Y por lotería seleccionada Y por período
         const validPlays = tableData.plays.filter(r => {
-          if (!r.created_at) return false;
+          if (!r.fecha_jugada) return false;
+          
           // Aplicar filtro de lotería
           if (selectedLotteryDetails !== 'all') {
             const playLottery = r.loteria || r.nombre_loteria || 'Lotería';
             if (playLottery !== selectedLotteryDetails) return false;
           }
+          
+          // Aplicar filtro de período de fechas
+          if (currentStartDate && currentEndDate) {
+            const playDate = new Date(r.fecha_jugada);
+            if (isNaN(playDate.getTime())) return false;
+            
+            const playDateOnly = new Date(playDate.getFullYear(), playDate.getMonth(), playDate.getDate());
+            const startDateOnly = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth(), currentStartDate.getDate());
+            const endDateOnly = new Date(currentEndDate.getFullYear(), currentEndDate.getMonth(), currentEndDate.getDate());
+            
+            if (playDateOnly < startDateOnly || playDateOnly > endDateOnly) {
+              return false;
+            }
+          }
+          
           return true;
         });
         
         for(const r of validPlays) {
-          const dayKey = dayKeyOf(r.created_at);
-          const dayLabel = dayLabelOf(r.created_at);
+          const dayKey = dayKeyOf(r.fecha_jugada);
+          const dayLabel = dayLabelOf(r.fecha_jugada);
           const lottery = r.loteria || r.nombre_loteria || 'Lotería';
           const schedule = r.horario || r.nombre_horario || 'Horario';
           const resultado = r.resultado || null;
@@ -1494,27 +1510,27 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           const group = map.get(key);
           
           // Acumular totales
-          const bruto = Number(r.bruto || 0);
+          const bruto = Number(r.monto_total || 0);
           const ganancia = Number(r.ganancia_listero || 0);
           group.totalGananciaListero += ganancia;
           group.totalRecogido += bruto;
           group.totalLimpio += (bruto - ganancia);  // Limpio = Bruto - Ganancia
           group.totalBalance += Number(r.balance_listero || 0);
-          group.totalPagado += Number(r.premio || 0);
+          group.totalPagado += Number(r.monto_a_pagar || 0);
           
           // Agregar jugada individual
           group.plays.push({
-            time: timeStr(r.created_at),
+            time: timeStr(r.fecha_jugada),
             ts: (() => {
-              const d = new Date(r.created_at);
+              const d = new Date(r.fecha_jugada);
               return isNaN(d.getTime()) ? 0 : d.getTime();
             })(),
             nota: r.nota || '',
-            jugada: r.play_type || '',
+            jugada: r.tipo_jugada || '',
             numeros: r.numeros || r.numeros_jugados || '',
-            bruto: Number(r.bruto || 0),
+            bruto: Number(r.monto_total || 0),
             ganancia: Number(r.ganancia_listero || 0),
-            pagado: Number(r.premio || 0),
+            pagado: Number(r.monto_a_pagar || 0),
             balance: Number(r.balance_listero || 0)
           });
         }
