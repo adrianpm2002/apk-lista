@@ -211,12 +211,21 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     clearData,
   } = useStatistics();
   
+  console.log('[StatisticsScreen] 📦 Received from useStatistics - tableData:', tableData?.plays?.length || 0, 'plays');
+  
   // ✅ OPTIMIZADO: groupedData ahora usa useMemo para evitar recalcular en cada render
   // DEBE estar DESPUÉS de useStatistics para que tableData esté definido
   const groupedData = useMemo(() => {
-    if (userRole === 'admin' && tableData && tableData.plays) {
+    console.log('[StatisticsScreen] 🔄 Recalculating groupedData - userRole:', userRole, 'tableData plays:', tableData?.plays?.length || 0);
+    
+    // Retornar datos para TODOS los roles, no solo admin
+    if (tableData && tableData.plays && tableData.plays.length > 0) {
+      console.log('[StatisticsScreen] ✅ Returning', tableData.plays.length, 'plays for role:', userRole);
+      console.log('[StatisticsScreen] 📊 Sample play data:', tableData.plays[0]); // Ver estructura del primer registro
       return tableData.plays;
     }
+    
+    console.log('[StatisticsScreen] ⚠️ Returning empty array - no data available');
     return [];
   }, [userRole, tableData]);
 

@@ -37,6 +37,8 @@ export const useAdminStatistics = (options = {}) => {
   // Detectar userId (se ejecuta cuando enabled cambia)
   useEffect(() => {
     const detectUserId = async () => {
+      console.log('[useAdminStatistics] detectUserId effect - enabled:', enabled);
+      
       if (!enabled) {
         setUserId(null); // Limpiar userId si se deshabilita
         return;
@@ -44,6 +46,7 @@ export const useAdminStatistics = (options = {}) => {
       
       try {
         const { data: { user } } = await supabase.auth.getUser();
+        console.log('[useAdminStatistics] User detected:', user?.id);
         if (user) {
           setUserId(user.id);
         }
@@ -60,8 +63,15 @@ export const useAdminStatistics = (options = {}) => {
    */
   const loadFromSupabase = async (userId, startDate, endDate) => {
     try {
+      console.log('[useAdminStatistics] loadFromSupabase CALLED');
+      console.log('[useAdminStatistics] Query params - userId:', userId);
+      console.log('[useAdminStatistics] Query params - startDate:', startDate);
+      console.log('[useAdminStatistics] Query params - endDate:', endDate);
+      
       const startStr = formatDateForQuery(startDate);
       const endStr = formatDateForQuery(endDate);
+      
+      console.log('[useAdminStatistics] Formatted dates - start:', startStr, 'end:', endStr);
 
       let allPlaysData = [];
       let page = 0;
@@ -69,6 +79,9 @@ export const useAdminStatistics = (options = {}) => {
       let hasMore = true;
       
       while (hasMore) {
+        console.log('[useAdminStatistics] 🔍 Fetching page', page, 'from Supabase...');
+        console.log('[useAdminStatistics] Query: v_estadisticas WHERE id_banco =', userId);
+        
         const { data: playsData, error } = await supabase
           .from('v_estadisticas')
           .select('*')
@@ -78,26 +91,39 @@ export const useAdminStatistics = (options = {}) => {
           .order('fecha_jugada', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
+        console.log('[useAdminStatistics] 📊 Page', page, 'result - data:', playsData?.length || 0, 'error:', error);
+
         if (error) {
-          console.error('[useAdminStatistics] Error loading from Supabase:', error);
+          console.error('[useAdminStatistics] ❌ Supabase error:', error);
+          console.error('[useAdminStatistics] Error message:', error.message);
+          console.error('[useAdminStatistics] Error details:', error.details);
+          console.error('[useAdminStatistics] Error hint:', error.hint);
           throw error;
         }
         
         if (playsData && playsData.length > 0) {
+          console.log('[useAdminStatistics] ✅ Page', page, 'has', playsData.length, 'records');
           allPlaysData = allPlaysData.concat(playsData);
           hasMore = playsData.length === pageSize;
           page++;
         } else {
+          console.log('[useAdminStatistics] ⚠️ Page', page, 'is empty - stopping pagination');
           hasMore = false;
         }
         
         // Límite de seguridad
-        if (page > 250) break;
+        if (page > 250) {
+          console.log('[useAdminStatistics] ⚠️ Safety limit reached at page 250');
+          break;
+        }
       }
 
+      console.log('[useAdminStatistics] 🎉 Total loaded from Supabase:', allPlaysData.length, 'plays');
       return allPlaysData || [];
     } catch (error) {
-      console.error('[useAdminStatistics] Exception in loadFromSupabase:', error);
+      console.error('[useAdminStatistics] ❌ Exception in loadFromSupabase:', error);
+      console.error('[useAdminStatistics] Exception message:', error.message);
+      console.error('[useAdminStatistics] Exception stack:', error.stack);
       throw error;
     }
   };
@@ -106,11 +132,22 @@ export const useAdminStatistics = (options = {}) => {
    * Cargar datos con estrategia de caché inteligente
    */
   const loadPlaysData = async (filters = {}) => {
-    if (!userId || !enabled) return;
-    if (loadingRef.current) return;
+    console.log('[useAdminStatistics] loadPlaysData called with filters:', filters);
+    console.log('[useAdminStatistics] Current state - userId:', userId, 'enabled:', enabled);
+    
+    if (!userId || !enabled) {
+      console.log('[useAdminStatistics] Skipping load - missing userId or not enabled');
+      return;
+    }
+    
+    if (loadingRef.current) {
+      console.log('[useAdminStatistics] Skipping load - already loading');
+      return;
+    }
 
     loadingRef.current = true;
     setIsLoading(true);
+    console.log('[useAdminStatistics] Starting data load...');
 
     try {
       const {
@@ -125,15 +162,18 @@ export const useAdminStatistics = (options = {}) => {
         endDate
       });
 
+      console.log('[useAdminStatistics] Cache read result:', cachedPlays.length, 'plays');
+
       if (cachedPlays.length > 0 && !forceRefresh) {
-        console.log(`[useAdminStatistics] Loaded ${cachedPlays.length} plays from cache`);
+        console.log(`[useAdminStatistics] ✅ Using cached data: ${cachedPlays.length} plays`);
         setTableData({ plays: cachedPlays });
 
         // Verificar si necesita actualización incremental
         const needsUpdate = await SQLiteCache.needsIncrementalUpdate(userId, 'admin');
+        console.log('[useAdminStatistics] Needs incremental update:', needsUpdate);
         
         if (needsUpdate) {
-          console.log('[useAdminStatistics] Starting incremental update...');
+          console.log('[useAdminStatistics] 🔄 Starting incremental update in background...');
           updateTodayInBackground(userId);
         }
 
@@ -143,7 +183,8 @@ export const useAdminStatistics = (options = {}) => {
       }
 
       // 2. No hay caché o forceRefresh: cargar desde Supabase
-      console.log('[useAdminStatistics] Loading from Supabase...');
+      console.log('[useAdminStatistics] 📡 No cache or forceRefresh - loading from Supabase...');
+      console.log('[useAdminStatistics] Date range: last 30 days');
       
       const cacheStart = new Date();
       cacheStart.setDate(cacheStart.getDate() - (CACHE_DAYS - 1));
@@ -152,29 +193,43 @@ export const useAdminStatistics = (options = {}) => {
       const cacheEnd = new Date();
       cacheEnd.setHours(23, 59, 59, 999);
 
+      console.log('[useAdminStatistics] Calling loadFromSupabase with range:', cacheStart, 'to', cacheEnd);
       const playsData = await loadFromSupabase(userId, cacheStart, cacheEnd);
+
+      console.log('[useAdminStatistics] 📥 Loaded from Supabase:', playsData.length, 'plays');
 
       // 3. Guardar en caché SQLite
       if (playsData.length > 0) {
+        console.log('[useAdminStatistics] 💾 Saving to SQLite cache...');
         await SQLiteCache.savePlaysToCache(userId, 'admin', playsData);
         await SQLiteCache.updateIncrementalTimestamp(userId, 'admin');
+        console.log('[useAdminStatistics] ✅ Saved to cache');
+      } else {
+        console.log('[useAdminStatistics] ⚠️ No data from Supabase');
       }
 
       // 4. Filtrar por el rango solicitado
+      console.log('[useAdminStatistics] 🎯 Filtering plays for date range:', startDate, 'to', endDate);
       const filteredPlays = playsData.filter(play => {
         const playDate = new Date(play.fecha_jugada);
         return playDate >= startDate && playDate <= endDate;
       });
 
+      console.log('[useAdminStatistics] 🎯 Filtered result:', filteredPlays.length, 'plays for requested range');
       setTableData({ plays: filteredPlays });
 
       // 5. Limpiar registros antiguos
+      console.log('[useAdminStatistics] 🧹 Cleaning old records...');
       await SQLiteCache.cleanOldRecords(userId, 'admin');
+      console.log('[useAdminStatistics] ✅ Cleaned old records');
 
     } catch (error) {
-      console.error('[useAdminStatistics] Error loading plays:', error);
+      console.error('[useAdminStatistics] ❌ Error loading plays:', error);
+      console.error('[useAdminStatistics] Error details:', error.message);
+      console.error('[useAdminStatistics] Stack:', error.stack);
       setTableData({ plays: [] });
     } finally {
+      console.log('[useAdminStatistics] ✅ Load complete - setting loading=false');
       setIsLoading(false);
       loadingRef.current = false;
     }
@@ -228,6 +283,8 @@ export const useAdminStatistics = (options = {}) => {
    * Aplicar filtros
    */
   const applyFilters = async (filters = {}) => {
+    console.log('[useAdminStatistics] 🔧 applyFilters CALLED with:', filters);
+    
     const {
       startDate,
       endDate,
@@ -235,14 +292,22 @@ export const useAdminStatistics = (options = {}) => {
     } = filters;
 
     if (startDate && endDate) {
+      console.log('[useAdminStatistics] Setting date range:', startDate, 'to', endDate);
       setDateRange({ startDate, endDate });
     }
 
+    const finalStartDate = startDate || dateRange.startDate;
+    const finalEndDate = endDate || dateRange.endDate;
+    
+    console.log('[useAdminStatistics] Calling loadPlaysData with final range:', finalStartDate, 'to', finalEndDate, 'forceRefresh:', forceRefresh);
+
     await loadPlaysData({
-      startDate: startDate || dateRange.startDate,
-      endDate: endDate || dateRange.endDate,
+      startDate: finalStartDate,
+      endDate: finalEndDate,
       forceRefresh
     });
+    
+    console.log('[useAdminStatistics] ✅ applyFilters completed');
   };
 
   /**

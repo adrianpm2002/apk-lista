@@ -57,16 +57,26 @@ const useStatistics = () => {
 
   // Función para obtener el hook activo según el rol
   const getActiveStats = () => {
+    console.log('[useStatistics] getActiveStats - userRole:', userRole);
+    let stats;
     switch (userRole) {
       case 'collector':
       case 'colector':
-        return collectorStats;
+        console.log('[useStatistics] Returning collectorStats');
+        stats = collectorStats;
+        break;
       case 'admin':
-        return adminStats;
+        console.log('[useStatistics] Returning adminStats');
+        stats = adminStats;
+        break;
       case 'listero':
       default:
-        return listeroStats;
+        console.log('[useStatistics] Returning listeroStats (default)');
+        stats = listeroStats;
+        break;
     }
+    console.log('[useStatistics] Active stats data:', stats.tableData?.plays?.length || 0, 'plays');
+    return stats;
   };
 
   const activeStats = getActiveStats();
@@ -74,15 +84,23 @@ const useStatistics = () => {
   // Generar datos KPI básicos para compatibilidad
   const generateKpiData = () => {
     const plays = activeStats.tableData?.plays || [];
+    console.log('[useStatistics] 📊 generateKpiData - userRole:', userRole, 'plays:', plays.length);
+    
+    if (plays.length > 0) {
+      console.log('[useStatistics] 📊 Sample play for KPI:', plays[0]);
+      console.log('[useStatistics] 📊 Play object keys:', Object.keys(plays[0]));
+    }
     
     if (userRole === 'listero') {
       const totals = plays.reduce((acc, play) => {
         acc.totalBets += 1;
-        acc.totalAmount += play.bruto || 0;
-        acc.totalPrize += play.premio || 0;
-        acc.totalGain += play.ganancia || 0;
+        acc.totalAmount += Number(play.monto_total) || 0;  // monto_total en vez de bruto
+        acc.totalPrize += Number(play.monto_a_pagar) || 0; // monto_a_pagar en vez de premio
+        acc.totalGain += Number(play.ganancia_listero) || 0; // ganancia_listero en vez de ganancia
         return acc;
       }, { totalBets: 0, totalAmount: 0, totalPrize: 0, totalGain: 0 });
+
+      console.log('[useStatistics] 📊 Listero KPI totals:', totals);
 
       return [
         {
@@ -216,6 +234,10 @@ const useStatistics = () => {
 
   // Generar datos de gráfico básicos
   const generateChartData = () => {
+    const plays = activeStats.tableData?.plays || [];
+    console.log('[useStatistics] 📈 generateChartData - plays:', plays.length);
+    
+    // TODO: Implementar generación real de datos de gráfica basados en plays
     return {
       labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
       datasets: [{
@@ -267,6 +289,14 @@ const useStatistics = () => {
   };
 
   // Interface de compatibilidad con el hook original
+  const playsData = userRole === 'listero' ? (activeStats.tableData?.plays || []) : 
+                    userRole === 'collector' || userRole === 'colector' ? 
+                      (activeStats.tableData?.plays || []) : 
+                    userRole === 'admin' ? 
+                      (activeStats.tableData?.plays || []) : [];
+  
+  console.log('[useStatistics] 📤 Returning data - userRole:', userRole, 'plays:', playsData.length);
+  
   return {
     // Estados básicos
     // userRole removido - ahora se obtiene directamente en StatisticsScreen
@@ -281,13 +311,7 @@ const useStatistics = () => {
     tableData: {
       // Para colector y admin, usar los datos agrupados tal como vienen del hook
       // Para listero, usar plays directamente
-      plays: userRole === 'listero' ? (activeStats.tableData?.plays || []) : 
-             userRole === 'collector' || userRole === 'colector' ? 
-               // Para collector: devolver la estructura agrupada por listero
-               (activeStats.tableData?.plays || []) : 
-             userRole === 'admin' ? 
-               // Para admin: devolver la estructura jerárquica completa (bancos -> colectores -> listeros)
-               (activeStats.tableData?.plays || []) : []
+      plays: playsData
     },
     
     // Datos básicos - solo se muestran si hay datos reales
