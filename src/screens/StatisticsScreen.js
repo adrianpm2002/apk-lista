@@ -237,10 +237,16 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // ✅ CONSOLIDADO: Cargar datos iniciales solo cuando userId y userRole estén disponibles
   useEffect(() => {
+    console.log('[StatisticsScreen] Initialization effect - currentUserId:', currentUserId, 'userRole:', userRole);
+    
     if (currentUserId && userRole) {
+      console.log('[StatisticsScreen] 🚀 Initializing statistics...');
       const initialize = async () => {
+        console.log('[StatisticsScreen] Loading modo Santiago...');
         await loadModoSantiago();
+        console.log('[StatisticsScreen] Applying period filter: today');
         await applyPeriodFilter('today');
+        console.log('[StatisticsScreen] ✅ Initialization complete');
       };
       initialize();
     }
@@ -266,8 +272,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Períodos largos (mes/mes pasado) se cargan bajo demanda desde Supabase sin caché
 
   const applyPeriodFilter = async (period, customStart = null, customEnd = null, forceRefresh = false) => {
+    console.log('[StatisticsScreen] 📅 applyPeriodFilter called - period:', period, 'forceRefresh:', forceRefresh);
+    
     // Verificar que userId esté disponible antes de filtrar
     if (!currentUserId) {
+      console.log('[StatisticsScreen] ⚠️ Skipping - no currentUserId');
       return;
     }
 
@@ -284,6 +293,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     if (period === 'custom' && customStart && customEnd) {
       startDate = customStart;
       endDate = customEnd;
+      console.log('[StatisticsScreen] Custom period:', startDate, 'to', endDate);
     } else {
       // Calcular fechas según el período
       const now = new Date();
@@ -294,6 +304,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         case 'today':
           startDate = new Date(now);
           startDate.setHours(0, 0, 0, 0);
+          console.log('[StatisticsScreen] Period: TODAY');
           break;
           
         case 'yesterday':
@@ -303,35 +314,42 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           endDate = new Date(now);
           endDate.setDate(endDate.getDate() - 1);
           endDate.setHours(23, 59, 59, 999);
+          console.log('[StatisticsScreen] Period: YESTERDAY');
           break;
           
         case 'last7days':
           startDate = new Date(now);
           startDate.setDate(startDate.getDate() - 6);
           startDate.setHours(0, 0, 0, 0);
+          console.log('[StatisticsScreen] Period: LAST 7 DAYS');
           break;
           
         case 'last30days':
           startDate = new Date(now);
           startDate.setDate(startDate.getDate() - 29);
           startDate.setHours(0, 0, 0, 0);
+          console.log('[StatisticsScreen] Period: LAST 30 DAYS');
           break;
           
         default:
           // Por defecto, hoy
           startDate = new Date(now);
           startDate.setHours(0, 0, 0, 0);
+          console.log('[StatisticsScreen] Period: DEFAULT (today)');
       }
     }
     
+    console.log('[StatisticsScreen] Date range calculated:', startDate, 'to', endDate);
     setSelectedPeriod(period);
     
     // Pasar fechas concretas al hook
+    console.log('[StatisticsScreen] Calling applyFilters...');
     await applyFilters({
       startDate,
       endDate,
       forceRefresh
     });
+    console.log('[StatisticsScreen] ✅ applyPeriodFilter complete');
   };
 
   // Cargar rango personalizado directamente desde Supabase (fuera del cache)

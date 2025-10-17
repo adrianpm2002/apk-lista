@@ -139,17 +139,20 @@ export const useListeroStatistics = (options = {}) => {
         endDate
       });
 
+      console.log('[useListeroStatistics] Cache read result:', cachedPlays.length, 'plays');
+
       if (cachedPlays.length > 0 && !forceRefresh) {
         // Tenemos datos en caché
-        console.log(`[useListeroStatistics] Loaded ${cachedPlays.length} plays from cache`);
+        console.log(`[useListeroStatistics] ✅ Using cached data: ${cachedPlays.length} plays`);
         setTableData({ plays: cachedPlays });
 
         // Verificar si necesita actualización incremental (solo HOY)
         const needsUpdate = await SQLiteCache.needsIncrementalUpdate(userId, 'listero');
+        console.log('[useListeroStatistics] Needs incremental update:', needsUpdate);
         
         if (needsUpdate) {
           // Actualización incremental en background (solo hoy)
-          console.log('[useListeroStatistics] Starting incremental update...');
+          console.log('[useListeroStatistics] 🔄 Starting incremental update in background...');
           updateTodayInBackground(userId);
         }
 
@@ -159,7 +162,8 @@ export const useListeroStatistics = (options = {}) => {
       }
 
       // 2. No hay caché o forceRefresh: cargar desde Supabase
-      console.log('[useListeroStatistics] Loading from Supabase...');
+      console.log('[useListeroStatistics] 📡 No cache or forceRefresh - loading from Supabase...');
+      console.log('[useListeroStatistics] Date range: last 30 days');
       
       // Cargar últimos 30 días
       const cacheStart = new Date();
@@ -171,10 +175,16 @@ export const useListeroStatistics = (options = {}) => {
 
       const playsData = await loadFromSupabase(userId, cacheStart, cacheEnd);
 
+      console.log('[useListeroStatistics] 📥 Loaded from Supabase:', playsData.length, 'plays');
+
       // 3. Guardar en caché SQLite
       if (playsData.length > 0) {
+        console.log('[useListeroStatistics] 💾 Saving to SQLite cache...');
         await SQLiteCache.savePlaysToCache(userId, 'listero', playsData);
         await SQLiteCache.updateIncrementalTimestamp(userId, 'listero');
+        console.log('[useListeroStatistics] ✅ Saved to cache');
+      } else {
+        console.log('[useListeroStatistics] ⚠️ No data from Supabase');
       }
 
       // 4. Filtrar por el rango solicitado
@@ -183,15 +193,20 @@ export const useListeroStatistics = (options = {}) => {
         return playDate >= startDate && playDate <= endDate;
       });
 
+      console.log('[useListeroStatistics] 🎯 Filtered for requested range:', filteredPlays.length, 'plays');
+      console.log('[useListeroStatistics] Requested range:', startDate, 'to', endDate);
+
       setTableData({ plays: filteredPlays });
 
       // 5. Limpiar registros antiguos
       await SQLiteCache.cleanOldRecords(userId, 'listero');
 
     } catch (error) {
-      console.error('[useListeroStatistics] Error loading plays:', error);
+      console.error('[useListeroStatistics] ❌ Error loading plays:', error);
+      console.error('[useListeroStatistics] Error details:', error.message, error.stack);
       setTableData({ plays: [] });
     } finally {
+      console.log('[useListeroStatistics] ✅ Load complete - setting loading=false');
       setIsLoading(false);
       loadingRef.current = false;
     }
@@ -248,6 +263,8 @@ export const useListeroStatistics = (options = {}) => {
    * Aplicar filtros (cambia el rango de fechas y recarga)
    */
   const applyFilters = async (filters = {}) => {
+    console.log('[useListeroStatistics] 🔍 applyFilters called with:', filters);
+    
     const {
       startDate,
       endDate,
@@ -255,9 +272,11 @@ export const useListeroStatistics = (options = {}) => {
     } = filters;
 
     if (startDate && endDate) {
+      console.log('[useListeroStatistics] Setting new date range:', startDate, 'to', endDate);
       setDateRange({ startDate, endDate });
     }
 
+    console.log('[useListeroStatistics] Calling loadPlaysData...');
     await loadPlaysData({
       startDate: startDate || dateRange.startDate,
       endDate: endDate || dateRange.endDate,
