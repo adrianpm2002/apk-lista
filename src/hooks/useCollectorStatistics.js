@@ -15,6 +15,50 @@ const formatDateForQuery = (date) => {
 
 const CACHE_DAYS = 30; // Cachear últimos 30 días
 
+/**
+ * Agrupar datos para vista de colector
+ * Los datos vienen planos de v_estadisticas, necesitamos agruparlos por listero
+ */
+const groupDataForCollector = (rawData) => {
+  if (!rawData || rawData.length === 0) {
+    return [];
+  }
+
+  // Agrupar por listero
+  const listeroGroups = {};
+  
+  rawData.forEach(record => {
+    const listeroId = record.id_listero;
+    const listeroName = record.listero_username || `Listero ${listeroId}`;
+    
+    if (!listeroGroups[listeroId]) {
+      listeroGroups[listeroId] = {
+        id: listeroId,
+        listero_name: listeroName,
+        plays: [],
+        total_bruto: 0,
+        total_premio: 0,
+        total_ganancia_listero: 0,
+        total_ganancia_colector: 0,
+        balance_colector: 0
+      };
+    }
+    
+    listeroGroups[listeroId].plays.push(record);
+  });
+
+  // Calcular totales por listero
+  Object.values(listeroGroups).forEach(group => {
+    group.total_bruto = group.plays.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
+    group.total_premio = group.plays.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
+    group.total_ganancia_listero = group.plays.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
+    group.total_ganancia_colector = group.plays.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
+    group.balance_colector = group.plays.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
+  });
+
+  return Object.values(listeroGroups);
+};
+
 export const useCollectorStatistics = (options = {}) => {
   const { enabled = true } = options;
   
@@ -194,7 +238,13 @@ export const useCollectorStatistics = (options = {}) => {
 
       if (cachedPlays.length > 0 && !forceRefresh) {
         console.log(`[useCollectorStatistics] ✅ Using cached data: ${cachedPlays.length} plays`);
-        setTableData({ plays: cachedPlays });
+        
+        // Agrupar datos del cache
+        console.log('[useCollectorStatistics] 🔄 Grouping cached data by listero...');
+        const groupedCachedData = groupDataForCollector(cachedPlays);
+        console.log('[useCollectorStatistics] 📦 Grouped cached data into', groupedCachedData.length, 'listeros');
+        
+        setTableData({ plays: groupedCachedData });
 
         // Verificar si necesita actualización incremental
         const needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'collector');
@@ -244,9 +294,15 @@ export const useCollectorStatistics = (options = {}) => {
       });
 
       console.log('[useCollectorStatistics] 🎯 Filtered result:', filteredPlays.length, 'plays for requested range');
-      setTableData({ plays: filteredPlays });
+      
+      // 5. Agrupar por listero para compatibilidad con UI
+      console.log('[useCollectorStatistics] 🔄 Grouping data by listero...');
+      const groupedData = groupDataForCollector(filteredPlays);
+      console.log('[useCollectorStatistics] 📦 Grouped into', groupedData.length, 'listeros');
+      
+      setTableData({ plays: groupedData });
 
-      // 5. Limpiar registros antiguos
+      // 6. Limpiar registros antiguos
       console.log('[useCollectorStatistics] 🧹 Cleaning old records...');
       await SQLiteCache.cleanOldRecords(effectiveUserId, 'collector');
       console.log('[useCollectorStatistics] ✅ Cleaned old records');
@@ -295,7 +351,13 @@ export const useCollectorStatistics = (options = {}) => {
             startDate,
             endDate
           });
-          setTableData({ plays: cachedPlays });
+          
+          // Agrupar datos del cache
+          console.log('[useCollectorStatistics] 🔄 Grouping updated cached data by listero...');
+          const groupedCachedData = groupDataForCollector(cachedPlays);
+          console.log('[useCollectorStatistics] 📦 Grouped updated data into', groupedCachedData.length, 'listeros');
+          
+          setTableData({ plays: groupedCachedData });
         }
 
         console.log(`[useCollectorStatistics] Incremental update completed: ${todayPlays.length} plays`);

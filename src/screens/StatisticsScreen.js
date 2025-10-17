@@ -663,6 +663,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     if ((userRole === 'collector' || userRole === 'admin') && (activeTab === 'charts' || activeTab === 'details') && tableData?.plays) {
       let allPlays = [];
       if (userRole === 'collector' || userRole === 'colector') {
+        // Para colector, los datos vienen agrupados por listero
         const collectorData = tableData.plays || [];
         collectorData.forEach(listero => {
           if (listero.plays && Array.isArray(listero.plays)) {
