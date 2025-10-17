@@ -1442,6 +1442,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Renderizar contenido del tab de detalles
   const renderDetailsTab = () => {
+    // 🎯 FIX: Validación temprana para evitar errores de renderizado
+    if (!tableData?.plays || tableData.plays.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No hay datos para mostrar</Text>
+        </View>
+      );
+    }
+
     // Para collector y admin, mostrar desplegables de agrupación
     if (userRole === 'collector' || userRole === 'admin') {
       return renderRoleBasedDetailsTab();
