@@ -396,6 +396,12 @@ export const useCollectorStatistics = (options = {}) => {
       });
       
       const groupedData = groupDataForCollector(filteredPlays);
+      console.log('🐛 [DEBUG COLLECTOR] 🔍 Después de agrupar:', groupedData.length, 'listeros');
+      if (groupedData.length > 0) {
+        const totalJugadas = groupedData.reduce((sum, listero) => sum + (listero.plays?.length || 0), 0);
+        console.log('🐛 [DEBUG COLLECTOR] 🔍 Total de jugadas en grupos:', totalJugadas);
+        console.log('🐛 [DEBUG COLLECTOR] 🔍 Primer listero:', groupedData[0].listero_name, 'con', groupedData[0].plays?.length, 'jugadas');
+      }
       setTableData({ plays: groupedData });
 
       // 6. Limpiar registros antiguos
