@@ -1155,6 +1155,56 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           </View>
         )}
         
+        {/* KPIs para collector y admin - SIEMPRE visible, incluso con $0.00 */}
+        {(userRole === 'collector' || userRole === 'colector' || userRole === 'admin') && (() => {
+          // Calcular totales del período desde allPlays (datos reales)
+          const playsInPeriod = allPlays || [];
+          
+          const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
+          const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
+          const totalGananciaListero = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
+          
+          let totalGanancia = 0;
+          let totalBalance = 0;
+          
+          if (userRole === 'collector' || userRole === 'colector') {
+            totalGanancia = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
+            totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
+          } else if (userRole === 'admin') {
+            totalGanancia = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
+            totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
+          }
+          
+          // Cálculo Limpio: Bruto - Ganancia Listero (para todos los roles)
+          const totalLimpio = totalBruto - totalGananciaListero;
+          
+          return (
+            <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16, marginBottom:8 }}>
+              <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Bruto')}</Text>
+                <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatSantiagoMoney(totalBruto)}</Text>
+              </View>
+              
+              <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Limpio')}</Text>
+                <Text style={{ fontSize:16, fontWeight:'800', color:'#3498db' }}>{formatSantiagoMoney(totalLimpio)}</Text>
+              </View>
+              
+              {(userRole === 'collector' || userRole === 'colector') && (
+                <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                  <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Ganancia')}</Text>
+                  <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatSantiagoMoney(totalGanancia)}</Text>
+                </View>
+              )}
+              
+              <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Balance')}</Text>
+                <Text style={{ fontSize:16, fontWeight:'800', color: getSantiagoValue(totalBalance)>=0? '#27AE60':'#e74c3c' }}>{formatSantiagoMoney(totalBalance)}</Text>
+              </View>
+            </View>
+          );
+        })()}
+        
         {/* Gráfico de Balance basado en datos reales por día */}
         {filteredPlays && filteredPlays.length > 0 && (()=>{
           const fmtShort = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
@@ -1281,67 +1331,18 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 data={series}
                 height={260}
               />
-              {/* KPIs del período debajo del gráfico */}
-              {(() => {
-                // Calcular totales del período desde allPlays (datos reales)
-                const playsInPeriod = allPlays || [];
-                
-                const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
-                const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
-                const totalGananciaListero = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
-                
-                let totalGanancia = 0;
-                let totalBalance = 0;
-                
-                if (userRole === 'collector' || userRole === 'colector') {
-                  totalGanancia = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
-                  totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
-                } else if (userRole === 'admin') {
-                  totalGanancia = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
-                  totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
-                }
-                
-                // Cálculo Limpio: Bruto - Ganancia Listero (para todos los roles)
-                const totalLimpio = totalBruto - totalGananciaListero;
-                
-                return (
-                  <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', marginHorizontal:8, marginTop:16 }}>
-                    <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                      <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Bruto')}</Text>
-                      <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatSantiagoMoney(totalBruto)}</Text>
-                    </View>
-                    
-                    <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                      <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Limpio')}</Text>
-                      <Text style={{ fontSize:16, fontWeight:'800', color:'#3498db' }}>{formatSantiagoMoney(totalLimpio)}</Text>
-                    </View>
-                    
-                    {(userRole === 'collector' || userRole === 'colector') && (
-                      <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                        <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Ganancia')}</Text>
-                        <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatSantiagoMoney(totalGanancia)}</Text>
-                      </View>
-                    )}
-                    
-                    <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                      <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Balance')}</Text>
-                      <Text style={{ fontSize:16, fontWeight:'800', color: getSantiagoValue(totalBalance)>=0? '#27AE60':'#e74c3c' }}>{formatSantiagoMoney(totalBalance)}</Text>
-                    </View>
-                  </View>
-                );
-              })()}
             </View>
           );
         })()}
         
-        {/* Mensaje cuando no hay datos */}
+        {/* Mensaje cuando no hay datos para gráfico */}
         {(!allPlays || allPlays.length === 0) && (
-          <View style={[styles.kpiCard, { backgroundColor: '#f8f9fa' }]}>
+          <View style={[styles.kpiCard, { backgroundColor: '#f8f9fa', marginTop: 8 }]}>
             <Text style={[styles.kpiTitle, { color: '#333333' }]}>
-              📊 Sin Datos
+              📊 Sin Datos para Gráfico
             </Text>
             <Text style={[styles.kpiValue, { color: '#666666' }]}>
-              No hay datos para mostrar en el período seleccionado
+              No hay jugadas en el período seleccionado para mostrar el gráfico
             </Text>
           </View>
         )}
