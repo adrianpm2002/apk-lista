@@ -156,12 +156,18 @@ export const useListeroStatistics = (options = {}) => {
       } = filters;
 
       // 1. Intentar leer del caché SQLite primero
-      const cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'listero', {
-        startDate,
-        endDate
-      });
-
-      console.log('[useListeroStatistics] Cache read result:', cachedPlays.length, 'plays');
+      let cachedPlays = [];
+      try {
+        cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'listero', {
+          startDate,
+          endDate
+        });
+        console.log('[useListeroStatistics] Cache read result:', cachedPlays.length, 'plays');
+      } catch (cacheError) {
+        console.error('[useListeroStatistics] ⚠️ Error reading from cache:', cacheError);
+        console.log('[useListeroStatistics] Continuing without cache...');
+        cachedPlays = [];
+      }
 
       if (cachedPlays.length > 0 && !forceRefresh) {
         // Tenemos datos en caché
@@ -169,8 +175,13 @@ export const useListeroStatistics = (options = {}) => {
         setTableData({ plays: cachedPlays });
 
         // Verificar si necesita actualización incremental (solo HOY)
-        const needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'listero');
-        console.log('[useListeroStatistics] Needs incremental update:', needsUpdate);
+        let needsUpdate = false;
+        try {
+          needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'listero');
+          console.log('[useListeroStatistics] Needs incremental update:', needsUpdate);
+        } catch (cacheError) {
+          console.error('[useListeroStatistics] ⚠️ Error checking incremental update:', cacheError);
+        }
         
         if (needsUpdate) {
           // Actualización incremental en background (solo hoy)
@@ -201,10 +212,15 @@ export const useListeroStatistics = (options = {}) => {
 
       // 3. Guardar en caché SQLite
       if (playsData.length > 0) {
-        console.log('[useListeroStatistics] 💾 Saving to SQLite cache...');
-        await SQLiteCache.savePlaysToCache(effectiveUserId, 'listero', playsData);
-        await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'listero');
-        console.log('[useListeroStatistics] ✅ Saved to cache');
+        try {
+          console.log('[useListeroStatistics] 💾 Saving to SQLite cache...');
+          await SQLiteCache.savePlaysToCache(effectiveUserId, 'listero', playsData);
+          await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'listero');
+          console.log('[useListeroStatistics] ✅ Saved to cache');
+        } catch (cacheError) {
+          console.error('[useListeroStatistics] ⚠️ Error saving to cache:', cacheError);
+          console.log('[useListeroStatistics] Continuing without cache...');
+        }
       } else {
         console.log('[useListeroStatistics] ⚠️ No data from Supabase');
       }
@@ -221,7 +237,11 @@ export const useListeroStatistics = (options = {}) => {
       setTableData({ plays: filteredPlays });
 
       // 5. Limpiar registros antiguos
-      await SQLiteCache.cleanOldRecords(effectiveUserId, 'listero');
+      try {
+        await SQLiteCache.cleanOldRecords(effectiveUserId, 'listero');
+      } catch (cacheError) {
+        console.error('[useListeroStatistics] ⚠️ Error cleaning old records:', cacheError);
+      }
 
     } catch (error) {
       console.error('[useListeroStatistics] ❌ Error loading plays:', error);
@@ -253,8 +273,13 @@ export const useListeroStatistics = (options = {}) => {
       const todayPlays = await loadFromSupabase(userId, updateStart, todayEnd);
 
       if (todayPlays.length > 0) {
-        await SQLiteCache.savePlaysToCache(userId, 'listero', todayPlays);
-        await SQLiteCache.updateIncrementalTimestamp(userId, 'listero');
+        try {
+          await SQLiteCache.savePlaysToCache(userId, 'listero', todayPlays);
+          await SQLiteCache.updateIncrementalTimestamp(userId, 'listero');
+        } catch (cacheError) {
+          console.error('[useListeroStatistics] ⚠️ Error in incremental update cache save:', cacheError);
+          return;
+        }
         
         // Refrescar datos si está viendo hoy
         const { startDate, endDate } = dateRange;
@@ -264,18 +289,26 @@ export const useListeroStatistics = (options = {}) => {
           startDate.getFullYear() === today.getFullYear();
 
         if (isViewingToday) {
-          const cachedPlays = await SQLiteCache.readPlaysFromCache(userId, 'listero', {
-            startDate,
-            endDate
-          });
-          setTableData({ plays: cachedPlays });
+          try {
+            const cachedPlays = await SQLiteCache.readPlaysFromCache(userId, 'listero', {
+              startDate,
+              endDate
+            });
+            setTableData({ plays: cachedPlays });
+          } catch (cacheError) {
+            console.error('[useListeroStatistics] ⚠️ Error reading cache in incremental update:', cacheError);
+          }
         }
 
         console.log(`[useListeroStatistics] Incremental update completed: ${todayPlays.length} plays`);
       }
 
       // Limpiar registros antiguos
-      await SQLiteCache.cleanOldRecords(userId, 'listero');
+      try {
+        await SQLiteCache.cleanOldRecords(userId, 'listero');
+      } catch (cacheError) {
+        console.error('[useListeroStatistics] ⚠️ Error cleaning in incremental update:', cacheError);
+      }
     } catch (error) {
       console.error('[useListeroStatistics] Error in incremental update:', error);
     }

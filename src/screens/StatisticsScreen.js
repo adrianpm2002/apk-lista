@@ -19,6 +19,7 @@ import StatisticsChart from '../components/StatisticsChart';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import ScreenWrapper from '../components/ScreenWrapper';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { createShadowStyle } from '../utils/shadowUtils';
 
 // Importación condicional para exportación PDF
@@ -46,12 +47,14 @@ const getBalanceTextStyle = (balance, baseStyle) => {
 const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
   
   return (
-    <ScreenWrapper>
-      <StatisticsContent
-        navigation={navigation}
-        onModeVisibilityChange={onModeVisibilityChange}
-      />
-    </ScreenWrapper>
+    <ErrorBoundary>
+      <ScreenWrapper>
+        <StatisticsContent
+          navigation={navigation}
+          onModeVisibilityChange={onModeVisibilityChange}
+        />
+      </ScreenWrapper>
+    </ErrorBoundary>
   );
 };
 

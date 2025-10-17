@@ -83,15 +83,21 @@ const useStatistics = () => {
 
   // Generar datos KPI básicos para compatibilidad
   const generateKpiData = () => {
-    const plays = activeStats.tableData?.plays || [];
-    console.log('[useStatistics] 📊 generateKpiData - userRole:', userRole, 'plays:', plays.length);
-    
-    if (plays.length > 0) {
-      console.log('[useStatistics] 📊 Sample play for KPI:', plays[0]);
-      console.log('[useStatistics] 📊 Play object keys:', Object.keys(plays[0]));
-    }
-    
-    if (userRole === 'listero') {
+    try {
+      const plays = activeStats.tableData?.plays || [];
+      console.log('[useStatistics] 📊 generateKpiData - userRole:', userRole, 'plays:', plays.length);
+      
+      if (!Array.isArray(plays)) {
+        console.error('[useStatistics] ❌ plays is not an array:', typeof plays);
+        return [];
+      }
+      
+      if (plays.length > 0) {
+        console.log('[useStatistics] 📊 Sample play for KPI:', plays[0]);
+        console.log('[useStatistics] 📊 Play object keys:', plays[0] ? Object.keys(plays[0]) : 'null play');
+      }
+      
+      if (userRole === 'listero') {
       const totals = plays.reduce((acc, play) => {
         const bruto = Number(play.monto_total) || 0;
         const ganancia = Number(play.ganancia_listero) || 0;
@@ -252,57 +258,88 @@ const useStatistics = () => {
     }
 
     return [];
+    } catch (error) {
+      console.error('[useStatistics] ❌ Error in generateKpiData:', error);
+      console.error('[useStatistics] Stack:', error.stack);
+      return [];
+    }
   };
 
   // Generar datos de gráfico básicos
   const generateChartData = () => {
-    const plays = activeStats.tableData?.plays || [];
-    console.log('[useStatistics] 📈 generateChartData - plays:', plays.length);
-    
-    // TODO: Implementar generación real de datos de gráfica basados en plays
-    return {
-      labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
-      datasets: [{
-        data: [0, 0, 0, 0, 0, 0, 0]
-      }]
-    };
+    try {
+      const plays = activeStats.tableData?.plays || [];
+      console.log('[useStatistics] 📈 generateChartData - plays:', plays.length);
+      
+      // TODO: Implementar generación real de datos de gráfica basados en plays
+      return {
+        labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+        datasets: [{
+          data: [0, 0, 0, 0, 0, 0, 0]
+        }]
+      };
+    } catch (error) {
+      console.error('[useStatistics] ❌ Error in generateChartData:', error);
+      return {
+        labels: [],
+        datasets: [{ data: [] }]
+      };
+    }
   };
 
   // Funciones de compatibilidad
   const loadAllStats = async () => {
-    // Guard: No ejecutar si no hay userId
-    if (!userId) {
-      return;
-    }
-    
-    if (activeStats.loadPlaysData) {
-      return activeStats.loadPlaysData({
-        startDate: activeStats.dateRange?.startDate || new Date(new Date().setHours(0, 0, 0, 0)),
-        endDate: activeStats.dateRange?.endDate || new Date(new Date().setHours(23, 59, 59, 999))
-      });
+    try {
+      // Guard: No ejecutar si no hay userId
+      if (!userId) {
+        console.log('[useStatistics] loadAllStats - no userId');
+        return;
+      }
+      
+      if (activeStats.loadPlaysData) {
+        return activeStats.loadPlaysData({
+          startDate: activeStats.dateRange?.startDate || new Date(new Date().setHours(0, 0, 0, 0)),
+          endDate: activeStats.dateRange?.endDate || new Date(new Date().setHours(23, 59, 59, 999))
+        });
+      }
+    } catch (error) {
+      console.error('[useStatistics] ❌ Error in loadAllStats:', error);
+      console.error('[useStatistics] Stack:', error.stack);
     }
   };
 
   const loadPlaysData = async (filters = {}) => {
-    // Guard: No ejecutar si no hay userId
-    if (!userId) {
-      return;
-    }
-    
-    if (activeStats.loadPlaysData) {
-      return activeStats.loadPlaysData(filters);
+    try {
+      // Guard: No ejecutar si no hay userId
+      if (!userId) {
+        console.log('[useStatistics] loadPlaysData - no userId');
+        return;
+      }
+      
+      if (activeStats.loadPlaysData) {
+        return activeStats.loadPlaysData(filters);
+      }
+    } catch (error) {
+      console.error('[useStatistics] ❌ Error in loadPlaysData:', error);
+      console.error('[useStatistics] Stack:', error.stack);
     }
   };
 
   const applyFilters = async (filters = {}) => {
-    // Guard: No ejecutar si no hay userId
-    if (!userId) {
-      return;
-    }
-    
-    if (activeStats.applyFilters) {
-      // Pasar filtros directamente al hook específico
-      return activeStats.applyFilters(filters);
+    try {
+      // Guard: No ejecutar si no hay userId
+      if (!userId) {
+        console.log('[useStatistics] applyFilters - no userId');
+        return;
+      }
+      
+      if (activeStats.applyFilters) {
+        // Pasar filtros directamente al hook específico
+        return activeStats.applyFilters(filters);
+      }
+    } catch (error) {
+      console.error('[useStatistics] ❌ Error in applyFilters:', error);
+      console.error('[useStatistics] Stack:', error.stack);
     }
   };
 
@@ -311,11 +348,22 @@ const useStatistics = () => {
   };
 
   // Interface de compatibilidad con el hook original
-  const playsData = userRole === 'listero' ? (activeStats.tableData?.plays || []) : 
-                    userRole === 'collector' || userRole === 'colector' ? 
-                      (activeStats.tableData?.plays || []) : 
-                    userRole === 'admin' ? 
-                      (activeStats.tableData?.plays || []) : [];
+  let playsData = [];
+  try {
+    playsData = userRole === 'listero' ? (activeStats.tableData?.plays || []) : 
+                      userRole === 'collector' || userRole === 'colector' ? 
+                        (activeStats.tableData?.plays || []) : 
+                      userRole === 'admin' ? 
+                        (activeStats.tableData?.plays || []) : [];
+    
+    if (!Array.isArray(playsData)) {
+      console.error('[useStatistics] ❌ playsData is not an array:', typeof playsData);
+      playsData = [];
+    }
+  } catch (error) {
+    console.error('[useStatistics] ❌ Error getting playsData:', error);
+    playsData = [];
+  }
   
   console.log('[useStatistics] 📤 Returning data - userRole:', userRole, 'plays:', playsData.length);
   
