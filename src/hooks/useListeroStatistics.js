@@ -37,27 +37,20 @@ export const useListeroStatistics = (options = {}) => {
   // Detectar userId y auto-cargar datos (se ejecuta cuando enabled cambia)
   useEffect(() => {
     const initializeData = async () => {
-      console.log('[useListeroStatistics] Initialize effect - enabled:', enabled);
-      
       if (!enabled) {
         setUserId(null); // Limpiar userId si se deshabilita
         return;
       }
       
       if (loadingRef.current) {
-        console.log('[useListeroStatistics] Already loading, skipping...');
         return;
       }
       
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        console.log('[useListeroStatistics] User detected:', user?.id);
         
         if (user) {
           setUserId(user.id);
-          
-          // Auto-cargar datos inmediatamente después de detectar userId
-          console.log('[useListeroStatistics] 🚀 Auto-loading data for userId:', user.id);
           
           const endDate = new Date();
           const startDate = new Date();
@@ -71,7 +64,7 @@ export const useListeroStatistics = (options = {}) => {
           }, user.id);
         }
       } catch (error) {
-        console.error('[useListeroStatistics] Error detecting userId:', error);
+        // Error silencioso
       }
     };
 
@@ -120,7 +113,6 @@ export const useListeroStatistics = (options = {}) => {
 
       return allPlaysData || [];
     } catch (error) {
-      console.error('[useListeroStatistics] Exception in loadFromSupabase:', error);
       throw error;
     }
   };
@@ -131,16 +123,11 @@ export const useListeroStatistics = (options = {}) => {
   const loadPlaysData = async (filters = {}, userIdOverride = null) => {
     const effectiveUserId = userIdOverride || userId;
     
-    console.log('[useListeroStatistics] loadPlaysData called with filters:', filters);
-    console.log('[useListeroStatistics] Current state - userId:', effectiveUserId, 'enabled:', enabled);
-    
     if (!effectiveUserId || !enabled) {
-      console.log('[useListeroStatistics] Skipping load - missing userId or not enabled');
       return;
     }
     
     if (loadingRef.current) {
-      console.log('[useListeroStatistics] Skipping load - already loading');
       return; // Evitar cargas simultáneas
     }
 
@@ -162,24 +149,16 @@ export const useListeroStatistics = (options = {}) => {
           startDate,
           endDate
         });
-        console.log('[useListeroStatistics] Cache read result:', cachedPlays.length, 'plays');
       } catch (cacheError) {
-        console.error('[useListeroStatistics] ⚠️ Error reading from cache:', cacheError);
-        console.log('[useListeroStatistics] Continuing without cache...');
         cachedPlays = [];
       }
 
       if (cachedPlays.length > 0 && !forceRefresh) {
-        // Tenemos datos en caché
-        console.log(`[useListeroStatistics] ✅ Using cached data: ${cachedPlays.length} plays`);
-        
         // 🔧 FIX: Filtrar datos del caché por el rango solicitado
-        console.log('[useListeroStatistics] 🎯 Filtering cached plays for date range:', startDate, 'to', endDate);
         const filteredCachedPlays = cachedPlays.filter(play => {
           const playDate = new Date(play.fecha_jugada);
           return playDate >= startDate && playDate <= endDate;
         });
-        console.log('[useListeroStatistics] 🎯 Filtered cached result:', filteredCachedPlays.length, 'plays for requested range');
         
         setTableData({ plays: filteredCachedPlays });
 
@@ -187,14 +166,11 @@ export const useListeroStatistics = (options = {}) => {
         let needsUpdate = false;
         try {
           needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'listero');
-          console.log('[useListeroStatistics] Needs incremental update:', needsUpdate);
         } catch (cacheError) {
-          console.error('[useListeroStatistics] ⚠️ Error checking incremental update:', cacheError);
+          // Error silencioso
         }
         
         if (needsUpdate) {
-          // Actualización incremental en background (solo hoy)
-          console.log('[useListeroStatistics] 🔄 Starting incremental update in background...');
           updateTodayInBackground(effectiveUserId);
         }
 
@@ -204,9 +180,6 @@ export const useListeroStatistics = (options = {}) => {
       }
 
       // 2. No hay caché o forceRefresh: cargar desde Supabase
-      console.log('[useListeroStatistics] 📡 No cache or forceRefresh - loading from Supabase...');
-      console.log('[useListeroStatistics] Date range: last 30 days');
-      
       // Cargar últimos 30 días
       const cacheStart = new Date();
       cacheStart.setDate(cacheStart.getDate() - (CACHE_DAYS - 1));
@@ -222,16 +195,11 @@ export const useListeroStatistics = (options = {}) => {
       // 3. Guardar en caché SQLite
       if (playsData.length > 0) {
         try {
-          console.log('[useListeroStatistics] 💾 Saving to SQLite cache...');
           await SQLiteCache.savePlaysToCache(effectiveUserId, 'listero', playsData);
           await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'listero');
-          console.log('[useListeroStatistics] ✅ Saved to cache');
         } catch (cacheError) {
-          console.error('[useListeroStatistics] ⚠️ Error saving to cache:', cacheError);
-          console.log('[useListeroStatistics] Continuing without cache...');
+          // Error silencioso
         }
-      } else {
-        console.log('[useListeroStatistics] ⚠️ No data from Supabase');
       }
 
       // 4. Filtrar por el rango solicitado
@@ -240,24 +208,18 @@ export const useListeroStatistics = (options = {}) => {
         return playDate >= startDate && playDate <= endDate;
       });
 
-      console.log('[useListeroStatistics] 🎯 Filtered for requested range:', filteredPlays.length, 'plays');
-      console.log('[useListeroStatistics] Requested range:', startDate, 'to', endDate);
-
       setTableData({ plays: filteredPlays });
 
       // 5. Limpiar registros antiguos
       try {
         await SQLiteCache.cleanOldRecords(effectiveUserId, 'listero');
       } catch (cacheError) {
-        console.error('[useListeroStatistics] ⚠️ Error cleaning old records:', cacheError);
+        // Error silencioso
       }
 
     } catch (error) {
-      console.error('[useListeroStatistics] ❌ Error loading plays:', error);
-      console.error('[useListeroStatistics] Error details:', error.message, error.stack);
       setTableData({ plays: [] });
     } finally {
-      console.log('[useListeroStatistics] ✅ Load complete - setting loading=false');
       setIsLoading(false);
       loadingRef.current = false;
     }
@@ -286,7 +248,6 @@ export const useListeroStatistics = (options = {}) => {
           await SQLiteCache.savePlaysToCache(userId, 'listero', todayPlays);
           await SQLiteCache.updateIncrementalTimestamp(userId, 'listero');
         } catch (cacheError) {
-          console.error('[useListeroStatistics] ⚠️ Error in incremental update cache save:', cacheError);
           return;
         }
         
@@ -305,21 +266,19 @@ export const useListeroStatistics = (options = {}) => {
             });
             setTableData({ plays: cachedPlays });
           } catch (cacheError) {
-            console.error('[useListeroStatistics] ⚠️ Error reading cache in incremental update:', cacheError);
+            // Error silencioso
           }
         }
-
-        console.log(`[useListeroStatistics] Incremental update completed: ${todayPlays.length} plays`);
       }
 
       // Limpiar registros antiguos
       try {
         await SQLiteCache.cleanOldRecords(userId, 'listero');
       } catch (cacheError) {
-        console.error('[useListeroStatistics] ⚠️ Error cleaning in incremental update:', cacheError);
+        // Error silencioso
       }
     } catch (error) {
-      console.error('[useListeroStatistics] Error in incremental update:', error);
+      // Error silencioso
     }
   };
 
@@ -327,8 +286,6 @@ export const useListeroStatistics = (options = {}) => {
    * Aplicar filtros (cambia el rango de fechas y recarga)
    */
   const applyFilters = async (filters = {}) => {
-    console.log('[useListeroStatistics] 🔍 applyFilters called with:', filters);
-    
     const {
       startDate,
       endDate,
@@ -339,16 +296,13 @@ export const useListeroStatistics = (options = {}) => {
       console.log('[useListeroStatistics] Setting new date range:', startDate, 'to', endDate);
       setDateRange({ startDate, endDate });
     }
-
-    console.log('[useListeroStatistics] Calling loadPlaysData...');
+    
     await loadPlaysData({
       startDate: startDate || dateRange.startDate,
       endDate: endDate || dateRange.endDate,
       forceRefresh
     });
-  };
-
-  /**
+  };  /**
    * Refrescar datos (pull-to-refresh)
    */
   const refresh = async () => {

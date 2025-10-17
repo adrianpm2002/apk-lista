@@ -15,22 +15,14 @@ const useStatistics = () => {
   const collectorStats = useCollectorStatistics({ enabled: userRole === 'collector' || userRole === 'colector' });
   const adminStats = useAdminStatistics({ enabled: userRole === 'admin' });
 
-  console.log('[useStatistics] Current state - userRole:', userRole, 'userId:', userId);
-  console.log('[useStatistics] listeroStats enabled:', userRole === 'listero');
-  console.log('[useStatistics] listeroStats data:', listeroStats.tableData?.plays?.length, 'plays');
-
   // Detectar el rol del usuario
   useEffect(() => {
     const detectUserRole = async () => {
-      console.log('[useStatistics] Detecting user role...');
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          console.log('[useStatistics] No user found');
           return;
         }
-
-        console.log('[useStatistics] User found:', user.id);
 
         const { data: profile, error } = await supabase
           .from('profiles')
@@ -39,14 +31,10 @@ const useStatistics = () => {
           .single();
 
         if (!error && profile && profile.role) {
-          console.log('[useStatistics] Role detected:', profile.role);
           setUserRole(profile.role);
           setUserId(user.id);
-        } else {
-          console.error('[useStatistics] Error getting profile:', error);
         }
       } catch (error) {
-        console.error('[useStatistics] Exception detecting role:', error);
         // Error crítico: no hacer nada, dejar userRole como null
         // StatisticsScreen manejará el error y redirigirá
       }
@@ -57,26 +45,16 @@ const useStatistics = () => {
 
   // Función para obtener el hook activo según el rol
   const getActiveStats = () => {
-    console.log('[useStatistics] getActiveStats - userRole:', userRole);
-    let stats;
     switch (userRole) {
       case 'collector':
       case 'colector':
-        console.log('[useStatistics] Returning collectorStats');
-        stats = collectorStats;
-        break;
+        return collectorStats;
       case 'admin':
-        console.log('[useStatistics] Returning adminStats');
-        stats = adminStats;
-        break;
+        return adminStats;
       case 'listero':
       default:
-        console.log('[useStatistics] Returning listeroStats (default)');
-        stats = listeroStats;
-        break;
+        return listeroStats;
     }
-    console.log('[useStatistics] Active stats data:', stats.tableData?.plays?.length || 0, 'plays');
-    return stats;
   };
 
   const activeStats = getActiveStats();
@@ -85,16 +63,9 @@ const useStatistics = () => {
   const generateKpiData = () => {
     try {
       const plays = activeStats.tableData?.plays || [];
-      console.log('[useStatistics] 📊 generateKpiData - userRole:', userRole, 'plays:', plays.length);
       
       if (!Array.isArray(plays)) {
-        console.error('[useStatistics] ❌ plays is not an array:', typeof plays);
         return [];
-      }
-      
-      if (plays.length > 0) {
-        console.log('[useStatistics] 📊 Sample play for KPI:', plays[0]);
-        console.log('[useStatistics] 📊 Play object keys:', plays[0] ? Object.keys(plays[0]) : 'null play');
       }
       
       if (userRole === 'listero') {
@@ -113,14 +84,6 @@ const useStatistics = () => {
 
       // Limpio = Bruto - Ganancia
       const limpio = totals.bruto - totals.ganancia;
-
-      console.log('[useStatistics] 📊 Listero KPI totals:', { 
-        bruto: totals.bruto, 
-        ganancia: totals.ganancia, 
-        limpio,
-        premio: totals.premio,
-        balance: totals.balance 
-      });
 
       return [
         {
@@ -259,17 +222,14 @@ const useStatistics = () => {
 
     return [];
     } catch (error) {
-      console.error('[useStatistics] ❌ Error in generateKpiData:', error);
-      console.error('[useStatistics] Stack:', error.stack);
       return [];
     }
   };
 
-  // Generar datos de gráfico básicos
+  // Generar datos de gráficas
   const generateChartData = () => {
     try {
       const plays = activeStats.tableData?.plays || [];
-      console.log('[useStatistics] 📈 generateChartData - plays:', plays.length);
       
       // TODO: Implementar generación real de datos de gráfica basados en plays
       return {
@@ -279,7 +239,6 @@ const useStatistics = () => {
         }]
       };
     } catch (error) {
-      console.error('[useStatistics] ❌ Error in generateChartData:', error);
       return {
         labels: [],
         datasets: [{ data: [] }]
@@ -292,7 +251,6 @@ const useStatistics = () => {
     try {
       // Guard: No ejecutar si no hay userId
       if (!userId) {
-        console.log('[useStatistics] loadAllStats - no userId');
         return;
       }
       
@@ -303,8 +261,7 @@ const useStatistics = () => {
         });
       }
     } catch (error) {
-      console.error('[useStatistics] ❌ Error in loadAllStats:', error);
-      console.error('[useStatistics] Stack:', error.stack);
+      // Error silencioso
     }
   };
 
@@ -312,7 +269,6 @@ const useStatistics = () => {
     try {
       // Guard: No ejecutar si no hay userId
       if (!userId) {
-        console.log('[useStatistics] loadPlaysData - no userId');
         return;
       }
       
@@ -320,8 +276,7 @@ const useStatistics = () => {
         return activeStats.loadPlaysData(filters);
       }
     } catch (error) {
-      console.error('[useStatistics] ❌ Error in loadPlaysData:', error);
-      console.error('[useStatistics] Stack:', error.stack);
+      // Error silencioso
     }
   };
 
@@ -329,7 +284,6 @@ const useStatistics = () => {
     try {
       // Guard: No ejecutar si no hay userId
       if (!userId) {
-        console.log('[useStatistics] applyFilters - no userId');
         return;
       }
       
@@ -338,8 +292,7 @@ const useStatistics = () => {
         return activeStats.applyFilters(filters);
       }
     } catch (error) {
-      console.error('[useStatistics] ❌ Error in applyFilters:', error);
-      console.error('[useStatistics] Stack:', error.stack);
+      // Error silencioso
     }
   };
 
@@ -357,15 +310,11 @@ const useStatistics = () => {
                         (activeStats.tableData?.plays || []) : [];
     
     if (!Array.isArray(playsData)) {
-      console.error('[useStatistics] ❌ playsData is not an array:', typeof playsData);
       playsData = [];
     }
   } catch (error) {
-    console.error('[useStatistics] ❌ Error getting playsData:', error);
     playsData = [];
   }
-  
-  console.log('[useStatistics] 📤 Returning data - userRole:', userRole, 'plays:', playsData.length);
   
   return {
     // Estados básicos
