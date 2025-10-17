@@ -25,6 +25,15 @@ export const useListeroStatistics = (options = {}) => {
     plays: []
   });
   
+  // 🐛 DEBUG: Metadata temporal para debugging
+  const [debugInfo, setDebugInfo] = useState({
+    source: '', // 'CACHE' | 'SUPABASE'
+    totalBeforeFilter: 0,
+    totalAfterFilter: 0,
+    cacheOldestDate: null,
+    rangeRequested: ''
+  });
+  
   // Estado para el rango de fechas (hoy por defecto)
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().setHours(0, 0, 0, 0)),
@@ -145,17 +154,23 @@ export const useListeroStatistics = (options = {}) => {
       try {
         // Leer TODO el caché disponible (sin filtro de fechas aún)
         cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'listero', {});
+        console.log('🐛 [DEBUG] Caché leído:', cachedPlays.length, 'registros');
       } catch (cacheError) {
+        console.log('🐛 [DEBUG] Error leyendo caché:', cacheError);
         cachedPlays = [];
       }
 
       // 2. Si hay datos en caché, verificar si cubren el rango solicitado
       if (cachedPlays.length > 0 && !forceRefresh) {
+        console.log('🐛 [DEBUG] Hay caché disponible, filtrando...');
+        
         // Filtrar por el rango solicitado
         const filteredCachedPlays = cachedPlays.filter(play => {
           const playDate = new Date(play.fecha_jugada);
           return playDate >= startDate && playDate <= endDate;
         });
+        
+        console.log('🐛 [DEBUG] Después del filtro:', filteredCachedPlays.length, 'registros');
         
         // Verificar si el caché cubre el rango completo
         // Si encontramos datos O si el rango está dentro de los últimos 30 días cacheados
@@ -163,9 +178,25 @@ export const useListeroStatistics = (options = {}) => {
           ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
           : null;
         
+        console.log('🐛 [DEBUG] Fecha más antigua en caché:', oldestCached?.toLocaleDateString());
+        console.log('🐛 [DEBUG] Fecha inicio solicitada:', startDate.toLocaleDateString());
+        
         const cacheCoversRange = oldestCached && oldestCached <= startDate;
         
+        console.log('🐛 [DEBUG] ¿Caché cubre rango?', cacheCoversRange);
+        
         if (cacheCoversRange || filteredCachedPlays.length > 0) {
+          console.log('🐛 [DEBUG] ✅ Usando CACHÉ -', filteredCachedPlays.length, 'jugadas');
+          
+          // 🐛 DEBUG: Actualizar metadata
+          setDebugInfo({
+            source: 'CACHE',
+            totalBeforeFilter: cachedPlays.length,
+            totalAfterFilter: filteredCachedPlays.length,
+            cacheOldestDate: oldestCached?.toLocaleDateString() || 'N/A',
+            rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+          });
+          
           setTableData({ plays: filteredCachedPlays });
 
           // Verificar si necesita actualización incremental (solo HOY)
@@ -187,6 +218,8 @@ export const useListeroStatistics = (options = {}) => {
       }
 
       // 3. No hay caché suficiente o forceRefresh: cargar desde Supabase
+      console.log('🐛 [DEBUG] ⚠️ Caché insuficiente, consultando SUPABASE...');
+      
       // 🎯 Consultar últimos 30 días para cachear, pero mostrar solo el rango solicitado
       const cacheStart = new Date();
       cacheStart.setDate(cacheStart.getDate() - 29); // 30 días incluyendo hoy
@@ -195,22 +228,42 @@ export const useListeroStatistics = (options = {}) => {
       const cacheEnd = new Date();
       cacheEnd.setHours(23, 59, 59, 999);
       
+      console.log('🐛 [DEBUG] Consultando Supabase desde:', cacheStart.toLocaleDateString(), 'hasta:', cacheEnd.toLocaleDateString());
+      
       const playsData = await loadFromSupabase(effectiveUserId, cacheStart, cacheEnd);
+      
+      console.log('🐛 [DEBUG] Supabase devolvió:', playsData.length, 'registros');
 
       // 4. Guardar TODO en caché SQLite (últimos 30 días)
       if (playsData.length > 0) {
+        console.log('🐛 [DEBUG] Guardando', playsData.length, 'registros en caché...');
         try {
-          await SQLiteCache.savePlaysToCache(effectiveUserId, 'listero', playsData);
+          const result = await SQLiteCache.savePlaysToCache(effectiveUserId, 'listero', playsData);
+          console.log('🐛 [DEBUG] Guardado resultado:', result);
           await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'listero');
         } catch (cacheError) {
-          // Error silencioso
+          console.log('🐛 [DEBUG] ❌ Error guardando en caché:', cacheError);
         }
+      } else {
+        console.log('🐛 [DEBUG] ⚠️ No hay datos para guardar en caché');
       }
 
       // 5. Filtrar por el rango solicitado y mostrar
       const filteredPlays = playsData.filter(play => {
         const playDate = new Date(play.fecha_jugada);
         return playDate >= startDate && playDate <= endDate;
+      });
+      
+      console.log('🐛 [DEBUG] Después del filtro:', filteredPlays.length, 'jugadas para mostrar');
+      console.log('🐛 [DEBUG] ✅ Usando SUPABASE -', filteredPlays.length, 'jugadas');
+      
+      // 🐛 DEBUG: Actualizar metadata
+      setDebugInfo({
+        source: 'SUPABASE',
+        totalBeforeFilter: playsData.length,
+        totalAfterFilter: filteredPlays.length,
+        cacheOldestDate: 'Recién cargado',
+        rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
       });
       
       setTableData({ plays: filteredPlays });
@@ -328,7 +381,8 @@ export const useListeroStatistics = (options = {}) => {
     loadPlaysData,
     applyFilters,
     refresh,
-    dateRange
+    dateRange,
+    debugInfo // 🐛 DEBUG: Metadata temporal
   };
 };
 

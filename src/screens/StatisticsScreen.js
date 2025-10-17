@@ -218,6 +218,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     loadPlaysData,
     applyFilters,
     clearData,
+    debugInfo, // 🐛 DEBUG: Metadata temporal
   } = useStatistics();
   
   // ✅ OPTIMIZADO: groupedData ahora usa useMemo para evitar recalcular en cada render
@@ -2784,6 +2785,30 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         </View>
       )}
       
+      {/* 🐛 DEBUG: Banner de información temporal */}
+      {debugInfo && debugInfo.source !== 'N/A' && (
+        <View style={styles.debugBanner}>
+          <Text style={styles.debugTitle}>🐛 DEBUG INFO</Text>
+          <Text style={styles.debugText}>
+            📊 Mostrando: <Text style={styles.debugBold}>{debugInfo.totalAfterFilter}</Text> jugadas
+          </Text>
+          <Text style={styles.debugText}>
+            💾 Fuente: <Text style={[styles.debugBold, debugInfo.source === 'CACHE' ? styles.debugCache : styles.debugSupabase]}>
+              {debugInfo.source}
+            </Text>
+          </Text>
+          <Text style={styles.debugText}>
+            🔍 Total antes de filtrar: <Text style={styles.debugBold}>{debugInfo.totalBeforeFilter}</Text>
+          </Text>
+          <Text style={styles.debugText}>
+            📅 Rango: <Text style={styles.debugBold}>{debugInfo.rangeRequested}</Text>
+          </Text>
+          <Text style={styles.debugText}>
+            📆 Caché más antiguo: <Text style={styles.debugBold}>{debugInfo.cacheOldestDate}</Text>
+          </Text>
+        </View>
+      )}
+      
       <View style={styles.content}>
         {renderActiveTabContent()}
       </View>
@@ -2832,6 +2857,46 @@ const styles = StyleSheet.create({
     color: '#27AE60',
     fontWeight: '500',
     letterSpacing: 0.3,
+  },
+  // 🐛 DEBUG: Banner de información temporal
+  debugBanner: {
+    position: 'absolute',
+    top: 90,
+    left: 10,
+    right: 10,
+    backgroundColor: '#FFF3CD',
+    borderWidth: 2,
+    borderColor: '#FFC107',
+    borderRadius: 8,
+    padding: 12,
+    zIndex: 999,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  debugTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#856404',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#856404',
+    marginBottom: 4,
+  },
+  debugBold: {
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  debugCache: {
+    color: '#27AE60',
+  },
+  debugSupabase: {
+    color: '#3498DB',
   },
   
   filtersPanel:{ backgroundColor:'#F8F9FA', borderWidth:1, borderColor:'#E1E8E3', borderRadius:10, padding:8, margin:8 },

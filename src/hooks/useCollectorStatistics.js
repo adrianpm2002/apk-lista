@@ -84,6 +84,15 @@ export const useCollectorStatistics = (options = {}) => {
     endDate: new Date(new Date().setHours(23, 59, 59, 999))
   });
   
+  // Estado para debug info
+  const [debugInfo, setDebugInfo] = useState({
+    source: '', // 'CACHE' | 'SUPABASE'
+    totalBeforeFilter: 0,
+    totalAfterFilter: 0,
+    cacheOldestDate: null,
+    rangeRequested: ''
+  });
+  
   // Ref para evitar múltiples cargas simultáneas
   const loadingRef = useRef(false);
 
@@ -200,7 +209,9 @@ export const useCollectorStatistics = (options = {}) => {
       try {
         // Leer TODO el caché disponible (sin filtro de fechas aún)
         cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'collector', {});
+        console.log('🐛 [DEBUG COLLECTOR] Caché leído:', cachedPlays.length, 'registros');
       } catch (cacheError) {
+        console.log('🐛 [DEBUG COLLECTOR] Error leyendo caché:', cacheError.message);
         cachedPlays = [];
       }
 
@@ -212,6 +223,8 @@ export const useCollectorStatistics = (options = {}) => {
           return playDate >= startDate && playDate <= endDate;
         });
         
+        console.log('🐛 [DEBUG COLLECTOR] Después del filtro:', filteredCachedPlays.length, 'registros');
+        
         // Verificar si el caché cubre el rango completo
         const oldestCached = cachedPlays.length > 0 
           ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
@@ -219,9 +232,23 @@ export const useCollectorStatistics = (options = {}) => {
         
         const cacheCoversRange = oldestCached && oldestCached <= startDate;
         
+        console.log('🐛 [DEBUG COLLECTOR] ¿Caché cubre rango?', cacheCoversRange, '- Oldest:', oldestCached?.toLocaleDateString());
+        
         if (cacheCoversRange || filteredCachedPlays.length > 0) {
           // Agrupar datos del cache FILTRADOS
           const groupedCachedData = groupDataForCollector(filteredCachedPlays);
+          
+          console.log('🐛 [DEBUG COLLECTOR] ✅ Usando CACHÉ -', filteredCachedPlays.length, 'jugadas filtradas →', groupedCachedData.length, 'listeros agrupados');
+          
+          // Actualizar debugInfo
+          setDebugInfo({
+            source: 'CACHE',
+            totalBeforeFilter: cachedPlays.length,
+            totalAfterFilter: filteredCachedPlays.length,
+            cacheOldestDate: oldestCached ? oldestCached.toLocaleDateString() : 'N/A',
+            rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+          });
+          
           setTableData({ plays: groupedCachedData });
 
           // Verificar si necesita actualización incremental
@@ -243,6 +270,8 @@ export const useCollectorStatistics = (options = {}) => {
       }
 
       // 3. No hay caché suficiente o forceRefresh: cargar desde Supabase
+      console.log('🐛 [DEBUG COLLECTOR] ⚠️ Caché insuficiente, consultando SUPABASE...');
+      
       // 🎯 Consultar últimos 30 días para cachear, pero mostrar solo el rango solicitado
       const cacheStart = new Date();
       cacheStart.setDate(cacheStart.getDate() - 29); // 30 días incluyendo hoy
@@ -251,15 +280,21 @@ export const useCollectorStatistics = (options = {}) => {
       const cacheEnd = new Date();
       cacheEnd.setHours(23, 59, 59, 999);
       
+      console.log('🐛 [DEBUG COLLECTOR] Consultando Supabase desde:', cacheStart.toLocaleDateString(), 'hasta:', cacheEnd.toLocaleDateString());
+      
       const playsData = await loadFromSupabase(effectiveUserId, cacheStart, cacheEnd);
+      
+      console.log('🐛 [DEBUG COLLECTOR] Supabase devolvió:', playsData.length, 'registros');
 
       // 4. Guardar TODO en caché SQLite (últimos 30 días)
       if (playsData.length > 0) {
         try {
+          console.log('🐛 [DEBUG COLLECTOR] Guardando', playsData.length, 'registros en caché...');
           await SQLiteCache.savePlaysToCache(effectiveUserId, 'collector', playsData);
           await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'collector');
+          console.log('🐛 [DEBUG COLLECTOR] Guardado resultado: ✅ Éxito');
         } catch (cacheError) {
-          // Error silencioso
+          console.log('🐛 [DEBUG COLLECTOR] Guardado resultado: ❌ Error -', cacheError.message);
         }
       }
 
@@ -267,6 +302,17 @@ export const useCollectorStatistics = (options = {}) => {
       const filteredPlays = playsData.filter(play => {
         const playDate = new Date(play.fecha_jugada);
         return playDate >= startDate && playDate <= endDate;
+      });
+      
+      console.log('🐛 [DEBUG COLLECTOR] Después del filtro:', filteredPlays.length, 'jugadas para mostrar');
+      
+      // Actualizar debugInfo
+      setDebugInfo({
+        source: 'SUPABASE',
+        totalBeforeFilter: playsData.length,
+        totalAfterFilter: filteredPlays.length,
+        cacheOldestDate: cacheStart.toLocaleDateString(),
+        rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
       });
       
       const groupedData = groupDataForCollector(filteredPlays);
@@ -389,7 +435,8 @@ export const useCollectorStatistics = (options = {}) => {
     loadPlaysData,
     applyFilters,
     refresh,
-    dateRange
+    dateRange,
+    debugInfo
   };
 };
 

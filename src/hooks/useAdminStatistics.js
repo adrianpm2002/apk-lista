@@ -120,6 +120,15 @@ export const useAdminStatistics = (options = {}) => {
     endDate: new Date(new Date().setHours(23, 59, 59, 999))
   });
   
+  // Estado para debug info
+  const [debugInfo, setDebugInfo] = useState({
+    source: '', // 'CACHE' | 'SUPABASE'
+    totalBeforeFilter: 0,
+    totalAfterFilter: 0,
+    cacheOldestDate: null,
+    rangeRequested: ''
+  });
+  
   // Ref para evitar múltiples cargas simultáneas
   const loadingRef = useRef(false);
 
@@ -236,7 +245,9 @@ export const useAdminStatistics = (options = {}) => {
       try {
         // Leer TODO el caché disponible (sin filtro de fechas aún)
         cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'admin', {});
+        console.log('🐛 [DEBUG ADMIN] Caché leído:', cachedPlays.length, 'registros');
       } catch (cacheError) {
+        console.log('🐛 [DEBUG ADMIN] Error leyendo caché:', cacheError.message);
         cachedPlays = [];
       }
 
@@ -248,6 +259,8 @@ export const useAdminStatistics = (options = {}) => {
           return playDate >= startDate && playDate <= endDate;
         });
         
+        console.log('🐛 [DEBUG ADMIN] Después del filtro:', filteredCachedPlays.length, 'registros');
+        
         // Verificar si el caché cubre el rango completo
         const oldestCached = cachedPlays.length > 0 
           ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
@@ -255,9 +268,23 @@ export const useAdminStatistics = (options = {}) => {
         
         const cacheCoversRange = oldestCached && oldestCached <= startDate;
         
+        console.log('🐛 [DEBUG ADMIN] ¿Caché cubre rango?', cacheCoversRange, '- Oldest:', oldestCached?.toLocaleDateString());
+        
         if (cacheCoversRange || filteredCachedPlays.length > 0) {
           // Agrupar datos FILTRADOS antes de setear
           const groupedData = groupDataForAdmin(filteredCachedPlays);
+          
+          console.log('🐛 [DEBUG ADMIN] ✅ Usando CACHÉ -', filteredCachedPlays.length, 'jugadas filtradas →', groupedData.length, 'colectores agrupados');
+          
+          // Actualizar debugInfo
+          setDebugInfo({
+            source: 'CACHE',
+            totalBeforeFilter: cachedPlays.length,
+            totalAfterFilter: filteredCachedPlays.length,
+            cacheOldestDate: oldestCached ? oldestCached.toLocaleDateString() : 'N/A',
+            rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+          });
+          
           setTableData({ plays: groupedData });
 
           // Verificar si necesita actualización incremental
@@ -279,6 +306,8 @@ export const useAdminStatistics = (options = {}) => {
       }
 
       // 3. No hay caché suficiente o forceRefresh: cargar desde Supabase
+      console.log('🐛 [DEBUG ADMIN] ⚠️ Caché insuficiente, consultando SUPABASE...');
+      
       // 🎯 Consultar últimos 30 días para cachear, pero mostrar solo el rango solicitado
       const cacheStart = new Date();
       cacheStart.setDate(cacheStart.getDate() - 29); // 30 días incluyendo hoy
@@ -287,15 +316,21 @@ export const useAdminStatistics = (options = {}) => {
       const cacheEnd = new Date();
       cacheEnd.setHours(23, 59, 59, 999);
       
+      console.log('🐛 [DEBUG ADMIN] Consultando Supabase desde:', cacheStart.toLocaleDateString(), 'hasta:', cacheEnd.toLocaleDateString());
+      
       const playsData = await loadFromSupabase(effectiveUserId, cacheStart, cacheEnd);
+      
+      console.log('🐛 [DEBUG ADMIN] Supabase devolvió:', playsData.length, 'registros');
 
       // 4. Guardar TODO en caché SQLite (últimos 30 días)
       if (playsData.length > 0) {
         try {
+          console.log('🐛 [DEBUG ADMIN] Guardando', playsData.length, 'registros en caché...');
           await SQLiteCache.savePlaysToCache(effectiveUserId, 'admin', playsData);
           await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'admin');
+          console.log('🐛 [DEBUG ADMIN] Guardado resultado: ✅ Éxito');
         } catch (cacheError) {
-          // Error silencioso
+          console.log('🐛 [DEBUG ADMIN] Guardado resultado: ❌ Error -', cacheError.message);
         }
       }
 
@@ -303,6 +338,17 @@ export const useAdminStatistics = (options = {}) => {
       const filteredPlays = playsData.filter(play => {
         const playDate = new Date(play.fecha_jugada);
         return playDate >= startDate && playDate <= endDate;
+      });
+      
+      console.log('🐛 [DEBUG ADMIN] Después del filtro:', filteredPlays.length, 'jugadas para mostrar');
+      
+      // Actualizar debugInfo
+      setDebugInfo({
+        source: 'SUPABASE',
+        totalBeforeFilter: playsData.length,
+        totalAfterFilter: filteredPlays.length,
+        cacheOldestDate: cacheStart.toLocaleDateString(),
+        rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
       });
       
       const groupedData = groupDataForAdmin(filteredPlays);
@@ -428,7 +474,8 @@ export const useAdminStatistics = (options = {}) => {
     loadPlaysData,
     applyFilters,
     refresh,
-    dateRange
+    dateRange,
+    debugInfo
   };
 };
 
