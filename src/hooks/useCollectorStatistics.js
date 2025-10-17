@@ -20,43 +20,59 @@ const CACHE_DAYS = 30; // Cachear últimos 30 días
  * Los datos vienen planos de v_estadisticas, necesitamos agruparlos por listero
  */
 const groupDataForCollector = (rawData) => {
-  if (!rawData || rawData.length === 0) {
+  try {
+    if (!rawData || !Array.isArray(rawData) || rawData.length === 0) {
+      console.log('[groupDataForCollector] No data to group');
+      return [];
+    }
+
+    console.log('[groupDataForCollector] Grouping', rawData.length, 'records');
+
+    // Agrupar por listero
+    const listeroGroups = {};
+    
+    rawData.forEach(record => {
+      if (!record) {
+        console.warn('[groupDataForCollector] Null record found, skipping');
+        return;
+      }
+
+      const listeroId = record.id_listero;
+      const listeroName = record.listero_username || `Listero ${listeroId}`;
+      
+      if (!listeroGroups[listeroId]) {
+        listeroGroups[listeroId] = {
+          id: listeroId,
+          listero_name: listeroName,
+          plays: [],
+          total_bruto: 0,
+          total_premio: 0,
+          total_ganancia_listero: 0,
+          total_ganancia_colector: 0,
+          balance_colector: 0
+        };
+      }
+      
+      listeroGroups[listeroId].plays.push(record);
+    });
+
+    // Calcular totales por listero
+    Object.values(listeroGroups).forEach(group => {
+      group.total_bruto = group.plays.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
+      group.total_premio = group.plays.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
+      group.total_ganancia_listero = group.plays.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
+      group.total_ganancia_colector = group.plays.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
+      group.balance_colector = group.plays.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
+    });
+
+    const result = Object.values(listeroGroups);
+    console.log('[groupDataForCollector] Grouped into', result.length, 'listeros');
+    return result;
+  } catch (error) {
+    console.error('[groupDataForCollector] ERROR:', error);
+    console.error('[groupDataForCollector] Stack:', error.stack);
     return [];
   }
-
-  // Agrupar por listero
-  const listeroGroups = {};
-  
-  rawData.forEach(record => {
-    const listeroId = record.id_listero;
-    const listeroName = record.listero_username || `Listero ${listeroId}`;
-    
-    if (!listeroGroups[listeroId]) {
-      listeroGroups[listeroId] = {
-        id: listeroId,
-        listero_name: listeroName,
-        plays: [],
-        total_bruto: 0,
-        total_premio: 0,
-        total_ganancia_listero: 0,
-        total_ganancia_colector: 0,
-        balance_colector: 0
-      };
-    }
-    
-    listeroGroups[listeroId].plays.push(record);
-  });
-
-  // Calcular totales por listero
-  Object.values(listeroGroups).forEach(group => {
-    group.total_bruto = group.plays.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
-    group.total_premio = group.plays.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
-    group.total_ganancia_listero = group.plays.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
-    group.total_ganancia_colector = group.plays.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
-    group.balance_colector = group.plays.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
-  });
-
-  return Object.values(listeroGroups);
 };
 
 export const useCollectorStatistics = (options = {}) => {
@@ -229,12 +245,18 @@ export const useCollectorStatistics = (options = {}) => {
       console.log('[useCollectorStatistics] Final dates - start:', startDate, 'end:', endDate, 'forceRefresh:', forceRefresh);
 
       // 1. Intentar leer del caché SQLite primero
-      const cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'collector', {
-        startDate,
-        endDate
-      });
-
-      console.log('[useCollectorStatistics] Cache read result:', cachedPlays.length, 'plays');
+      let cachedPlays = [];
+      try {
+        cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'collector', {
+          startDate,
+          endDate
+        });
+        console.log('[useCollectorStatistics] Cache read result:', cachedPlays.length, 'plays');
+      } catch (cacheError) {
+        console.error('[useCollectorStatistics] ⚠️ Error reading from cache:', cacheError);
+        console.log('[useCollectorStatistics] Continuing without cache...');
+        cachedPlays = [];
+      }
 
       if (cachedPlays.length > 0 && !forceRefresh) {
         console.log(`[useCollectorStatistics] ✅ Using cached data: ${cachedPlays.length} plays`);
@@ -247,8 +269,13 @@ export const useCollectorStatistics = (options = {}) => {
         setTableData({ plays: groupedCachedData });
 
         // Verificar si necesita actualización incremental
-        const needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'collector');
-        console.log('[useCollectorStatistics] Needs incremental update:', needsUpdate);
+        let needsUpdate = false;
+        try {
+          needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'collector');
+          console.log('[useCollectorStatistics] Needs incremental update:', needsUpdate);
+        } catch (cacheError) {
+          console.error('[useCollectorStatistics] ⚠️ Error checking incremental update:', cacheError);
+        }
         
         if (needsUpdate) {
           console.log('[useCollectorStatistics] 🔄 Starting incremental update in background...');
@@ -278,10 +305,15 @@ export const useCollectorStatistics = (options = {}) => {
 
       // 3. Guardar en caché SQLite
       if (playsData.length > 0) {
-        console.log('[useCollectorStatistics] 💾 Saving to SQLite cache...');
-        await SQLiteCache.savePlaysToCache(effectiveUserId, 'collector', playsData);
-        await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'collector');
-        console.log('[useCollectorStatistics] ✅ Saved to cache');
+        try {
+          console.log('[useCollectorStatistics] 💾 Saving to SQLite cache...');
+          await SQLiteCache.savePlaysToCache(effectiveUserId, 'collector', playsData);
+          await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'collector');
+          console.log('[useCollectorStatistics] ✅ Saved to cache');
+        } catch (cacheError) {
+          console.error('[useCollectorStatistics] ⚠️ Error saving to cache:', cacheError);
+          console.log('[useCollectorStatistics] Continuing without cache...');
+        }
       } else {
         console.log('[useCollectorStatistics] ⚠️ No data from Supabase');
       }
@@ -303,9 +335,13 @@ export const useCollectorStatistics = (options = {}) => {
       setTableData({ plays: groupedData });
 
       // 6. Limpiar registros antiguos
-      console.log('[useCollectorStatistics] 🧹 Cleaning old records...');
-      await SQLiteCache.cleanOldRecords(effectiveUserId, 'collector');
-      console.log('[useCollectorStatistics] ✅ Cleaned old records');
+      try {
+        console.log('[useCollectorStatistics] 🧹 Cleaning old records...');
+        await SQLiteCache.cleanOldRecords(effectiveUserId, 'collector');
+        console.log('[useCollectorStatistics] ✅ Cleaned old records');
+      } catch (cacheError) {
+        console.error('[useCollectorStatistics] ⚠️ Error cleaning old records:', cacheError);
+      }
 
     } catch (error) {
       console.error('[useCollectorStatistics] ❌ Error loading plays:', error);
@@ -337,8 +373,13 @@ export const useCollectorStatistics = (options = {}) => {
       const todayPlays = await loadFromSupabase(userId, updateStart, todayEnd);
 
       if (todayPlays.length > 0) {
-        await SQLiteCache.savePlaysToCache(userId, 'collector', todayPlays);
-        await SQLiteCache.updateIncrementalTimestamp(userId, 'collector');
+        try {
+          await SQLiteCache.savePlaysToCache(userId, 'collector', todayPlays);
+          await SQLiteCache.updateIncrementalTimestamp(userId, 'collector');
+        } catch (cacheError) {
+          console.error('[useCollectorStatistics] ⚠️ Error in incremental update cache save:', cacheError);
+          return;
+        }
         
         const { startDate, endDate } = dateRange;
         const isViewingToday = 
@@ -347,23 +388,31 @@ export const useCollectorStatistics = (options = {}) => {
           startDate.getFullYear() === today.getFullYear();
 
         if (isViewingToday) {
-          const cachedPlays = await SQLiteCache.readPlaysFromCache(userId, 'collector', {
-            startDate,
-            endDate
-          });
-          
-          // Agrupar datos del cache
-          console.log('[useCollectorStatistics] 🔄 Grouping updated cached data by listero...');
-          const groupedCachedData = groupDataForCollector(cachedPlays);
-          console.log('[useCollectorStatistics] 📦 Grouped updated data into', groupedCachedData.length, 'listeros');
-          
-          setTableData({ plays: groupedCachedData });
+          try {
+            const cachedPlays = await SQLiteCache.readPlaysFromCache(userId, 'collector', {
+              startDate,
+              endDate
+            });
+            
+            // Agrupar datos del cache
+            console.log('[useCollectorStatistics] 🔄 Grouping updated cached data by listero...');
+            const groupedCachedData = groupDataForCollector(cachedPlays);
+            console.log('[useCollectorStatistics] 📦 Grouped updated data into', groupedCachedData.length, 'listeros');
+            
+            setTableData({ plays: groupedCachedData });
+          } catch (cacheError) {
+            console.error('[useCollectorStatistics] ⚠️ Error reading cache in incremental update:', cacheError);
+          }
         }
 
         console.log(`[useCollectorStatistics] Incremental update completed: ${todayPlays.length} plays`);
       }
 
-      await SQLiteCache.cleanOldRecords(userId, 'collector');
+      try {
+        await SQLiteCache.cleanOldRecords(userId, 'collector');
+      } catch (cacheError) {
+        console.error('[useCollectorStatistics] ⚠️ Error cleaning in incremental update:', cacheError);
+      }
     } catch (error) {
       console.error('[useCollectorStatistics] Error in incremental update:', error);
     }
