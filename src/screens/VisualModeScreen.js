@@ -496,31 +496,32 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       hasErrors = true;
     }
 
-    // Validación de grupos incompletos basada en primer tipo seleccionado (o combo)
+    // Validación individual por número según tipo de jugada
     if (!hasErrors) {
-      const primary = selectedPlayTypes[0];
-      let expectedLen = null;
-      const comboCF = selectedPlayTypes.includes('centena') && selectedPlayTypes.includes('fijo');
-      if (comboCF) expectedLen = 3; else {
-        switch (primary) {
-          case 'fijo':
-          case 'corrido':
-          case 'posicion': expectedLen = 2; break;
-          case 'parle': expectedLen = 4; break;
-          case 'centena': expectedLen = 3; break;
-          case 'tripleta': expectedLen = 6; break;
-          default: expectedLen = null;
+      const nums = plays.split(/[\s,;,]+/).map(n=>n.trim()).filter(Boolean);
+      
+      // Validar fijo, corrido, posicion: cada número debe tener exactamente 2 dígitos
+      if (selectedPlayTypes.some(pt => ['fijo', 'corrido', 'posicion'].includes(pt))) {
+        const invalid = nums.some(n => n.replace(/[^0-9]/g,'').length !== 2);
+        if (invalid || nums.length===0) {
+          setPlaysError(true);
+          hasErrors = true;
         }
       }
-      if (expectedLen) {
-        const digits = plays.replace(/[^0-9]/g,'');
-        const remainder = digits.length % expectedLen;
-        const tokens = plays.split(/[\s,;]+/).filter(Boolean);
-        const partialTokens = tokens.filter(t => {
-          const d = t.replace(/[^0-9]/g,'');
-          return d.length>0 && d.length< expectedLen;
-        });
-        if (remainder !== 0 || partialTokens.length) {
+      
+      // Validar centena solo (sin combo con fijo): cada número debe tener exactamente 3 dígitos
+      if (!hasErrors && selectedPlayTypes.includes('centena') && !selectedPlayTypes.includes('fijo')) {
+        const invalid = nums.some(n => n.replace(/[^0-9]/g,'').length !== 3);
+        if (invalid || nums.length===0) {
+          setPlaysError(true);
+          hasErrors = true;
+        }
+      }
+      
+      // Validar tripleta: cada número debe tener exactamente 6 dígitos
+      if (!hasErrors && selectedPlayTypes.includes('tripleta')) {
+        const invalid = nums.some(n => n.replace(/[^0-9]/g,'').length !== 6);
+        if (invalid || nums.length===0) {
           setPlaysError(true);
           hasErrors = true;
         }
