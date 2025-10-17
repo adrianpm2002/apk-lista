@@ -13,6 +13,86 @@ const formatDateForQuery = (date) => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
+/**
+ * Función para agrupar datos por estructura jerárquica: Colectores -> Listeros -> Jugadas
+ * El admin ve su banco con datos agrupados por colector, cada colector tiene listeros, 
+ * y cada listero tiene sus jugadas.
+ */
+const groupDataForAdmin = (rawData) => {
+  if (!rawData || rawData.length === 0) {
+    return [];
+  }
+
+  // Agrupar directamente por colector (el admin solo ve su banco)
+  const collectorGroups = {};
+  
+  rawData.forEach(record => {
+    const collectorId = record.id_colector;
+    const collectorName = record.colector_username || `Colector ${collectorId}`;
+    
+    if (!collectorGroups[collectorId]) {
+      collectorGroups[collectorId] = {
+        id: collectorId,
+        collector_name: collectorName,
+        listeros: {},
+        total_bruto: 0,
+        total_premio: 0,
+        total_ganancia_colector: 0,
+        balance_colector: 0,
+        raw_plays: []
+      };
+    }
+    
+    collectorGroups[collectorId].raw_plays.push(record);
+    
+    // Agrupar por listero dentro del colector
+    const listeroId = record.id_listero;
+    const listeroName = record.listero_username || `Listero ${listeroId}`;
+    
+    if (!collectorGroups[collectorId].listeros[listeroId]) {
+      collectorGroups[collectorId].listeros[listeroId] = {
+        id: listeroId,
+        listero_name: listeroName,
+        plays: [],
+        total_bruto: 0,
+        total_premio: 0,
+        total_ganancia_listero: 0,
+        total_ganancia_colector: 0,
+        balance_listero: 0,
+        balance_colector: 0
+      };
+    }
+    
+    collectorGroups[collectorId].listeros[listeroId].plays.push(record);
+  });
+
+  // Procesar cada colector
+  Object.values(collectorGroups).forEach(collector => {
+    // Procesar cada listero del colector
+    Object.values(collector.listeros).forEach(listero => {
+      // Calcular totales del listero
+      listero.total_bruto = listero.plays.reduce((sum, play) => sum + (play.monto_total || 0), 0);
+      listero.total_premio = listero.plays.reduce((sum, play) => sum + (play.monto_a_pagar || 0), 0);
+      listero.total_ganancia_listero = listero.plays.reduce((sum, play) => sum + (play.ganancia_listero || 0), 0);
+      listero.total_ganancia_colector = listero.plays.reduce((sum, play) => sum + (play.ganancia_colector || 0), 0);
+      listero.balance_listero = listero.plays.reduce((sum, play) => sum + (play.balance_listero || 0), 0);
+      listero.balance_colector = listero.plays.reduce((sum, play) => sum + (play.balance_colector || 0), 0);
+    });
+    
+    // Convertir object de listeros a array
+    collector.listeros = Object.values(collector.listeros);
+    
+    // Calcular totales del colector
+    collector.total_bruto = collector.raw_plays.reduce((sum, play) => sum + (play.monto_total || 0), 0);
+    collector.total_premio = collector.raw_plays.reduce((sum, play) => sum + (play.monto_a_pagar || 0), 0);
+    collector.total_ganancia_listero = collector.raw_plays.reduce((sum, play) => sum + (play.ganancia_listero || 0), 0);
+    collector.total_ganancia_colector = collector.raw_plays.reduce((sum, play) => sum + (play.ganancia_colector || 0), 0);
+    collector.balance_colector = collector.raw_plays.reduce((sum, play) => sum + (play.balance_colector || 0), 0);
+  });
+
+  return Object.values(collectorGroups);
+};
+
 const CACHE_DAYS = 30; // Cachear últimos 30 días
 
 export const useAdminStatistics = (options = {}) => {
@@ -188,7 +268,11 @@ export const useAdminStatistics = (options = {}) => {
 
       if (cachedPlays.length > 0 && !forceRefresh) {
         console.log(`[useAdminStatistics] ✅ Using cached data: ${cachedPlays.length} plays`);
-        setTableData({ plays: cachedPlays });
+        
+        // Agrupar datos antes de setear
+        const groupedData = groupDataForAdmin(cachedPlays);
+        console.log('[useAdminStatistics] Grouped into', groupedData.length, 'collectors');
+        setTableData({ plays: groupedData });
 
         // Verificar si necesita actualización incremental
         const needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'admin');
@@ -238,7 +322,11 @@ export const useAdminStatistics = (options = {}) => {
       });
 
       console.log('[useAdminStatistics] 🎯 Filtered result:', filteredPlays.length, 'plays for requested range');
-      setTableData({ plays: filteredPlays });
+      
+      // Agrupar datos antes de setear
+      const groupedData = groupDataForAdmin(filteredPlays);
+      console.log('[useAdminStatistics] Grouped into', groupedData.length, 'collectors');
+      setTableData({ plays: groupedData });
 
       // 5. Limpiar registros antiguos
       console.log('[useAdminStatistics] 🧹 Cleaning old records...');
@@ -289,7 +377,11 @@ export const useAdminStatistics = (options = {}) => {
             startDate,
             endDate
           });
-          setTableData({ plays: cachedPlays });
+          
+          // Agrupar datos antes de setear
+          const groupedData = groupDataForAdmin(cachedPlays);
+          console.log('[useAdminStatistics] Incremental update - Grouped into', groupedData.length, 'collectors');
+          setTableData({ plays: groupedData });
         }
 
         console.log(`[useAdminStatistics] Incremental update completed: ${todayPlays.length} plays`);
