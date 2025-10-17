@@ -95,7 +95,6 @@ export const useListeroStatistics = (options = {}) => {
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) {
-          console.error('[useListeroStatistics] Error loading from Supabase:', error);
           throw error;
         }
         
@@ -133,7 +132,6 @@ export const useListeroStatistics = (options = {}) => {
 
     loadingRef.current = true;
     setIsLoading(true);
-    console.log('[useListeroStatistics] Starting data load...');
 
     try {
       const {
@@ -279,7 +277,6 @@ export const useListeroStatistics = (options = {}) => {
     } = filters;
 
     if (startDate && endDate) {
-      console.log('[useListeroStatistics] Setting new date range:', startDate, 'to', endDate);
       setDateRange({ startDate, endDate });
     }
     

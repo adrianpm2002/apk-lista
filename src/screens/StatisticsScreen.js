@@ -201,7 +201,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         }
       }
     } catch (error) {
-      console.error('Error loading modo Santiago:', error);
+      // Error silencioso
     }
   };
 
@@ -220,21 +220,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     clearData,
   } = useStatistics();
   
-  console.log('[StatisticsScreen] 📦 Received from useStatistics - tableData:', tableData?.plays?.length || 0, 'plays');
-  
   // ✅ OPTIMIZADO: groupedData ahora usa useMemo para evitar recalcular en cada render
   // DEBE estar DESPUÉS de useStatistics para que tableData esté definido
   const groupedData = useMemo(() => {
-    console.log('[StatisticsScreen] 🔄 Recalculating groupedData - userRole:', userRole, 'tableData plays:', tableData?.plays?.length || 0);
-    
     // Retornar datos para TODOS los roles, no solo admin
     if (tableData && tableData.plays && tableData.plays.length > 0) {
-      console.log('[StatisticsScreen] ✅ Returning', tableData.plays.length, 'plays for role:', userRole);
-      console.log('[StatisticsScreen] 📊 Sample play data:', tableData.plays[0]); // Ver estructura del primer registro
       return tableData.plays;
     }
     
-    console.log('[StatisticsScreen] ⚠️ Returning empty array - no data available');
     return [];
   }, [userRole, tableData]);
 
@@ -255,16 +248,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // ✅ CONSOLIDADO: Cargar datos iniciales solo cuando userId y userRole estén disponibles
   useEffect(() => {
-    console.log('[StatisticsScreen] Initialization effect - currentUserId:', currentUserId, 'userRole:', userRole);
-    
     if (currentUserId && userRole) {
-      console.log('[StatisticsScreen] 🚀 Initializing statistics...');
       const initialize = async () => {
-        console.log('[StatisticsScreen] Loading modo Santiago...');
         await loadModoSantiago();
-        console.log('[StatisticsScreen] Applying period filter: today');
         await applyPeriodFilter('today');
-        console.log('[StatisticsScreen] ✅ Initialization complete');
       };
       initialize();
     }
@@ -290,17 +277,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   // Períodos largos (mes/mes pasado) se cargan bajo demanda desde Supabase sin caché
 
   const applyPeriodFilter = async (period, customStart = null, customEnd = null, forceRefresh = false) => {
-    console.log('[StatisticsScreen] 📅 applyPeriodFilter called - period:', period, 'forceRefresh:', forceRefresh);
-    
     // Verificar que userId esté disponible antes de filtrar
     if (!currentUserId) {
-      console.log('[StatisticsScreen] ⚠️ Skipping - no currentUserId');
       return;
     }
 
     // Validación crítica: si es custom, DEBE tener fechas
     if (period === 'custom' && (!customStart || !customEnd)) {
-      console.error('[StatisticsScreen] applyPeriodFilter: período custom sin fechas válidas');
       Alert.alert('Error', 'Debe seleccionar fechas de inicio y fin');
       return;
     }
@@ -311,7 +294,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     if (period === 'custom' && customStart && customEnd) {
       startDate = customStart;
       endDate = customEnd;
-      console.log('[StatisticsScreen] Custom period:', startDate, 'to', endDate);
     } else {
       // Calcular fechas según el período
       const now = new Date();
@@ -322,7 +304,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         case 'today':
           startDate = new Date(now);
           startDate.setHours(0, 0, 0, 0);
-          console.log('[StatisticsScreen] Period: TODAY');
           break;
           
         case 'yesterday':
@@ -332,32 +313,27 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           endDate = new Date(now);
           endDate.setDate(endDate.getDate() - 1);
           endDate.setHours(23, 59, 59, 999);
-          console.log('[StatisticsScreen] Period: YESTERDAY');
           break;
           
         case 'last7days':
           startDate = new Date(now);
           startDate.setDate(startDate.getDate() - 6);
           startDate.setHours(0, 0, 0, 0);
-          console.log('[StatisticsScreen] Period: LAST 7 DAYS');
           break;
           
         case 'last30days':
           startDate = new Date(now);
           startDate.setDate(startDate.getDate() - 29);
           startDate.setHours(0, 0, 0, 0);
-          console.log('[StatisticsScreen] Period: LAST 30 DAYS');
           break;
           
         default:
           // Por defecto, hoy
           startDate = new Date(now);
           startDate.setHours(0, 0, 0, 0);
-          console.log('[StatisticsScreen] Period: DEFAULT (today)');
       }
     }
     
-    console.log('[StatisticsScreen] Date range calculated:', startDate, 'to', endDate);
     setSelectedPeriod(period);
     
     // Guardar las fechas actuales para usar en filtros de la UI
@@ -365,13 +341,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     setCurrentEndDate(endDate);
     
     // Pasar fechas concretas al hook
-    console.log('[StatisticsScreen] Calling applyFilters...');
     await applyFilters({
       startDate,
       endDate,
       forceRefresh
     });
-    console.log('[StatisticsScreen] ✅ applyPeriodFilter complete');
   };
 
   // Cargar rango personalizado directamente desde Supabase (fuera del cache)
@@ -379,7 +353,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     try {
       // Validación de parámetros
       if (!startDate || !endDate) {
-        console.error('[StatisticsScreen] loadCustomRangeFromSupabase: fechas inválidas', { startDate, endDate });
         Alert.alert('Error', 'Las fechas seleccionadas no son válidas');
         return;
       }
@@ -428,7 +401,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
       await applyFilters(filterParams);
     } catch (error) {
-      console.error('Error al cargar rango personalizado:', error);
       Alert.alert('Error', 'No se pudieron cargar las estadísticas del rango seleccionado');
     }
   };
@@ -2659,7 +2631,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           await loadCustomRangeFromSupabase(normalizedStart, normalizedEnd);
         }
       } catch (error) {
-        console.error('[StatisticsScreen] Error en handleApplyCustomDates:', error);
         Alert.alert('Error', 'No se pudo aplicar el filtro personalizado. Intenta de nuevo.');
       }
     };
