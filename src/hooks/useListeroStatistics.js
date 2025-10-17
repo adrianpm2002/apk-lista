@@ -172,7 +172,16 @@ export const useListeroStatistics = (options = {}) => {
       if (cachedPlays.length > 0 && !forceRefresh) {
         // Tenemos datos en caché
         console.log(`[useListeroStatistics] ✅ Using cached data: ${cachedPlays.length} plays`);
-        setTableData({ plays: cachedPlays });
+        
+        // 🔧 FIX: Filtrar datos del caché por el rango solicitado
+        console.log('[useListeroStatistics] 🎯 Filtering cached plays for date range:', startDate, 'to', endDate);
+        const filteredCachedPlays = cachedPlays.filter(play => {
+          const playDate = new Date(play.fecha_jugada);
+          return playDate >= startDate && playDate <= endDate;
+        });
+        console.log('[useListeroStatistics] 🎯 Filtered cached result:', filteredCachedPlays.length, 'plays for requested range');
+        
+        setTableData({ plays: filteredCachedPlays });
 
         // Verificar si necesita actualización incremental (solo HOY)
         let needsUpdate = false;

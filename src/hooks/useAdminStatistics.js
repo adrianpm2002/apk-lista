@@ -291,8 +291,16 @@ export const useAdminStatistics = (options = {}) => {
       if (cachedPlays.length > 0 && !forceRefresh) {
         console.log(`[useAdminStatistics] ✅ Using cached data: ${cachedPlays.length} plays`);
         
-        // Agrupar datos antes de setear
-        const groupedData = groupDataForAdmin(cachedPlays);
+        // 🔧 FIX: Filtrar datos del caché por el rango solicitado
+        console.log('[useAdminStatistics] 🎯 Filtering cached plays for date range:', startDate, 'to', endDate);
+        const filteredCachedPlays = cachedPlays.filter(play => {
+          const playDate = new Date(play.fecha_jugada);
+          return playDate >= startDate && playDate <= endDate;
+        });
+        console.log('[useAdminStatistics] 🎯 Filtered cached result:', filteredCachedPlays.length, 'plays for requested range');
+        
+        // Agrupar datos FILTRADOS antes de setear
+        const groupedData = groupDataForAdmin(filteredCachedPlays);
         console.log('[useAdminStatistics] Grouped into', groupedData.length, 'collectors');
         setTableData({ plays: groupedData });
 

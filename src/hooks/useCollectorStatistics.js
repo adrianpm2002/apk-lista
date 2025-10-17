@@ -261,9 +261,17 @@ export const useCollectorStatistics = (options = {}) => {
       if (cachedPlays.length > 0 && !forceRefresh) {
         console.log(`[useCollectorStatistics] ✅ Using cached data: ${cachedPlays.length} plays`);
         
-        // Agrupar datos del cache
-        console.log('[useCollectorStatistics] 🔄 Grouping cached data by listero...');
-        const groupedCachedData = groupDataForCollector(cachedPlays);
+        // 🔧 FIX: Filtrar datos del caché por el rango solicitado
+        console.log('[useCollectorStatistics] 🎯 Filtering cached plays for date range:', startDate, 'to', endDate);
+        const filteredCachedPlays = cachedPlays.filter(play => {
+          const playDate = new Date(play.fecha_jugada);
+          return playDate >= startDate && playDate <= endDate;
+        });
+        console.log('[useCollectorStatistics] 🎯 Filtered cached result:', filteredCachedPlays.length, 'plays for requested range');
+        
+        // Agrupar datos del cache FILTRADOS
+        console.log('[useCollectorStatistics] 🔄 Grouping filtered cached data by listero...');
+        const groupedCachedData = groupDataForCollector(filteredCachedPlays);
         console.log('[useCollectorStatistics] 📦 Grouped cached data into', groupedCachedData.length, 'listeros');
         
         setTableData({ plays: groupedCachedData });
