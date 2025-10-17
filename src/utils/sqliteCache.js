@@ -366,7 +366,6 @@ export const savePlaysToCache = async (userId, role, plays) => {
             }
             
             try {
-            try {
               // Convertir arrays a JSON strings si existen
               const numeros_ganadores = Array.isArray(play.numeros_ganadores) 
                 ? JSON.stringify(play.numeros_ganadores) 
