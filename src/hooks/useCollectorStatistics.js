@@ -2,14 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import * as SQLiteCache from '../utils/sqliteCache';
 
-// 🎯 Sistema de debug condicional (solo en desarrollo)
-const DEBUG_ENABLED = __DEV__;
-const debugLog = (...args) => {
-  if (DEBUG_ENABLED) {
-    console.log(...args);
-  }
-};
-
 // 🎯 FIX: Usar toISOString() consistente con SQLiteCache
 // No necesitamos helper local, usaremos date.toISOString() directamente
 
