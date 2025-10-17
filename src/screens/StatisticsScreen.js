@@ -379,9 +379,19 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         return;
       }
 
-      // Formatear fechas para consulta (formato SQL estándar)
-      const startStr = startDate.toISOString().split('T')[0] + ' 00:00:00';
-      const endStr = endDate.toISOString().split('T')[0] + ' 23:59:59';
+      // Formatear fechas para consulta usando zona horaria local (no UTC)
+      const formatDateForQuery = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+      };
+
+      const startStr = formatDateForQuery(startDate);
+      const endStr = formatDateForQuery(endDate);
 
       let query = supabase
         .from('v_estadisticas')
