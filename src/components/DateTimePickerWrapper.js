@@ -7,7 +7,14 @@ if (Platform.OS === 'web') {
   // Para web, usar input HTML nativo
   DateTimePicker = ({ value, onChange, mode = 'date', maximumDate, minimumDate, ...props }) => {
     const handleChange = (event) => {
-      const selectedDate = new Date(event.target.value);
+      const dateString = event.target.value; // YYYY-MM-DD
+      
+      // CRÍTICO: Crear fecha LOCAL, no UTC
+      // new Date('2025-10-16') interpreta como UTC y puede causar desfase de días
+      // Solución: parsear componentes y crear fecha local explícitamente
+      const [year, month, day] = dateString.split('-').map(Number);
+      const selectedDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+      
       // Llamar onChange solo con la fecha (segundo parámetro)
       // para mantener compatibilidad con el uso en StatisticsScreen
       if (onChange) {
