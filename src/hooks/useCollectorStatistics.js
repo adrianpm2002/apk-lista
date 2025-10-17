@@ -235,14 +235,8 @@ export const useCollectorStatistics = (options = {}) => {
       }
 
       // 2. No hay caché o forceRefresh: cargar desde Supabase
-      const cacheStart = new Date();
-      cacheStart.setDate(cacheStart.getDate() - (CACHE_DAYS - 1));
-      cacheStart.setHours(0, 0, 0, 0);
-      
-      const cacheEnd = new Date();
-      cacheEnd.setHours(23, 59, 59, 999);
-
-      const playsData = await loadFromSupabase(effectiveUserId, cacheStart, cacheEnd);
+      // 🎯 OPTIMIZACIÓN: Consultar SOLO el rango solicitado, no siempre 30 días
+      const playsData = await loadFromSupabase(effectiveUserId, startDate, endDate);
 
       // 3. Guardar en caché SQLite
       if (playsData.length > 0) {
@@ -254,17 +248,11 @@ export const useCollectorStatistics = (options = {}) => {
         }
       }
 
-      // 4. Filtrar por el rango solicitado
-      const filteredPlays = playsData.filter(play => {
-        const playDate = new Date(play.fecha_jugada);
-        return playDate >= startDate && playDate <= endDate;
-      });
-      
-      // 5. Agrupar por listero para compatibilidad con UI
-      const groupedData = groupDataForCollector(filteredPlays);
+      // 4. Agrupar y mostrar datos (ya están filtrados por el rango)
+      const groupedData = groupDataForCollector(playsData);
       setTableData({ plays: groupedData });
 
-      // 6. Limpiar registros antiguos
+      // 5. Limpiar registros antiguos
       try {
         await SQLiteCache.cleanOldRecords(effectiveUserId, 'collector');
       } catch (cacheError) {

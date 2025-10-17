@@ -180,17 +180,8 @@ export const useListeroStatistics = (options = {}) => {
       }
 
       // 2. No hay caché o forceRefresh: cargar desde Supabase
-      // Cargar últimos 30 días
-      const cacheStart = new Date();
-      cacheStart.setDate(cacheStart.getDate() - (CACHE_DAYS - 1));
-      cacheStart.setHours(0, 0, 0, 0);
-      
-      const cacheEnd = new Date();
-      cacheEnd.setHours(23, 59, 59, 999);
-
-      const playsData = await loadFromSupabase(effectiveUserId, cacheStart, cacheEnd);
-
-      console.log('[useListeroStatistics] 📥 Loaded from Supabase:', playsData.length, 'plays');
+      // 🎯 OPTIMIZACIÓN: Consultar SOLO el rango solicitado, no siempre 30 días
+      const playsData = await loadFromSupabase(effectiveUserId, startDate, endDate);
 
       // 3. Guardar en caché SQLite
       if (playsData.length > 0) {
@@ -202,13 +193,8 @@ export const useListeroStatistics = (options = {}) => {
         }
       }
 
-      // 4. Filtrar por el rango solicitado
-      const filteredPlays = playsData.filter(play => {
-        const playDate = new Date(play.fecha_jugada);
-        return playDate >= startDate && playDate <= endDate;
-      });
-
-      setTableData({ plays: filteredPlays });
+      // 4. Mostrar datos (ya están filtrados por el rango)
+      setTableData({ plays: playsData });
 
       // 5. Limpiar registros antiguos
       try {

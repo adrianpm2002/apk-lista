@@ -271,17 +271,8 @@ export const useAdminStatistics = (options = {}) => {
       }
 
       // 2. No hay caché o forceRefresh: cargar desde Supabase
-      console.log('[useAdminStatistics] 📡 No cache or forceRefresh - loading from Supabase...');
-      console.log('[useAdminStatistics] Date range: last 30 days');
-      
-      const cacheStart = new Date();
-      cacheStart.setDate(cacheStart.getDate() - (CACHE_DAYS - 1));
-      cacheStart.setHours(0, 0, 0, 0);
-      
-      const cacheEnd = new Date();
-      cacheEnd.setHours(23, 59, 59, 999);
-
-      const playsData = await loadFromSupabase(effectiveUserId, cacheStart, cacheEnd);
+      // 🎯 OPTIMIZACIÓN: Consultar SOLO el rango solicitado, no siempre 30 días
+      const playsData = await loadFromSupabase(effectiveUserId, startDate, endDate);
 
       // 3. Guardar en caché SQLite
       if (playsData.length > 0) {
@@ -293,14 +284,8 @@ export const useAdminStatistics = (options = {}) => {
         }
       }
 
-      // 4. Filtrar por el rango solicitado
-      const filteredPlays = playsData.filter(play => {
-        const playDate = new Date(play.fecha_jugada);
-        return playDate >= startDate && playDate <= endDate;
-      });
-      
-      // Agrupar datos antes de setear
-      const groupedData = groupDataForAdmin(filteredPlays);
+      // 4. Agrupar y mostrar datos (ya están filtrados por el rango)
+      const groupedData = groupDataForAdmin(playsData);
       setTableData({ plays: groupedData });
 
       // 5. Limpiar registros antiguos
