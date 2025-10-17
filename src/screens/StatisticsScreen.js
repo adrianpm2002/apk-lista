@@ -21,6 +21,7 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { createShadowStyle } from '../utils/shadowUtils';
+import { debugDatabase } from '../utils/sqliteCache';
 
 // Importación condicional para exportación PDF
 let exportPdfModule;
@@ -565,6 +566,25 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           {(userRole === 'colector' || userRole === 'collector') ? 'Estadísticas Colector' : 
            userRole === 'admin' ? 'Estadísticas Banco' : 'Estadísticas'}
         </Text>
+        
+        {/* 🔍 BOTÓN DEBUG TEMPORAL - Para diagnosticar SQLite */}
+        {__DEV__ && (
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#D32F2F',
+              padding: 8,
+              borderRadius: 4,
+              marginLeft: 8,
+            }}
+            onPress={async () => {
+              console.log('=== 🔍 DEBUG DATABASE PRESSED ===');
+              await debugDatabase();
+              console.log('=== 🔍 END DEBUG ===');
+            }}
+          >
+            <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>🔍 DEBUG</Text>
+          </TouchableOpacity>
+        )}
         
         {/* TEMPORALMENTE OCULTO - Exportar PDF 
         <TouchableOpacity

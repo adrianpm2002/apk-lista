@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 let SQLite = null;
 if (Platform.OS !== 'web') {
   SQLite = require('react-native-sqlite-storage');
-  SQLite.DEBUG(false); // Cambiar a true para debugging
+  SQLite.DEBUG(true); // 🔍 DEBUG ACTIVADO para diagnosticar problemas
   SQLite.enablePromise(true);
 }
 
@@ -354,10 +354,18 @@ export const savePlaysToCache = async (userId, role, plays) => {
       let savedCount = 0;
       let errorCount = 0;
       
+      console.log(`[SQLiteCache] 🔄 Starting transaction for ${plays.length} plays`);
+      
       db.transaction(
         (tx) => {
           // Usar forEach en lugar de for...of con await
-          plays.forEach((play) => {
+          plays.forEach((play, index) => {
+            // Log cada 100 registros para monitorear progreso
+            if (index % 100 === 0) {
+              console.log(`[SQLiteCache] 📊 Processing play ${index + 1}/${plays.length}`);
+            }
+            
+            try {
             try {
               // Convertir arrays a JSON strings si existen
               const numeros_ganadores = Array.isArray(play.numeros_ganadores) 
@@ -778,7 +786,7 @@ const formatDateForSQL = (date) => {
 };
 
 /**
- * Cerrar conexión a la base de datos
+ * Cierra la base de datos
  */
 export const closeDatabase = async () => {
   // Guard: En web no hacer nada
@@ -794,6 +802,71 @@ export const closeDatabase = async () => {
     } catch (error) {
       console.error('[SQLiteCache] Error closing database:', error);
     }
+  }
+};
+
+/**
+ * 🔍 DEBUG: Verificar integridad de la base de datos
+ */
+export const debugDatabase = async () => {
+  if (Platform.OS === 'web' || !SQLite) {
+    console.log('[SQLiteCache] DEBUG: Running on web, no SQLite');
+    return;
+  }
+
+  try {
+    const db = await getDatabase();
+    if (!db) {
+      console.log('[SQLiteCache] DEBUG: No database instance');
+      return;
+    }
+    
+    console.log('[SQLiteCache] ==================== DEBUG DATABASE ====================');
+    
+    // Verificar tablas
+    const [tables] = await db.executeSql(
+      "SELECT name FROM sqlite_master WHERE type='table'"
+    );
+    
+    console.log('[SQLiteCache] DEBUG: Tables found:', tables.rows.length);
+    for (let i = 0; i < tables.rows.length; i++) {
+      const tableName = tables.rows.item(i).name;
+      
+      // No contar tablas del sistema
+      if (tableName.startsWith('sqlite_')) continue;
+      
+      const [count] = await db.executeSql(`SELECT COUNT(*) as cnt FROM ${tableName}`);
+      const rowCount = count.rows.item(0).cnt;
+      console.log(`[SQLiteCache] DEBUG: Table "${tableName}" has ${rowCount} rows`);
+      
+      // Si la tabla tiene datos, mostrar el registro más reciente
+      if (rowCount > 0) {
+        const [recent] = await db.executeSql(
+          `SELECT fecha_jugada, cached_at FROM ${tableName} ORDER BY cached_at DESC LIMIT 1`
+        );
+        const recentPlay = recent.rows.item(0);
+        console.log(`[SQLiteCache] DEBUG:   └─ Most recent: fecha_jugada=${recentPlay.fecha_jugada}, cached_at=${recentPlay.cached_at}`);
+      }
+    }
+    
+    // Verificar espacio en disco
+    const [pragma] = await db.executeSql('PRAGMA page_count');
+    const [pageSize] = await db.executeSql('PRAGMA page_size');
+    const totalSize = pragma.rows.item(0).page_count * pageSize.rows.item(0).page_size;
+    console.log('[SQLiteCache] DEBUG: Database size:', (totalSize / 1024 / 1024).toFixed(2), 'MB');
+    
+    // Verificar metadata
+    const [metadata] = await db.executeSql('SELECT * FROM cache_metadata');
+    console.log('[SQLiteCache] DEBUG: Metadata entries:', metadata.rows.length);
+    for (let i = 0; i < metadata.rows.length; i++) {
+      const meta = metadata.rows.item(i);
+      console.log(`[SQLiteCache] DEBUG:   └─ User ${meta.user_id} (${meta.role}): oldest=${meta.oldest_date}, newest=${meta.newest_date}, last_incremental=${meta.last_incremental_fetch}`);
+    }
+    
+    console.log('[SQLiteCache] =========================================================');
+    
+  } catch (error) {
+    console.error('[SQLiteCache] DEBUG ERROR:', error);
   }
 };
 
