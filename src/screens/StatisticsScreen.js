@@ -138,6 +138,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [customModalVisible, setCustomModalVisible] = useState(false);
   const [customStartDate, setCustomStartDate] = useState(new Date());
   const [customEndDate, setCustomEndDate] = useState(new Date());
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
   
   // Estados para rango de fechas actual (para filtros)
   const [currentStartDate, setCurrentStartDate] = useState(null);
@@ -2679,23 +2681,75 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             <View style={styles.lotteryModalContent}>
               <Text style={styles.modalTitle}>Seleccionar Rango de Fechas</Text>
               
-              <View style={styles.datePickerContainer}>
-                <Text style={styles.dateLabel}>Fecha de Inicio:</Text>
-                <DateTimePickerWrapper
-                  value={customStartDate}
-                  onChange={(date) => setCustomStartDate(date)}
-                  maximumDate={new Date()}
-                />
-              </View>
+              {Platform.OS === 'android' ? (
+                // En Android: Botones que abren pickers uno a la vez
+                <>
+                  <View style={styles.datePickerContainer}>
+                    <Text style={styles.dateLabel}>Fecha de Inicio:</Text>
+                    <TouchableOpacity
+                      style={styles.dateButton}
+                      onPress={() => setShowStartPicker(true)}
+                    >
+                      <Text style={styles.dateButtonText}>
+                        {customStartDate.toLocaleDateString('es-ES')}
+                      </Text>
+                    </TouchableOpacity>
+                    {showStartPicker && (
+                      <DateTimePickerWrapper
+                        value={customStartDate}
+                        onChange={(date) => {
+                          setCustomStartDate(date);
+                          setShowStartPicker(false);
+                        }}
+                        maximumDate={new Date()}
+                      />
+                    )}
+                  </View>
 
-              <View style={styles.datePickerContainer}>
-                <Text style={styles.dateLabel}>Fecha de Fin:</Text>
-                <DateTimePickerWrapper
-                  value={customEndDate}
-                  onChange={(date) => setCustomEndDate(date)}
-                  maximumDate={new Date()}
-                />
-              </View>
+                  <View style={styles.datePickerContainer}>
+                    <Text style={styles.dateLabel}>Fecha de Fin:</Text>
+                    <TouchableOpacity
+                      style={styles.dateButton}
+                      onPress={() => setShowEndPicker(true)}
+                    >
+                      <Text style={styles.dateButtonText}>
+                        {customEndDate.toLocaleDateString('es-ES')}
+                      </Text>
+                    </TouchableOpacity>
+                    {showEndPicker && (
+                      <DateTimePickerWrapper
+                        value={customEndDate}
+                        onChange={(date) => {
+                          setCustomEndDate(date);
+                          setShowEndPicker(false);
+                        }}
+                        maximumDate={new Date()}
+                      />
+                    )}
+                  </View>
+                </>
+              ) : (
+                // En iOS/Web: Mostrar pickers directamente
+                <>
+                  <View style={styles.datePickerContainer}>
+                    <Text style={styles.dateLabel}>Fecha de Inicio:</Text>
+                    <DateTimePickerWrapper
+                      value={customStartDate}
+                      onChange={(date) => setCustomStartDate(date)}
+                      maximumDate={new Date()}
+                    />
+                  </View>
+
+                  <View style={styles.datePickerContainer}>
+                    <Text style={styles.dateLabel}>Fecha de Fin:</Text>
+                    <DateTimePickerWrapper
+                      value={customEndDate}
+                      onChange={(date) => setCustomEndDate(date)}
+                      maximumDate={new Date()}
+                    />
+                  </View>
+                </>
+              )}
 
               <View style={styles.modalButtonsRow}>
                 <TouchableOpacity
@@ -3654,6 +3708,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2c3e50',
     marginBottom: 8,
+  },
+  dateButton: {
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    alignItems: 'center',
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: '#2c3e50',
+    fontWeight: '500',
   },
   modalButtonsRow: {
     flexDirection: 'row',
