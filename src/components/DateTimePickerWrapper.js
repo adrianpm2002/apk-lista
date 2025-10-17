@@ -61,7 +61,24 @@ if (Platform.OS === 'web') {
   // Para nativo, usar el componente real si está disponible
   try {
     const RNDateTimePicker = require('@react-native-community/datetimepicker');
-    DateTimePicker = RNDateTimePicker.default || RNDateTimePicker;
+    const NativeDateTimePicker = RNDateTimePicker.default || RNDateTimePicker;
+    
+    // Wrapper para normalizar el callback
+    DateTimePicker = ({ onChange, ...props }) => {
+      const handleChange = (event, selectedDate) => {
+        // Solo pasar la fecha (segundo parámetro) para mantener compatibilidad
+        if (onChange && selectedDate) {
+          onChange(selectedDate);
+        }
+      };
+      
+      return (
+        <NativeDateTimePicker
+          {...props}
+          onChange={handleChange}
+        />
+      );
+    };
   } catch (error) {
     console.warn('DateTimePicker not available, using fallback:', error);
     // Fallback component para desarrollo
