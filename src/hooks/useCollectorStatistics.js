@@ -22,18 +22,14 @@ const CACHE_DAYS = 30; // Cachear últimos 30 días
 const groupDataForCollector = (rawData) => {
   try {
     if (!rawData || !Array.isArray(rawData) || rawData.length === 0) {
-      console.log('[groupDataForCollector] No data to group');
       return [];
     }
-
-    console.log('[groupDataForCollector] Grouping', rawData.length, 'records');
 
     // Agrupar por listero
     const listeroGroups = {};
     
     rawData.forEach(record => {
       if (!record) {
-        console.warn('[groupDataForCollector] Null record found, skipping');
         return;
       }
 
@@ -66,11 +62,8 @@ const groupDataForCollector = (rawData) => {
     });
 
     const result = Object.values(listeroGroups);
-    console.log('[groupDataForCollector] Grouped into', result.length, 'listeros');
     return result;
   } catch (error) {
-    console.error('[groupDataForCollector] ERROR:', error);
-    console.error('[groupDataForCollector] Stack:', error.stack);
     return [];
   }
 };
@@ -97,29 +90,20 @@ export const useCollectorStatistics = (options = {}) => {
   // Detectar userId y auto-cargar datos (se ejecuta cuando enabled cambia)
   useEffect(() => {
     const initializeData = async () => {
-      console.log('[useCollectorStatistics] Initialize effect - enabled:', enabled);
-      
       if (!enabled) {
-        console.log('[useCollectorStatistics] Hook disabled - clearing userId');
         setUserId(null);
         return;
       }
       
       if (loadingRef.current) {
-        console.log('[useCollectorStatistics] Already loading, skipping...');
         return;
       }
       
       try {
-        console.log('[useCollectorStatistics] Getting user from Supabase...');
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-          console.log('[useCollectorStatistics] ✅ User detected:', user.id);
           setUserId(user.id);
-          
-          // Auto-cargar datos inmediatamente después de detectar userId
-          console.log('[useCollectorStatistics] 🚀 Auto-loading data for userId:', user.id);
           
           const endDate = new Date();
           const startDate = new Date();
@@ -131,11 +115,9 @@ export const useCollectorStatistics = (options = {}) => {
             endDate, 
             forceRefresh: false 
           }, user.id);
-        } else {
-          console.log('[useCollectorStatistics] ⚠️ No user found');
         }
       } catch (error) {
-        console.error('[useCollectorStatistics] ❌ Error getting user:', error);
+        // Error silencioso
       }
     };
 
@@ -147,15 +129,8 @@ export const useCollectorStatistics = (options = {}) => {
    */
   const loadFromSupabase = async (userId, startDate, endDate) => {
     try {
-      console.log('[useCollectorStatistics] loadFromSupabase CALLED');
-      console.log('[useCollectorStatistics] Query params - userId:', userId);
-      console.log('[useCollectorStatistics] Query params - startDate:', startDate);
-      console.log('[useCollectorStatistics] Query params - endDate:', endDate);
-      
       const startStr = formatDateForQuery(startDate);
       const endStr = formatDateForQuery(endDate);
-      
-      console.log('[useCollectorStatistics] Formatted dates - start:', startStr, 'end:', endStr);
 
       let allPlaysData = [];
       let page = 0;
@@ -163,9 +138,6 @@ export const useCollectorStatistics = (options = {}) => {
       let hasMore = true;
       
       while (hasMore) {
-        console.log('[useCollectorStatistics] 🔍 Fetching page', page, 'from Supabase...');
-        console.log('[useCollectorStatistics] Query: v_estadisticas WHERE id_colector =', userId);
-        
         const { data: playsData, error } = await supabase
           .from('v_estadisticas')
           .select('*')
@@ -175,39 +147,26 @@ export const useCollectorStatistics = (options = {}) => {
           .order('fecha_jugada', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
-        console.log('[useCollectorStatistics] 📊 Page', page, 'result - data:', playsData?.length || 0, 'error:', error);
-
         if (error) {
-          console.error('[useCollectorStatistics] ❌ Supabase error:', error);
-          console.error('[useCollectorStatistics] Error message:', error.message);
-          console.error('[useCollectorStatistics] Error details:', error.details);
-          console.error('[useCollectorStatistics] Error hint:', error.hint);
           throw error;
         }
         
         if (playsData && playsData.length > 0) {
-          console.log('[useCollectorStatistics] ✅ Page', page, 'has', playsData.length, 'records');
           allPlaysData = allPlaysData.concat(playsData);
           hasMore = playsData.length === pageSize;
           page++;
         } else {
-          console.log('[useCollectorStatistics] ⚠️ Page', page, 'is empty - stopping pagination');
           hasMore = false;
         }
         
         // Límite de seguridad
         if (page > 250) {
-          console.log('[useCollectorStatistics] ⚠️ Safety limit reached at page 250');
           break;
         }
       }
 
-      console.log('[useCollectorStatistics] 🎉 Total loaded from Supabase:', allPlaysData.length, 'plays');
       return allPlaysData || [];
     } catch (error) {
-      console.error('[useCollectorStatistics] ❌ Exception in loadFromSupabase:', error);
-      console.error('[useCollectorStatistics] Exception message:', error.message);
-      console.error('[useCollectorStatistics] Exception stack:', error.stack);
       throw error;
     }
   };
@@ -218,20 +177,14 @@ export const useCollectorStatistics = (options = {}) => {
   const loadPlaysData = async (filters = {}, userIdOverride = null) => {
     const effectiveUserId = userIdOverride || userId;
     
-    console.log('[useCollectorStatistics] 🚀 loadPlaysData CALLED with filters:', filters);
-    console.log('[useCollectorStatistics] Current state - userId:', effectiveUserId, 'enabled:', enabled, 'loading:', loadingRef.current);
-    
     if (!effectiveUserId || !enabled) {
-      console.log('[useCollectorStatistics] ⚠️ Skipping load - userId or enabled is false');
       return;
     }
     
     if (loadingRef.current) {
-      console.log('[useCollectorStatistics] ⚠️ Already loading - skipping');
       return;
     }
 
-    console.log('[useCollectorStatistics] Setting loading state...');
     loadingRef.current = true;
     setIsLoading(true);
 
@@ -242,8 +195,6 @@ export const useCollectorStatistics = (options = {}) => {
         forceRefresh = false
       } = filters;
 
-      console.log('[useCollectorStatistics] Final dates - start:', startDate, 'end:', endDate, 'forceRefresh:', forceRefresh);
-
       // 1. Intentar leer del caché SQLite primero
       let cachedPlays = [];
       try {
@@ -251,42 +202,30 @@ export const useCollectorStatistics = (options = {}) => {
           startDate,
           endDate
         });
-        console.log('[useCollectorStatistics] Cache read result:', cachedPlays.length, 'plays');
       } catch (cacheError) {
-        console.error('[useCollectorStatistics] ⚠️ Error reading from cache:', cacheError);
-        console.log('[useCollectorStatistics] Continuing without cache...');
         cachedPlays = [];
       }
 
       if (cachedPlays.length > 0 && !forceRefresh) {
-        console.log(`[useCollectorStatistics] ✅ Using cached data: ${cachedPlays.length} plays`);
-        
         // 🔧 FIX: Filtrar datos del caché por el rango solicitado
-        console.log('[useCollectorStatistics] 🎯 Filtering cached plays for date range:', startDate, 'to', endDate);
         const filteredCachedPlays = cachedPlays.filter(play => {
           const playDate = new Date(play.fecha_jugada);
           return playDate >= startDate && playDate <= endDate;
         });
-        console.log('[useCollectorStatistics] 🎯 Filtered cached result:', filteredCachedPlays.length, 'plays for requested range');
         
         // Agrupar datos del cache FILTRADOS
-        console.log('[useCollectorStatistics] 🔄 Grouping filtered cached data by listero...');
         const groupedCachedData = groupDataForCollector(filteredCachedPlays);
-        console.log('[useCollectorStatistics] 📦 Grouped cached data into', groupedCachedData.length, 'listeros');
-        
         setTableData({ plays: groupedCachedData });
 
         // Verificar si necesita actualización incremental
         let needsUpdate = false;
         try {
           needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'collector');
-          console.log('[useCollectorStatistics] Needs incremental update:', needsUpdate);
         } catch (cacheError) {
-          console.error('[useCollectorStatistics] ⚠️ Error checking incremental update:', cacheError);
+          // Error silencioso
         }
         
         if (needsUpdate) {
-          console.log('[useCollectorStatistics] 🔄 Starting incremental update in background...');
           updateTodayInBackground(effectiveUserId);
         }
 
@@ -296,9 +235,6 @@ export const useCollectorStatistics = (options = {}) => {
       }
 
       // 2. No hay caché o forceRefresh: cargar desde Supabase
-      console.log('[useCollectorStatistics] 📡 No cache or forceRefresh - loading from Supabase...');
-      console.log('[useCollectorStatistics] Date range: last 30 days');
-      
       const cacheStart = new Date();
       cacheStart.setDate(cacheStart.getDate() - (CACHE_DAYS - 1));
       cacheStart.setHours(0, 0, 0, 0);
@@ -306,58 +242,38 @@ export const useCollectorStatistics = (options = {}) => {
       const cacheEnd = new Date();
       cacheEnd.setHours(23, 59, 59, 999);
 
-      console.log('[useCollectorStatistics] Calling loadFromSupabase with range:', cacheStart, 'to', cacheEnd);
       const playsData = await loadFromSupabase(effectiveUserId, cacheStart, cacheEnd);
-
-      console.log('[useCollectorStatistics] 📥 Loaded from Supabase:', playsData.length, 'plays');
 
       // 3. Guardar en caché SQLite
       if (playsData.length > 0) {
         try {
-          console.log('[useCollectorStatistics] 💾 Saving to SQLite cache...');
           await SQLiteCache.savePlaysToCache(effectiveUserId, 'collector', playsData);
           await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'collector');
-          console.log('[useCollectorStatistics] ✅ Saved to cache');
         } catch (cacheError) {
-          console.error('[useCollectorStatistics] ⚠️ Error saving to cache:', cacheError);
-          console.log('[useCollectorStatistics] Continuing without cache...');
+          // Error silencioso
         }
-      } else {
-        console.log('[useCollectorStatistics] ⚠️ No data from Supabase');
       }
 
       // 4. Filtrar por el rango solicitado
-      console.log('[useCollectorStatistics] 🎯 Filtering plays for date range:', startDate, 'to', endDate);
       const filteredPlays = playsData.filter(play => {
         const playDate = new Date(play.fecha_jugada);
         return playDate >= startDate && playDate <= endDate;
       });
-
-      console.log('[useCollectorStatistics] 🎯 Filtered result:', filteredPlays.length, 'plays for requested range');
       
       // 5. Agrupar por listero para compatibilidad con UI
-      console.log('[useCollectorStatistics] 🔄 Grouping data by listero...');
       const groupedData = groupDataForCollector(filteredPlays);
-      console.log('[useCollectorStatistics] 📦 Grouped into', groupedData.length, 'listeros');
-      
       setTableData({ plays: groupedData });
 
       // 6. Limpiar registros antiguos
       try {
-        console.log('[useCollectorStatistics] 🧹 Cleaning old records...');
         await SQLiteCache.cleanOldRecords(effectiveUserId, 'collector');
-        console.log('[useCollectorStatistics] ✅ Cleaned old records');
       } catch (cacheError) {
-        console.error('[useCollectorStatistics] ⚠️ Error cleaning old records:', cacheError);
+        // Error silencioso
       }
 
     } catch (error) {
-      console.error('[useCollectorStatistics] ❌ Error loading plays:', error);
-      console.error('[useCollectorStatistics] Error details:', error.message);
-      console.error('[useCollectorStatistics] Stack:', error.stack);
       setTableData({ plays: [] });
     } finally {
-      console.log('[useCollectorStatistics] ✅ Load complete - setting loading=false');
       setIsLoading(false);
       loadingRef.current = false;
     }
@@ -385,7 +301,6 @@ export const useCollectorStatistics = (options = {}) => {
           await SQLiteCache.savePlaysToCache(userId, 'collector', todayPlays);
           await SQLiteCache.updateIncrementalTimestamp(userId, 'collector');
         } catch (cacheError) {
-          console.error('[useCollectorStatistics] ⚠️ Error in incremental update cache save:', cacheError);
           return;
         }
         
@@ -402,27 +317,21 @@ export const useCollectorStatistics = (options = {}) => {
               endDate
             });
             
-            // Agrupar datos del cache
-            console.log('[useCollectorStatistics] 🔄 Grouping updated cached data by listero...');
             const groupedCachedData = groupDataForCollector(cachedPlays);
-            console.log('[useCollectorStatistics] 📦 Grouped updated data into', groupedCachedData.length, 'listeros');
-            
             setTableData({ plays: groupedCachedData });
           } catch (cacheError) {
-            console.error('[useCollectorStatistics] ⚠️ Error reading cache in incremental update:', cacheError);
+            // Error silencioso
           }
         }
-
-        console.log(`[useCollectorStatistics] Incremental update completed: ${todayPlays.length} plays`);
       }
 
       try {
         await SQLiteCache.cleanOldRecords(userId, 'collector');
       } catch (cacheError) {
-        console.error('[useCollectorStatistics] ⚠️ Error cleaning in incremental update:', cacheError);
+        // Error silencioso
       }
     } catch (error) {
-      console.error('[useCollectorStatistics] Error in incremental update:', error);
+      // Error silencioso
     }
   };
 
@@ -430,8 +339,6 @@ export const useCollectorStatistics = (options = {}) => {
    * Aplicar filtros
    */
   const applyFilters = async (filters = {}) => {
-    console.log('[useCollectorStatistics] 🔧 applyFilters CALLED with:', filters);
-    
     const {
       startDate,
       endDate,
@@ -439,22 +346,17 @@ export const useCollectorStatistics = (options = {}) => {
     } = filters;
 
     if (startDate && endDate) {
-      console.log('[useCollectorStatistics] Setting date range:', startDate, 'to', endDate);
       setDateRange({ startDate, endDate });
     }
 
     const finalStartDate = startDate || dateRange.startDate;
     const finalEndDate = endDate || dateRange.endDate;
-    
-    console.log('[useCollectorStatistics] Calling loadPlaysData with final range:', finalStartDate, 'to', finalEndDate, 'forceRefresh:', forceRefresh);
 
     await loadPlaysData({
       startDate: finalStartDate,
       endDate: finalEndDate,
       forceRefresh
     });
-    
-    console.log('[useCollectorStatistics] ✅ applyFilters completed');
   };
 
   /**
