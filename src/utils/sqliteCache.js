@@ -371,6 +371,9 @@ export const savePlaysToCache = async (userId, role, plays) => {
             ? JSON.stringify(play.configuracion_precio)
             : play.configuracion_precio;
 
+          // Redondear valores decimales a 2 lugares
+          const roundTo2 = (value) => value ? parseFloat(parseFloat(value).toFixed(2)) : 0;
+
           await tx.executeSql(
             `INSERT OR REPLACE INTO ${tableName} (
               id_jugada, fecha_jugada, id_listero, id_colector, id_banco,
@@ -400,27 +403,27 @@ export const savePlaysToCache = async (userId, role, plays) => {
               play.colector_username || null,
               play.tipo_jugada || null,
               play.numeros_jugados || null,
-              play.monto_unitario || 0,
-              play.monto_total || 0,
+              roundTo2(play.monto_unitario),
+              roundTo2(play.monto_total),
               play.nota || null,
               play.nombre_loteria || null,
               play.nombre_horario || null,
               play.resultado || null,
               numeros_ganadores,
               numeros_ganadores_jugada,
-              play.monto_a_pagar || 0,
+              roundTo2(play.monto_a_pagar),
               play.hora_inicio || null,
               play.hora_fin || null,
               configuracion_precio,
-              play.regular || 0,
-              play.limitado || 0,
+              roundTo2(play.regular),
+              roundTo2(play.limitado),
               numeros_limitados_por_horario,
-              play.pct_listero || 0,
-              play.pct_colector || 0,
-              play.ganancia_listero || 0,
-              play.ganancia_colector || 0,
-              play.balance_listero || 0,
-              play.balance_colector || 0,
+              roundTo2(play.pct_listero),
+              roundTo2(play.pct_colector),
+              roundTo2(play.ganancia_listero),
+              roundTo2(play.ganancia_colector),
+              roundTo2(play.balance_listero),
+              roundTo2(play.balance_colector),
               play.estado_horario || null,
               now,
               userId

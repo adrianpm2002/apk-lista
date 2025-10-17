@@ -34,28 +34,48 @@ export const useListeroStatistics = (options = {}) => {
   // Ref para evitar múltiples cargas simultáneas
   const loadingRef = useRef(false);
 
-  // Detectar userId (se ejecuta cuando enabled cambia)
+  // Detectar userId y auto-cargar datos (se ejecuta cuando enabled cambia)
   useEffect(() => {
-    const detectUserId = async () => {
-      console.log('[useListeroStatistics] detectUserId effect - enabled:', enabled);
+    const initializeData = async () => {
+      console.log('[useListeroStatistics] Initialize effect - enabled:', enabled);
       
       if (!enabled) {
         setUserId(null); // Limpiar userId si se deshabilita
         return;
       }
       
+      if (loadingRef.current) {
+        console.log('[useListeroStatistics] Already loading, skipping...');
+        return;
+      }
+      
       try {
         const { data: { user } } = await supabase.auth.getUser();
         console.log('[useListeroStatistics] User detected:', user?.id);
+        
         if (user) {
           setUserId(user.id);
+          
+          // Auto-cargar datos inmediatamente después de detectar userId
+          console.log('[useListeroStatistics] 🚀 Auto-loading data for userId:', user.id);
+          
+          const endDate = new Date();
+          const startDate = new Date();
+          startDate.setDate(startDate.getDate() - 30);
+          
+          // Pasar userId explícitamente porque setUserId es asíncrono
+          loadPlaysData({ 
+            startDate, 
+            endDate, 
+            forceRefresh: false 
+          }, user.id);
         }
       } catch (error) {
         console.error('[useListeroStatistics] Error detecting userId:', error);
       }
     };
 
-    detectUserId();
+    initializeData();
   }, [enabled]);
 
   /**
@@ -108,11 +128,13 @@ export const useListeroStatistics = (options = {}) => {
   /**
    * Cargar datos con estrategia de caché inteligente
    */
-  const loadPlaysData = async (filters = {}) => {
-    console.log('[useListeroStatistics] loadPlaysData called with filters:', filters);
-    console.log('[useListeroStatistics] Current state - userId:', userId, 'enabled:', enabled);
+  const loadPlaysData = async (filters = {}, userIdOverride = null) => {
+    const effectiveUserId = userIdOverride || userId;
     
-    if (!userId || !enabled) {
+    console.log('[useListeroStatistics] loadPlaysData called with filters:', filters);
+    console.log('[useListeroStatistics] Current state - userId:', effectiveUserId, 'enabled:', enabled);
+    
+    if (!effectiveUserId || !enabled) {
       console.log('[useListeroStatistics] Skipping load - missing userId or not enabled');
       return;
     }
@@ -134,7 +156,7 @@ export const useListeroStatistics = (options = {}) => {
       } = filters;
 
       // 1. Intentar leer del caché SQLite primero
-      const cachedPlays = await SQLiteCache.readPlaysFromCache(userId, 'listero', {
+      const cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'listero', {
         startDate,
         endDate
       });
@@ -147,13 +169,13 @@ export const useListeroStatistics = (options = {}) => {
         setTableData({ plays: cachedPlays });
 
         // Verificar si necesita actualización incremental (solo HOY)
-        const needsUpdate = await SQLiteCache.needsIncrementalUpdate(userId, 'listero');
+        const needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'listero');
         console.log('[useListeroStatistics] Needs incremental update:', needsUpdate);
         
         if (needsUpdate) {
           // Actualización incremental en background (solo hoy)
           console.log('[useListeroStatistics] 🔄 Starting incremental update in background...');
-          updateTodayInBackground(userId);
+          updateTodayInBackground(effectiveUserId);
         }
 
         setIsLoading(false);
@@ -173,15 +195,15 @@ export const useListeroStatistics = (options = {}) => {
       const cacheEnd = new Date();
       cacheEnd.setHours(23, 59, 59, 999);
 
-      const playsData = await loadFromSupabase(userId, cacheStart, cacheEnd);
+      const playsData = await loadFromSupabase(effectiveUserId, cacheStart, cacheEnd);
 
       console.log('[useListeroStatistics] 📥 Loaded from Supabase:', playsData.length, 'plays');
 
       // 3. Guardar en caché SQLite
       if (playsData.length > 0) {
         console.log('[useListeroStatistics] 💾 Saving to SQLite cache...');
-        await SQLiteCache.savePlaysToCache(userId, 'listero', playsData);
-        await SQLiteCache.updateIncrementalTimestamp(userId, 'listero');
+        await SQLiteCache.savePlaysToCache(effectiveUserId, 'listero', playsData);
+        await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'listero');
         console.log('[useListeroStatistics] ✅ Saved to cache');
       } else {
         console.log('[useListeroStatistics] ⚠️ No data from Supabase');
@@ -199,7 +221,7 @@ export const useListeroStatistics = (options = {}) => {
       setTableData({ plays: filteredPlays });
 
       // 5. Limpiar registros antiguos
-      await SQLiteCache.cleanOldRecords(userId, 'listero');
+      await SQLiteCache.cleanOldRecords(effectiveUserId, 'listero');
 
     } catch (error) {
       console.error('[useListeroStatistics] ❌ Error loading plays:', error);

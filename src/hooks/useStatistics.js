@@ -93,47 +93,69 @@ const useStatistics = () => {
     
     if (userRole === 'listero') {
       const totals = plays.reduce((acc, play) => {
-        acc.totalBets += 1;
-        acc.totalAmount += Number(play.monto_total) || 0;  // monto_total en vez de bruto
-        acc.totalPrize += Number(play.monto_a_pagar) || 0; // monto_a_pagar en vez de premio
-        acc.totalGain += Number(play.ganancia_listero) || 0; // ganancia_listero en vez de ganancia
+        const bruto = Number(play.monto_total) || 0;
+        const ganancia = Number(play.ganancia_listero) || 0;
+        const premio = Number(play.monto_a_pagar) || 0;
+        const balance = Number(play.balance_listero) || 0;
+        
+        acc.bruto += bruto;
+        acc.ganancia += ganancia;
+        acc.premio += premio;
+        acc.balance += balance;
         return acc;
-      }, { totalBets: 0, totalAmount: 0, totalPrize: 0, totalGain: 0 });
+      }, { bruto: 0, ganancia: 0, premio: 0, balance: 0 });
 
-      console.log('[useStatistics] 📊 Listero KPI totals:', totals);
+      // Limpio = Bruto - Ganancia
+      const limpio = totals.bruto - totals.ganancia;
+
+      console.log('[useStatistics] 📊 Listero KPI totals:', { 
+        bruto: totals.bruto, 
+        ganancia: totals.ganancia, 
+        limpio,
+        premio: totals.premio,
+        balance: totals.balance 
+      });
 
       return [
         {
-          title: 'Apuestas Totales',
-          value: totals.totalBets,
-          change: 0,
-          trend: 'neutral',
-          icon: '🎯',
-          formattedValue: totals.totalBets.toString()
-        },
-        {
-          title: 'Monto Total',
-          value: totals.totalAmount,
+          title: 'Bruto',
+          value: totals.bruto,
           change: 0,
           trend: 'neutral',
           icon: '💰',
-          formattedValue: `$${totals.totalAmount.toLocaleString()}`
-        },
-        {
-          title: 'Premios',
-          value: totals.totalPrize,
-          change: 0,
-          trend: 'neutral',
-          icon: '🏆',
-          formattedValue: `$${totals.totalPrize.toLocaleString()}`
+          formattedValue: `$${totals.bruto.toFixed(2)}`
         },
         {
           title: 'Ganancia',
-          value: totals.totalGain,
+          value: totals.ganancia,
           change: 0,
-          trend: totals.totalGain >= 0 ? 'up' : 'down',
+          trend: totals.ganancia >= 0 ? 'up' : 'down',
           icon: '📈',
-          formattedValue: `$${totals.totalGain.toLocaleString()}`
+          formattedValue: `$${totals.ganancia.toFixed(2)}`
+        },
+        {
+          title: 'Limpio',
+          value: limpio,
+          change: 0,
+          trend: 'neutral',
+          icon: '✨',
+          formattedValue: `$${limpio.toFixed(2)}`
+        },
+        {
+          title: 'Premio',
+          value: totals.premio,
+          change: 0,
+          trend: 'neutral',
+          icon: '🏆',
+          formattedValue: `$${totals.premio.toFixed(2)}`
+        },
+        {
+          title: 'Balance',
+          value: totals.balance,
+          change: 0,
+          trend: totals.balance >= 0 ? 'up' : 'down',
+          icon: '💵',
+          formattedValue: `$${totals.balance.toFixed(2)}`
         }
       ];
     }

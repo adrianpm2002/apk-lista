@@ -136,6 +136,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   const [customStartDate, setCustomStartDate] = useState(new Date());
   const [customEndDate, setCustomEndDate] = useState(new Date());
   
+  // Estados para rango de fechas actual (para filtros)
+  const [currentStartDate, setCurrentStartDate] = useState(null);
+  const [currentEndDate, setCurrentEndDate] = useState(null);
+  
   // Estados para modo Santiago
   const [modoSantiago, setModoSantiago] = useState(false);
   const [porcentajeSantiago, setPorcentajeSantiago] = useState(100);
@@ -350,6 +354,10 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     
     console.log('[StatisticsScreen] Date range calculated:', startDate, 'to', endDate);
     setSelectedPeriod(period);
+    
+    // Guardar las fechas actuales para usar en filtros de la UI
+    setCurrentStartDate(startDate);
+    setCurrentEndDate(endDate);
     
     // Pasar fechas concretas al hook
     console.log('[StatisticsScreen] Calling applyFilters...');
@@ -891,12 +899,32 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       {tableData?.plays && tableData.plays.length > 0 && (()=>{
         const fmtShort = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
         
-        // Filtrar jugadas por lotería seleccionada
+        // Filtrar jugadas por lotería seleccionada Y por período de fechas
         const filteredPlays = tableData.plays.filter(play => {
+          // Filtro de lotería
           if (selectedLotteryDetails !== 'all') {
             const playLottery = play.loteria || play.nombre_loteria || 'Lotería';
-            return playLottery === selectedLotteryDetails;
+            if (playLottery !== selectedLotteryDetails) {
+              return false;
+            }
           }
+          
+          // Filtro de período de fechas
+          if (currentStartDate && currentEndDate && play.fecha_jugada) {
+            const playDate = new Date(play.fecha_jugada);
+            if (isNaN(playDate.getTime())) {
+              return false; // Saltar jugadas con fecha inválida
+            }
+            // Comparar solo las fechas (sin hora)
+            const playDateOnly = new Date(playDate.getFullYear(), playDate.getMonth(), playDate.getDate());
+            const startDateOnly = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth(), currentStartDate.getDate());
+            const endDateOnly = new Date(currentEndDate.getFullYear(), currentEndDate.getMonth(), currentEndDate.getDate());
+            
+            if (playDateOnly < startDateOnly || playDateOnly > endDateOnly) {
+              return false;
+            }
+          }
+          
           return true;
         });
         
@@ -904,12 +932,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         const dailyBalanceMap = new Map();
         
         filteredPlays.forEach(play => {
-          // Validar que created_at exista y sea una fecha válida
-          if (!play.created_at) {
+          // Validar que fecha_jugada exista y sea una fecha válida
+          if (!play.fecha_jugada) {
             return; // Saltar esta jugada si no tiene fecha
           }
           
-          const playDate = new Date(play.created_at);
+          const playDate = new Date(play.fecha_jugada);
           if (isNaN(playDate.getTime())) {
             return; // Saltar esta jugada si la fecha es inválida
           }
@@ -931,8 +959,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           }
           
           const dayData = dailyBalanceMap.get(dateKey);
-          dayData.bruto += Number(play.bruto || 0);
-          dayData.pagado += Number(play.premio || 0);
+          dayData.bruto += Number(play.monto_total || 0);
+          dayData.pagado += Number(play.monto_a_pagar || 0);
           dayData.balance += Number(play.balance_listero || 0); // Usar balance_listero real
         });
         
@@ -1008,9 +1036,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               // Calcular totales del período desde datos filtrados
               const playsInPeriod = filteredPlays || [];
               
-              const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.bruto) || 0), 0);
+              const totalBruto = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
               const totalGananciaListero = playsInPeriod.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
-              const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.premio) || 0), 0);
+              const totalPagado = playsInPeriod.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
               const totalBalance = playsInPeriod.reduce((sum, play) => sum + (Number(play.balance_listero) || 0), 0); // Usar balance_listero real
               // Cálculo Limpio: Bruto - Ganancia Listero
               const totalLimpio = totalBruto - totalGananciaListero;
@@ -1022,12 +1050,16 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     <Text style={{ fontSize:16, fontWeight:'800', color:'#27AE60' }}>{formatSantiagoMoney(totalBruto)}</Text>
                   </View>
                   <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
+                    <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Ganancia')}</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatSantiagoMoney(totalGananciaListero)}</Text>
+                  </View>
+                  <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                     <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Limpio')}</Text>
                     <Text style={{ fontSize:16, fontWeight:'800', color:'#3498db' }}>{formatSantiagoMoney(totalLimpio)}</Text>
                   </View>
                   <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
-                    <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Ganancia')}</Text>
-                    <Text style={{ fontSize:16, fontWeight:'800', color:'#f39c12' }}>{formatSantiagoMoney(totalGananciaListero)}</Text>
+                    <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Premio')}</Text>
+                    <Text style={{ fontSize:16, fontWeight:'800', color:'#9b59b6' }}>{formatSantiagoMoney(totalPagado)}</Text>
                   </View>
                   <View style={{ flexBasis:'31%', backgroundColor: '#fff', borderRadius:12, padding:12, marginVertical:6 }}>
                     <Text style={{ color: '#6c757d', fontSize: 12 }}>{getSantiagoHeader('Balance')}</Text>
@@ -1068,12 +1100,32 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       });
     }
     
-    // Filtrar jugadas por lotería seleccionada
+    // Filtrar jugadas por lotería seleccionada Y por período de fechas
     const filteredPlays = allPlays.filter(play => {
+      // Filtro de lotería
       if (selectedLotteryCollector !== 'all') {
         const playLottery = play.loteria || play.nombre_loteria || 'Lotería';
-        return playLottery === selectedLotteryCollector;
+        if (playLottery !== selectedLotteryCollector) {
+          return false;
+        }
       }
+      
+      // Filtro de período de fechas
+      if (currentStartDate && currentEndDate && play.fecha_jugada) {
+        const playDate = new Date(play.fecha_jugada);
+        if (isNaN(playDate.getTime())) {
+          return false; // Saltar jugadas con fecha inválida
+        }
+        // Comparar solo las fechas (sin hora)
+        const playDateOnly = new Date(playDate.getFullYear(), playDate.getMonth(), playDate.getDate());
+        const startDateOnly = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth(), currentStartDate.getDate());
+        const endDateOnly = new Date(currentEndDate.getFullYear(), currentEndDate.getMonth(), currentEndDate.getDate());
+        
+        if (playDateOnly < startDateOnly || playDateOnly > endDateOnly) {
+          return false;
+        }
+      }
+      
       return true;
     });
 
@@ -1309,11 +1361,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           resultado: groupData.resultado,
           jugadas: (groupData.plays || []).map(play => ({
             ts: play.ts || (() => {
-              const d = new Date(play.created_at || Date.now());
+              const d = new Date(play.fecha_jugada || Date.now());
               return isNaN(d.getTime()) ? Date.now() : d.getTime();
             })(),
             time: play.time || (() => {
-              const d = new Date(play.created_at || Date.now());
+              const d = new Date(play.fecha_jugada || Date.now());
               return isNaN(d.getTime()) ? 'Hora inválida' : d.toLocaleTimeString('es-ES', {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -1578,39 +1630,59 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     // Para colectores, usar directamente los datos agrupados del hook (ya vienen agrupados por listero)
     let collectorData = tableData?.plays || [];
     
-    // Aplicar filtro de lotería si está seleccionada
-    if (selectedLotteryCollector !== 'all') {
-      collectorData = collectorData.map(listero => {
-        // Filtrar las jugadas del listero por lotería
-        const filteredPlays = (listero.plays || []).filter(play => {
+    // Aplicar filtros de lotería y período
+    collectorData = collectorData.map(listero => {
+      // Filtrar las jugadas del listero por lotería Y período
+      const filteredPlays = (listero.plays || []).filter(play => {
+        // Filtro de lotería
+        if (selectedLotteryCollector !== 'all') {
           const playLottery = play.loteria || play.nombre_loteria || 'Lotería';
-          return playLottery === selectedLotteryCollector;
-        });
+          if (playLottery !== selectedLotteryCollector) {
+            return false;
+          }
+        }
         
-        // Recalcular totales basados en las jugadas filtradas
-        const totals = {
-          total_bruto: 0,
-          total_premio: 0,
-          total_ganancia_listero: 0,
-          total_ganancia_colector: 0,
-          balance_colector: 0
-        };
+        // Filtro de período de fechas
+        if (currentStartDate && currentEndDate && play.fecha_jugada) {
+          const playDate = new Date(play.fecha_jugada);
+          if (isNaN(playDate.getTime())) {
+            return false;
+          }
+          const playDateOnly = new Date(playDate.getFullYear(), playDate.getMonth(), playDate.getDate());
+          const startDateOnly = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth(), currentStartDate.getDate());
+          const endDateOnly = new Date(currentEndDate.getFullYear(), currentEndDate.getMonth(), currentEndDate.getDate());
+          
+          if (playDateOnly < startDateOnly || playDateOnly > endDateOnly) {
+            return false;
+          }
+        }
         
-        filteredPlays.forEach(play => {
-          totals.total_bruto += Number(play.monto_total || 0);
-          totals.total_premio += Number(play.monto_a_pagar || 0);
-          totals.total_ganancia_listero += Number(play.ganancia_listero || 0);
-          totals.total_ganancia_colector += Number(play.ganancia_colector || 0);
-          totals.balance_colector += Number(play.balance_colector || 0);
-        });
-        
-        return {
-          ...listero,
-          plays: filteredPlays,
-          ...totals
-        };
-      }).filter(listero => listero.plays.length > 0); // Solo mantener listeros con jugadas
-    }
+        return true;
+      });
+      
+      // Recalcular totales basados en las jugadas filtradas
+      const totals = {
+        total_bruto: 0,
+        total_premio: 0,
+        total_ganancia_listero: 0,
+        total_ganancia_colector: 0,
+        balance_colector: 0
+      };
+      
+      filteredPlays.forEach(play => {
+        totals.total_bruto += Number(play.monto_total || 0);
+        totals.total_premio += Number(play.monto_a_pagar || 0);
+        totals.total_ganancia_listero += Number(play.ganancia_listero || 0);
+        totals.total_ganancia_colector += Number(play.ganancia_colector || 0);
+        totals.balance_colector += Number(play.balance_colector || 0);
+      });
+      
+      return {
+        ...listero,
+        plays: filteredPlays,
+        ...totals
+      };
+    }).filter(listero => listero.plays.length > 0); // Solo mantener listeros con jugadas
     
     if (!collectorData || collectorData.length === 0) {
       return (
@@ -1740,43 +1812,40 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     // Para admin, usar directamente los datos agrupados por colector del hook
     let adminData = tableData?.plays || [];
     
-    // Aplicar filtro de lotería si está seleccionada
-    if (selectedLotteryCollector !== 'all') {
-      adminData = adminData.map(colector => {
-        // Filtrar listeros que tengan jugadas de la lotería seleccionada
-        const filteredListeros = (colector.listeros || []).map(listero => {
-          // Filtrar jugadas del listero por lotería
-          const filteredPlays = (listero.plays || []).filter(play => {
+    // Aplicar filtros de lotería y período
+    adminData = adminData.map(colector => {
+      // Filtrar listeros que tengan jugadas de la lotería seleccionada y período
+      const filteredListeros = (colector.listeros || []).map(listero => {
+        // Filtrar jugadas del listero por lotería Y período
+        const filteredPlays = (listero.plays || []).filter(play => {
+          // Filtro de lotería
+          if (selectedLotteryCollector !== 'all') {
             const playLottery = play.loteria || play.nombre_loteria || 'Lotería';
-            return playLottery === selectedLotteryCollector;
-          });
+            if (playLottery !== selectedLotteryCollector) {
+              return false;
+            }
+          }
           
-          // Recalcular totales del listero
-          const totals = {
-            total_bruto: 0,
-            total_premio: 0,
-            total_ganancia_listero: 0,
-            total_ganancia_colector: 0,
-            balance_colector: 0
-          };
+          // Filtro de período de fechas
+          if (currentStartDate && currentEndDate && play.fecha_jugada) {
+            const playDate = new Date(play.fecha_jugada);
+            if (isNaN(playDate.getTime())) {
+              return false;
+            }
+            const playDateOnly = new Date(playDate.getFullYear(), playDate.getMonth(), playDate.getDate());
+            const startDateOnly = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth(), currentStartDate.getDate());
+            const endDateOnly = new Date(currentEndDate.getFullYear(), currentEndDate.getMonth(), currentEndDate.getDate());
+            
+            if (playDateOnly < startDateOnly || playDateOnly > endDateOnly) {
+              return false;
+            }
+          }
           
-          filteredPlays.forEach(play => {
-            totals.total_bruto += Number(play.monto_total || 0);
-            totals.total_premio += Number(play.monto_a_pagar || 0);
-            totals.total_ganancia_listero += Number(play.ganancia_listero || 0);
-            totals.total_ganancia_colector += Number(play.ganancia_colector || 0);
-            totals.balance_colector += Number(play.balance_colector || 0);
-          });
-          
-          return {
-            ...listero,
-            plays: filteredPlays,
-            ...totals
-          };
-        }).filter(listero => listero.plays.length > 0); // Solo mantener listeros con jugadas
+          return true;
+        });
         
-        // Recalcular totales del colector
-        const colectorTotals = {
+        // Recalcular totales del listero
+        const totals = {
           total_bruto: 0,
           total_premio: 0,
           total_ganancia_listero: 0,
@@ -1784,21 +1853,44 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           balance_colector: 0
         };
         
-        filteredListeros.forEach(listero => {
-          colectorTotals.total_bruto += Number(listero.total_bruto || 0);
-          colectorTotals.total_premio += Number(listero.total_premio || 0);
-          colectorTotals.total_ganancia_listero += Number(listero.total_ganancia_listero || 0);
-          colectorTotals.total_ganancia_colector += Number(listero.total_ganancia_colector || 0);
-          colectorTotals.balance_colector += Number(listero.balance_colector || 0);
+        filteredPlays.forEach(play => {
+          totals.total_bruto += Number(play.monto_total || 0);
+          totals.total_premio += Number(play.monto_a_pagar || 0);
+          totals.total_ganancia_listero += Number(play.ganancia_listero || 0);
+          totals.total_ganancia_colector += Number(play.ganancia_colector || 0);
+          totals.balance_colector += Number(play.balance_colector || 0);
         });
         
         return {
-          ...colector,
-          listeros: filteredListeros,
-          ...colectorTotals
+          ...listero,
+          plays: filteredPlays,
+          ...totals
         };
-      }).filter(colector => colector.listeros.length > 0); // Solo mantener colectores con listeros
-    }
+      }).filter(listero => listero.plays.length > 0); // Solo mantener listeros con jugadas
+      
+      // Recalcular totales del colector
+      const colectorTotals = {
+        total_bruto: 0,
+        total_premio: 0,
+        total_ganancia_listero: 0,
+        total_ganancia_colector: 0,
+        balance_colector: 0
+      };
+      
+      filteredListeros.forEach(listero => {
+        colectorTotals.total_bruto += Number(listero.total_bruto || 0);
+        colectorTotals.total_premio += Number(listero.total_premio || 0);
+        colectorTotals.total_ganancia_listero += Number(listero.total_ganancia_listero || 0);
+        colectorTotals.total_ganancia_colector += Number(listero.total_ganancia_colector || 0);
+        colectorTotals.balance_colector += Number(listero.balance_colector || 0);
+      });
+      
+      return {
+        ...colector,
+        listeros: filteredListeros,
+        ...colectorTotals
+      };
+    }).filter(colector => colector.listeros.length > 0); // Solo mantener colectores con listeros
     
     if (!adminData || adminData.length === 0) {
       return (

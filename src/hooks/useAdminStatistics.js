@@ -34,28 +34,48 @@ export const useAdminStatistics = (options = {}) => {
   // Ref para evitar múltiples cargas simultáneas
   const loadingRef = useRef(false);
 
-  // Detectar userId (se ejecuta cuando enabled cambia)
+  // Detectar userId y auto-cargar datos (se ejecuta cuando enabled cambia)
   useEffect(() => {
-    const detectUserId = async () => {
-      console.log('[useAdminStatistics] detectUserId effect - enabled:', enabled);
+    const initializeData = async () => {
+      console.log('[useAdminStatistics] Initialize effect - enabled:', enabled);
       
       if (!enabled) {
-        setUserId(null); // Limpiar userId si se deshabilita
+        setUserId(null);
+        return;
+      }
+      
+      if (loadingRef.current) {
+        console.log('[useAdminStatistics] Already loading, skipping...');
         return;
       }
       
       try {
         const { data: { user } } = await supabase.auth.getUser();
         console.log('[useAdminStatistics] User detected:', user?.id);
+        
         if (user) {
           setUserId(user.id);
+          
+          // Auto-cargar datos inmediatamente después de detectar userId
+          console.log('[useAdminStatistics] 🚀 Auto-loading data for userId:', user.id);
+          
+          const endDate = new Date();
+          const startDate = new Date();
+          startDate.setDate(startDate.getDate() - 30);
+          
+          // Pasar userId explícitamente porque setUserId es asíncrono
+          loadPlaysData({ 
+            startDate, 
+            endDate, 
+            forceRefresh: false 
+          }, user.id);
         }
       } catch (error) {
         console.error('[useAdminStatistics] Error detecting userId:', error);
       }
     };
 
-    detectUserId();
+    initializeData();
   }, [enabled]);
 
   /**
@@ -131,11 +151,13 @@ export const useAdminStatistics = (options = {}) => {
   /**
    * Cargar datos con estrategia de caché inteligente
    */
-  const loadPlaysData = async (filters = {}) => {
-    console.log('[useAdminStatistics] loadPlaysData called with filters:', filters);
-    console.log('[useAdminStatistics] Current state - userId:', userId, 'enabled:', enabled);
+  const loadPlaysData = async (filters = {}, userIdOverride = null) => {
+    const effectiveUserId = userIdOverride || userId;
     
-    if (!userId || !enabled) {
+    console.log('[useAdminStatistics] loadPlaysData called with filters:', filters);
+    console.log('[useAdminStatistics] Current state - userId:', effectiveUserId, 'enabled:', enabled);
+    
+    if (!effectiveUserId || !enabled) {
       console.log('[useAdminStatistics] Skipping load - missing userId or not enabled');
       return;
     }
@@ -157,7 +179,7 @@ export const useAdminStatistics = (options = {}) => {
       } = filters;
 
       // 1. Intentar leer del caché SQLite primero
-      const cachedPlays = await SQLiteCache.readPlaysFromCache(userId, 'admin', {
+      const cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'admin', {
         startDate,
         endDate
       });
@@ -169,12 +191,12 @@ export const useAdminStatistics = (options = {}) => {
         setTableData({ plays: cachedPlays });
 
         // Verificar si necesita actualización incremental
-        const needsUpdate = await SQLiteCache.needsIncrementalUpdate(userId, 'admin');
+        const needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'admin');
         console.log('[useAdminStatistics] Needs incremental update:', needsUpdate);
         
         if (needsUpdate) {
           console.log('[useAdminStatistics] 🔄 Starting incremental update in background...');
-          updateTodayInBackground(userId);
+          updateTodayInBackground(effectiveUserId);
         }
 
         setIsLoading(false);
@@ -194,15 +216,15 @@ export const useAdminStatistics = (options = {}) => {
       cacheEnd.setHours(23, 59, 59, 999);
 
       console.log('[useAdminStatistics] Calling loadFromSupabase with range:', cacheStart, 'to', cacheEnd);
-      const playsData = await loadFromSupabase(userId, cacheStart, cacheEnd);
+      const playsData = await loadFromSupabase(effectiveUserId, cacheStart, cacheEnd);
 
       console.log('[useAdminStatistics] 📥 Loaded from Supabase:', playsData.length, 'plays');
 
       // 3. Guardar en caché SQLite
       if (playsData.length > 0) {
         console.log('[useAdminStatistics] 💾 Saving to SQLite cache...');
-        await SQLiteCache.savePlaysToCache(userId, 'admin', playsData);
-        await SQLiteCache.updateIncrementalTimestamp(userId, 'admin');
+        await SQLiteCache.savePlaysToCache(effectiveUserId, 'admin', playsData);
+        await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'admin');
         console.log('[useAdminStatistics] ✅ Saved to cache');
       } else {
         console.log('[useAdminStatistics] ⚠️ No data from Supabase');
@@ -220,7 +242,7 @@ export const useAdminStatistics = (options = {}) => {
 
       // 5. Limpiar registros antiguos
       console.log('[useAdminStatistics] 🧹 Cleaning old records...');
-      await SQLiteCache.cleanOldRecords(userId, 'admin');
+      await SQLiteCache.cleanOldRecords(effectiveUserId, 'admin');
       console.log('[useAdminStatistics] ✅ Cleaned old records');
 
     } catch (error) {
