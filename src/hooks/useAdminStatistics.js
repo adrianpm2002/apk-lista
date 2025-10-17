@@ -344,12 +344,19 @@ export const useAdminStatistics = (options = {}) => {
       
       console.log('🐛 [DEBUG ADMIN] Después del filtro:', filteredPlays.length, 'jugadas para mostrar');
       
+      // 🐛 DEBUG: Calcular fecha más antigua de los datos cargados
+      const oldestPlay = playsData.length > 0
+        ? new Date(Math.min(...playsData.map(p => new Date(p.fecha_jugada).getTime())))
+        : null;
+      
+      console.log('🐛 [DEBUG ADMIN] Fecha más antigua en datos de Supabase:', oldestPlay?.toLocaleDateString());
+      
       // Actualizar debugInfo
       setDebugInfo({
         source: 'SUPABASE',
         totalBeforeFilter: playsData.length,
         totalAfterFilter: filteredPlays.length,
-        cacheOldestDate: cacheStart.toLocaleDateString(),
+        cacheOldestDate: oldestPlay ? oldestPlay.toLocaleDateString() : 'Sin datos',
         rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
       });
       

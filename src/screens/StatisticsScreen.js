@@ -1135,24 +1135,46 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         {/* 🐛 DEBUG: Banner de información temporal - Colocado antes de KPIs */}
         {debugInfo && debugInfo.source !== 'N/A' && (
           <View style={styles.debugBanner}>
-            <Text style={styles.debugTitle}>🐛 DEBUG INFO</Text>
+            <Text style={styles.debugTitle}>🐛 DEBUG INFO - Estadísticas</Text>
+            
+            {/* Línea 1: Conteos principales */}
             <Text style={styles.debugText}>
-              📊 Mostrando: <Text style={styles.debugBold}>{debugInfo.totalAfterFilter}</Text> jugadas
+              📊 Banner dice mostrar: <Text style={styles.debugBold}>{debugInfo.totalAfterFilter}</Text> jugadas
             </Text>
+            <Text style={styles.debugText}>
+              🎯 tableData.plays tiene: <Text style={styles.debugBold}>
+                {tableData?.plays?.length || 0}
+              </Text> {userRole === 'listero' ? 'jugadas' : 'grupos'}
+            </Text>
+            
+            {/* Línea 2: Fuente de datos */}
             <Text style={styles.debugText}>
               💾 Fuente: <Text style={[styles.debugBold, debugInfo.source === 'CACHE' ? styles.debugCache : styles.debugSupabase]}>
                 {debugInfo.source}
               </Text>
             </Text>
+            
+            {/* Línea 3: Antes de filtrar */}
             <Text style={styles.debugText}>
-              🔍 Total antes de filtrar: <Text style={styles.debugBold}>{debugInfo.totalBeforeFilter}</Text>
+              🔍 Antes de filtrar: <Text style={styles.debugBold}>{debugInfo.totalBeforeFilter}</Text>
             </Text>
+            
+            {/* Línea 4: Rango solicitado */}
             <Text style={styles.debugText}>
-              📅 Rango: <Text style={styles.debugBold}>{debugInfo.rangeRequested}</Text>
+              📅 Rango solicitado: <Text style={styles.debugBold}>{debugInfo.rangeRequested}</Text>
             </Text>
+            
+            {/* Línea 5: Info del caché */}
             <Text style={styles.debugText}>
               📆 Caché más antiguo: <Text style={styles.debugBold}>{debugInfo.cacheOldestDate}</Text>
             </Text>
+            
+            {/* Línea 6: Alerta si hay discrepancia */}
+            {debugInfo.totalAfterFilter !== (tableData?.plays?.length || 0) && (
+              <Text style={[styles.debugText, { color: '#D32F2F', fontWeight: 'bold', marginTop: 8 }]}>
+                ⚠️ DISCREPANCIA: Banner ({debugInfo.totalAfterFilter}) vs UI ({tableData?.plays?.length || 0})
+              </Text>
+            )}
           </View>
         )}
         

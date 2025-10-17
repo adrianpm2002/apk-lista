@@ -251,20 +251,36 @@ export const useListeroStatistics = (options = {}) => {
       }
 
       // 5. Filtrar por el rango solicitado y mostrar
+      console.log('🐛 [DEBUG] RANGO EXACTO - startDate:', startDate.toISOString(), 'endDate:', endDate.toISOString());
+      
       const filteredPlays = playsData.filter(play => {
         const playDate = new Date(play.fecha_jugada);
-        return playDate >= startDate && playDate <= endDate;
+        const isInRange = playDate >= startDate && playDate <= endDate;
+        
+        // Log de las primeras 3 jugadas para ver cómo se filtran
+        if (playsData.indexOf(play) < 3) {
+          console.log(`🐛 [DEBUG] Jugada ${playsData.indexOf(play)}:`, play.fecha_jugada, '→', isInRange ? '✅ PASA' : '❌ NO PASA');
+        }
+        
+        return isInRange;
       });
       
-      console.log('🐛 [DEBUG] Después del filtro:', filteredPlays.length, 'jugadas para mostrar');
+      console.log('🐛 [DEBUG] Después del filtro:', filteredPlays.length, '/', playsData.length, 'jugadas');
       console.log('🐛 [DEBUG] ✅ Usando SUPABASE -', filteredPlays.length, 'jugadas');
+      
+      // 🐛 DEBUG: Calcular fecha más antigua de los datos cargados
+      const oldestPlay = playsData.length > 0
+        ? new Date(Math.min(...playsData.map(p => new Date(p.fecha_jugada).getTime())))
+        : null;
+      
+      console.log('🐛 [DEBUG] Fecha más antigua en datos de Supabase:', oldestPlay?.toLocaleDateString());
       
       // 🐛 DEBUG: Actualizar metadata
       setDebugInfo({
         source: 'SUPABASE',
         totalBeforeFilter: playsData.length,
         totalAfterFilter: filteredPlays.length,
-        cacheOldestDate: 'Recién cargado',
+        cacheOldestDate: oldestPlay ? oldestPlay.toLocaleDateString() : 'Sin datos',
         rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
       });
       
