@@ -337,13 +337,27 @@ export const useAdminStatistics = (options = {}) => {
 
       // 4. Guardar TODO en caché SQLite (últimos 30 días)
       if (playsData.length > 0) {
+        console.log('🐛 [DEBUG ADMIN] 💾 Guardando', playsData.length, 'registros en caché SQLite...');
+        console.log('🐛 [DEBUG ADMIN] 💾 Rango a guardar: desde', playsData[playsData.length - 1]?.fecha_jugada, 'hasta', playsData[0]?.fecha_jugada);
+        
         try {
-          console.log('🐛 [DEBUG ADMIN] Guardando', playsData.length, 'registros en caché...');
           await SQLiteCache.savePlaysToCache(effectiveUserId, 'admin', playsData);
           await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'admin');
-          console.log('🐛 [DEBUG ADMIN] Guardado resultado: ✅ Éxito');
+          console.log('🐛 [DEBUG ADMIN] 💾 Guardado resultado: ✅ Éxito');
+          console.log('🐛 [DEBUG ADMIN] 💾 Timestamp incremental actualizado');
+          
+          // 🎯 VERIFICACIÓN: Leer inmediatamente para confirmar guardado
+          try {
+            const verification = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'admin', {});
+            console.log('🐛 [DEBUG ADMIN] ✅ VERIFICACIÓN: Cache ahora tiene', verification.length, 'registros');
+            if (verification.length !== playsData.length) {
+              console.log('🐛 [DEBUG ADMIN] ⚠️ DISCREPANCIA: Guardados', playsData.length, 'pero cache tiene', verification.length);
+            }
+          } catch (verifyError) {
+            console.log('🐛 [DEBUG ADMIN] ⚠️ No se pudo verificar guardado:', verifyError.message);
+          }
         } catch (cacheError) {
-          console.log('🐛 [DEBUG ADMIN] Guardado resultado: ❌ Error -', cacheError.message);
+          console.log('🐛 [DEBUG ADMIN] ❌ Error guardando en caché:', cacheError.message, cacheError.stack);
         }
       }
 

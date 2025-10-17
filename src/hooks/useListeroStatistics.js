@@ -249,13 +249,27 @@ export const useListeroStatistics = (options = {}) => {
 
       // 4. Guardar TODO en caché SQLite (últimos 30 días)
       if (playsData.length > 0) {
-        console.log('🐛 [DEBUG] Guardando', playsData.length, 'registros en caché...');
+        console.log('🐛 [DEBUG] 💾 Guardando', playsData.length, 'registros en caché SQLite...');
+        console.log('🐛 [DEBUG] 💾 Rango a guardar: desde', playsData[playsData.length - 1]?.fecha_jugada, 'hasta', playsData[0]?.fecha_jugada);
+        
         try {
           const result = await SQLiteCache.savePlaysToCache(effectiveUserId, 'listero', playsData);
-          console.log('🐛 [DEBUG] Guardado resultado:', result);
+          console.log('🐛 [DEBUG] 💾 Guardado resultado:', result);
           await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'listero');
+          console.log('🐛 [DEBUG] 💾 Timestamp incremental actualizado');
+          
+          // 🎯 VERIFICACIÓN: Leer inmediatamente para confirmar guardado
+          try {
+            const verification = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'listero', {});
+            console.log('🐛 [DEBUG] ✅ VERIFICACIÓN: Cache ahora tiene', verification.length, 'registros');
+            if (verification.length !== playsData.length) {
+              console.log('🐛 [DEBUG] ⚠️ DISCREPANCIA: Guardados', playsData.length, 'pero cache tiene', verification.length);
+            }
+          } catch (verifyError) {
+            console.log('🐛 [DEBUG] ⚠️ No se pudo verificar guardado:', verifyError.message);
+          }
         } catch (cacheError) {
-          console.log('🐛 [DEBUG] ❌ Error guardando en caché:', cacheError);
+          console.log('🐛 [DEBUG] ❌ Error guardando en caché:', cacheError.message, cacheError.stack);
         }
       } else {
         console.log('🐛 [DEBUG] ⚠️ No hay datos para guardar en caché');

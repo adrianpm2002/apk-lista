@@ -301,15 +301,31 @@ export const useCollectorStatistics = (options = {}) => {
 
       // 4. Guardar TODO en caché SQLite (últimos 30 días)
       if (playsData.length > 0) {
+        console.log('🐛 [DEBUG COLLECTOR] 💾 Guardando', playsData.length, 'registros en caché SQLite...');
+        console.log('🐛 [DEBUG COLLECTOR] 💾 Rango a guardar: desde', playsData[playsData.length - 1]?.fecha_jugada, 'hasta', playsData[0]?.fecha_jugada);
+        
         try {
-          console.log('🐛 [DEBUG COLLECTOR] Guardando', playsData.length, 'registros en caché...');
           await SQLiteCache.savePlaysToCache(effectiveUserId, 'collector', playsData);
           await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'collector');
-          console.log('🐛 [DEBUG COLLECTOR] Guardado resultado: ✅ Éxito');
+          console.log('🐛 [DEBUG COLLECTOR] 💾 Guardado resultado: ✅ Éxito');
+          console.log('🐛 [DEBUG COLLECTOR] 💾 Timestamp incremental actualizado');
+          
+          // 🎯 VERIFICACIÓN: Leer inmediatamente para confirmar guardado
+          try {
+            const verification = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'collector', {});
+            console.log('🐛 [DEBUG COLLECTOR] ✅ VERIFICACIÓN: Cache ahora tiene', verification.length, 'registros');
+            if (verification.length !== playsData.length) {
+              console.log('🐛 [DEBUG COLLECTOR] ⚠️ DISCREPANCIA: Guardados', playsData.length, 'pero cache tiene', verification.length);
+            }
+          } catch (verifyError) {
+            console.log('🐛 [DEBUG COLLECTOR] ⚠️ No se pudo verificar guardado:', verifyError.message);
+          }
         } catch (cacheError) {
-          console.log('🐛 [DEBUG COLLECTOR] Guardado resultado: ❌ Error -', cacheError.message);
+          console.log('🐛 [DEBUG COLLECTOR] ❌ Error guardando en caché:', cacheError.message, cacheError.stack);
         }
       }
+
+      // 5. Filtrar por el rango solicitado y agrupar
 
       // 5. Filtrar por el rango solicitado y agrupar
       console.log('🐛 [DEBUG COLLECTOR] 🎯 FILTRO - startDate:', startDate.toISOString());
