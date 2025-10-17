@@ -2782,8 +2782,7 @@ const styles = StyleSheet.create({
   loadingBanner: {
     position: 'absolute',
     top: 60,
-    left: '50%',
-    transform: [{ translateX: '-50%' }],
+    alignSelf: 'center', // Centrar horizontalmente sin transform
     backgroundColor: '#E8F8F5',
     borderWidth: 1,
     borderColor: '#27AE60',
