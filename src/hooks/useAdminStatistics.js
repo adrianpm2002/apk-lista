@@ -234,47 +234,62 @@ export const useAdminStatistics = (options = {}) => {
       // 1. Intentar leer del caché SQLite primero
       let cachedPlays = [];
       try {
-        cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'admin', {
-          startDate,
-          endDate
-        });
+        // Leer TODO el caché disponible (sin filtro de fechas aún)
+        cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'admin', {});
       } catch (cacheError) {
         cachedPlays = [];
       }
 
+      // 2. Si hay datos en caché, verificar si cubren el rango solicitado
       if (cachedPlays.length > 0 && !forceRefresh) {
-        // 🔧 FIX: Filtrar datos del caché por el rango solicitado
+        // Filtrar por el rango solicitado
         const filteredCachedPlays = cachedPlays.filter(play => {
           const playDate = new Date(play.fecha_jugada);
           return playDate >= startDate && playDate <= endDate;
         });
         
-        // Agrupar datos FILTRADOS antes de setear
-        const groupedData = groupDataForAdmin(filteredCachedPlays);
-        setTableData({ plays: groupedData });
-
-        // Verificar si necesita actualización incremental
-        let needsUpdate = false;
-        try {
-          needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'admin');
-        } catch (cacheError) {
-          // Error silencioso
-        }
+        // Verificar si el caché cubre el rango completo
+        const oldestCached = cachedPlays.length > 0 
+          ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
+          : null;
         
-        if (needsUpdate) {
-          updateTodayInBackground(effectiveUserId);
-        }
+        const cacheCoversRange = oldestCached && oldestCached <= startDate;
+        
+        if (cacheCoversRange || filteredCachedPlays.length > 0) {
+          // Agrupar datos FILTRADOS antes de setear
+          const groupedData = groupDataForAdmin(filteredCachedPlays);
+          setTableData({ plays: groupedData });
 
-        setIsLoading(false);
-        loadingRef.current = false;
-        return;
+          // Verificar si necesita actualización incremental
+          let needsUpdate = false;
+          try {
+            needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'admin');
+          } catch (cacheError) {
+            // Error silencioso
+          }
+          
+          if (needsUpdate) {
+            updateTodayInBackground(effectiveUserId);
+          }
+
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
       }
 
-      // 2. No hay caché o forceRefresh: cargar desde Supabase
-      // 🎯 OPTIMIZACIÓN: Consultar SOLO el rango solicitado, no siempre 30 días
-      const playsData = await loadFromSupabase(effectiveUserId, startDate, endDate);
+      // 3. No hay caché suficiente o forceRefresh: cargar desde Supabase
+      // 🎯 Consultar últimos 30 días para cachear, pero mostrar solo el rango solicitado
+      const cacheStart = new Date();
+      cacheStart.setDate(cacheStart.getDate() - 29); // 30 días incluyendo hoy
+      cacheStart.setHours(0, 0, 0, 0);
+      
+      const cacheEnd = new Date();
+      cacheEnd.setHours(23, 59, 59, 999);
+      
+      const playsData = await loadFromSupabase(effectiveUserId, cacheStart, cacheEnd);
 
-      // 3. Guardar en caché SQLite
+      // 4. Guardar TODO en caché SQLite (últimos 30 días)
       if (playsData.length > 0) {
         try {
           await SQLiteCache.savePlaysToCache(effectiveUserId, 'admin', playsData);
@@ -284,11 +299,16 @@ export const useAdminStatistics = (options = {}) => {
         }
       }
 
-      // 4. Agrupar y mostrar datos (ya están filtrados por el rango)
-      const groupedData = groupDataForAdmin(playsData);
+      // 5. Filtrar por el rango solicitado y agrupar
+      const filteredPlays = playsData.filter(play => {
+        const playDate = new Date(play.fecha_jugada);
+        return playDate >= startDate && playDate <= endDate;
+      });
+      
+      const groupedData = groupDataForAdmin(filteredPlays);
       setTableData({ plays: groupedData });
 
-      // 5. Limpiar registros antiguos
+      // 6. Limpiar registros antiguos
       try {
         await SQLiteCache.cleanOldRecords(effectiveUserId, 'admin');
       } catch (cacheError) {
