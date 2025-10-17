@@ -935,27 +935,17 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       }
       setIsResetting(true);
       
-      // Método directo: establecer contraseña temporal en el perfil
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
-          temp_password: pwd,
-          temp_password_created: new Date().toISOString()
-        })
-        .eq('id', resetTargetUser.id);
-
-      if (updateError) {
-        throw new Error('Error al establecer contraseña temporal: ' + updateError.message);
-      }
+      // Usar función simplificada que cambia directamente en Supabase Auth
+      const result = await adminResetPasswordByUsername(resetTargetUser.username, pwd);
       
       Alert.alert(
-        'Contraseña Temporal Establecida', 
-        `Se ha establecido una contraseña temporal para ${resetTargetUser.username}.\n\nEl usuario deberá usar esta nueva contraseña en su próximo login y cambiarla desde Configuración > Cambiar Contraseña.`
+        'Contraseña Actualizada', 
+        `Se ha cambiado exitosamente la contraseña para ${resetTargetUser.username}.\n\nEl usuario puede usar la nueva contraseña inmediatamente.`
       );
       setResetModalVisible(false);
     } catch (e) {
       console.error('Reset password error:', e);
-      let errorMessage = 'No se pudo establecer la contraseña temporal.';
+      let errorMessage = 'No se pudo cambiar la contraseña.';
       
       if (e.message) {
         errorMessage = e.message;
