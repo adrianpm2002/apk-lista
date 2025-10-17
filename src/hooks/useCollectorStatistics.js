@@ -234,7 +234,9 @@ export const useCollectorStatistics = (options = {}) => {
         
         console.log('🐛 [DEBUG COLLECTOR] ¿Caché cubre rango?', cacheCoversRange, '- Oldest:', oldestCached?.toLocaleDateString());
         
-        if (cacheCoversRange || filteredCachedPlays.length > 0) {
+        // 🎯 FIX CRÍTICO: SOLO usar caché si cubre el rango COMPLETO
+        // No usar caché parcial aunque tenga algunos datos
+        if (cacheCoversRange && filteredCachedPlays.length >= 0) {
           // Agrupar datos del cache FILTRADOS
           const groupedCachedData = groupDataForCollector(filteredCachedPlays);
           

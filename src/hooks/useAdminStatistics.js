@@ -270,7 +270,9 @@ export const useAdminStatistics = (options = {}) => {
         
         console.log('🐛 [DEBUG ADMIN] ¿Caché cubre rango?', cacheCoversRange, '- Oldest:', oldestCached?.toLocaleDateString());
         
-        if (cacheCoversRange || filteredCachedPlays.length > 0) {
+        // 🎯 FIX CRÍTICO: SOLO usar caché si cubre el rango COMPLETO
+        // No usar caché parcial aunque tenga algunos datos
+        if (cacheCoversRange && filteredCachedPlays.length >= 0) {
           // Agrupar datos FILTRADOS antes de setear
           const groupedData = groupDataForAdmin(filteredCachedPlays);
           
