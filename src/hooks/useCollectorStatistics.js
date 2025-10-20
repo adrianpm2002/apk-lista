@@ -7,6 +7,14 @@ import * as SQLiteCache from '../utils/sqliteCache';
 
 const CACHE_DAYS = 30; // Cachear últimos 30 días
 
+// 🔍 DEBUG LOGGING - FORZADO PARA TESTING
+const DEBUG_ENABLED = true; // ⚠️ FORCED ON para capturar logs en preview builds
+const debugLog = (...args) => {
+  if (DEBUG_ENABLED) {
+    console.log(...args);
+  }
+};
+
 /**
  * Agrupar datos para vista de colector
  * Los datos vienen planos de v_estadisticas, necesitamos agruparlos por listero

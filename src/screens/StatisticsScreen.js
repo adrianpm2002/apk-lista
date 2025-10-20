@@ -567,42 +567,46 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
            userRole === 'admin' ? 'Estadísticas Banco' : 'Estadísticas'}
         </Text>
         
-        {/* 🔍 BOTÓN DEBUG TEMPORAL - Para diagnosticar SQLite */}
-        {__DEV__ && (
-          <TouchableOpacity
-            style={{
-              backgroundColor: '#D32F2F',
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 6,
-              marginLeft: 8,
-              elevation: 3,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.25,
-              shadowRadius: 3.84,
-            }}
-            onPress={async () => {
-              console.log('=== 🔍 DEBUG DATABASE PRESSED ===');
-              console.log('__DEV__:', __DEV__);
-              console.log('debugDatabase disponible:', typeof debugDatabase);
-              
-              try {
-                if (debugDatabase) {
-                  await debugDatabase();
-                } else {
-                  console.error('❌ debugDatabase no está disponible');
-                }
-              } catch (error) {
-                console.error('❌ Error ejecutando debugDatabase:', error);
+        {/* 🔍 BOTÓN DEBUG - SIEMPRE VISIBLE PARA TESTING */}
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#D32F2F',
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: 6,
+            marginLeft: 8,
+            elevation: 3,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.25,
+            shadowRadius: 3.84,
+          }}
+          onPress={async () => {
+            console.log('=== 🔍 DEBUG DATABASE PRESSED ===');
+            console.log('Build mode: PREVIEW/PRODUCTION');
+            console.log('__DEV__:', __DEV__);
+            console.log('User Role:', userRole);
+            console.log('User ID:', userId);
+            
+            try {
+              if (debugDatabase && typeof debugDatabase === 'function') {
+                await debugDatabase();
+              } else {
+                console.error('❌ debugDatabase no está disponible');
+                // Fallback: mostrar información básica
+                console.log('=== FALLBACK INFO ===');
+                console.log('Table Data length:', tableData?.plays?.length || 0);
+                console.log('Debug Info:', JSON.stringify(debugInfo, null, 2));
               }
-              
-              console.log('=== 🔍 END DEBUG ===');
-            }}
-          >
-            <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>🔍 DEBUG DB</Text>
-          </TouchableOpacity>
-        )}
+            } catch (error) {
+              console.error('❌ Error ejecutando debugDatabase:', error);
+            }
+            
+            console.log('=== 🔍 END DEBUG ===');
+          }}
+        >
+          <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>🔍 DEBUG</Text>
+        </TouchableOpacity>
         
         {/* TEMPORALMENTE OCULTO - Exportar PDF 
         <TouchableOpacity
@@ -1170,8 +1174,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           />
         }
       >
-        {/* 🐛 DEBUG: Banner de información temporal - Colocado antes de KPIs */}
-        {debugInfo && debugInfo.source !== 'N/A' && (
+        {/* � DEBUG INFO BANNER - SIEMPRE VISIBLE PARA TESTING */}
+        {debugInfo && (
           <View style={styles.debugBanner}>
             <Text style={styles.debugTitle}>🐛 DEBUG INFO - Estadísticas</Text>
             
