@@ -39,9 +39,6 @@ const CollectorDataTable = ({ data, expandedListeros, onToggleListero }) => {
         const totalRecogidoListero = listeroData.plays.reduce((sum, play) => sum + play.monto_total, 0);
         const totalPagadoListero = listeroData.plays.reduce((sum, play) => sum + play.pago_calculado, 0);
         const balanceListero = totalRecogidoListero - totalPagadoListero;
-        
-        // Suma de balance_listero de todas las loterías
-        const totalBalanceListero = listeroData.plays.reduce((sum, play) => sum + (Number(play.balance_listero) || 0), 0);
 
         return (
           <View key={listeroId} style={styles.listeroGroup}>
@@ -62,15 +59,6 @@ const CollectorDataTable = ({ data, expandedListeros, onToggleListero }) => {
                   </View>
                   <View style={styles.statChip}>
                     <Text style={styles.chipText}>Pagado: ${formatCurrency(totalPagadoListero)}</Text>
-                  </View>
-                  <View style={[styles.statChip, { 
-                    backgroundColor: totalBalanceListero >= 0 ? '#E3F2FD' : '#FFF3E0' 
-                  }]}>
-                    <Text style={[styles.chipText, { 
-                      color: totalBalanceListero >= 0 ? '#1565C0' : '#EF6C00' 
-                    }]}>
-                      Bal. Listero: ${formatCurrency(totalBalanceListero)}
-                    </Text>
                   </View>
                   <View style={[styles.statChip, { 
                     backgroundColor: balanceListero >= 0 ? '#E8F5E8' : '#FFEBEE' 

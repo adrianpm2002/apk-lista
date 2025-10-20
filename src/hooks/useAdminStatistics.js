@@ -55,7 +55,7 @@ const groupDataForAdmin = (rawData) => {
           total_premio: 0,
           total_ganancia_listero: 0,
           total_ganancia_colector: 0,
-          balance_listero: 0,
+          total_balance_listero: 0,
           balance_colector: 0
         };
       }
@@ -72,7 +72,7 @@ const groupDataForAdmin = (rawData) => {
         listero.total_premio = listero.plays.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
         listero.total_ganancia_listero = listero.plays.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
         listero.total_ganancia_colector = listero.plays.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
-        listero.balance_listero = listero.plays.reduce((sum, play) => sum + (Number(play.balance_listero) || 0), 0);
+        listero.total_balance_listero = listero.plays.reduce((sum, play) => sum + (Number(play.balance_listero) || 0), 0);
         listero.balance_colector = listero.plays.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
       });
       
