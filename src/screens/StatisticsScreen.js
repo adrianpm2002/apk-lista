@@ -1763,6 +1763,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         total_premio: 0,
         total_ganancia_listero: 0,
         total_ganancia_colector: 0,
+        total_balance_listero: 0,
         balance_colector: 0
       };
       
@@ -1771,6 +1772,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         totals.total_premio += Number(play.monto_a_pagar || 0);
         totals.total_ganancia_listero += Number(play.ganancia_listero || 0);
         totals.total_ganancia_colector += Number(play.ganancia_colector || 0);
+        totals.total_balance_listero += Number(play.balance_listero || 0);
         totals.balance_colector += Number(play.balance_colector || 0);
       });
       
@@ -1819,6 +1821,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Gan. Listeros')}</Text>
               <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Gan. Colector')}</Text>
               <Text style={[styles.excelHeaderCell, { width: 100 }]}>Premios</Text>
+              <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Bal. Listero')}</Text>
               <Text style={[styles.excelHeaderCell, { width: 110 }]}>{getSantiagoHeader('Balance')}</Text>
             </View>
             
@@ -1856,6 +1859,11 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                     </View>
                     <View style={[styles.excelCellContainer, { width: 100 }]}>
                       <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_premio)}</Text>
+                    </View>
+                    <View style={[styles.excelCellContainer, { width: 110 }]}>
+                      <Text style={getBalanceTextStyle(getSantiagoValue(listero.total_balance_listero), styles.excelCell)} numberOfLines={1}>
+                        {formatSantiagoMoney(listero.total_balance_listero)}
+                      </Text>
                     </View>
                     <View style={[styles.excelCellContainer, { width: 110 }]}>
                       <Text style={getBalanceTextStyle(getSantiagoValue(listero.balance_colector), styles.excelCell)} numberOfLines={1}>
@@ -1947,6 +1955,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           total_premio: 0,
           total_ganancia_listero: 0,
           total_ganancia_colector: 0,
+          total_balance_listero: 0,
           balance_colector: 0
         };
         
@@ -1955,6 +1964,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           totals.total_premio += Number(play.monto_a_pagar || 0);
           totals.total_ganancia_listero += Number(play.ganancia_listero || 0);
           totals.total_ganancia_colector += Number(play.ganancia_colector || 0);
+          totals.total_balance_listero += Number(play.balance_listero || 0);
           totals.balance_colector += Number(play.balance_colector || 0);
         });
         
@@ -1971,6 +1981,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         total_premio: 0,
         total_ganancia_listero: 0,
         total_ganancia_colector: 0,
+        total_balance_listero: 0,
         balance_colector: 0
       };
       
@@ -1979,6 +1990,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         colectorTotals.total_premio += Number(listero.total_premio || 0);
         colectorTotals.total_ganancia_listero += Number(listero.total_ganancia_listero || 0);
         colectorTotals.total_ganancia_colector += Number(listero.total_ganancia_colector || 0);
+        colectorTotals.total_balance_listero += Number(listero.total_balance_listero || 0);
         colectorTotals.balance_colector += Number(listero.balance_colector || 0);
       });
       
@@ -2116,8 +2128,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                                 <Text style={styles.excelCell} numberOfLines={1}>{fmt(listero.total_premio)}</Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 110 }]}>
-                                <Text style={getBalanceTextStyle(getSantiagoValue(listero.balance_listero), styles.excelCell)} numberOfLines={1}>
-                                  {formatSantiagoMoney(listero.balance_listero)}
+                                <Text style={getBalanceTextStyle(getSantiagoValue(listero.total_balance_listero), styles.excelCell)} numberOfLines={1}>
+                                  {formatSantiagoMoney(listero.total_balance_listero)}
                                 </Text>
                               </View>
                               <View style={[styles.excelCellContainer, { width: 110 }]}>
