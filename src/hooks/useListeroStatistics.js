@@ -11,8 +11,12 @@ import * as SQLiteCache from '../utils/sqliteCache';
  * y cada listero tiene sus jugadas.
  */
 const groupDataForListero = (rawData) => {
+  console.log('[groupDataForListero] 🔍 Iniciando agrupación');
+  console.log('[groupDataForListero] 📊 Datos recibidos:', rawData?.length || 0, 'registros');
+  
   try {
     if (!rawData || !Array.isArray(rawData) || rawData.length === 0) {
+      console.log('[groupDataForListero] ⚠️ Sin datos para agrupar');
       return [];
     }
 
@@ -88,9 +92,13 @@ const groupDataForListero = (rawData) => {
     });
 
     const result = Object.values(collectorGroups);
+    console.log('[groupDataForListero] ✅ Agrupación exitosa:', result.length, 'colectores');
     return result;
   } catch (error) {
-    return [];
+    console.error('[groupDataForListero] ❌ Error en agrupación:', error);
+    console.log('[groupDataForListero] 🔄 Retornando datos sin agrupar');
+    // Si falla la agrupación, devolver los datos raw
+    return rawData || [];
   }
 };
 
@@ -304,7 +312,9 @@ export const useListeroStatistics = (options = {}) => {
           return;
         }
         
+        console.log('[useListeroStatistics] 🔄 Agrupando datos...');
         const groupedData = groupDataForListero(freshPlays);
+        console.log('[useListeroStatistics] 📊 Datos agrupados:', groupedData?.length || 0);
         setTableData({ plays: groupedData });
         
         setDebugInfo({
@@ -349,7 +359,9 @@ export const useListeroStatistics = (options = {}) => {
           return;
         }
         
+        console.log('[useListeroStatistics] 🔄 Agrupando datos desde caché...');
         const groupedData = groupDataForListero(filteredPlays);
+        console.log('[useListeroStatistics] 📊 Datos agrupados:', groupedData?.length || 0);
         setTableData({ plays: groupedData });
         
         setDebugInfo({
