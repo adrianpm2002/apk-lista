@@ -157,7 +157,7 @@ export const useListeroStatistics = (options = {}) => {
           setUserId(user.id);
           console.log('🔍 [useListeroStatistics] userId seteado a:', user.id);
           
-          // 🎯 FIX: Cargar solo HOY en la primera carga, no 30 días
+          // 🎯 FIX: Cargar solo HOY en la primera carga
           const today = new Date();
           const startDate = new Date(today);
           startDate.setHours(0, 0, 0, 0);
@@ -166,11 +166,12 @@ export const useListeroStatistics = (options = {}) => {
           
           console.log('🐛 [DEBUG Listero] 🚀 Inicialización - Cargando SOLO HOY:', startDate.toLocaleDateString());
                     
+          // 🎯 CAMBIO: Primera carga siempre desde Supabase para poblar caché
           // Pasar userId explícitamente porque setUserId es asíncrono
           loadPlaysData({ 
             startDate, 
             endDate, 
-            forceRefresh: false 
+            forceRefresh: true // ✅ Forzar carga desde Supabase en primera carga
           }, user.id);
         }
       } catch (error) {

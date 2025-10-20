@@ -166,11 +166,12 @@ export const useAdminStatistics = (options = {}) => {
           
           console.log('🐛 [DEBUG ADMIN] 🚀 Inicialización - Cargando SOLO HOY:', startDate.toLocaleDateString());
                     
+          // 🎯 CAMBIO: Primera carga siempre desde Supabase para poblar caché
           // Pasar userId explícitamente porque setUserId es asíncrono
           loadPlaysData({ 
             startDate, 
             endDate, 
-            forceRefresh: false 
+            forceRefresh: true // ✅ Forzar carga desde Supabase en primera carga
           }, user.id);
         }
       } catch (error) {
