@@ -232,6 +232,7 @@ export const useAdminStatistics = (options = {}) => {
   /**
    * Cargar datos desde views específicas (v_estadisticas_hoy o v_estadisticas_ayer)
    * Estas views ya están pre-filtradas por fecha, no necesitan filtro adicional
+   * NOTA: Las vistas HOY/AYER no filtran por id_banco, devuelven TODOS los datos
    */
   const loadFromView = async (userId, viewName) => {
     try {
@@ -240,22 +241,32 @@ export const useAdminStatistics = (options = {}) => {
       const pageSize = 1000;
       let hasMore = true;
 
-      debugLog('🐛 [DEBUG ADMIN] 📊 Cargando desde view:', viewName);
+      console.log('🐛 [DEBUG ADMIN] 📊 Cargando desde view:', viewName);
+      console.log('🐛 [DEBUG ADMIN] 🔑 userId para filtro:', userId);
 
       while (hasMore) {
+        console.log('🐛 [DEBUG ADMIN] 🔄 Página:', page, 'Consultando Supabase...');
+        
         const { data, error } = await supabase
           .from(viewName)
           .select('*')
           .order('fecha_jugada', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
+        console.log('🐛 [DEBUG ADMIN] 📥 Respuesta - data length:', data?.length, 'hasError:', !!error);
+        if (error) {
+          console.log('🐛 [DEBUG ADMIN] ❌ ERROR DETALLADO:', JSON.stringify(error));
+        }
+
         if (error) throw error;
 
         if (data && data.length > 0) {
+          console.log('🐛 [DEBUG ADMIN] ✅ Data recibida, concatenando...');
           allPlays = allPlays.concat(data);
           hasMore = data.length === pageSize;
           page++;
         } else {
+          console.log('🐛 [DEBUG ADMIN] ⏹️ No hay más datos, finalizando...');
           hasMore = false;
         }
 
@@ -263,10 +274,12 @@ export const useAdminStatistics = (options = {}) => {
         if (page > 250) break;
       }
 
-      debugLog('🐛 [DEBUG ADMIN] ✅ View cargada:', allPlays.length, 'registros');
+      console.log('🐛 [DEBUG ADMIN] ✅ View cargada - Total registros:', allPlays.length);
       return allPlays || [];
     } catch (error) {
-      debugLog('🐛 [DEBUG ADMIN] ❌ Error cargando view:', error);
+      console.log('🐛 [DEBUG ADMIN] ❌❌❌ ERROR CAPTURADO:', error);
+      console.log('🐛 [DEBUG ADMIN] ❌ Error message:', error?.message);
+      console.log('🐛 [DEBUG ADMIN] ❌ Error details:', JSON.stringify(error));
       return [];
     }
   };
@@ -333,15 +346,23 @@ export const useAdminStatistics = (options = {}) => {
       // === ESTRATEGIA 1: HOY - Siempre consultar v_estadisticas_hoy ===
       if (periodType === 'today') {
         console.log('🐛 [DEBUG ADMIN] � ESTRATEGIA HOY - Consultando v_estadisticas_hoy');
+        console.log('🐛 [DEBUG ADMIN] 🔄 Llamando a loadFromView...');
         
-        const todayPlays = await loadFromView(effectiveUserId, 'v_estadisticas_hoy');
+        let todayPlays = await loadFromView(effectiveUserId, 'v_estadisticas_hoy');
+        
+        console.log('🐛 [DEBUG ADMIN] ✅ loadFromView completado - Registros obtenidos:', todayPlays?.length);
+        
+        // Filtrar por id_banco si la vista no lo hace automáticamente
+        const totalBeforeFilter = todayPlays.length;
+        todayPlays = todayPlays.filter(play => play.id_banco === effectiveUserId);
+        console.log('🐛 [DEBUG ADMIN] 🔍 Filtrado manual - Antes:', totalBeforeFilter, 'Después:', todayPlays.length);
         
         // Reemplazar HOY en caché
         await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'admin', todayPlays, startDate, endDate);
         
         setDebugInfo({
           source: 'v_estadisticas_hoy',
-          totalBeforeFilter: todayPlays.length,
+          totalBeforeFilter: totalBeforeFilter,
           totalAfterFilter: todayPlays.length,
           cacheOldestDate: 'N/A',
           rangeRequested: startDate.toLocaleDateString()
@@ -358,15 +379,23 @@ export const useAdminStatistics = (options = {}) => {
       // === ESTRATEGIA 2: AYER - Siempre consultar v_estadisticas_ayer ===
       if (periodType === 'yesterday') {
         console.log('🐛 [DEBUG ADMIN] � ESTRATEGIA AYER - Consultando v_estadisticas_ayer');
+        console.log('🐛 [DEBUG ADMIN] 🔄 Llamando a loadFromView...');
         
-        const yesterdayPlays = await loadFromView(effectiveUserId, 'v_estadisticas_ayer');
+        let yesterdayPlays = await loadFromView(effectiveUserId, 'v_estadisticas_ayer');
+        
+        console.log('🐛 [DEBUG ADMIN] ✅ loadFromView completado - Registros obtenidos:', yesterdayPlays?.length);
+        
+        // Filtrar por id_banco si la vista no lo hace automáticamente
+        const totalBeforeFilter = yesterdayPlays.length;
+        yesterdayPlays = yesterdayPlays.filter(play => play.id_banco === effectiveUserId);
+        console.log('🐛 [DEBUG ADMIN] 🔍 Filtrado manual - Antes:', totalBeforeFilter, 'Después:', yesterdayPlays.length);
         
         // Reemplazar AYER en caché
         await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'admin', yesterdayPlays, startDate, endDate);
         
         setDebugInfo({
           source: 'v_estadisticas_ayer',
-          totalBeforeFilter: yesterdayPlays.length,
+          totalBeforeFilter: totalBeforeFilter,
           totalAfterFilter: yesterdayPlays.length,
           cacheOldestDate: 'N/A',
           rangeRequested: startDate.toLocaleDateString()
