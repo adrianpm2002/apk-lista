@@ -185,6 +185,13 @@ export const useListeroStatistics = (options = {}) => {
    * Cargar datos desde Supabase
    */
   const loadFromSupabase = async (userId, startDate, endDate) => {
+    console.log('[useListeroStatistics] 🔍 loadFromSupabase iniciado');
+    console.log('[useListeroStatistics] 📋 Parámetros:', {
+      userId,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString()
+    });
+    
     try {
       // 🎯 FIX: Usar toISOString() para compatibilidad con formato ISO
       const startStr = startDate.toISOString();
@@ -196,6 +203,8 @@ export const useListeroStatistics = (options = {}) => {
       let hasMore = true;
       
       while (hasMore) {
+        console.log(`[useListeroStatistics] 📡 Consultando Supabase - Página ${page + 1}`);
+        
         const { data: playsData, error } = await supabase
           .from('v_estadisticas')
           .select('*')
@@ -206,8 +215,11 @@ export const useListeroStatistics = (options = {}) => {
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) {
+          console.error('[useListeroStatistics] ❌ Error de Supabase:', error);
           throw error;
         }
+        
+        console.log(`[useListeroStatistics] ✅ Página ${page + 1}: ${playsData?.length || 0} registros`);
         
         if (playsData && playsData.length > 0) {
           allPlaysData = allPlaysData.concat(playsData);
@@ -357,6 +369,13 @@ export const useListeroStatistics = (options = {}) => {
 
     } catch (error) {
       console.error('[useListeroStatistics] ❌ Error en loadPlaysData:', error);
+      console.error('[useListeroStatistics] 📋 Detalles del error:', {
+        message: error?.message,
+        name: error?.name,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint
+      });
       
       // Verificar token antes de limpiar datos
       if (currentToken !== loadTokenRef.current) {
