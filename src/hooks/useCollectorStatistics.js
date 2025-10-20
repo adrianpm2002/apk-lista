@@ -348,6 +348,14 @@ export const useCollectorStatistics = (options = {}) => {
           rangeRequested: startDate.toLocaleDateString()
         });
         
+        // 🎯 FIX: Verificar que esta carga no fue cancelada
+        if (currentToken !== loadTokenRef.current) {
+          debugLog('🐛 [DEBUG COLLECTOR] ⚠️ Carga HOY cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+        
         const groupedData = groupDataForCollector(todayPlays);
         setTableData({ plays: groupedData });
         setCurrentPeriodType('today'); // Trackear para pull-to-refresh
@@ -372,6 +380,14 @@ export const useCollectorStatistics = (options = {}) => {
           cacheOldestDate: 'N/A',
           rangeRequested: startDate.toLocaleDateString()
         });
+        
+        // 🎯 FIX: Verificar que esta carga no fue cancelada
+        if (currentToken !== loadTokenRef.current) {
+          debugLog('🐛 [DEBUG COLLECTOR] ⚠️ Carga AYER cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
         
         const groupedData = groupDataForCollector(yesterdayPlays);
         setTableData({ plays: groupedData });
@@ -462,6 +478,14 @@ export const useCollectorStatistics = (options = {}) => {
           rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
         });
         
+        // 🎯 FIX: Verificar que esta carga no fue cancelada
+        if (currentToken !== loadTokenRef.current) {
+          debugLog('🐛 [DEBUG COLLECTOR] ⚠️ Carga CACHE cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+        
         const groupedData = groupDataForCollector(filteredCachedPlays);
         setTableData({ plays: groupedData });
         setCurrentPeriodType(periodType); // Trackear para pull-to-refresh
@@ -536,6 +560,14 @@ export const useCollectorStatistics = (options = {}) => {
         rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
       });
       
+      // 🎯 FIX: Verificar que esta carga no fue cancelada
+      if (currentToken !== loadTokenRef.current) {
+        debugLog('🐛 [DEBUG COLLECTOR] ⚠️ Carga SUPABASE cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+      }
+      
       const groupedData = groupDataForCollector(filteredPlays);
       setTableData({ plays: groupedData });
       setCurrentPeriodType(periodType); // Trackear para pull-to-refresh
@@ -548,6 +580,13 @@ export const useCollectorStatistics = (options = {}) => {
       }
 
     } catch (error) {
+      // 🎯 FIX: Verificar que esta carga no fue cancelada antes de limpiar datos
+      if (currentToken !== loadTokenRef.current) {
+        debugLog('🐛 [DEBUG COLLECTOR] ⚠️ Error en carga cancelada - ignorando');
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+      }
       setTableData({ plays: [] });
     } finally {
       setIsLoading(false);

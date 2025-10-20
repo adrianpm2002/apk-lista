@@ -266,6 +266,14 @@ export const useListeroStatistics = (options = {}) => {
           rangeRequested: startDate.toLocaleDateString()
         });
         
+        // 🎯 FIX: Verificar que esta carga no fue cancelada
+        if (currentToken !== loadTokenRef.current) {
+          debugLog('🐛 [DEBUG LISTERO] ⚠️ Carga HOY cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+        
         setTableData({ plays: todayPlays });
         setCurrentPeriodType('today'); // Trackear para pull-to-refresh
         setIsLoading(false);
@@ -289,6 +297,14 @@ export const useListeroStatistics = (options = {}) => {
           cacheOldestDate: 'N/A',
           rangeRequested: startDate.toLocaleDateString()
         });
+        
+        // 🎯 FIX: Verificar que esta carga no fue cancelada
+        if (currentToken !== loadTokenRef.current) {
+          debugLog('🐛 [DEBUG LISTERO] ⚠️ Carga AYER cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
         
         setTableData({ plays: yesterdayPlays });
         setCurrentPeriodType('yesterday'); // Trackear para pull-to-refresh
@@ -378,6 +394,14 @@ export const useListeroStatistics = (options = {}) => {
           rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
         });
         
+        // 🎯 FIX: Verificar que esta carga no fue cancelada
+        if (currentToken !== loadTokenRef.current) {
+          debugLog('🐛 [DEBUG LISTERO] ⚠️ Carga CACHE cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+        
         setTableData({ plays: filteredCachedPlays });
         setCurrentPeriodType(periodType); // Trackear para pull-to-refresh
         setIsLoading(false);
@@ -451,6 +475,14 @@ export const useListeroStatistics = (options = {}) => {
         rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
       });
       
+      // 🎯 FIX: Verificar que esta carga no fue cancelada
+      if (currentToken !== loadTokenRef.current) {
+        debugLog('🐛 [DEBUG LISTERO] ⚠️ Carga SUPABASE cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+      }
+      
       setTableData({ plays: filteredPlays });
       setCurrentPeriodType(periodType); // Trackear para pull-to-refresh
 
@@ -462,6 +494,13 @@ export const useListeroStatistics = (options = {}) => {
       }
 
     } catch (error) {
+      // 🎯 FIX: Verificar que esta carga no fue cancelada antes de limpiar datos
+      if (currentToken !== loadTokenRef.current) {
+        debugLog('🐛 [DEBUG LISTERO] ⚠️ Error en carga cancelada - ignorando');
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+      }
       setTableData({ plays: [] });
     } finally {
       setIsLoading(false);
