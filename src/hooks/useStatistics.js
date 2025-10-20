@@ -356,12 +356,26 @@ const useStatistics = () => {
                       userRole === 'admin' ? 
                         (activeStats.tableData?.plays || []) : [];
     
+    console.log('[useStatistics] 📊 playsData extraídos:', playsData?.length || 0);
+    console.log('[useStatistics] 📋 Tipo de playsData:', Array.isArray(playsData) ? 'Array' : typeof playsData);
+    if (playsData?.length > 0) {
+      console.log('[useStatistics] 📝 Primer elemento:', playsData[0]);
+    }
+    
     if (!Array.isArray(playsData)) {
+      console.warn('[useStatistics] ⚠️ playsData NO ES ARRAY, forzando a []');
       playsData = [];
     }
   } catch (error) {
+    console.error('[useStatistics] ❌ Error extrayendo playsData:', error);
     playsData = [];
   }
+  
+  const finalTableData = {
+    plays: playsData
+  };
+  
+  console.log('[useStatistics] 🎁 Retornando tableData con:', finalTableData.plays?.length || 0, 'registros');
   
   return {
     // Estados básicos
@@ -374,11 +388,7 @@ const useStatistics = () => {
     // Datos formateados para compatibilidad
     kpiData: generateKpiData(),
     chartData: generateChartData(),
-    tableData: {
-      // Para colector y admin, usar los datos agrupados tal como vienen del hook
-      // Para listero, usar plays directamente
-      plays: playsData
-    },
+    tableData: finalTableData,
     
     // Datos básicos - solo se muestran si hay datos reales
     lotteries: [],
