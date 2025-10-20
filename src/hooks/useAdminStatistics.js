@@ -316,6 +316,46 @@ export const useAdminStatistics = (options = {}) => {
           cachedPlays = [];
         }
         
+        // 🎯 FIX: Si caché está vacío, forzar carga desde Supabase
+        if (cachedPlays.length === 0) {
+          console.log('[useAdminStatistics] ⚠️ Caché vacío, forzando carga desde Supabase...');
+          
+          const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
+          console.log(`[useAdminStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
+          
+          try {
+            await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'admin', freshPlays, startDate, endDate);
+          } catch (cacheError) {
+            console.log('[useAdminStatistics] ⚠️ No se pudo guardar en caché (probablemente en web)');
+          }
+          
+          if (currentToken !== loadTokenRef.current) {
+            console.log('[useAdminStatistics] ❌ Carga cancelada (token mismatch)');
+            setIsLoading(false);
+            loadingRef.current = false;
+            return;
+          }
+          
+          const groupedData = groupDataForAdmin(freshPlays);
+          setTableData({ plays: groupedData });
+          
+          setDebugInfo({
+            source: 'SUPABASE (caché vacío - fallback)',
+            totalBeforeFilter: freshPlays.length,
+            totalAfterFilter: freshPlays.length,
+            cacheOldestDate: 'N/A',
+            rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+          });
+          
+          try {
+            await SQLiteCache.cleanOldRecords(effectiveUserId, 'admin');
+          } catch (cacheError) {}
+          
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+        
         // Filtrar por rango de fechas solicitado
         const filteredPlays = cachedPlays.filter(p => {
           const playDate = new Date(p.fecha_jugada);

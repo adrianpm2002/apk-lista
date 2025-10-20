@@ -338,6 +338,51 @@ export const useListeroStatistics = (options = {}) => {
           cachedPlays = [];
         }
         
+        // 🎯 FIX: Si caché está vacío, forzar carga desde Supabase
+        if (cachedPlays.length === 0) {
+          console.log('[useListeroStatistics] ⚠️ Caché vacío, forzando carga desde Supabase...');
+          
+          const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
+          console.log(`[useListeroStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
+          
+          // Intentar guardar en caché (puede fallar en web, pero intentamos)
+          try {
+            await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'listero', freshPlays, startDate, endDate);
+          } catch (cacheError) {
+            console.log('[useListeroStatistics] ⚠️ No se pudo guardar en caché (probablemente en web)');
+          }
+          
+          // Verificar token
+          if (currentToken !== loadTokenRef.current) {
+            console.log('[useListeroStatistics] ❌ Carga cancelada (token mismatch)');
+            setIsLoading(false);
+            loadingRef.current = false;
+            return;
+          }
+          
+          const groupedData = groupDataForListero(freshPlays);
+          setTableData({ plays: groupedData });
+          
+          setDebugInfo({
+            source: 'SUPABASE (caché vacío - fallback)',
+            totalBeforeFilter: freshPlays.length,
+            totalAfterFilter: freshPlays.length,
+            cacheOldestDate: 'N/A',
+            rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+          });
+          
+          // Limpiar y salir
+          try {
+            await SQLiteCache.cleanOldRecords(effectiveUserId, 'listero');
+          } catch (cacheError) {
+            // Error silencioso
+          }
+          
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+        
         // Filtrar por rango de fechas solicitado
         const filteredPlays = cachedPlays.filter(p => {
           const playDate = new Date(p.fecha_jugada);
