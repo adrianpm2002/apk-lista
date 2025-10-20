@@ -280,7 +280,7 @@ export const useListeroStatistics = (options = {}) => {
         console.log(`[useListeroStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
         
         // Reemplazar caché con datos frescos para este rango
-        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'Listero', freshPlays, startDate, endDate);
+        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'listero', freshPlays, startDate, endDate);
         console.log(`[useListeroStatistics] 💾 Caché actualizado`);
         
         // Verificar token antes de setear datos
@@ -308,7 +308,7 @@ export const useListeroStatistics = (options = {}) => {
         
         let cachedPlays = [];
         try {
-          cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'Listero', {});
+          cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'listero', {});
           console.log(`[useListeroStatistics] 📦 Caché: ${cachedPlays.length} registros`);
         } catch (cacheError) {
           console.error('[useListeroStatistics] ⚠️ Error leyendo caché:', cacheError);
@@ -350,7 +350,7 @@ export const useListeroStatistics = (options = {}) => {
 
       // Limpiar registros muy antiguos (>60 días)
       try {
-        await SQLiteCache.cleanOldRecords(effectiveUserId, 'Listero');
+        await SQLiteCache.cleanOldRecords(effectiveUserId, 'listero');
       } catch (cacheError) {
         // Error silencioso
       }
@@ -392,8 +392,8 @@ export const useListeroStatistics = (options = {}) => {
 
       if (todayPlays.length > 0) {
         try {
-          await SQLiteCache.savePlaysToCache(userId, 'Listero', todayPlays);
-          await SQLiteCache.updateIncrementalTimestamp(userId, 'Listero');
+          await SQLiteCache.savePlaysToCache(userId, 'listero', todayPlays);
+          await SQLiteCache.updateIncrementalTimestamp(userId, 'listero');
         } catch (cacheError) {
           console.error('[useListeroStatistics] ⚠️ Error in incremental update cache save:', cacheError);
           return;
@@ -407,7 +407,7 @@ export const useListeroStatistics = (options = {}) => {
 
         if (isViewingToday) {
           try {
-            const cachedPlays = await SQLiteCache.readPlaysFromCache(userId, 'Listero', {
+            const cachedPlays = await SQLiteCache.readPlaysFromCache(userId, 'listero', {
               startDate,
               endDate
             });
@@ -421,7 +421,7 @@ export const useListeroStatistics = (options = {}) => {
       }
 
       try {
-        await SQLiteCache.cleanOldRecords(userId, 'Listero');
+        await SQLiteCache.cleanOldRecords(userId, 'listero');
       } catch (cacheError) {
         // Error silencioso
       }
