@@ -129,6 +129,9 @@ export const useAdminStatistics = (options = {}) => {
   
   // Ref para evitar múltiples cargas simultáneas
   const loadingRef = useRef(false);
+  
+  // 🎯 FIX: Token de cancelación para race conditions
+  const loadTokenRef = useRef(0);
 
   // Detectar userId y auto-cargar datos (se ejecuta cuando enabled cambia)
   useEffect(() => {
@@ -294,10 +297,12 @@ export const useAdminStatistics = (options = {}) => {
       return;
     }
     
-    if (loadingRef.current) {
-      return;
-    }
-
+    // 🎯 FIX: Cancelar cargas anteriores incrementando el token
+    loadTokenRef.current += 1;
+    const currentToken = loadTokenRef.current;
+    console.log('🐛 [DEBUG ADMIN] 🎫 Nueva carga iniciada - Token:', currentToken);
+    
+    // No usar loadingRef para bloquear, permitir cancelar cargas anteriores
     loadingRef.current = true;
     setIsLoading(true);
 
@@ -368,6 +373,14 @@ export const useAdminStatistics = (options = {}) => {
           rangeRequested: startDate.toLocaleDateString()
         });
         
+        // 🎯 FIX: Verificar que esta carga no fue cancelada
+        if (currentToken !== loadTokenRef.current) {
+          console.log('🐛 [DEBUG ADMIN] ⚠️ Carga HOY cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+        
         const groupedData = groupDataForAdmin(todayPlays);
         setTableData({ plays: groupedData });
         setCurrentPeriodType('today'); // Trackear para pull-to-refresh
@@ -400,6 +413,14 @@ export const useAdminStatistics = (options = {}) => {
           cacheOldestDate: 'N/A',
           rangeRequested: startDate.toLocaleDateString()
         });
+        
+        // 🎯 FIX: Verificar que esta carga no fue cancelada
+        if (currentToken !== loadTokenRef.current) {
+          console.log('🐛 [DEBUG ADMIN] ⚠️ Carga AYER cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
         
         const groupedData = groupDataForAdmin(yesterdayPlays);
         setTableData({ plays: groupedData });
@@ -434,8 +455,24 @@ export const useAdminStatistics = (options = {}) => {
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
       
-      const includesHoyOrAyer = startDate < today && endDate >= today || 
-                                startDate < yesterday && endDate >= yesterday && endDate < today;
+      // 🎯 FIX: Verificar si HOY/AYER están FRESCOS en caché (< 5 minutos)
+      const todayInCache = cachedPlays.some(p => {
+        const pDate = new Date(p.fecha_jugada);
+        return pDate.getDate() === today.getDate() && 
+               pDate.getMonth() === today.getMonth() && 
+               pDate.getFullYear() === today.getFullYear();
+      });
+      
+      const yesterdayInCache = cachedPlays.some(p => {
+        const pDate = new Date(p.fecha_jugada);
+        return pDate.getDate() === yesterday.getDate() && 
+               pDate.getMonth() === yesterday.getMonth() && 
+               pDate.getFullYear() === yesterday.getFullYear();
+      });
+      
+      // Solo considerar "incluye hoy/ayer" como motivo para ir a Supabase si NO están en caché
+      const includesHoyOrAyer = (startDate < today && endDate >= today && !todayInCache) || 
+                                (startDate < yesterday && endDate >= yesterday && endDate < today && !yesterdayInCache);
       
       const maxCacheAge = new Date();
       maxCacheAge.setDate(maxCacheAge.getDate() - 60);
@@ -445,7 +482,9 @@ export const useAdminStatistics = (options = {}) => {
       const cacheMissingRange = !oldestCached || oldestCached > startDate;
 
       console.log('🐛 [DEBUG ADMIN] 🔍 Evaluación:');
-      console.log('🐛 [DEBUG ADMIN]    - Incluye HOY/AYER:', includesHoyOrAyer);
+      console.log('🐛 [DEBUG ADMIN]    - HOY en caché:', todayInCache);
+      console.log('🐛 [DEBUG ADMIN]    - AYER en caché:', yesterdayInCache);
+      console.log('🐛 [DEBUG ADMIN]    - Incluye HOY/AYER (necesita actualizar):', includesHoyOrAyer);
       console.log('🐛 [DEBUG ADMIN]    - Incluye fechas >60 días:', includesVeryOldDates);
       console.log('🐛 [DEBUG ADMIN]    - Caché vacío:', cacheIsEmpty);
       console.log('🐛 [DEBUG ADMIN]    - Caché falta rango:', cacheMissingRange);
@@ -471,6 +510,14 @@ export const useAdminStatistics = (options = {}) => {
           cacheOldestDate: oldestCached?.toLocaleDateString() || 'N/A',
           rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
         });
+        
+        // 🎯 FIX: Verificar que esta carga no fue cancelada
+        if (currentToken !== loadTokenRef.current) {
+          console.log('🐛 [DEBUG ADMIN] ⚠️ Carga CACHE cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
         
         const groupedData = groupDataForAdmin(filteredCachedPlays);
         setTableData({ plays: groupedData });
@@ -545,6 +592,14 @@ export const useAdminStatistics = (options = {}) => {
         cacheOldestDate: oldestPlay ? oldestPlay.toLocaleDateString() : 'Sin datos',
         rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
       });
+      
+      // 🎯 FIX: Verificar que esta carga no fue cancelada
+      if (currentToken !== loadTokenRef.current) {
+        console.log('🐛 [DEBUG ADMIN] ⚠️ Carga SUPABASE cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+      }
       
       const groupedData = groupDataForAdmin(filteredPlays);
       setTableData({ plays: groupedData });

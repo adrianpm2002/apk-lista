@@ -312,17 +312,41 @@ export const useListeroStatistics = (options = {}) => {
 
       // Detectar si necesita consultar Supabase
       const today = new Date();
-      today.setHours(23, 59, 59, 999);
-      const maxCacheAge = new Date(today);
-      maxCacheAge.setDate(maxCacheAge.getDate() - 60); // 60 días atrás
+      today.setHours(0, 0, 0, 0);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
       
-      const includesHoyOrAyer = endDate >= new Date(new Date().setHours(0, 0, 0, 0));
+      const maxCacheAge = new Date();
+      maxCacheAge.setDate(maxCacheAge.getDate() - 60); // 60 días atrás
+      maxCacheAge.setHours(0, 0, 0, 0);
+      
+      // 🎯 FIX: Verificar si HOY/AYER están FRESCOS en caché
+      const todayInCache = cachedPlays.some(p => {
+        const pDate = new Date(p.fecha_jugada);
+        return pDate.getDate() === today.getDate() && 
+               pDate.getMonth() === today.getMonth() && 
+               pDate.getFullYear() === today.getFullYear();
+      });
+      
+      const yesterdayInCache = cachedPlays.some(p => {
+        const pDate = new Date(p.fecha_jugada);
+        return pDate.getDate() === yesterday.getDate() && 
+               pDate.getMonth() === yesterday.getMonth() && 
+               pDate.getFullYear() === yesterday.getFullYear();
+      });
+      
+      // Solo considerar "incluye hoy/ayer" como motivo para ir a Supabase si NO están en caché
+      const includesHoyOrAyer = (endDate >= today && !todayInCache) || 
+                                (endDate >= yesterday && endDate < today && !yesterdayInCache);
+      
       const includesVeryOldDates = startDate < maxCacheAge;
       const cacheIsEmpty = cachedPlays.length === 0;
       const cacheMissingRange = !oldestCached || oldestCached > startDate;
 
       debugLog('🐛 [DEBUG LISTERO] 🔍 Evaluación:');
-      debugLog('🐛 [DEBUG LISTERO]    - Incluye HOY/AYER:', includesHoyOrAyer);
+      debugLog('🐛 [DEBUG LISTERO]    - HOY en caché:', todayInCache);
+      debugLog('🐛 [DEBUG LISTERO]    - AYER en caché:', yesterdayInCache);
+      debugLog('🐛 [DEBUG LISTERO]    - Incluye HOY/AYER (necesita actualizar):', includesHoyOrAyer);
       debugLog('🐛 [DEBUG LISTERO]    - Incluye fechas >60 días:', includesVeryOldDates);
       debugLog('🐛 [DEBUG LISTERO]    - Caché vacío:', cacheIsEmpty);
       debugLog('🐛 [DEBUG LISTERO]    - Caché falta rango:', cacheMissingRange);

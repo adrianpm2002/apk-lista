@@ -124,6 +124,9 @@ export const useCollectorStatistics = (options = {}) => {
   
   // Ref para evitar múltiples cargas simultáneas
   const loadingRef = useRef(false);
+  
+  // 🎯 FIX: Token de cancelación para race conditions
+  const loadTokenRef = useRef(0);
 
   // Detectar userId y auto-cargar datos (se ejecuta cuando enabled cambia)
   useEffect(() => {
@@ -401,8 +404,24 @@ export const useCollectorStatistics = (options = {}) => {
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
       
-      const includesHoyOrAyer = startDate < today && endDate >= today || 
-                                startDate < yesterday && endDate >= yesterday && endDate < today;
+      // 🎯 FIX: Verificar si HOY/AYER están FRESCOS en caché (< 5 minutos)
+      const todayInCache = cachedPlays.some(p => {
+        const pDate = new Date(p.fecha_jugada);
+        return pDate.getDate() === today.getDate() && 
+               pDate.getMonth() === today.getMonth() && 
+               pDate.getFullYear() === today.getFullYear();
+      });
+      
+      const yesterdayInCache = cachedPlays.some(p => {
+        const pDate = new Date(p.fecha_jugada);
+        return pDate.getDate() === yesterday.getDate() && 
+               pDate.getMonth() === yesterday.getMonth() && 
+               pDate.getFullYear() === yesterday.getFullYear();
+      });
+      
+      // Solo considerar "incluye hoy/ayer" como motivo para ir a Supabase si NO están en caché
+      const includesHoyOrAyer = (startDate < today && endDate >= today && !todayInCache) || 
+                                (startDate < yesterday && endDate >= yesterday && endDate < today && !yesterdayInCache);
       
       const maxCacheAge = new Date();
       maxCacheAge.setDate(maxCacheAge.getDate() - 60);
@@ -412,7 +431,9 @@ export const useCollectorStatistics = (options = {}) => {
       const cacheMissingRange = !oldestCached || oldestCached > startDate;
 
       debugLog('🐛 [DEBUG COLLECTOR] 🔍 Evaluación:');
-      debugLog('🐛 [DEBUG COLLECTOR]    - Incluye HOY/AYER:', includesHoyOrAyer);
+      debugLog('🐛 [DEBUG COLLECTOR]    - HOY en caché:', todayInCache);
+      debugLog('🐛 [DEBUG COLLECTOR]    - AYER en caché:', yesterdayInCache);
+      debugLog('🐛 [DEBUG COLLECTOR]    - Incluye HOY/AYER (necesita actualizar):', includesHoyOrAyer);
       debugLog('🐛 [DEBUG COLLECTOR]    - Incluye fechas >60 días:', includesVeryOldDates);
       debugLog('🐛 [DEBUG COLLECTOR]    - Caché vacío:', cacheIsEmpty);
       debugLog('🐛 [DEBUG COLLECTOR]    - Caché falta rango:', cacheMissingRange);
