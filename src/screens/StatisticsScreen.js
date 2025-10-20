@@ -710,8 +710,17 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     const scheduleOptions = (lotterySchedules || []).map(sch => ({ label: sch.nombre, value: sch.id }));
 
     // Obtener loterías únicas del cache para listero en tabs de gráficos y detalles
+    // 🎯 FIX: Desagrupar datos de colectores para obtener jugadas individuales
     const uniqueLotteriesListero = (userRole === 'listero' && (activeTab === 'charts' || activeTab === 'details') && tableData?.plays) 
-      ? [...new Set(tableData.plays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort()
+      ? (() => {
+          let allPlays = [];
+          tableData.plays.forEach(collector => {
+            if (collector.raw_plays && Array.isArray(collector.raw_plays)) {
+              allPlays = allPlays.concat(collector.raw_plays);
+            }
+          });
+          return [...new Set(allPlays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort();
+        })()
       : [];
       
     // Obtener loterías únicas para collector/admin en tabs de gráficos y detalles
@@ -954,10 +963,24 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     >
       {/* Gráfico de Balance basado en datos reales */}
       {tableData?.plays && tableData.plays.length > 0 && (()=>{
+        // 🎯 FIX: Desagrupar datos de colectores a jugadas individuales
+        let allPlays = [];
+        tableData.plays.forEach(collector => {
+          if (collector.raw_plays && Array.isArray(collector.raw_plays)) {
+            allPlays = allPlays.concat(collector.raw_plays);
+          }
+        });
+
+        console.log('[StatisticsScreen] 🎯 Listero Charts - Jugadas desagrupadas:', allPlays.length);
+
+        if (allPlays.length === 0) {
+          return null;
+        }
+
         const fmtShort = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
         
         // Filtrar jugadas por lotería seleccionada Y por período de fechas
-        const filteredPlays = tableData.plays.filter(play => {
+        const filteredPlays = allPlays.filter(play => {
           // Filtro de lotería
           if (selectedLotteryDetails !== 'all') {
             const playLottery = play.loteria || play.nombre_loteria || 'Lotería';
@@ -1526,6 +1549,26 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           </Text>
         );
 
+        // 🎯 FIX: Desagrupar datos de colectores a jugadas individuales
+        // Para listero, tableData.plays = [{ collector_name, listeros: [...], raw_plays: [...] }]
+        // Necesitamos extraer raw_plays de cada colector
+        let allPlays = [];
+        tableData.plays.forEach(collector => {
+          if (collector.raw_plays && Array.isArray(collector.raw_plays)) {
+            allPlays = allPlays.concat(collector.raw_plays);
+          }
+        });
+
+        console.log('[StatisticsScreen] 🎯 Listero - Jugadas desagrupadas:', allPlays.length);
+
+        if (allPlays.length === 0) {
+          return (
+            <Text style={[styles.empty, { marginTop: 16 }]}>
+              Sin jugadas en el período seleccionado
+            </Text>
+          );
+        }
+
         const dayKeyOf = (ts) => { 
           const d = new Date(ts); 
           if (isNaN(d.getTime())) return 0;
@@ -1553,13 +1596,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         };
 
         // Obtener loterías únicas del cache para el filtro
-        const uniqueLotteries = [...new Set(tableData.plays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort();
+        const uniqueLotteries = [...new Set(allPlays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort();
 
         // Agrupar por fecha + lotería + horario + resultado
         const map = new Map();
         
         // Filtrar registros con fechas válidas Y por lotería seleccionada Y por período
-        const validPlays = tableData.plays.filter(r => {
+        const validPlays = allPlays.filter(r => {
           if (!r.fecha_jugada) return false;
           
           // Aplicar filtro de lotería
@@ -2538,8 +2581,17 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Renderizar modal de selección de lotería
   const renderLotteryModal = () => {
+    // 🎯 FIX: Desagrupar datos de colectores para obtener jugadas individuales
     const uniqueLotteries = (userRole === 'listero' && (activeTab === 'charts' || activeTab === 'details') && tableData?.plays) 
-      ? [...new Set(tableData.plays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort()
+      ? (() => {
+          let allPlays = [];
+          tableData.plays.forEach(collector => {
+            if (collector.raw_plays && Array.isArray(collector.raw_plays)) {
+              allPlays = allPlays.concat(collector.raw_plays);
+            }
+          });
+          return [...new Set(allPlays.map(r => r.loteria || r.nombre_loteria || 'Lotería'))].sort();
+        })()
       : [];
 
     if (uniqueLotteries.length === 0) return null;
