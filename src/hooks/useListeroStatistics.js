@@ -46,6 +46,9 @@ export const useListeroStatistics = (options = {}) => {
   
   // Ref para evitar múltiples cargas simultáneas
   const loadingRef = useRef(false);
+  
+  // 🎯 FIX: Token de cancelación para race conditions
+  const loadTokenRef = useRef(0);
 
   // Detectar userId y auto-cargar datos (se ejecuta cuando enabled cambia)
   useEffect(() => {
@@ -190,10 +193,12 @@ export const useListeroStatistics = (options = {}) => {
       return;
     }
     
-    if (loadingRef.current) {
-      return; // Evitar cargas simultáneas
-    }
-
+    // 🎯 FIX: Cancelar cargas anteriores incrementando el token
+    loadTokenRef.current += 1;
+    const currentToken = loadTokenRef.current;
+    debugLog('🐛 [DEBUG LISTERO] 🎫 Nueva carga iniciada - Token:', currentToken);
+    
+    // No usar loadingRef para bloquear, permitir cancelar cargas anteriores
     loadingRef.current = true;
     setIsLoading(true);
 

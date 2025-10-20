@@ -280,10 +280,12 @@ export const useCollectorStatistics = (options = {}) => {
       return;
     }
     
-    if (loadingRef.current) {
-      return;
-    }
-
+    // 🎯 FIX: Cancelar cargas anteriores incrementando el token
+    loadTokenRef.current += 1;
+    const currentToken = loadTokenRef.current;
+    debugLog('🐛 [DEBUG COLLECTOR] 🎫 Nueva carga iniciada - Token:', currentToken);
+    
+    // No usar loadingRef para bloquear, permitir cancelar cargas anteriores
     loadingRef.current = true;
     setIsLoading(true);
 
