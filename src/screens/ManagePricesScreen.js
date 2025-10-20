@@ -379,7 +379,7 @@ const ManagePricesContent = ({ navigation, onModeVisibilityChange }) => {
       });
       // porcentajes
       ['collectorPct','listeroPct'].forEach(pctKey => {
-        if (w[pctKey] !== '' && (isNaN(w[pctKey]) || parseInt(w[pctKey]) < 0 || parseInt(w[pctKey]) > 100)) {
+        if (w[pctKey] !== '' && (isNaN(w[pctKey]) || parseFloat(w[pctKey]) < 0 || parseFloat(w[pctKey]) > 100)) {
           fieldErrors[pt.id] = fieldErrors[pt.id] || {}; fieldErrors[pt.id][pctKey] = true; hasAnyError = true; percentError = true;
         }
       });

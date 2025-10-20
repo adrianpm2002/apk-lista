@@ -732,7 +732,17 @@ const LimitNumberContent = ({ navigation }) => {
                 <DropdownPicker
                   label="Jugada"
                   value={selectedJugada?.jugada ? (JUGADA_FRIENDLY_NAMES[selectedJugada.jugada] || selectedJugada.jugada) : undefined}
-                  onSelect={(item) => setSelectedJugada(item.data)}
+                  onSelect={(item) => {
+                    const newJugada = item.data;
+                    setSelectedJugada(newJugada);
+                    // Si el número actual es más largo que el permitido para la nueva jugada, lo reseteamos
+                    if (tempNumber && newJugada) {
+                      const maxLen = DIGIT_RULES[newJugada.jugada] || 2;
+                      if (tempNumber.length > maxLen) {
+                        setTempNumber('');
+                      }
+                    }
+                  }}
                   options={prepareJugadaOptions(selectedSchedule)}
                   placeholder={selectedSchedule ? (loadingJugadas ? "Cargando..." : "Seleccionar jugada...") : "Selecciona horario"}
                   disabled={!selectedSchedule || loadingJugadas}
@@ -747,7 +757,9 @@ const LimitNumberContent = ({ navigation }) => {
                   onChangeText={t => {
                     const clean = t.replace(/[^0-9]/g,'');
                     const maxLen = selectedJugada ? (DIGIT_RULES[selectedJugada.jugada] || 2) : 6;
-                    setTempNumber(clean.slice(0, maxLen));
+                    if (clean.length <= maxLen) {
+                      setTempNumber(clean);
+                    }
                   }}
                   keyboardType="numeric"
                   returnKeyType="next"
@@ -831,7 +843,17 @@ const LimitNumberContent = ({ navigation }) => {
                 <DropdownPicker
                   label="Jugada"
                   value={selectedJugada2?.jugada ? (JUGADA_FRIENDLY_NAMES[selectedJugada2.jugada] || selectedJugada2.jugada) : undefined}
-                  onSelect={(item) => setSelectedJugada2(item.data)}
+                  onSelect={(item) => {
+                    const newJugada = item.data;
+                    setSelectedJugada2(newJugada);
+                    // Si el número actual es más largo que el permitido para la nueva jugada, lo reseteamos
+                    if (tempNumber2 && newJugada) {
+                      const maxLen = DIGIT_RULES[newJugada.jugada] || 2;
+                      if (tempNumber2.length > maxLen) {
+                        setTempNumber2('');
+                      }
+                    }
+                  }}
                   options={prepareJugadaOptions(selectedSchedule2, true)}
                   placeholder={selectedSchedule2 ? "Seleccionar jugada..." : "Selecciona horario"}
                   disabled={!selectedSchedule2}
@@ -846,7 +868,9 @@ const LimitNumberContent = ({ navigation }) => {
                   onChangeText={t=>{
                     const clean=t.replace(/[^0-9]/g,'');
                     const maxLen = selectedJugada2 ? (DIGIT_RULES[selectedJugada2.jugada]||2) : 6;
-                    setTempNumber2(clean.slice(0,maxLen));
+                    if (clean.length <= maxLen) {
+                      setTempNumber2(clean);
+                    }
                   }}
                   keyboardType="numeric"
                   returnKeyType="next"
