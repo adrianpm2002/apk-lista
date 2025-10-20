@@ -110,9 +110,6 @@ export const useCollectorStatistics = (options = {}) => {
     endDate: new Date(new Date().setHours(23, 59, 59, 999))
   });
   
-  // Estado para trackear el período actual (para pull-to-refresh inteligente)
-  const [currentPeriodType, setCurrentPeriodType] = useState('today');
-  
   // Estado para debug info
   const [debugInfo, setDebugInfo] = useState({
     source: '', // 'CACHE' | 'SUPABASE'
@@ -228,50 +225,7 @@ export const useCollectorStatistics = (options = {}) => {
   };
 
   /**
-   * Cargar datos desde views específicas (v_estadisticas_hoy o v_estadisticas_ayer)
-   * Estas views ya están pre-filtradas por fecha, no necesitan filtro adicional
-   */
-  const loadFromView = async (userId, viewName) => {
-    try {
-      let allPlays = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-
-      debugLog('🐛 [DEBUG COLLECTOR] 📊 Cargando desde view:', viewName);
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from(viewName)
-          .select('*')
-          .eq('id_colector', userId)
-          .order('fecha_jugada', { ascending: false })
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allPlays = allPlays.concat(data);
-          hasMore = data.length === pageSize;
-          page++;
-        } else {
-          hasMore = false;
-        }
-
-        // Límite de seguridad
-        if (page > 250) break;
-      }
-
-      debugLog('🐛 [DEBUG COLLECTOR] ✅ View cargada:', allPlays.length, 'registros');
-      return allPlays || [];
-    } catch (error) {
-      debugLog('🐛 [DEBUG COLLECTOR] ❌ Error cargando view:', error);
-      return [];
-    }
-  };
-
-  /**
-   * Cargar datos con estrategia optimizada de 3 niveles
+   * Cargar datos con estrategia Cache-First simplificada
    */
   const loadPlaysData = async (filters = {}, userIdOverride = null) => {
     const effectiveUserId = userIdOverride || userId;
@@ -283,294 +237,109 @@ export const useCollectorStatistics = (options = {}) => {
     // 🎯 FIX: Cancelar cargas anteriores incrementando el token
     loadTokenRef.current += 1;
     const currentToken = loadTokenRef.current;
-    debugLog('🐛 [DEBUG COLLECTOR] 🎫 Nueva carga iniciada - Token:', currentToken);
+    console.log('[useCollectorStatistics] 🎫 Nueva carga - Token:', currentToken);
     
-    // No usar loadingRef para bloquear, permitir cancelar cargas anteriores
     loadingRef.current = true;
     setIsLoading(true);
 
     try {
-      // Recalcular fechas "hoy" si no vienen en filters
+      // Extraer parámetros
       let {
         startDate = null,
         endDate = null,
-        forceRefresh = false,
-        periodType = 'custom'
+        forceRefresh = false
       } = filters;
       
-      // Si no hay startDate/endDate, usar "hoy" recién calculado
+      // Si no hay fechas, usar HOY por defecto
       if (!startDate || !endDate) {
         const now = new Date();
         startDate = new Date(now.setHours(0, 0, 0, 0));
         endDate = new Date(now.setHours(23, 59, 59, 999));
-        debugLog('🐛 [DEBUG COLLECTOR] ⚠️ No hay fechas en filters, usando HOY recién calculado');
+        console.log('[useCollectorStatistics] ⚠️ No hay fechas, usando HOY por defecto');
       }
 
-      // Auto-detectar tipo de período si no viene especificado
-      if (periodType === 'custom' && startDate && endDate) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        
-        // Detectar si es HOY
-        if (startDate.getTime() === today.getTime() && 
-            endDate.getDate() === today.getDate() &&
-            endDate.getMonth() === today.getMonth() &&
-            endDate.getFullYear() === today.getFullYear()) {
-          periodType = 'today';
-        }
-        // Detectar si es AYER
-        else if (startDate.getTime() === yesterday.getTime() &&
-                 endDate.getDate() === yesterday.getDate() &&
-                 endDate.getMonth() === yesterday.getMonth() &&
-                 endDate.getFullYear() === yesterday.getFullYear()) {
-          periodType = 'yesterday';
-        }
-      }
+      console.log(`[useCollectorStatistics] 🔄 Cargando: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
+      console.log(`[useCollectorStatistics] forceRefresh: ${forceRefresh}`);
 
-      debugLog('🐛 [DEBUG COLLECTOR] 🎯 Tipo de período detectado:', periodType);
-
-      // === ESTRATEGIA 1: HOY - Siempre consultar v_estadisticas_hoy ===
-      if (periodType === 'today') {
-        debugLog('🐛 [DEBUG COLLECTOR] 📊 ESTRATEGIA HOY - Consultando v_estadisticas_hoy');
+      // ========================================
+      // ESTRATEGIA CACHE-FIRST SIMPLIFICADA
+      // ========================================
+      
+      if (forceRefresh) {
+        // PULL-TO-REFRESH: Cargar desde Supabase y actualizar caché
+        console.log('[useCollectorStatistics] 🔄 Pull-to-refresh - Consultando Supabase');
         
-        const todayPlays = await loadFromView(effectiveUserId, 'v_estadisticas_hoy');
+        const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
+        console.log(`[useCollectorStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
         
-        // Reemplazar HOY en caché
-        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'collector', todayPlays, startDate, endDate);
+        // Reemplazar caché con datos frescos para este rango
+        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'collector', freshPlays, startDate, endDate);
+        console.log(`[useCollectorStatistics] 💾 Caché actualizado`);
         
-        setDebugInfo({
-          source: 'v_estadisticas_hoy',
-          totalBeforeFilter: todayPlays.length,
-          totalAfterFilter: todayPlays.length,
-          cacheOldestDate: 'N/A',
-          rangeRequested: startDate.toLocaleDateString()
-        });
-        
-        // 🎯 FIX: Verificar que esta carga no fue cancelada
+        // Verificar token antes de setear datos
         if (currentToken !== loadTokenRef.current) {
-          debugLog('🐛 [DEBUG COLLECTOR] ⚠️ Carga HOY cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+          console.log('[useCollectorStatistics] ❌ Carga cancelada (token mismatch)');
           setIsLoading(false);
           loadingRef.current = false;
           return;
         }
         
-        const groupedData = groupDataForCollector(todayPlays);
+        const groupedData = groupDataForCollector(freshPlays);
         setTableData({ plays: groupedData });
-        setCurrentPeriodType('today'); // Trackear para pull-to-refresh
-        setIsLoading(false);
-        loadingRef.current = false;
-        return;
-      }
-
-      // === ESTRATEGIA 2: AYER - Siempre consultar v_estadisticas_ayer ===
-      if (periodType === 'yesterday') {
-        debugLog('🐛 [DEBUG COLLECTOR] 📅 ESTRATEGIA AYER - Consultando v_estadisticas_ayer');
-        
-        const yesterdayPlays = await loadFromView(effectiveUserId, 'v_estadisticas_ayer');
-        
-        // Reemplazar AYER en caché
-        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'collector', yesterdayPlays, startDate, endDate);
         
         setDebugInfo({
-          source: 'v_estadisticas_ayer',
-          totalBeforeFilter: yesterdayPlays.length,
-          totalAfterFilter: yesterdayPlays.length,
-          cacheOldestDate: 'N/A',
-          rangeRequested: startDate.toLocaleDateString()
+          source: 'SUPABASE (pull-to-refresh)',
+          totalBeforeFilter: freshPlays.length,
+          totalAfterFilter: freshPlays.length,
+          cacheOldestDate: 'Actualizado',
+          rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
         });
         
-        // 🎯 FIX: Verificar que esta carga no fue cancelada
-        if (currentToken !== loadTokenRef.current) {
-          debugLog('🐛 [DEBUG COLLECTOR] ⚠️ Carga AYER cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
-          setIsLoading(false);
-          loadingRef.current = false;
-          return;
+      } else {
+        // CARGA NORMAL: Solo desde caché
+        console.log('[useCollectorStatistics] 📦 Carga normal - Solo caché');
+        
+        let cachedPlays = [];
+        try {
+          cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'collector', {});
+          console.log(`[useCollectorStatistics] 📦 Caché: ${cachedPlays.length} registros`);
+        } catch (cacheError) {
+          console.error('[useCollectorStatistics] ⚠️ Error leyendo caché:', cacheError);
+          cachedPlays = [];
         }
         
-        const groupedData = groupDataForCollector(yesterdayPlays);
-        setTableData({ plays: groupedData });
-        setCurrentPeriodType('yesterday'); // Trackear para pull-to-refresh
-        setIsLoading(false);
-        loadingRef.current = false;
-        return;
-      }
-
-      // === ESTRATEGIA 3: 7 DÍAS / 30 DÍAS / PERSONALIZADO ===
-      debugLog('🐛 [DEBUG COLLECTOR] 💾 ESTRATEGIA CACHÉ - Período:', periodType);
-      
-      // Leer caché
-      let cachedPlays = [];
-      try {
-        cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'collector', {});
-        debugLog('🐛 [DEBUG COLLECTOR] 📦 Caché leído:', cachedPlays.length, 'registros');
-      } catch (cacheError) {
-        debugLog('🐛 [DEBUG COLLECTOR] ❌ Error leyendo caché:', cacheError.message);
-      }
-
-      // Encontrar fecha más antigua en caché
-      const oldestCached = cachedPlays.length > 0
-        ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
-        : null;
-
-      debugLog('🐛 [DEBUG COLLECTOR] 📅 Fecha más antigua en caché:', oldestCached?.toLocaleDateString() || 'N/A');
-
-      // Evaluar condiciones para decidir si consultar Supabase
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      
-      // 🎯 FIX: Verificar si HOY/AYER están FRESCOS en caché (< 5 minutos)
-      const todayInCache = cachedPlays.some(p => {
-        const pDate = new Date(p.fecha_jugada);
-        return pDate.getDate() === today.getDate() && 
-               pDate.getMonth() === today.getMonth() && 
-               pDate.getFullYear() === today.getFullYear();
-      });
-      
-      const yesterdayInCache = cachedPlays.some(p => {
-        const pDate = new Date(p.fecha_jugada);
-        return pDate.getDate() === yesterday.getDate() && 
-               pDate.getMonth() === yesterday.getMonth() && 
-               pDate.getFullYear() === yesterday.getFullYear();
-      });
-      
-      // Solo considerar "incluye hoy/ayer" como motivo para ir a Supabase si NO están en caché
-      const includesHoyOrAyer = (startDate < today && endDate >= today && !todayInCache) || 
-                                (startDate < yesterday && endDate >= yesterday && endDate < today && !yesterdayInCache);
-      
-      const maxCacheAge = new Date();
-      maxCacheAge.setDate(maxCacheAge.getDate() - 60);
-      maxCacheAge.setHours(0, 0, 0, 0);
-      const includesVeryOldDates = startDate < maxCacheAge;
-      const cacheIsEmpty = cachedPlays.length === 0;
-      const cacheMissingRange = !oldestCached || oldestCached > startDate;
-
-      debugLog('🐛 [DEBUG COLLECTOR] 🔍 Evaluación:');
-      debugLog('🐛 [DEBUG COLLECTOR]    - HOY en caché:', todayInCache);
-      debugLog('🐛 [DEBUG COLLECTOR]    - AYER en caché:', yesterdayInCache);
-      debugLog('🐛 [DEBUG COLLECTOR]    - Incluye HOY/AYER (necesita actualizar):', includesHoyOrAyer);
-      debugLog('🐛 [DEBUG COLLECTOR]    - Incluye fechas >60 días:', includesVeryOldDates);
-      debugLog('🐛 [DEBUG COLLECTOR]    - Caché vacío:', cacheIsEmpty);
-      debugLog('🐛 [DEBUG COLLECTOR]    - Caché falta rango:', cacheMissingRange);
-      debugLog('🐛 [DEBUG COLLECTOR]    - forceRefresh:', forceRefresh);
-
-      // Decidir si consultar Supabase
-      const needsSupabase = forceRefresh || cacheIsEmpty || cacheMissingRange || 
-                           includesHoyOrAyer || includesVeryOldDates;
-
-      if (!needsSupabase) {
-        // Usar SOLO caché
-        debugLog('🐛 [DEBUG COLLECTOR] ✅ Usando SOLO CACHÉ');
-        
-        const filteredCachedPlays = cachedPlays.filter(play => {
-          const playDate = new Date(play.fecha_jugada);
+        // Filtrar por rango de fechas solicitado
+        const filteredPlays = cachedPlays.filter(p => {
+          const playDate = new Date(p.fecha_jugada);
           return playDate >= startDate && playDate <= endDate;
         });
+        
+        console.log(`[useCollectorStatistics] 📊 Filtrados: ${filteredPlays.length}/${cachedPlays.length}`);
+        
+        // Encontrar fecha más antigua en caché
+        const oldestCached = cachedPlays.length > 0
+          ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
+          : null;
+        
+        // Verificar token antes de setear datos
+        if (currentToken !== loadTokenRef.current) {
+          console.log('[useCollectorStatistics] ❌ Carga cancelada (token mismatch)');
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+        
+        const groupedData = groupDataForCollector(filteredPlays);
+        setTableData({ plays: groupedData });
         
         setDebugInfo({
           source: 'CACHE',
           totalBeforeFilter: cachedPlays.length,
-          totalAfterFilter: filteredCachedPlays.length,
-          cacheOldestDate: oldestCached?.toLocaleDateString() || 'N/A',
+          totalAfterFilter: filteredPlays.length,
+          cacheOldestDate: oldestCached?.toLocaleDateString() || 'Sin datos',
           rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
         });
-        
-        // 🎯 FIX: Verificar que esta carga no fue cancelada
-        if (currentToken !== loadTokenRef.current) {
-          debugLog('🐛 [DEBUG COLLECTOR] ⚠️ Carga CACHE cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
-          setIsLoading(false);
-          loadingRef.current = false;
-          return;
-        }
-        
-        const groupedData = groupDataForCollector(filteredCachedPlays);
-        setTableData({ plays: groupedData });
-        setCurrentPeriodType(periodType); // Trackear para pull-to-refresh
-        setIsLoading(false);
-        loadingRef.current = false;
-        return;
       }
-
-      // Necesita consultar Supabase
-      debugLog('🐛 [DEBUG COLLECTOR] 🌐 Consultando SUPABASE...');
-      
-      // Determinar qué rango consultar
-      let queryStart, queryEnd;
-      
-      if (forceRefresh || includesHoyOrAyer) {
-        // Pull-to-refresh o incluye HOY/AYER: consultar el rango exacto solicitado
-        queryStart = startDate;
-        queryEnd = endDate;
-        debugLog('🐛 [DEBUG COLLECTOR]    📌 Motivo: pull-to-refresh o incluye HOY/AYER');
-      } else if (cacheIsEmpty) {
-        // Primera vez: cargar últimos 60 días
-        queryStart = new Date();
-        queryStart.setDate(queryStart.getDate() - 59);
-        queryStart.setHours(0, 0, 0, 0);
-        queryEnd = new Date();
-        queryEnd.setHours(23, 59, 59, 999);
-        debugLog('🐛 [DEBUG COLLECTOR]    📌 Motivo: Primera carga (60 días)');
-      } else {
-        // Caché incompleto: consultar desde la fecha solicitada más antigua
-        queryStart = startDate;
-        queryEnd = new Date();
-        queryEnd.setHours(23, 59, 59, 999);
-        debugLog('🐛 [DEBUG COLLECTOR]    📌 Motivo: Completar caché');
-      }
-
-      debugLog('🐛 [DEBUG COLLECTOR] 📅 Consultando desde:', queryStart.toLocaleDateString(), 'hasta:', queryEnd.toLocaleDateString());
-      
-      const playsData = await loadFromSupabase(effectiveUserId, queryStart, queryEnd);
-      debugLog('🐛 [DEBUG COLLECTOR] ✅ Supabase devolvió:', playsData.length, 'registros');
-
-      // Reemplazar el rango en caché
-      if (forceRefresh) {
-        // Pull-to-refresh: reemplazar solo el rango solicitado
-        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'collector', playsData, queryStart, queryEnd);
-        debugLog('🐛 [DEBUG COLLECTOR] 💾 Reemplazados en caché:', playsData.length, 'registros');
-      } else {
-        // Primera carga o completar: guardar normalmente
-        if (playsData.length > 0) {
-          await SQLiteCache.savePlaysToCache(effectiveUserId, 'collector', playsData);
-          await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'collector');
-          debugLog('🐛 [DEBUG COLLECTOR] 💾 Guardados en caché:', playsData.length, 'registros');
-        }
-      }
-
-      // Filtrar por el rango solicitado
-      const filteredPlays = playsData.filter(play => {
-        const playDate = new Date(play.fecha_jugada);
-        return playDate >= startDate && playDate <= endDate;
-      });
-      
-      debugLog('🐛 [DEBUG COLLECTOR] 🎯 Después de filtrar:', filteredPlays.length, '/', playsData.length);
-      
-      const oldestPlay = playsData.length > 0
-        ? new Date(Math.min(...playsData.map(p => new Date(p.fecha_jugada).getTime())))
-        : null;
-      
-      setDebugInfo({
-        source: 'SUPABASE',
-        totalBeforeFilter: playsData.length,
-        totalAfterFilter: filteredPlays.length,
-        cacheOldestDate: oldestPlay ? oldestPlay.toLocaleDateString() : 'Sin datos',
-        rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
-      });
-      
-      // 🎯 FIX: Verificar que esta carga no fue cancelada
-      if (currentToken !== loadTokenRef.current) {
-        debugLog('🐛 [DEBUG COLLECTOR] ⚠️ Carga SUPABASE cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
-        setIsLoading(false);
-        loadingRef.current = false;
-        return;
-      }
-      
-      const groupedData = groupDataForCollector(filteredPlays);
-      setTableData({ plays: groupedData });
-      setCurrentPeriodType(periodType); // Trackear para pull-to-refresh
 
       // Limpiar registros muy antiguos (>60 días)
       try {
@@ -580,13 +349,16 @@ export const useCollectorStatistics = (options = {}) => {
       }
 
     } catch (error) {
-      // 🎯 FIX: Verificar que esta carga no fue cancelada antes de limpiar datos
+      console.error('[useCollectorStatistics] ❌ Error en loadPlaysData:', error);
+      
+      // Verificar token antes de limpiar datos
       if (currentToken !== loadTokenRef.current) {
-        debugLog('🐛 [DEBUG COLLECTOR] ⚠️ Error en carga cancelada - ignorando');
+        console.log('[useCollectorStatistics] ❌ Error handler cancelado (token mismatch)');
         setIsLoading(false);
         loadingRef.current = false;
         return;
       }
+      
       setTableData({ plays: [] });
     } finally {
       setIsLoading(false);
@@ -671,8 +443,7 @@ export const useCollectorStatistics = (options = {}) => {
     await loadPlaysData({
       startDate: finalStartDate,
       endDate: finalEndDate,
-      forceRefresh,
-      periodType // Pasar el tipo de período
+      forceRefresh
     });
   };
 
@@ -682,8 +453,7 @@ export const useCollectorStatistics = (options = {}) => {
   const refresh = async () => {
     await loadPlaysData({ 
       ...dateRange, 
-      forceRefresh: true,
-      periodType: currentPeriodType // Usar el tipo de período actual
+      forceRefresh: true
     });
   };
 
