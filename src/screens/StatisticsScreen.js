@@ -568,7 +568,30 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
            userRole === 'admin' ? 'Estadísticas Banco' : 'Estadísticas'}
         </Text>
         
-        {/* 🔍 BOTÓN DEBUG - SIEMPRE VISIBLE PARA TESTING */}
+        {/* � BOTÓN ACTUALIZAR - Pull-to-refresh manual */}
+        <TouchableOpacity
+          style={{
+            backgroundColor: refreshing ? '#9E9E9E' : '#1976D2',
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: 6,
+            marginLeft: 8,
+            elevation: 3,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.25,
+            shadowRadius: 3.84,
+            opacity: refreshing ? 0.6 : 1,
+          }}
+          onPress={onRefresh}
+          disabled={refreshing}
+        >
+          <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+            {refreshing ? '⏳ Actualizando...' : '🔄 Actualizar'}
+          </Text>
+        </TouchableOpacity>
+        
+        {/* �🔍 BOTÓN DEBUG - SIEMPRE VISIBLE PARA TESTING */}
         <TouchableOpacity
           style={{
             backgroundColor: '#D32F2F',
