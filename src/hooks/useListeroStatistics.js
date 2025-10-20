@@ -5,19 +5,102 @@ import * as SQLiteCache from '../utils/sqliteCache';
 // 🎯 FIX: Usar toISOString() consistente con SQLiteCache
 // No necesitamos helper local, usaremos date.toISOString() directamente
 
-const CACHE_DAYS = 30; // Cachear últimos 30 días
+/**
+ * Función para agrupar datos por estructura jerárquica: Colectores -> Listeros -> Jugadas
+ * El Listero ve su listero con datos agrupados por colector, cada colector tiene listeros, 
+ * y cada listero tiene sus jugadas.
+ */
+const groupDataForListero = (rawData) => {
+  try {
+    if (!rawData || !Array.isArray(rawData) || rawData.length === 0) {
+      return [];
+    }
 
-// 🔍 DEBUG LOGGING - FORZADO PARA TESTING
-const DEBUG_ENABLED = true; // ⚠️ FORCED ON para capturar logs en preview builds
+    // Agrupar directamente por colector (el Listero solo ve su listero)
+    const collectorGroups = {};
+    
+    rawData.forEach(record => {
+      if (!record) {
+        return;
+      }
 
-const debugLog = (...args) => {
-  if (DEBUG_ENABLED) {
-    console.log(...args);
+      const collectorId = record.id_colector;
+      const collectorName = record.colector_username || `Colector ${collectorId}`;
+      
+      if (!collectorGroups[collectorId]) {
+        collectorGroups[collectorId] = {
+          id: collectorId,
+          collector_name: collectorName,
+          listeros: {},
+          total_bruto: 0,
+          total_premio: 0,
+          total_ganancia_colector: 0,
+          balance_colector: 0,
+          raw_plays: []
+        };
+      }
+      
+      collectorGroups[collectorId].raw_plays.push(record);
+      
+      // Agrupar por listero dentro del colector
+      const listeroId = record.id_listero;
+      const listeroName = record.listero_username || `Listero ${listeroId}`;
+      
+      if (!collectorGroups[collectorId].listeros[listeroId]) {
+        collectorGroups[collectorId].listeros[listeroId] = {
+          id: listeroId,
+          listero_name: listeroName,
+          plays: [],
+          total_bruto: 0,
+          total_premio: 0,
+          total_ganancia_listero: 0,
+          total_ganancia_colector: 0,
+          total_balance_listero: 0,
+          balance_colector: 0
+        };
+      }
+      
+      collectorGroups[collectorId].listeros[listeroId].plays.push(record);
+    });
+
+    // Procesar cada colector
+    Object.values(collectorGroups).forEach(collector => {
+      // Procesar cada listero del colector
+      Object.values(collector.listeros).forEach(listero => {
+        // Calcular totales del listero
+        listero.total_bruto = listero.plays.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
+        listero.total_premio = listero.plays.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
+        listero.total_ganancia_listero = listero.plays.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
+        listero.total_ganancia_colector = listero.plays.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
+        listero.total_balance_listero = listero.plays.reduce((sum, play) => sum + (Number(play.balance_listero) || 0), 0);
+        listero.balance_colector = listero.plays.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
+      });
+      
+      // Convertir object de listeros a array
+      collector.listeros = Object.values(collector.listeros);
+      
+      // Calcular totales del colector
+      collector.total_bruto = collector.raw_plays.reduce((sum, play) => sum + (Number(play.monto_total) || 0), 0);
+      collector.total_premio = collector.raw_plays.reduce((sum, play) => sum + (Number(play.monto_a_pagar) || 0), 0);
+      collector.total_ganancia_listero = collector.raw_plays.reduce((sum, play) => sum + (Number(play.ganancia_listero) || 0), 0);
+      collector.total_ganancia_colector = collector.raw_plays.reduce((sum, play) => sum + (Number(play.ganancia_colector) || 0), 0);
+      collector.balance_colector = collector.raw_plays.reduce((sum, play) => sum + (Number(play.balance_colector) || 0), 0);
+    });
+
+    const result = Object.values(collectorGroups);
+    return result;
+  } catch (error) {
+    return [];
   }
 };
 
+const CACHE_DAYS = 30; // Cachear últimos 30 días
+
 export const useListeroStatistics = (options = {}) => {
   const { enabled = true } = options;
+  
+  // 🔍 DEBUG: Log de inicialización del hook
+  console.log('🔍 [useListeroStatistics] Hook inicializado con enabled:', enabled);
   
   // Estados básicos
   const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +109,13 @@ export const useListeroStatistics = (options = {}) => {
     plays: []
   });
   
-  // 🐛 DEBUG: Metadata temporal para debugging
+  // Estado para el rango de fechas (hoy por defecto)
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(new Date().setHours(0, 0, 0, 0)),
+    endDate: new Date(new Date().setHours(23, 59, 59, 999))
+  });
+  
+  // Estado para debug info
   const [debugInfo, setDebugInfo] = useState({
     source: '', // 'CACHE' | 'SUPABASE'
     totalBeforeFilter: 0,
@@ -34,15 +123,6 @@ export const useListeroStatistics = (options = {}) => {
     cacheOldestDate: null,
     rangeRequested: ''
   });
-  
-  // Estado para el rango de fechas (hoy por defecto)
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().setHours(0, 0, 0, 0)),
-    endDate: new Date(new Date().setHours(23, 59, 59, 999))
-  });
-  
-  // Estado para trackear el período actual (para pull-to-refresh inteligente)
-  const [currentPeriodType, setCurrentPeriodType] = useState('today');
   
   // Ref para evitar múltiples cargas simultáneas
   const loadingRef = useRef(false);
@@ -52,21 +132,30 @@ export const useListeroStatistics = (options = {}) => {
 
   // Detectar userId y auto-cargar datos (se ejecuta cuando enabled cambia)
   useEffect(() => {
+    console.log('🔍 [useListeroStatistics] useEffect disparado - enabled:', enabled);
+    
     const initializeData = async () => {
       if (!enabled) {
-        setUserId(null); // Limpiar userId si se deshabilita
+        console.log('🔍 [useListeroStatistics] Hook DESHABILITADO, saliendo...');
+        setUserId(null);
         return;
       }
       
+      console.log('🔍 [useListeroStatistics] Hook HABILITADO, continuando...');
+      
       if (loadingRef.current) {
+        console.log('🔍 [useListeroStatistics] Ya está cargando, saliendo...');
         return;
       }
       
       try {
         const { data: { user } } = await supabase.auth.getUser();
         
+        console.log('🔍 [useListeroStatistics] Usuario obtenido:', user?.id ? 'SÍ' : 'NO');
+        
         if (user) {
           setUserId(user.id);
+          console.log('🔍 [useListeroStatistics] userId seteado a:', user.id);
           
           // 🎯 FIX: Cargar solo HOY en la primera carga, no 30 días
           const today = new Date();
@@ -75,8 +164,8 @@ export const useListeroStatistics = (options = {}) => {
           const endDate = new Date(today);
           endDate.setHours(23, 59, 59, 999);
           
-          debugLog('🐛 [DEBUG LISTERO] 🚀 Inicialización - Cargando SOLO HOY:', startDate.toLocaleDateString());
-          
+          console.log('🐛 [DEBUG Listero] 🚀 Inicialización - Cargando SOLO HOY:', startDate.toLocaleDateString());
+                    
           // Pasar userId explícitamente porque setUserId es asíncrono
           loadPlaysData({ 
             startDate, 
@@ -129,7 +218,9 @@ export const useListeroStatistics = (options = {}) => {
         }
         
         // Límite de seguridad
-        if (page > 250) break;
+        if (page > 250) {
+          break;
+        }
       }
 
       return allPlaysData || [];
@@ -139,52 +230,9 @@ export const useListeroStatistics = (options = {}) => {
   };
 
   /**
-   * Cargar datos desde vistas optimizadas (HOY o AYER)
-   * Estas vistas ya vienen filtradas por fecha, no necesitan .gte() ni .lte()
-   */
-  const loadFromView = async (userId, viewName) => {
-    try {
-      debugLog(`🐛 [DEBUG LISTERO] 📊 Consultando vista: ${viewName}`);
-
-      let allPlaysData = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data: playsData, error } = await supabase
-          .from(viewName)
-          .select('*')
-          .eq('id_listero', userId)
-          .order('fecha_jugada', { ascending: false })
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-
-        if (error) {
-          throw error;
-        }
-        
-        if (playsData && playsData.length > 0) {
-          allPlaysData = allPlaysData.concat(playsData);
-          hasMore = playsData.length === pageSize;
-          page++;
-        } else {
-          hasMore = false;
-        }
-        
-        // Límite de seguridad
-        if (page > 250) break;
-      }
-
-      debugLog(`🐛 [DEBUG LISTERO] ✅ Vista ${viewName} devolvió: ${allPlaysData.length} registros`);
-      return allPlaysData || [];
-    } catch (error) {
-      console.error(`[DEBUG LISTERO] ❌ Error consultando vista ${viewName}:`, error);
-      throw error;
-    }
-  };
-
+   * Cargar datos desde views específicas (v_estadisticas_hoy o v_estadisticas_ayer)
   /**
-   * Cargar datos con estrategia de caché inteligente
+   * Cargar datos con estrategia optimizada de 3 niveles
    */
   const loadPlaysData = async (filters = {}, userIdOverride = null) => {
     const effectiveUserId = userIdOverride || userId;
@@ -196,311 +244,128 @@ export const useListeroStatistics = (options = {}) => {
     // 🎯 FIX: Cancelar cargas anteriores incrementando el token
     loadTokenRef.current += 1;
     const currentToken = loadTokenRef.current;
-    debugLog('🐛 [DEBUG LISTERO] 🎫 Nueva carga iniciada - Token:', currentToken);
+    console.log('[useListeroStatistics] 🎫 Nueva carga - Token:', currentToken);
     
-    // No usar loadingRef para bloquear, permitir cancelar cargas anteriores
     loadingRef.current = true;
     setIsLoading(true);
 
     try {
-      // 🎯 Extraer parámetros
+      // Extraer parámetros
       let {
         startDate = null,
         endDate = null,
-        forceRefresh = false,
-        periodType = 'custom' // 'today', 'yesterday', 'last7days', 'last30days', 'custom'
+        forceRefresh = false
       } = filters;
       
-      // Si no hay startDate/endDate, usar "hoy" recién calculado
+      // Si no hay fechas, usar HOY por defecto
       if (!startDate || !endDate) {
         const now = new Date();
         startDate = new Date(now.setHours(0, 0, 0, 0));
         endDate = new Date(now.setHours(23, 59, 59, 999));
-        periodType = 'today';
-        debugLog('🐛 [DEBUG LISTERO] ⚠️ No hay fechas en filters, usando HOY recién calculado');
+        console.log('[useListeroStatistics] ⚠️ No hay fechas, usando HOY por defecto');
       }
+
+      console.log(`[useListeroStatistics] 🔄 Cargando: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
+      console.log(`[useListeroStatistics] forceRefresh: ${forceRefresh}`);
+
+      // ========================================
+      // ESTRATEGIA CACHE-FIRST SIMPLIFICADA
+      // ========================================
       
-      debugLog('🐛 [DEBUG LISTERO] 📅 Período:', periodType);
-      debugLog('🐛 [DEBUG LISTERO] 📅 Fechas - start:', startDate.toISOString(), 'end:', endDate.toISOString());
-      debugLog('🐛 [DEBUG LISTERO] 🔄 forceRefresh:', forceRefresh);
-
-      // 🎯 NUEVA LÓGICA: Detectar tipo de período automáticamente si no viene
-      if (periodType === 'custom') {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
+      if (forceRefresh) {
+        // PULL-TO-REFRESH: Cargar desde Supabase y actualizar caché
+        console.log('[useListeroStatistics] 🔄 Pull-to-refresh - Consultando Supabase');
         
-        // Detectar si es HOY
-        if (startDate.getTime() === today.getTime() && 
-            endDate.getDate() === today.getDate() &&
-            endDate.getMonth() === today.getMonth() &&
-            endDate.getFullYear() === today.getFullYear()) {
-          periodType = 'today';
-        }
-        // Detectar si es AYER
-        else if (startDate.getTime() === yesterday.getTime() &&
-                 endDate.getDate() === yesterday.getDate() &&
-                 endDate.getMonth() === yesterday.getMonth() &&
-                 endDate.getFullYear() === yesterday.getFullYear()) {
-          periodType = 'yesterday';
-        }
-      }
-
-      debugLog('🐛 [DEBUG LISTERO] 🎯 Tipo de período detectado:', periodType);
-
-      // === ESTRATEGIA 1: HOY - Siempre consultar v_estadisticas_hoy ===
-      if (periodType === 'today') {
-        debugLog('🐛 [DEBUG LISTERO] 📊 ESTRATEGIA HOY - Consultando v_estadisticas_hoy');
+        const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
+        console.log(`[useListeroStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
         
-        const todayPlays = await loadFromView(effectiveUserId, 'v_estadisticas_hoy');
+        // Reemplazar caché con datos frescos para este rango
+        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'Listero', freshPlays, startDate, endDate);
+        console.log(`[useListeroStatistics] 💾 Caché actualizado`);
         
-        // Reemplazar HOY en caché
-        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'listero', todayPlays, startDate, endDate);
-        
-        setDebugInfo({
-          source: 'v_estadisticas_hoy',
-          totalBeforeFilter: todayPlays.length,
-          totalAfterFilter: todayPlays.length,
-          cacheOldestDate: 'N/A',
-          rangeRequested: startDate.toLocaleDateString()
-        });
-        
-        // 🎯 FIX: Verificar que esta carga no fue cancelada
+        // Verificar token antes de setear datos
         if (currentToken !== loadTokenRef.current) {
-          debugLog('🐛 [DEBUG LISTERO] ⚠️ Carga HOY cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
+          console.log('[useListeroStatistics] ❌ Carga cancelada (token mismatch)');
           setIsLoading(false);
           loadingRef.current = false;
           return;
         }
         
-        setTableData({ plays: todayPlays });
-        setCurrentPeriodType('today'); // Trackear para pull-to-refresh
-        setIsLoading(false);
-        loadingRef.current = false;
-        return;
-      }
-
-      // === ESTRATEGIA 2: AYER - Siempre consultar v_estadisticas_ayer ===
-      if (periodType === 'yesterday') {
-        debugLog('🐛 [DEBUG LISTERO] � ESTRATEGIA AYER - Consultando v_estadisticas_ayer');
-        
-        const yesterdayPlays = await loadFromView(effectiveUserId, 'v_estadisticas_ayer');
-        
-        // Reemplazar AYER en caché
-        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'listero', yesterdayPlays, startDate, endDate);
+        const groupedData = groupDataForListero(freshPlays);
+        setTableData({ plays: groupedData });
         
         setDebugInfo({
-          source: 'v_estadisticas_ayer',
-          totalBeforeFilter: yesterdayPlays.length,
-          totalAfterFilter: yesterdayPlays.length,
-          cacheOldestDate: 'N/A',
-          rangeRequested: startDate.toLocaleDateString()
+          source: 'SUPABASE (pull-to-refresh)',
+          totalBeforeFilter: freshPlays.length,
+          totalAfterFilter: freshPlays.length,
+          cacheOldestDate: 'Actualizado',
+          rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
         });
         
-        // 🎯 FIX: Verificar que esta carga no fue cancelada
-        if (currentToken !== loadTokenRef.current) {
-          debugLog('🐛 [DEBUG LISTERO] ⚠️ Carga AYER cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
-          setIsLoading(false);
-          loadingRef.current = false;
-          return;
+      } else {
+        // CARGA NORMAL: Solo desde caché
+        console.log('[useListeroStatistics] 📦 Carga normal - Solo caché');
+        
+        let cachedPlays = [];
+        try {
+          cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'Listero', {});
+          console.log(`[useListeroStatistics] 📦 Caché: ${cachedPlays.length} registros`);
+        } catch (cacheError) {
+          console.error('[useListeroStatistics] ⚠️ Error leyendo caché:', cacheError);
+          cachedPlays = [];
         }
         
-        setTableData({ plays: yesterdayPlays });
-        setCurrentPeriodType('yesterday'); // Trackear para pull-to-refresh
-        setIsLoading(false);
-        loadingRef.current = false;
-        return;
-      }
-
-      // === ESTRATEGIA 3: 7 DÍAS / 30 DÍAS / PERSONALIZADO ===
-      debugLog('🐛 [DEBUG LISTERO] � ESTRATEGIA CACHÉ - Período:', periodType);
-      
-      // Leer caché
-      let cachedPlays = [];
-      try {
-        cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'listero', {});
-        debugLog('🐛 [DEBUG LISTERO] 📦 Caché leído:', cachedPlays.length, 'registros');
-      } catch (cacheError) {
-        debugLog('🐛 [DEBUG LISTERO] ❌ Error leyendo caché:', cacheError);
-        cachedPlays = [];
-      }
-
-      // Calcular fecha más antigua en caché
-      const oldestCached = cachedPlays.length > 0 
-        ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
-        : null;
-
-      // Detectar si necesita consultar Supabase
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      
-      const maxCacheAge = new Date();
-      maxCacheAge.setDate(maxCacheAge.getDate() - 60); // 60 días atrás
-      maxCacheAge.setHours(0, 0, 0, 0);
-      
-      // 🎯 FIX: Verificar si HOY/AYER están FRESCOS en caché
-      const todayInCache = cachedPlays.some(p => {
-        const pDate = new Date(p.fecha_jugada);
-        return pDate.getDate() === today.getDate() && 
-               pDate.getMonth() === today.getMonth() && 
-               pDate.getFullYear() === today.getFullYear();
-      });
-      
-      const yesterdayInCache = cachedPlays.some(p => {
-        const pDate = new Date(p.fecha_jugada);
-        return pDate.getDate() === yesterday.getDate() && 
-               pDate.getMonth() === yesterday.getMonth() && 
-               pDate.getFullYear() === yesterday.getFullYear();
-      });
-      
-      // Solo considerar "incluye hoy/ayer" como motivo para ir a Supabase si NO están en caché
-      const includesHoyOrAyer = (endDate >= today && !todayInCache) || 
-                                (endDate >= yesterday && endDate < today && !yesterdayInCache);
-      
-      const includesVeryOldDates = startDate < maxCacheAge;
-      const cacheIsEmpty = cachedPlays.length === 0;
-      const cacheMissingRange = !oldestCached || oldestCached > startDate;
-
-      debugLog('🐛 [DEBUG LISTERO] 🔍 Evaluación:');
-      debugLog('🐛 [DEBUG LISTERO]    - HOY en caché:', todayInCache);
-      debugLog('🐛 [DEBUG LISTERO]    - AYER en caché:', yesterdayInCache);
-      debugLog('🐛 [DEBUG LISTERO]    - Incluye HOY/AYER (necesita actualizar):', includesHoyOrAyer);
-      debugLog('🐛 [DEBUG LISTERO]    - Incluye fechas >60 días:', includesVeryOldDates);
-      debugLog('🐛 [DEBUG LISTERO]    - Caché vacío:', cacheIsEmpty);
-      debugLog('🐛 [DEBUG LISTERO]    - Caché falta rango:', cacheMissingRange);
-      debugLog('🐛 [DEBUG LISTERO]    - forceRefresh:', forceRefresh);
-
-      // Decidir si consultar Supabase
-      const needsSupabase = forceRefresh || cacheIsEmpty || cacheMissingRange || 
-                           includesHoyOrAyer || includesVeryOldDates;
-
-      if (!needsSupabase) {
-        // Usar SOLO caché
-        debugLog('🐛 [DEBUG LISTERO] ✅ Usando SOLO CACHÉ');
-        
-        const filteredCachedPlays = cachedPlays.filter(play => {
-          const playDate = new Date(play.fecha_jugada);
+        // Filtrar por rango de fechas solicitado
+        const filteredPlays = cachedPlays.filter(p => {
+          const playDate = new Date(p.fecha_jugada);
           return playDate >= startDate && playDate <= endDate;
         });
+        
+        console.log(`[useListeroStatistics] 📊 Filtrados: ${filteredPlays.length}/${cachedPlays.length}`);
+        
+        // Encontrar fecha más antigua en caché
+        const oldestCached = cachedPlays.length > 0
+          ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
+          : null;
+        
+        // Verificar token antes de setear datos
+        if (currentToken !== loadTokenRef.current) {
+          console.log('[useListeroStatistics] ❌ Carga cancelada (token mismatch)');
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+        
+        const groupedData = groupDataForListero(filteredPlays);
+        setTableData({ plays: groupedData });
         
         setDebugInfo({
           source: 'CACHE',
           totalBeforeFilter: cachedPlays.length,
-          totalAfterFilter: filteredCachedPlays.length,
-          cacheOldestDate: oldestCached?.toLocaleDateString() || 'N/A',
+          totalAfterFilter: filteredPlays.length,
+          cacheOldestDate: oldestCached?.toLocaleDateString() || 'Sin datos',
           rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
         });
-        
-        // 🎯 FIX: Verificar que esta carga no fue cancelada
-        if (currentToken !== loadTokenRef.current) {
-          debugLog('🐛 [DEBUG LISTERO] ⚠️ Carga CACHE cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
-          setIsLoading(false);
-          loadingRef.current = false;
-          return;
-        }
-        
-        setTableData({ plays: filteredCachedPlays });
-        setCurrentPeriodType(periodType); // Trackear para pull-to-refresh
-        setIsLoading(false);
-        loadingRef.current = false;
-        return;
       }
-
-      // Necesita consultar Supabase
-      debugLog('🐛 [DEBUG LISTERO] 🌐 Consultando SUPABASE...');
-      
-      // Determinar qué rango consultar
-      let queryStart, queryEnd;
-      
-      if (forceRefresh || includesHoyOrAyer) {
-        // Pull-to-refresh o incluye HOY/AYER: consultar el rango exacto solicitado
-        queryStart = startDate;
-        queryEnd = endDate;
-        debugLog('🐛 [DEBUG LISTERO]    📌 Motivo: pull-to-refresh o incluye HOY/AYER');
-      } else if (cacheIsEmpty) {
-        // Primera vez: cargar últimos 60 días
-        queryStart = new Date();
-        queryStart.setDate(queryStart.getDate() - 59);
-        queryStart.setHours(0, 0, 0, 0);
-        queryEnd = new Date();
-        queryEnd.setHours(23, 59, 59, 999);
-        debugLog('🐛 [DEBUG LISTERO]    📌 Motivo: Primera carga (60 días)');
-      } else {
-        // Caché incompleto: consultar desde la fecha solicitada más antigua
-        queryStart = startDate;
-        queryEnd = new Date();
-        queryEnd.setHours(23, 59, 59, 999);
-        debugLog('🐛 [DEBUG LISTERO]    📌 Motivo: Completar caché');
-      }
-
-      debugLog('🐛 [DEBUG LISTERO] 📅 Consultando desde:', queryStart.toLocaleDateString(), 'hasta:', queryEnd.toLocaleDateString());
-      
-      const playsData = await loadFromSupabase(effectiveUserId, queryStart, queryEnd);
-      debugLog('🐛 [DEBUG LISTERO] ✅ Supabase devolvió:', playsData.length, 'registros');
-
-      // Reemplazar el rango en caché
-      if (forceRefresh) {
-        // Pull-to-refresh: reemplazar solo el rango solicitado
-        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'listero', playsData, queryStart, queryEnd);
-        debugLog('🐛 [DEBUG LISTERO] 💾 Reemplazados en caché:', playsData.length, 'registros');
-      } else {
-        // Primera carga o completar: guardar normalmente
-        if (playsData.length > 0) {
-          await SQLiteCache.savePlaysToCache(effectiveUserId, 'listero', playsData);
-          await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'listero');
-          debugLog('🐛 [DEBUG LISTERO] 💾 Guardados en caché:', playsData.length, 'registros');
-        }
-      }
-
-      // Filtrar por el rango solicitado
-      const filteredPlays = playsData.filter(play => {
-        const playDate = new Date(play.fecha_jugada);
-        return playDate >= startDate && playDate <= endDate;
-      });
-      
-      debugLog('🐛 [DEBUG LISTERO] � Después de filtrar:', filteredPlays.length, '/', playsData.length);
-      
-      const oldestPlay = playsData.length > 0
-        ? new Date(Math.min(...playsData.map(p => new Date(p.fecha_jugada).getTime())))
-        : null;
-      
-      setDebugInfo({
-        source: 'SUPABASE',
-        totalBeforeFilter: playsData.length,
-        totalAfterFilter: filteredPlays.length,
-        cacheOldestDate: oldestPlay ? oldestPlay.toLocaleDateString() : 'Sin datos',
-        rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
-      });
-      
-      // 🎯 FIX: Verificar que esta carga no fue cancelada
-      if (currentToken !== loadTokenRef.current) {
-        debugLog('🐛 [DEBUG LISTERO] ⚠️ Carga SUPABASE cancelada - Token obsoleto:', currentToken, 'vs actual:', loadTokenRef.current);
-        setIsLoading(false);
-        loadingRef.current = false;
-        return;
-      }
-      
-      setTableData({ plays: filteredPlays });
-      setCurrentPeriodType(periodType); // Trackear para pull-to-refresh
 
       // Limpiar registros muy antiguos (>60 días)
       try {
-        await SQLiteCache.cleanOldRecords(effectiveUserId, 'listero');
+        await SQLiteCache.cleanOldRecords(effectiveUserId, 'Listero');
       } catch (cacheError) {
         // Error silencioso
       }
 
     } catch (error) {
-      // 🎯 FIX: Verificar que esta carga no fue cancelada antes de limpiar datos
+      console.error('[useListeroStatistics] ❌ Error en loadPlaysData:', error);
+      
+      // Verificar token antes de limpiar datos
       if (currentToken !== loadTokenRef.current) {
-        debugLog('🐛 [DEBUG LISTERO] ⚠️ Error en carga cancelada - ignorando');
+        console.log('[useListeroStatistics] ❌ Error handler cancelado (token mismatch)');
         setIsLoading(false);
         loadingRef.current = false;
         return;
       }
+      
       setTableData({ plays: [] });
     } finally {
       setIsLoading(false);
@@ -517,7 +382,6 @@ export const useListeroStatistics = (options = {}) => {
       const todayStart = new Date(today);
       todayStart.setHours(0, 0, 0, 0);
       
-      // Ventana de 5 horas hacia atrás para capturar horarios que cierran tarde
       const updateStart = new Date(todayStart);
       updateStart.setHours(updateStart.getHours() - 5);
       
@@ -528,13 +392,13 @@ export const useListeroStatistics = (options = {}) => {
 
       if (todayPlays.length > 0) {
         try {
-          await SQLiteCache.savePlaysToCache(userId, 'listero', todayPlays);
-          await SQLiteCache.updateIncrementalTimestamp(userId, 'listero');
+          await SQLiteCache.savePlaysToCache(userId, 'Listero', todayPlays);
+          await SQLiteCache.updateIncrementalTimestamp(userId, 'Listero');
         } catch (cacheError) {
+          console.error('[useListeroStatistics] ⚠️ Error in incremental update cache save:', cacheError);
           return;
         }
         
-        // Refrescar datos si está viendo hoy
         const { startDate, endDate } = dateRange;
         const isViewingToday = 
           startDate.getDate() === today.getDate() &&
@@ -543,20 +407,21 @@ export const useListeroStatistics = (options = {}) => {
 
         if (isViewingToday) {
           try {
-            const cachedPlays = await SQLiteCache.readPlaysFromCache(userId, 'listero', {
+            const cachedPlays = await SQLiteCache.readPlaysFromCache(userId, 'Listero', {
               startDate,
               endDate
             });
-            setTableData({ plays: cachedPlays });
+            
+            const groupedData = groupDataForListero(cachedPlays);
+            setTableData({ plays: groupedData });
           } catch (cacheError) {
             // Error silencioso
           }
         }
       }
 
-      // Limpiar registros antiguos
       try {
-        await SQLiteCache.cleanOldRecords(userId, 'listero');
+        await SQLiteCache.cleanOldRecords(userId, 'Listero');
       } catch (cacheError) {
         // Error silencioso
       }
@@ -566,7 +431,7 @@ export const useListeroStatistics = (options = {}) => {
   };
 
   /**
-   * Aplicar filtros (cambia el rango de fechas y recarga)
+   * Aplicar filtros
    */
   const applyFilters = async (filters = {}) => {
     const {
@@ -579,21 +444,26 @@ export const useListeroStatistics = (options = {}) => {
     if (startDate && endDate) {
       setDateRange({ startDate, endDate });
     }
+
+    const finalStartDate = startDate || dateRange.startDate;
+    const finalEndDate = endDate || dateRange.endDate;
     
+    console.log('[useListeroStatistics] Calling loadPlaysData with final range:', finalStartDate, 'to', finalEndDate, 'forceRefresh:', forceRefresh);
+
     await loadPlaysData({
-      startDate: startDate || dateRange.startDate,
-      endDate: endDate || dateRange.endDate,
-      forceRefresh,
-      periodType // Pasar el tipo de período
+      startDate: finalStartDate,
+      endDate: finalEndDate,
+      forceRefresh
     });
-  };  /**
+  };
+
+  /**
    * Refrescar datos (pull-to-refresh)
    */
   const refresh = async () => {
     await loadPlaysData({ 
       ...dateRange, 
-      forceRefresh: true,
-      periodType: currentPeriodType // Usar el tipo de período actual
+      forceRefresh: true
     });
   };
 
@@ -613,7 +483,7 @@ export const useListeroStatistics = (options = {}) => {
     applyFilters,
     refresh,
     dateRange,
-    debugInfo // 🐛 DEBUG: Metadata temporal
+    debugInfo
   };
 };
 
