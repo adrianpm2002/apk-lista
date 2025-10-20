@@ -94,6 +94,9 @@ const groupDataForCollector = (rawData) => {
 export const useCollectorStatistics = (options = {}) => {
   const { enabled = true } = options;
   
+  // 🔍 DEBUG: Log de inicialización del hook
+  console.log('🔍 [useCollectorStatistics] Hook inicializado con enabled:', enabled);
+  
   // Estados básicos
   const [isLoading, setIsLoading] = useState(false);
   const [userId, setUserId] = useState(null);
@@ -121,21 +124,30 @@ export const useCollectorStatistics = (options = {}) => {
 
   // Detectar userId y auto-cargar datos (se ejecuta cuando enabled cambia)
   useEffect(() => {
+    console.log('🔍 [useCollectorStatistics] useEffect disparado - enabled:', enabled);
+    
     const initializeData = async () => {
       if (!enabled) {
+        console.log('🔍 [useCollectorStatistics] Hook DESHABILITADO, saliendo...');
         setUserId(null);
         return;
       }
       
+      console.log('🔍 [useCollectorStatistics] Hook HABILITADO, continuando...');
+      
       if (loadingRef.current) {
+        console.log('🔍 [useCollectorStatistics] Ya está cargando, saliendo...');
         return;
       }
       
       try {
         const { data: { user } } = await supabase.auth.getUser();
         
+        console.log('🔍 [useCollectorStatistics] Usuario obtenido:', user?.id ? 'SÍ' : 'NO');
+        
         if (user) {
           setUserId(user.id);
+          console.log('🔍 [useCollectorStatistics] userId seteado a:', user.id);
           
           // 🎯 FIX: Cargar solo HOY en la primera carga, no 30 días
           const today = new Date();
