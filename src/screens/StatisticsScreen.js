@@ -342,11 +342,12 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     setCurrentStartDate(startDate);
     setCurrentEndDate(endDate);
     
-    // Pasar fechas concretas al hook
+    // Pasar fechas concretas y tipo de período al hook
     await applyFilters({
       startDate,
       endDate,
-      forceRefresh
+      forceRefresh,
+      periodType: period // Pasar el tipo de período para optimización de caché
     });
   };
 

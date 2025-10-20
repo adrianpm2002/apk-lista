@@ -852,6 +852,79 @@ const formatDateForSQL = (date) => {
 };
 
 /**
+ * Eliminar jugadas de un rango de fechas específico
+ * Útil para reemplazar datos de HOY, AYER, o un período específico
+ */
+export const deletePlaysByDateRange = async (userId, role, startDate, endDate) => {
+  // Guard: En web no hacer nada
+  if (Platform.OS === 'web' || !SQLite) {
+    console.log('[SQLiteCache] deletePlaysByDateRange: Running on web, skipping');
+    return;
+  }
+
+  try {
+    const db = await getDatabase();
+    if (!db) {
+      console.error('[SQLiteCache] deletePlaysByDateRange: No database');
+      return;
+    }
+
+    const tableName = getTableName(role);
+    const startStr = formatDateForDB(startDate);
+    const endStr = formatDateForDB(endDate);
+
+    console.log(`[SQLiteCache] 🗑️ Eliminando jugadas del ${startStr} al ${endStr} en ${tableName}`);
+
+    await db.executeSql(
+      `DELETE FROM ${tableName} 
+       WHERE user_id = ? 
+       AND fecha_jugada >= ? 
+       AND fecha_jugada <= ?`,
+      [userId, startStr, endStr]
+    );
+
+    console.log('[SQLiteCache] ✅ Jugadas eliminadas exitosamente');
+  } catch (error) {
+    console.error('[SQLiteCache] ❌ Error eliminando jugadas por rango:', error);
+    throw error;
+  }
+};
+
+/**
+ * Reemplazar jugadas de un rango de fechas específico
+ * 1. Elimina las jugadas existentes del rango
+ * 2. Inserta las nuevas jugadas
+ * 3. Actualiza metadata
+ */
+export const replacePlaysByDateRange = async (userId, role, plays, startDate, endDate) => {
+  // Guard: En web no hacer nada
+  if (Platform.OS === 'web' || !SQLite) {
+    console.log('[SQLiteCache] replacePlaysByDateRange: Running on web, skipping');
+    return;
+  }
+
+  try {
+    console.log(`[SQLiteCache] 🔄 Reemplazando jugadas del ${startDate.toLocaleDateString()} al ${endDate.toLocaleDateString()}`);
+    
+    // Paso 1: Eliminar jugadas existentes del rango
+    await deletePlaysByDateRange(userId, role, startDate, endDate);
+
+    // Paso 2: Insertar nuevas jugadas (si hay)
+    if (plays && plays.length > 0) {
+      await savePlaysToCache(userId, role, plays);
+      console.log(`[SQLiteCache] ✅ ${plays.length} jugadas reemplazadas exitosamente`);
+    } else {
+      console.log('[SQLiteCache] ℹ️ No hay jugadas nuevas para insertar (rango vacío)');
+      // Aún así actualizar metadata para registrar que este rango fue consultado
+      await updateIncrementalTimestamp(userId, role);
+    }
+  } catch (error) {
+    console.error('[SQLiteCache] ❌ Error reemplazando jugadas:', error);
+    throw error;
+  }
+};
+
+/**
  * Cierra la base de datos
  */
 export const closeDatabase = async () => {

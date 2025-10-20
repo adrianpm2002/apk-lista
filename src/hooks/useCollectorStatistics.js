@@ -110,6 +110,9 @@ export const useCollectorStatistics = (options = {}) => {
     endDate: new Date(new Date().setHours(23, 59, 59, 999))
   });
   
+  // Estado para trackear el período actual (para pull-to-refresh inteligente)
+  const [currentPeriodType, setCurrentPeriodType] = useState('today');
+  
   // Estado para debug info
   const [debugInfo, setDebugInfo] = useState({
     source: '', // 'CACHE' | 'SUPABASE'
@@ -222,7 +225,50 @@ export const useCollectorStatistics = (options = {}) => {
   };
 
   /**
-   * Cargar datos con estrategia de caché inteligente
+   * Cargar datos desde views específicas (v_estadisticas_hoy o v_estadisticas_ayer)
+   * Estas views ya están pre-filtradas por fecha, no necesitan filtro adicional
+   */
+  const loadFromView = async (userId, viewName) => {
+    try {
+      let allPlays = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      debugLog('🐛 [DEBUG COLLECTOR] 📊 Cargando desde view:', viewName);
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from(viewName)
+          .select('*')
+          .eq('id_colector', userId)
+          .order('fecha_jugada', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allPlays = allPlays.concat(data);
+          hasMore = data.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+
+        // Límite de seguridad
+        if (page > 250) break;
+      }
+
+      debugLog('🐛 [DEBUG COLLECTOR] ✅ View cargada:', allPlays.length, 'registros');
+      return allPlays || [];
+    } catch (error) {
+      debugLog('🐛 [DEBUG COLLECTOR] ❌ Error cargando view:', error);
+      return [];
+    }
+  };
+
+  /**
+   * Cargar datos con estrategia optimizada de 3 niveles
    */
   const loadPlaysData = async (filters = {}, userIdOverride = null) => {
     const effectiveUserId = userIdOverride || userId;
@@ -239,11 +285,12 @@ export const useCollectorStatistics = (options = {}) => {
     setIsLoading(true);
 
     try {
-      // 🎯 FIX: Recalcular fechas "hoy" si no vienen en filters para evitar fechas obsoletas
+      // Recalcular fechas "hoy" si no vienen en filters
       let {
         startDate = null,
         endDate = null,
-        forceRefresh = false
+        forceRefresh = false,
+        periodType = 'custom'
       } = filters;
       
       // Si no hay startDate/endDate, usar "hoy" recién calculado
@@ -253,183 +300,211 @@ export const useCollectorStatistics = (options = {}) => {
         endDate = new Date(now.setHours(23, 59, 59, 999));
         debugLog('🐛 [DEBUG COLLECTOR] ⚠️ No hay fechas en filters, usando HOY recién calculado');
       }
-      
-      debugLog('🐛 [DEBUG COLLECTOR] 📅 Fechas finales - start:', startDate.toISOString(), 'end:', endDate.toISOString());
-      debugLog('🐛 [DEBUG COLLECTOR] 🔄 forceRefresh:', forceRefresh ? 'SÍ (saltará caché)' : 'NO (intentará caché primero)');
 
-      // 1. Intentar leer del caché SQLite primero
-      debugLog('🐛 [DEBUG COLLECTOR] 🔍 PASO 1: Intentando leer desde CACHÉ SQLite...');
+      // Auto-detectar tipo de período si no viene especificado
+      if (periodType === 'custom' && startDate && endDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        // Detectar si es HOY
+        if (startDate.getTime() === today.getTime() && 
+            endDate.getDate() === today.getDate() &&
+            endDate.getMonth() === today.getMonth() &&
+            endDate.getFullYear() === today.getFullYear()) {
+          periodType = 'today';
+        }
+        // Detectar si es AYER
+        else if (startDate.getTime() === yesterday.getTime() &&
+                 endDate.getDate() === yesterday.getDate() &&
+                 endDate.getMonth() === yesterday.getMonth() &&
+                 endDate.getFullYear() === yesterday.getFullYear()) {
+          periodType = 'yesterday';
+        }
+      }
+
+      debugLog('🐛 [DEBUG COLLECTOR] 🎯 Tipo de período detectado:', periodType);
+
+      // === ESTRATEGIA 1: HOY - Siempre consultar v_estadisticas_hoy ===
+      if (periodType === 'today') {
+        debugLog('🐛 [DEBUG COLLECTOR] 📊 ESTRATEGIA HOY - Consultando v_estadisticas_hoy');
+        
+        const todayPlays = await loadFromView(effectiveUserId, 'v_estadisticas_hoy');
+        
+        // Reemplazar HOY en caché
+        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'collector', todayPlays, startDate, endDate);
+        
+        setDebugInfo({
+          source: 'v_estadisticas_hoy',
+          totalBeforeFilter: todayPlays.length,
+          totalAfterFilter: todayPlays.length,
+          cacheOldestDate: 'N/A',
+          rangeRequested: startDate.toLocaleDateString()
+        });
+        
+        const groupedData = groupDataForCollector(todayPlays);
+        setTableData({ plays: groupedData });
+        setCurrentPeriodType('today'); // Trackear para pull-to-refresh
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+      }
+
+      // === ESTRATEGIA 2: AYER - Siempre consultar v_estadisticas_ayer ===
+      if (periodType === 'yesterday') {
+        debugLog('🐛 [DEBUG COLLECTOR] 📅 ESTRATEGIA AYER - Consultando v_estadisticas_ayer');
+        
+        const yesterdayPlays = await loadFromView(effectiveUserId, 'v_estadisticas_ayer');
+        
+        // Reemplazar AYER en caché
+        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'collector', yesterdayPlays, startDate, endDate);
+        
+        setDebugInfo({
+          source: 'v_estadisticas_ayer',
+          totalBeforeFilter: yesterdayPlays.length,
+          totalAfterFilter: yesterdayPlays.length,
+          cacheOldestDate: 'N/A',
+          rangeRequested: startDate.toLocaleDateString()
+        });
+        
+        const groupedData = groupDataForCollector(yesterdayPlays);
+        setTableData({ plays: groupedData });
+        setCurrentPeriodType('yesterday'); // Trackear para pull-to-refresh
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+      }
+
+      // === ESTRATEGIA 3: 7 DÍAS / 30 DÍAS / PERSONALIZADO ===
+      debugLog('🐛 [DEBUG COLLECTOR] 💾 ESTRATEGIA CACHÉ - Período:', periodType);
+      
+      // Leer caché
       let cachedPlays = [];
       try {
-        // Leer TODO el caché disponible (sin filtro de fechas aún)
         cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'collector', {});
         debugLog('🐛 [DEBUG COLLECTOR] 📦 Caché leído:', cachedPlays.length, 'registros');
       } catch (cacheError) {
         debugLog('🐛 [DEBUG COLLECTOR] ❌ Error leyendo caché:', cacheError.message);
-        cachedPlays = [];
       }
 
-      debugLog('🐛 [DEBUG COLLECTOR] 🔍 PASO 2: Evaluando si usar caché o consultar Supabase...');
-      debugLog('🐛 [DEBUG COLLECTOR]    - Caché tiene:', cachedPlays.length, 'registros');
+      // Encontrar fecha más antigua en caché
+      const oldestCached = cachedPlays.length > 0
+        ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
+        : null;
+
+      debugLog('🐛 [DEBUG COLLECTOR] 📅 Fecha más antigua en caché:', oldestCached?.toLocaleDateString() || 'N/A');
+
+      // Evaluar condiciones para decidir si consultar Supabase
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      const includesHoyOrAyer = startDate < today && endDate >= today || 
+                                startDate < yesterday && endDate >= yesterday && endDate < today;
+      
+      const maxCacheAge = new Date();
+      maxCacheAge.setDate(maxCacheAge.getDate() - 60);
+      maxCacheAge.setHours(0, 0, 0, 0);
+      const includesVeryOldDates = startDate < maxCacheAge;
+      const cacheIsEmpty = cachedPlays.length === 0;
+      const cacheMissingRange = !oldestCached || oldestCached > startDate;
+
+      debugLog('🐛 [DEBUG COLLECTOR] 🔍 Evaluación:');
+      debugLog('🐛 [DEBUG COLLECTOR]    - Incluye HOY/AYER:', includesHoyOrAyer);
+      debugLog('🐛 [DEBUG COLLECTOR]    - Incluye fechas >60 días:', includesVeryOldDates);
+      debugLog('🐛 [DEBUG COLLECTOR]    - Caché vacío:', cacheIsEmpty);
+      debugLog('🐛 [DEBUG COLLECTOR]    - Caché falta rango:', cacheMissingRange);
       debugLog('🐛 [DEBUG COLLECTOR]    - forceRefresh:', forceRefresh);
 
-      // 2. Si hay datos en caché, verificar si cubren el rango solicitado
-      if (cachedPlays.length > 0 && !forceRefresh) {
-        debugLog('🐛 [DEBUG COLLECTOR]    ✅ Condición 1 cumplida: Caché NO está vacío');
-        debugLog('🐛 [DEBUG COLLECTOR]    ✅ Condición 2 cumplida: NO es forceRefresh');
-        debugLog('🐛 [DEBUG COLLECTOR] 🔍 PASO 3: Filtrando caché por rango de fechas...');
+      // Decidir si consultar Supabase
+      const needsSupabase = forceRefresh || cacheIsEmpty || cacheMissingRange || 
+                           includesHoyOrAyer || includesVeryOldDates;
 
-        // Filtrar por el rango solicitado
+      if (!needsSupabase) {
+        // Usar SOLO caché
+        debugLog('🐛 [DEBUG COLLECTOR] ✅ Usando SOLO CACHÉ');
+        
         const filteredCachedPlays = cachedPlays.filter(play => {
           const playDate = new Date(play.fecha_jugada);
           return playDate >= startDate && playDate <= endDate;
         });
         
-        debugLog('🐛 [DEBUG COLLECTOR]    📊 Después del filtro:', filteredCachedPlays.length, 'registros');
-        debugLog('🐛 [DEBUG COLLECTOR] 🔍 PASO 4: Verificando cobertura del caché...');
+        setDebugInfo({
+          source: 'CACHE',
+          totalBeforeFilter: cachedPlays.length,
+          totalAfterFilter: filteredCachedPlays.length,
+          cacheOldestDate: oldestCached?.toLocaleDateString() || 'N/A',
+          rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+        });
         
-        // Verificar si el caché cubre el rango completo
-        const oldestCached = cachedPlays.length > 0 
-          ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
-          : null;
-        
-        const cacheCoversRange = oldestCached && oldestCached <= startDate;
-        
-        debugLog('🐛 [DEBUG COLLECTOR]    📆 Fecha más antigua en caché:', oldestCached?.toLocaleDateString('es-CU'));
-        debugLog('🐛 [DEBUG COLLECTOR]    📆 Fecha inicio solicitada:', startDate.toLocaleDateString('es-CU'));
-        debugLog('🐛 [DEBUG COLLECTOR]    ❓ ¿Caché cubre rango completo?', cacheCoversRange ? '✅ SÍ' : '❌ NO');
-        
-        // 🎯 FIX: Confiar en cobertura de caché incluso si está vacío
-        // Si el caché cubre el rango, significa que consultamos Supabase antes
-        // y NO había datos en ese rango. No consultar de nuevo innecesariamente.
-        if (cacheCoversRange) {
-          // Agrupar datos del cache FILTRADOS
-          const groupedCachedData = groupDataForCollector(filteredCachedPlays);
-          
-          debugLog('🐛 [DEBUG COLLECTOR] ✅ DECISIÓN: Usando CACHÉ -', filteredCachedPlays.length, 'jugadas filtradas →', groupedCachedData.length, 'listeros agrupados');
-          debugLog('🐛 [DEBUG COLLECTOR] ⏭️ Saltando consulta a Supabase');
-          
-          // Actualizar debugInfo
-          setDebugInfo({
-            source: 'CACHE',
-            totalBeforeFilter: cachedPlays.length,
-            totalAfterFilter: filteredCachedPlays.length,
-            cacheOldestDate: oldestCached ? oldestCached.toLocaleDateString() : 'N/A',
-            rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
-          });
-          
-          setTableData({ plays: groupedCachedData });
-
-          // Verificar si necesita actualización incremental
-          let needsUpdate = false;
-          try {
-            needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'collector');
-          } catch (cacheError) {
-            // Error silencioso
-          }
-          
-          if (needsUpdate) {
-            updateTodayInBackground(effectiveUserId);
-          }
-
-          setIsLoading(false);
-          loadingRef.current = false;
-          return;
-        } else {
-          debugLog('🐛 [DEBUG COLLECTOR] ❌ DECISIÓN: Caché NO cubre rango completo');
-          debugLog('🐛 [DEBUG COLLECTOR]    ❌ Razón: cacheCoversRange =', cacheCoversRange);
-          debugLog('🐛 [DEBUG COLLECTOR] 🌐 Continuando a consulta de Supabase...');
-        }
-      } else {
-        // Caché vacío o forceRefresh
-        if (cachedPlays.length === 0) {
-          debugLog('🐛 [DEBUG COLLECTOR]    ❌ Condición 1 NO cumplida: Caché está VACÍO');
-        }
-        if (forceRefresh) {
-          debugLog('🐛 [DEBUG COLLECTOR]    ❌ Condición 2 NO cumplida: ES forceRefresh (pull-to-refresh)');
-        }
-        debugLog('🐛 [DEBUG COLLECTOR] 🌐 Saltando caché, irá directo a Supabase');
+        const groupedData = groupDataForCollector(filteredCachedPlays);
+        setTableData({ plays: groupedData });
+        setCurrentPeriodType(periodType); // Trackear para pull-to-refresh
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
       }
 
-      // 3. No hay caché suficiente o forceRefresh: cargar desde Supabase
-      debugLog('🐛 [DEBUG COLLECTOR] 🔍 PASO 5: Consultando SUPABASE...');
+      // Necesita consultar Supabase
+      debugLog('🐛 [DEBUG COLLECTOR] 🌐 Consultando SUPABASE...');
+      
+      // Determinar qué rango consultar
+      let queryStart, queryEnd;
+      
+      if (forceRefresh || includesHoyOrAyer) {
+        // Pull-to-refresh o incluye HOY/AYER: consultar el rango exacto solicitado
+        queryStart = startDate;
+        queryEnd = endDate;
+        debugLog('🐛 [DEBUG COLLECTOR]    📌 Motivo: pull-to-refresh o incluye HOY/AYER');
+      } else if (cacheIsEmpty) {
+        // Primera vez: cargar últimos 60 días
+        queryStart = new Date();
+        queryStart.setDate(queryStart.getDate() - 59);
+        queryStart.setHours(0, 0, 0, 0);
+        queryEnd = new Date();
+        queryEnd.setHours(23, 59, 59, 999);
+        debugLog('🐛 [DEBUG COLLECTOR]    📌 Motivo: Primera carga (60 días)');
+      } else {
+        // Caché incompleto: consultar desde la fecha solicitada más antigua
+        queryStart = startDate;
+        queryEnd = new Date();
+        queryEnd.setHours(23, 59, 59, 999);
+        debugLog('🐛 [DEBUG COLLECTOR]    📌 Motivo: Completar caché');
+      }
+
+      debugLog('🐛 [DEBUG COLLECTOR] 📅 Consultando desde:', queryStart.toLocaleDateString(), 'hasta:', queryEnd.toLocaleDateString());
+      
+      const playsData = await loadFromSupabase(effectiveUserId, queryStart, queryEnd);
+      debugLog('🐛 [DEBUG COLLECTOR] ✅ Supabase devolvió:', playsData.length, 'registros');
+
+      // Reemplazar el rango en caché
       if (forceRefresh) {
-        debugLog('🐛 [DEBUG COLLECTOR]    📌 Motivo: forceRefresh=true (pull-to-refresh)');
-      } else if (cachedPlays.length === 0) {
-        debugLog('🐛 [DEBUG COLLECTOR]    📌 Motivo: Caché vacío');
+        // Pull-to-refresh: reemplazar solo el rango solicitado
+        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'collector', playsData, queryStart, queryEnd);
+        debugLog('🐛 [DEBUG COLLECTOR] 💾 Reemplazados en caché:', playsData.length, 'registros');
       } else {
-        debugLog('🐛 [DEBUG COLLECTOR]    📌 Motivo: Caché no cubre rango solicitado');
-      }
-      
-      // 🎯 Consultar últimos 30 días para cachear, pero mostrar solo el rango solicitado
-      const cacheStart = new Date();
-      cacheStart.setDate(cacheStart.getDate() - 29); // 30 días incluyendo hoy
-      cacheStart.setHours(0, 0, 0, 0);
-      
-      const cacheEnd = new Date();
-      cacheEnd.setHours(23, 59, 59, 999);
-      
-      debugLog('🐛 [DEBUG COLLECTOR] Consultando Supabase desde:', cacheStart.toLocaleDateString(), 'hasta:', cacheEnd.toLocaleDateString());
-      
-      const playsData = await loadFromSupabase(effectiveUserId, cacheStart, cacheEnd);
-      
-      debugLog('🐛 [DEBUG COLLECTOR] Supabase devolvió:', playsData.length, 'registros');
-
-      // 4. Guardar TODO en caché SQLite (últimos 30 días)
-      if (playsData.length > 0) {
-        debugLog('🐛 [DEBUG COLLECTOR] 💾 Guardando', playsData.length, 'registros en caché SQLite...');
-        debugLog('🐛 [DEBUG COLLECTOR] 💾 Rango a guardar: desde', playsData[playsData.length - 1]?.fecha_jugada, 'hasta', playsData[0]?.fecha_jugada);
-        
-        try {
+        // Primera carga o completar: guardar normalmente
+        if (playsData.length > 0) {
           await SQLiteCache.savePlaysToCache(effectiveUserId, 'collector', playsData);
           await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'collector');
-          debugLog('🐛 [DEBUG COLLECTOR] 💾 Guardado resultado: ✅ Éxito');
-          debugLog('🐛 [DEBUG COLLECTOR] 💾 Timestamp incremental actualizado');
-          
-          // 🎯 VERIFICACIÓN: Leer inmediatamente para confirmar guardado
-          try {
-            const verification = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'collector', {});
-            debugLog('🐛 [DEBUG COLLECTOR] ✅ VERIFICACIÓN: Cache ahora tiene', verification.length, 'registros');
-            if (verification.length !== playsData.length) {
-              debugLog('🐛 [DEBUG COLLECTOR] ⚠️ DISCREPANCIA: Guardados', playsData.length, 'pero cache tiene', verification.length);
-            }
-          } catch (verifyError) {
-            debugLog('🐛 [DEBUG COLLECTOR] ⚠️ No se pudo verificar guardado:', verifyError.message);
-          }
-        } catch (cacheError) {
-          debugLog('🐛 [DEBUG COLLECTOR] ❌ Error guardando en caché:', cacheError.message, cacheError.stack);
+          debugLog('🐛 [DEBUG COLLECTOR] 💾 Guardados en caché:', playsData.length, 'registros');
         }
       }
 
-      // 5. Filtrar por el rango solicitado y agrupar
-
-      // 5. Filtrar por el rango solicitado y agrupar
-      debugLog('🐛 [DEBUG COLLECTOR] 🎯 FILTRO - startDate:', startDate.toISOString());
-      debugLog('🐛 [DEBUG COLLECTOR] 🎯 FILTRO - endDate:', endDate.toISOString());
-      debugLog('🐛 [DEBUG COLLECTOR] 🎯 FILTRO - Aplicando a', playsData.length, 'registros...');
-      
-      const filteredPlays = playsData.filter((play, index) => {
+      // Filtrar por el rango solicitado
+      const filteredPlays = playsData.filter(play => {
         const playDate = new Date(play.fecha_jugada);
-        const isInRange = playDate >= startDate && playDate <= endDate;
-        
-        // Log detallado de las primeras 5 jugadas
-        if (index < 5) {
-          console.log(`🐛 [DEBUG COLLECTOR] Jugada ${index}: ${play.fecha_jugada} → ${isInRange ? '✅ PASA' : '❌ NO PASA'}`);
-        }
-        
-        return isInRange;
+        return playDate >= startDate && playDate <= endDate;
       });
       
-      debugLog('🐛 [DEBUG COLLECTOR] Después del filtro:', filteredPlays.length, '/', playsData.length, 'jugadas para mostrar');
+      debugLog('🐛 [DEBUG COLLECTOR] 🎯 Después de filtrar:', filteredPlays.length, '/', playsData.length);
       
-      // 🐛 DEBUG: Calcular fecha más antigua de los datos cargados
       const oldestPlay = playsData.length > 0
         ? new Date(Math.min(...playsData.map(p => new Date(p.fecha_jugada).getTime())))
         : null;
       
-      debugLog('🐛 [DEBUG COLLECTOR] Fecha más antigua en datos de Supabase:', oldestPlay?.toLocaleDateString());
-      
-      // Actualizar debugInfo
       setDebugInfo({
         source: 'SUPABASE',
         totalBeforeFilter: playsData.length,
@@ -439,15 +514,10 @@ export const useCollectorStatistics = (options = {}) => {
       });
       
       const groupedData = groupDataForCollector(filteredPlays);
-      debugLog('🐛 [DEBUG COLLECTOR] 🔍 Después de agrupar:', groupedData.length, 'listeros');
-      if (groupedData.length > 0) {
-        const totalJugadas = groupedData.reduce((sum, listero) => sum + (listero.plays?.length || 0), 0);
-        debugLog('🐛 [DEBUG COLLECTOR] 🔍 Total de jugadas en grupos:', totalJugadas);
-        debugLog('🐛 [DEBUG COLLECTOR] 🔍 Primer listero:', groupedData[0].listero_name, 'con', groupedData[0].plays?.length, 'jugadas');
-      }
       setTableData({ plays: groupedData });
+      setCurrentPeriodType(periodType); // Trackear para pull-to-refresh
 
-      // 6. Limpiar registros antiguos
+      // Limpiar registros muy antiguos (>60 días)
       try {
         await SQLiteCache.cleanOldRecords(effectiveUserId, 'collector');
       } catch (cacheError) {
@@ -525,7 +595,8 @@ export const useCollectorStatistics = (options = {}) => {
     const {
       startDate,
       endDate,
-      forceRefresh = false
+      forceRefresh = false,
+      periodType = 'custom' // Aceptar el tipo de período
     } = filters;
 
     if (startDate && endDate) {
@@ -538,7 +609,8 @@ export const useCollectorStatistics = (options = {}) => {
     await loadPlaysData({
       startDate: finalStartDate,
       endDate: finalEndDate,
-      forceRefresh
+      forceRefresh,
+      periodType // Pasar el tipo de período
     });
   };
 
@@ -546,7 +618,11 @@ export const useCollectorStatistics = (options = {}) => {
    * Refrescar datos (pull-to-refresh)
    */
   const refresh = async () => {
-    await loadPlaysData({ forceRefresh: true });
+    await loadPlaysData({ 
+      ...dateRange, 
+      forceRefresh: true,
+      periodType: currentPeriodType // Usar el tipo de período actual
+    });
   };
 
   // ❌ ELIMINADO: Carga automática causaba double-loading y race conditions

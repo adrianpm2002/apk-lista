@@ -115,6 +115,9 @@ export const useAdminStatistics = (options = {}) => {
     endDate: new Date(new Date().setHours(23, 59, 59, 999))
   });
   
+  // Estado para trackear el período actual (para pull-to-refresh inteligente)
+  const [currentPeriodType, setCurrentPeriodType] = useState('today');
+  
   // Estado para debug info
   const [debugInfo, setDebugInfo] = useState({
     source: '', // 'CACHE' | 'SUPABASE'
@@ -227,7 +230,49 @@ export const useAdminStatistics = (options = {}) => {
   };
 
   /**
-   * Cargar datos con estrategia de caché inteligente
+   * Cargar datos desde views específicas (v_estadisticas_hoy o v_estadisticas_ayer)
+   * Estas views ya están pre-filtradas por fecha, no necesitan filtro adicional
+   */
+  const loadFromView = async (userId, viewName) => {
+    try {
+      let allPlays = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      debugLog('🐛 [DEBUG ADMIN] 📊 Cargando desde view:', viewName);
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from(viewName)
+          .select('*')
+          .order('fecha_jugada', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allPlays = allPlays.concat(data);
+          hasMore = data.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+
+        // Límite de seguridad
+        if (page > 250) break;
+      }
+
+      debugLog('🐛 [DEBUG ADMIN] ✅ View cargada:', allPlays.length, 'registros');
+      return allPlays || [];
+    } catch (error) {
+      debugLog('🐛 [DEBUG ADMIN] ❌ Error cargando view:', error);
+      return [];
+    }
+  };
+
+  /**
+   * Cargar datos con estrategia optimizada de 3 niveles
    */
   const loadPlaysData = async (filters = {}, userIdOverride = null) => {
     const effectiveUserId = userIdOverride || userId;
@@ -244,11 +289,12 @@ export const useAdminStatistics = (options = {}) => {
     setIsLoading(true);
 
     try {
-      // 🎯 FIX: Recalcular fechas "hoy" si no vienen en filters para evitar fechas obsoletas
+      // Recalcular fechas "hoy" si no vienen en filters
       let {
         startDate = null,
         endDate = null,
-        forceRefresh = false
+        forceRefresh = false,
+        periodType = 'custom'
       } = filters;
       
       // Si no hay startDate/endDate, usar "hoy" recién calculado
@@ -258,181 +304,211 @@ export const useAdminStatistics = (options = {}) => {
         endDate = new Date(now.setHours(23, 59, 59, 999));
         console.log('🐛 [DEBUG ADMIN] ⚠️ No hay fechas en filters, usando HOY recién calculado');
       }
-      
-      console.log('🐛 [DEBUG ADMIN] 📅 Fechas finales - start:', startDate.toISOString(), 'end:', endDate.toISOString());
-      console.log('🐛 [DEBUG ADMIN] 🔄 forceRefresh:', forceRefresh ? 'SÍ (saltará caché)' : 'NO (intentará caché primero)');
 
-      // 1. Intentar leer del caché SQLite primero
-      console.log('🐛 [DEBUG ADMIN] 🔍 PASO 1: Intentando leer desde CACHÉ SQLite...');
+      // Auto-detectar tipo de período si no viene especificado
+      if (periodType === 'custom' && startDate && endDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        // Detectar si es HOY
+        if (startDate.getTime() === today.getTime() && 
+            endDate.getDate() === today.getDate() &&
+            endDate.getMonth() === today.getMonth() &&
+            endDate.getFullYear() === today.getFullYear()) {
+          periodType = 'today';
+        }
+        // Detectar si es AYER
+        else if (startDate.getTime() === yesterday.getTime() &&
+                 endDate.getDate() === yesterday.getDate() &&
+                 endDate.getMonth() === yesterday.getMonth() &&
+                 endDate.getFullYear() === yesterday.getFullYear()) {
+          periodType = 'yesterday';
+        }
+      }
+
+      console.log('🐛 [DEBUG ADMIN] 🎯 Tipo de período detectado:', periodType);
+
+      // === ESTRATEGIA 1: HOY - Siempre consultar v_estadisticas_hoy ===
+      if (periodType === 'today') {
+        console.log('🐛 [DEBUG ADMIN] � ESTRATEGIA HOY - Consultando v_estadisticas_hoy');
+        
+        const todayPlays = await loadFromView(effectiveUserId, 'v_estadisticas_hoy');
+        
+        // Reemplazar HOY en caché
+        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'admin', todayPlays, startDate, endDate);
+        
+        setDebugInfo({
+          source: 'v_estadisticas_hoy',
+          totalBeforeFilter: todayPlays.length,
+          totalAfterFilter: todayPlays.length,
+          cacheOldestDate: 'N/A',
+          rangeRequested: startDate.toLocaleDateString()
+        });
+        
+        const groupedData = groupDataForAdmin(todayPlays);
+        setTableData({ plays: groupedData });
+        setCurrentPeriodType('today'); // Trackear para pull-to-refresh
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+      }
+
+      // === ESTRATEGIA 2: AYER - Siempre consultar v_estadisticas_ayer ===
+      if (periodType === 'yesterday') {
+        console.log('🐛 [DEBUG ADMIN] � ESTRATEGIA AYER - Consultando v_estadisticas_ayer');
+        
+        const yesterdayPlays = await loadFromView(effectiveUserId, 'v_estadisticas_ayer');
+        
+        // Reemplazar AYER en caché
+        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'admin', yesterdayPlays, startDate, endDate);
+        
+        setDebugInfo({
+          source: 'v_estadisticas_ayer',
+          totalBeforeFilter: yesterdayPlays.length,
+          totalAfterFilter: yesterdayPlays.length,
+          cacheOldestDate: 'N/A',
+          rangeRequested: startDate.toLocaleDateString()
+        });
+        
+        const groupedData = groupDataForAdmin(yesterdayPlays);
+        setTableData({ plays: groupedData });
+        setCurrentPeriodType('yesterday'); // Trackear para pull-to-refresh
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+      }
+
+      // === ESTRATEGIA 3: 7 DÍAS / 30 DÍAS / PERSONALIZADO ===
+      console.log('🐛 [DEBUG ADMIN] 💾 ESTRATEGIA CACHÉ - Período:', periodType);
+      
+      // Leer caché
       let cachedPlays = [];
       try {
-        // Leer TODO el caché disponible (sin filtro de fechas aún)
         cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'admin', {});
         console.log('🐛 [DEBUG ADMIN] 📦 Caché leído:', cachedPlays.length, 'registros');
       } catch (cacheError) {
         console.log('🐛 [DEBUG ADMIN] ❌ Error leyendo caché:', cacheError.message);
-        cachedPlays = [];
       }
 
-      console.log('🐛 [DEBUG ADMIN] 🔍 PASO 2: Evaluando si usar caché o consultar Supabase...');
-      console.log('🐛 [DEBUG ADMIN]    - Caché tiene:', cachedPlays.length, 'registros');
+      // Encontrar fecha más antigua en caché
+      const oldestCached = cachedPlays.length > 0
+        ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
+        : null;
+
+      console.log('🐛 [DEBUG ADMIN] 📅 Fecha más antigua en caché:', oldestCached?.toLocaleDateString() || 'N/A');
+
+      // Evaluar condiciones para decidir si consultar Supabase
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      const includesHoyOrAyer = startDate < today && endDate >= today || 
+                                startDate < yesterday && endDate >= yesterday && endDate < today;
+      
+      const maxCacheAge = new Date();
+      maxCacheAge.setDate(maxCacheAge.getDate() - 60);
+      maxCacheAge.setHours(0, 0, 0, 0);
+      const includesVeryOldDates = startDate < maxCacheAge;
+      const cacheIsEmpty = cachedPlays.length === 0;
+      const cacheMissingRange = !oldestCached || oldestCached > startDate;
+
+      console.log('🐛 [DEBUG ADMIN] 🔍 Evaluación:');
+      console.log('🐛 [DEBUG ADMIN]    - Incluye HOY/AYER:', includesHoyOrAyer);
+      console.log('🐛 [DEBUG ADMIN]    - Incluye fechas >60 días:', includesVeryOldDates);
+      console.log('🐛 [DEBUG ADMIN]    - Caché vacío:', cacheIsEmpty);
+      console.log('🐛 [DEBUG ADMIN]    - Caché falta rango:', cacheMissingRange);
       console.log('🐛 [DEBUG ADMIN]    - forceRefresh:', forceRefresh);
 
-      // 2. Si hay datos en caché, verificar si cubren el rango solicitado
-      if (cachedPlays.length > 0 && !forceRefresh) {
-        console.log('🐛 [DEBUG ADMIN]    ✅ Condición 1 cumplida: Caché NO está vacío');
-        console.log('🐛 [DEBUG ADMIN]    ✅ Condición 2 cumplida: NO es forceRefresh');
-        console.log('🐛 [DEBUG ADMIN] 🔍 PASO 3: Filtrando caché por rango de fechas...');
+      // Decidir si consultar Supabase
+      const needsSupabase = forceRefresh || cacheIsEmpty || cacheMissingRange || 
+                           includesHoyOrAyer || includesVeryOldDates;
 
-        // Filtrar por el rango solicitado
+      if (!needsSupabase) {
+        // Usar SOLO caché
+        console.log('🐛 [DEBUG ADMIN] ✅ Usando SOLO CACHÉ');
+        
         const filteredCachedPlays = cachedPlays.filter(play => {
           const playDate = new Date(play.fecha_jugada);
           return playDate >= startDate && playDate <= endDate;
         });
         
-        console.log('🐛 [DEBUG ADMIN]    📊 Después del filtro:', filteredCachedPlays.length, 'registros');
-        console.log('🐛 [DEBUG ADMIN] 🔍 PASO 4: Verificando cobertura del caché...');
+        setDebugInfo({
+          source: 'CACHE',
+          totalBeforeFilter: cachedPlays.length,
+          totalAfterFilter: filteredCachedPlays.length,
+          cacheOldestDate: oldestCached?.toLocaleDateString() || 'N/A',
+          rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+        });
         
-        // Verificar si el caché cubre el rango completo
-        const oldestCached = cachedPlays.length > 0 
-          ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
-          : null;
-        
-        const cacheCoversRange = oldestCached && oldestCached <= startDate;
-        
-        console.log('🐛 [DEBUG ADMIN]    📆 Fecha más antigua en caché:', oldestCached?.toLocaleDateString('es-CU'));
-        console.log('🐛 [DEBUG ADMIN]    📆 Fecha inicio solicitada:', startDate.toLocaleDateString('es-CU'));
-        console.log('🐛 [DEBUG ADMIN]    ❓ ¿Caché cubre rango completo?', cacheCoversRange ? '✅ SÍ' : '❌ NO');
-        
-        // 🎯 FIX: Confiar en cobertura de caché incluso si está vacío
-        // Si el caché cubre el rango, significa que consultamos Supabase antes
-        // y NO había datos en ese rango. No consultar de nuevo innecesariamente.
-        if (cacheCoversRange) {
-          // Agrupar datos FILTRADOS antes de setear
-          const groupedData = groupDataForAdmin(filteredCachedPlays);
-          
-          console.log('🐛 [DEBUG ADMIN] ✅ DECISIÓN: Usando CACHÉ -', filteredCachedPlays.length, 'jugadas filtradas →', groupedData.length, 'grupos');
-          console.log('🐛 [DEBUG ADMIN] ⏭️ Saltando consulta a Supabase');
-          
-          // Actualizar debugInfo
-          setDebugInfo({
-            source: 'CACHE',
-            totalBeforeFilter: cachedPlays.length,
-            totalAfterFilter: filteredCachedPlays.length,
-            cacheOldestDate: oldestCached ? oldestCached.toLocaleDateString() : 'N/A',
-            rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
-          });
-          
-          setTableData({ plays: groupedData });
-
-          // Verificar si necesita actualización incremental
-          let needsUpdate = false;
-          try {
-            needsUpdate = await SQLiteCache.needsIncrementalUpdate(effectiveUserId, 'admin');
-          } catch (cacheError) {
-            // Error silencioso
-          }
-          
-          if (needsUpdate) {
-            updateTodayInBackground(effectiveUserId);
-          }
-
-          setIsLoading(false);
-          loadingRef.current = false;
-          return;
-        } else {
-          console.log('🐛 [DEBUG ADMIN] ❌ DECISIÓN: Caché NO cubre rango completo');
-          console.log('🐛 [DEBUG ADMIN]    ❌ Razón: cacheCoversRange =', cacheCoversRange);
-          console.log('🐛 [DEBUG ADMIN] 🌐 Continuando a consulta de Supabase...');
-        }
-      } else {
-        // Caché vacío o forceRefresh
-        if (cachedPlays.length === 0) {
-          console.log('🐛 [DEBUG ADMIN]    ❌ Condición 1 NO cumplida: Caché está VACÍO');
-        }
-        if (forceRefresh) {
-          console.log('🐛 [DEBUG ADMIN]    ❌ Condición 2 NO cumplida: ES forceRefresh (pull-to-refresh)');
-        }
-        console.log('🐛 [DEBUG ADMIN] 🌐 Saltando caché, irá directo a Supabase');
+        const groupedData = groupDataForAdmin(filteredCachedPlays);
+        setTableData({ plays: groupedData });
+        setCurrentPeriodType(periodType); // Trackear para pull-to-refresh
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
       }
 
-      // 3. No hay caché suficiente o forceRefresh: cargar desde Supabase
-      console.log('🐛 [DEBUG ADMIN] 🔍 PASO 5: Consultando SUPABASE...');
+      // Necesita consultar Supabase
+      console.log('🐛 [DEBUG ADMIN] 🌐 Consultando SUPABASE...');
+      
+      // Determinar qué rango consultar
+      let queryStart, queryEnd;
+      
+      if (forceRefresh || includesHoyOrAyer) {
+        // Pull-to-refresh o incluye HOY/AYER: consultar el rango exacto solicitado
+        queryStart = startDate;
+        queryEnd = endDate;
+        console.log('🐛 [DEBUG ADMIN]    📌 Motivo: pull-to-refresh o incluye HOY/AYER');
+      } else if (cacheIsEmpty) {
+        // Primera vez: cargar últimos 60 días
+        queryStart = new Date();
+        queryStart.setDate(queryStart.getDate() - 59);
+        queryStart.setHours(0, 0, 0, 0);
+        queryEnd = new Date();
+        queryEnd.setHours(23, 59, 59, 999);
+        console.log('🐛 [DEBUG ADMIN]    📌 Motivo: Primera carga (60 días)');
+      } else {
+        // Caché incompleto: consultar desde la fecha solicitada más antigua
+        queryStart = startDate;
+        queryEnd = new Date();
+        queryEnd.setHours(23, 59, 59, 999);
+        console.log('🐛 [DEBUG ADMIN]    📌 Motivo: Completar caché');
+      }
+
+      console.log('🐛 [DEBUG ADMIN] 📅 Consultando desde:', queryStart.toLocaleDateString(), 'hasta:', queryEnd.toLocaleDateString());
+      
+      const playsData = await loadFromSupabase(effectiveUserId, queryStart, queryEnd);
+      console.log('🐛 [DEBUG ADMIN] ✅ Supabase devolvió:', playsData.length, 'registros');
+
+      // Reemplazar el rango en caché
       if (forceRefresh) {
-        console.log('🐛 [DEBUG ADMIN]    📌 Motivo: forceRefresh=true (pull-to-refresh)');
-      } else if (cachedPlays.length === 0) {
-        console.log('🐛 [DEBUG ADMIN]    📌 Motivo: Caché vacío');
+        // Pull-to-refresh: reemplazar solo el rango solicitado
+        await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'admin', playsData, queryStart, queryEnd);
+        console.log('🐛 [DEBUG ADMIN] 💾 Reemplazados en caché:', playsData.length, 'registros');
       } else {
-        console.log('🐛 [DEBUG ADMIN]    📌 Motivo: Caché no cubre rango solicitado');
-      }
-      
-      // 🎯 Consultar últimos 30 días para cachear, pero mostrar solo el rango solicitado
-      const cacheStart = new Date();
-      cacheStart.setDate(cacheStart.getDate() - 29); // 30 días incluyendo hoy
-      cacheStart.setHours(0, 0, 0, 0);
-      
-      const cacheEnd = new Date();
-      cacheEnd.setHours(23, 59, 59, 999);
-      
-      console.log('🐛 [DEBUG ADMIN] Consultando Supabase desde:', cacheStart.toLocaleDateString(), 'hasta:', cacheEnd.toLocaleDateString());
-      
-      const playsData = await loadFromSupabase(effectiveUserId, cacheStart, cacheEnd);
-      
-      console.log('🐛 [DEBUG ADMIN] Supabase devolvió:', playsData.length, 'registros');
-
-      // 4. Guardar TODO en caché SQLite (últimos 30 días)
-      if (playsData.length > 0) {
-        console.log('🐛 [DEBUG ADMIN] 💾 Guardando', playsData.length, 'registros en caché SQLite...');
-        console.log('🐛 [DEBUG ADMIN] 💾 Rango a guardar: desde', playsData[playsData.length - 1]?.fecha_jugada, 'hasta', playsData[0]?.fecha_jugada);
-        
-        try {
+        // Primera carga o completar: guardar normalmente
+        if (playsData.length > 0) {
           await SQLiteCache.savePlaysToCache(effectiveUserId, 'admin', playsData);
           await SQLiteCache.updateIncrementalTimestamp(effectiveUserId, 'admin');
-          console.log('🐛 [DEBUG ADMIN] 💾 Guardado resultado: ✅ Éxito');
-          console.log('🐛 [DEBUG ADMIN] 💾 Timestamp incremental actualizado');
-          
-          // 🎯 VERIFICACIÓN: Leer inmediatamente para confirmar guardado
-          try {
-            const verification = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'admin', {});
-            console.log('🐛 [DEBUG ADMIN] ✅ VERIFICACIÓN: Cache ahora tiene', verification.length, 'registros');
-            if (verification.length !== playsData.length) {
-              console.log('🐛 [DEBUG ADMIN] ⚠️ DISCREPANCIA: Guardados', playsData.length, 'pero cache tiene', verification.length);
-            }
-          } catch (verifyError) {
-            console.log('🐛 [DEBUG ADMIN] ⚠️ No se pudo verificar guardado:', verifyError.message);
-          }
-        } catch (cacheError) {
-          console.log('🐛 [DEBUG ADMIN] ❌ Error guardando en caché:', cacheError.message, cacheError.stack);
+          console.log('🐛 [DEBUG ADMIN] 💾 Guardados en caché:', playsData.length, 'registros');
         }
       }
 
-      // 5. Filtrar por el rango solicitado y agrupar
-      console.log('🐛 [DEBUG ADMIN] 🎯 FILTRO - startDate:', startDate.toISOString());
-      console.log('🐛 [DEBUG ADMIN] 🎯 FILTRO - endDate:', endDate.toISOString());
-      console.log('🐛 [DEBUG ADMIN] 🎯 FILTRO - Aplicando a', playsData.length, 'registros...');
-      
-      const filteredPlays = playsData.filter((play, index) => {
+      // Filtrar por el rango solicitado
+      const filteredPlays = playsData.filter(play => {
         const playDate = new Date(play.fecha_jugada);
-        const isInRange = playDate >= startDate && playDate <= endDate;
-        
-        // Log detallado de las primeras 5 jugadas
-        if (index < 5) {
-          console.log(`🐛 [DEBUG ADMIN] Jugada ${index}: ${play.fecha_jugada} (${playDate.toISOString()}) → ${isInRange ? '✅ PASA' : '❌ NO PASA'}`);
-        }
-        
-        return isInRange;
+        return playDate >= startDate && playDate <= endDate;
       });
       
-      console.log('🐛 [DEBUG ADMIN] Después del filtro:', filteredPlays.length, '/', playsData.length, 'jugadas para mostrar');
+      console.log('🐛 [DEBUG ADMIN] 🎯 Después de filtrar:', filteredPlays.length, '/', playsData.length);
       
-      // 🐛 DEBUG: Calcular fecha más antigua de los datos cargados
       const oldestPlay = playsData.length > 0
         ? new Date(Math.min(...playsData.map(p => new Date(p.fecha_jugada).getTime())))
         : null;
       
-      console.log('🐛 [DEBUG ADMIN] Fecha más antigua en datos de Supabase:', oldestPlay?.toLocaleDateString());
-      
-      // Actualizar debugInfo
       setDebugInfo({
         source: 'SUPABASE',
         totalBeforeFilter: playsData.length,
@@ -443,8 +519,9 @@ export const useAdminStatistics = (options = {}) => {
       
       const groupedData = groupDataForAdmin(filteredPlays);
       setTableData({ plays: groupedData });
+      setCurrentPeriodType(periodType); // Trackear para pull-to-refresh
 
-      // 6. Limpiar registros antiguos
+      // Limpiar registros muy antiguos (>60 días)
       try {
         await SQLiteCache.cleanOldRecords(effectiveUserId, 'admin');
       } catch (cacheError) {
@@ -523,7 +600,8 @@ export const useAdminStatistics = (options = {}) => {
     const {
       startDate,
       endDate,
-      forceRefresh = false
+      forceRefresh = false,
+      periodType = 'custom' // Aceptar el tipo de período
     } = filters;
 
     if (startDate && endDate) {
@@ -538,7 +616,8 @@ export const useAdminStatistics = (options = {}) => {
     await loadPlaysData({
       startDate: finalStartDate,
       endDate: finalEndDate,
-      forceRefresh
+      forceRefresh,
+      periodType // Pasar el tipo de período
     });
   };
 
@@ -546,7 +625,11 @@ export const useAdminStatistics = (options = {}) => {
    * Refrescar datos (pull-to-refresh)
    */
   const refresh = async () => {
-    await loadPlaysData({ forceRefresh: true });
+    await loadPlaysData({ 
+      ...dateRange, 
+      forceRefresh: true,
+      periodType: currentPeriodType // Usar el tipo de período actual
+    });
   };
 
   // ❌ ELIMINADO: Carga automática causaba double-loading y race conditions
