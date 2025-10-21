@@ -219,7 +219,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     loadPlaysData,
     applyFilters,
     clearData,
-    debugInfo, // 🐛 DEBUG: Metadata temporal
   } = useStatistics();
   
   // ✅ OPTIMIZADO: groupedData ahora usa useMemo para evitar recalcular en cada render
@@ -620,7 +619,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 // Fallback: mostrar información básica
                 console.log('=== FALLBACK INFO ===');
                 console.log('Table Data length:', tableData?.plays?.length || 0);
-                console.log('Debug Info:', JSON.stringify(debugInfo, null, 2));
               }
             } catch (error) {
               console.error('❌ Error ejecutando debugDatabase:', error);
@@ -1219,52 +1217,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           />
         }
       >
-        {/* � DEBUG INFO BANNER - SIEMPRE VISIBLE PARA TESTING */}
-        {debugInfo && (
-          <View style={styles.debugBanner}>
-            <Text style={styles.debugTitle}>🐛 DEBUG INFO - Estadísticas</Text>
-            
-            {/* Línea 1: Conteos principales */}
-            <Text style={styles.debugText}>
-              📊 Banner dice mostrar: <Text style={styles.debugBold}>{debugInfo.totalAfterFilter}</Text> jugadas
-            </Text>
-            <Text style={styles.debugText}>
-              🎯 tableData.plays tiene: <Text style={styles.debugBold}>
-                {tableData?.plays?.length || 0}
-              </Text> {userRole === 'listero' ? 'jugadas' : 'grupos'}
-            </Text>
-            
-            {/* Línea 2: Fuente de datos */}
-            <Text style={styles.debugText}>
-              💾 Fuente: <Text style={[styles.debugBold, debugInfo.source === 'CACHE' ? styles.debugCache : styles.debugSupabase]}>
-                {debugInfo.source}
-              </Text>
-            </Text>
-            
-            {/* Línea 3: Antes de filtrar */}
-            <Text style={styles.debugText}>
-              🔍 Antes de filtrar: <Text style={styles.debugBold}>{debugInfo.totalBeforeFilter}</Text>
-            </Text>
-            
-            {/* Línea 4: Rango solicitado */}
-            <Text style={styles.debugText}>
-              📅 Rango solicitado: <Text style={styles.debugBold}>{debugInfo.rangeRequested}</Text>
-            </Text>
-            
-            {/* Línea 5: Info del caché */}
-            <Text style={styles.debugText}>
-              📆 Caché más antiguo: <Text style={styles.debugBold}>{debugInfo.cacheOldestDate}</Text>
-            </Text>
-            
-            {/* Línea 6: Alerta si hay discrepancia */}
-            {debugInfo.totalAfterFilter !== (tableData?.plays?.length || 0) && (
-              <Text style={[styles.debugText, { color: '#D32F2F', fontWeight: 'bold', marginTop: 8 }]}>
-                ⚠️ DISCREPANCIA: Banner ({debugInfo.totalAfterFilter}) vs UI ({tableData?.plays?.length || 0})
-              </Text>
-            )}
-          </View>
-        )}
-        
         {/* KPIs principales del hook - ocultar para colectores y admin */}
         {kpiData && kpiData.length > 0 && userRole !== 'collector' && userRole !== 'colector' && userRole !== 'admin' && (
           <View style={styles.kpiGrid}>
@@ -3014,44 +2966,6 @@ const styles = StyleSheet.create({
     color: '#27AE60',
     fontWeight: '500',
     letterSpacing: 0.3,
-  },
-  // 🐛 DEBUG: Banner de información temporal
-  debugBanner: {
-    backgroundColor: '#FFF3CD',
-    borderWidth: 2,
-    borderColor: '#FFC107',
-    borderRadius: 8,
-    padding: 12,
-    marginHorizontal: 10,
-    marginTop: 10,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  debugTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#856404',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  debugText: {
-    fontSize: 12,
-    color: '#856404',
-    marginBottom: 4,
-  },
-  debugBold: {
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  debugCache: {
-    color: '#27AE60',
-  },
-  debugSupabase: {
-    color: '#3498DB',
   },
   
   filtersPanel:{ backgroundColor:'#F8F9FA', borderWidth:1, borderColor:'#E1E8E3', borderRadius:10, padding:8, margin:8 },

@@ -23,39 +23,19 @@ const formatDateForSupabase = (date) => {
 
 const CACHE_DAYS = 30; // Cachear últimos 30 días
 
-// 🔍 DEBUG LOGGING - FORZADO PARA TESTING
-const DEBUG_ENABLED = true; // ⚠️ FORCED ON para capturar logs en preview builds
-const debugLog = (...args) => {
-  if (DEBUG_ENABLED) {
-    console.log(...args);
-  }
-};
-
 /**
  * Agrupar datos para vista de colector
  * Los datos vienen planos de v_estadisticas, necesitamos agruparlos por listero
  */
 const groupDataForCollector = (rawData) => {
   try {
-    // 🎯 FIX: Diagnóstico completo de entrada
-    debugLog('[useCollectorStatistics] 📊 ENTRADA groupDataForCollector:', {
-      esArray: Array.isArray(rawData),
-      longitud: rawData?.length || 0,
-      primerElemento: rawData?.[0] ? '✅ existe' : '❌ no existe',
-      tipoRawData: typeof rawData
-    });
-    
     if (!rawData || !Array.isArray(rawData)) {
-      debugLog('[useCollectorStatistics] ⚠️ rawData no es array válido');
       return [];
     }
     
     if (rawData.length === 0) {
-      debugLog('[useCollectorStatistics] ⚠️ rawData está vacío');
       return [];
     }
-
-    debugLog('[useCollectorStatistics] 📊 Agrupando', rawData.length, 'registros');
 
     // Agrupar por listero
     const listeroGroups = {};
@@ -94,11 +74,6 @@ const groupDataForCollector = (rawData) => {
     });
 
     const result = Object.values(listeroGroups);
-    debugLog('[useCollectorStatistics] ✅ SALIDA groupDataForCollector:', {
-      gruposCreados: result.length,
-      totalJugadas: rawData.length,
-      listeroIds: result.map(g => g.id)
-    });
     return result;
   } catch (error) {
     console.error('[useCollectorStatistics] ❌ ERROR FATAL en groupDataForCollector:', error);
@@ -162,8 +137,6 @@ export const useCollectorStatistics = (options = {}) => {
           startDate.setHours(0, 0, 0, 0);
           const endDate = new Date(today);
           endDate.setHours(23, 59, 59, 999);
-          
-          debugLog('🐛 [DEBUG COLLECTOR] 🚀 Inicialización - Cargando SOLO HOY:', startDate.toLocaleDateString());
           
           // 🎯 CAMBIO: Primera carga siempre desde Supabase para poblar caché
           // Pasar userId explícitamente porque setUserId es asíncrono
@@ -305,8 +278,6 @@ export const useCollectorStatistics = (options = {}) => {
         
       } else {
         // CARGA NORMAL: Solo desde caché
-        debugLog('[useCollectorStatistics] 📦 Carga normal - Intentar desde caché');
-        
         let cachedPlays = [];
         try {
           // 🎯 FIX: Pasar filtros de fecha para optimizar query SQL
@@ -314,7 +285,6 @@ export const useCollectorStatistics = (options = {}) => {
             startDate,
             endDate
           });
-          debugLog(`[useCollectorStatistics] 📦 Caché (filtrado): ${cachedPlays.length} registros`);
         } catch (cacheError) {
           console.error('[useCollectorStatistics] ⚠️ Error leyendo caché:', cacheError);
           cachedPlays = [];
