@@ -21,7 +21,6 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { createShadowStyle } from '../utils/shadowUtils';
-import { debugDatabase } from '../utils/sqliteCache';
 
 // Importación condicional para exportación PDF
 let exportPdfModule;
@@ -219,7 +218,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     loadPlaysData,
     applyFilters,
     clearData,
-    debugInfo, // 🐛 DEBUG: Metadata temporal
   } = useStatistics();
   
   // ✅ OPTIMIZADO: groupedData ahora usa useMemo para evitar recalcular en cada render
@@ -589,93 +587,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
             {refreshing ? '⏳ Actualizando...' : '🔄 Actualizar'}
           </Text>
-        </TouchableOpacity>
-        
-        {/* �🔍 BOTÓN DEBUG - SIEMPRE VISIBLE PARA TESTING */}
-        <TouchableOpacity
-          style={{
-            backgroundColor: '#D32F2F',
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 6,
-            marginLeft: 8,
-            elevation: 3,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 3.84,
-          }}
-          onPress={async () => {
-            console.log('=== 🔍 DEBUG DATABASE PRESSED ===');
-            console.log('Build mode: PREVIEW/PRODUCTION');
-            console.log('__DEV__:', __DEV__);
-            console.log('User Role:', userRole);
-            console.log('User ID:', userId);
-            
-            try {
-              if (debugDatabase && typeof debugDatabase === 'function') {
-                await debugDatabase();
-              } else {
-                console.error('❌ debugDatabase no está disponible');
-                // Fallback: mostrar información básica
-                console.log('=== FALLBACK INFO ===');
-                console.log('Table Data length:', tableData?.plays?.length || 0);
-                console.log('Debug Info:', JSON.stringify(debugInfo, null, 2));
-              }
-            } catch (error) {
-              console.error('❌ Error ejecutando debugDatabase:', error);
-            }
-            
-            console.log('=== 🔍 END DEBUG ===');
-          }}
-        >
-          <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>🔍 DEBUG</Text>
-        </TouchableOpacity>
-        
-        {/* TEMPORALMENTE OCULTO - Exportar PDF 
-        <TouchableOpacity
-          style={styles.exportButton}
-          onPress={() => setShowExportModal(true)}
-        >
-          <Text style={styles.exportButtonText}>📤 Exportar</Text>
-        </TouchableOpacity>
-        */}
-      </View>
-    </View>
-  );
-
-  // Renderizar tabs de navegación con filtros a la derecha
-  const renderTabs = () => (
-    <View style={styles.tabsContainer}>
-      <View style={styles.tabsRowContainer}>
-        {/* Pestañas a la izquierda */}
-        <View style={styles.tabsLeftSection}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {tabs.map(tab => (
-              <React.Fragment key={tab.id}>
-                <TouchableOpacity
-                  style={[
-                    styles.tab,
-                    activeTab === tab.id && styles.activeTab,
-                  ]}
-                  onPress={() => {
-                    setActiveTab(tab.id);
-                    // El filtro de fecha se mantiene igual para ambas pestañas
-                  }}
-                >
-                  <Text style={styles.tabIcon}>{tab.icon}</Text>
-                  <Text style={[
-                    styles.tabText,
-                    activeTab === tab.id && styles.activeTabText,
-                  ]}>
-                    {tab.title}
-                  </Text>
-                </TouchableOpacity>
-
-                {tab.id === 'details' && (
-                  <View></View>
-                )}
-              </React.Fragment>
+        </TouchableOpacity>        {/* TEMPORALMENTE OCULTO - Exportar PDF 
             ))}
           </ScrollView>
         </View>
@@ -1220,54 +1132,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         }
       >
         {/* � DEBUG INFO BANNER - SIEMPRE VISIBLE PARA TESTING */}
-        {debugInfo && (
-          <View style={styles.debugBanner}>
-            <Text style={styles.debugTitle}>🐛 DEBUG INFO - Estadísticas</Text>
-            
-            {/* Línea 1: Conteos principales */}
-            <Text style={styles.debugText}>
-              📊 Banner dice mostrar: <Text style={styles.debugBold}>{debugInfo.totalAfterFilter}</Text> jugadas
-            </Text>
-            <Text style={styles.debugText}>
-              🎯 tableData.plays tiene: <Text style={styles.debugBold}>
-                {tableData?.plays?.length || 0}
-              </Text> {userRole === 'listero' ? 'jugadas' : 'grupos'}
-            </Text>
-            
-            {/* Línea 2: Fuente de datos */}
-            <Text style={styles.debugText}>
-              💾 Fuente: <Text style={[styles.debugBold, debugInfo.source === 'CACHE' ? styles.debugCache : styles.debugSupabase]}>
-                {debugInfo.source}
-              </Text>
-            </Text>
-            
-            {/* Línea 3: Antes de filtrar */}
-            <Text style={styles.debugText}>
-              🔍 Antes de filtrar: <Text style={styles.debugBold}>{debugInfo.totalBeforeFilter}</Text>
-            </Text>
-            
-            {/* Línea 4: Rango solicitado */}
-            <Text style={styles.debugText}>
-              📅 Rango solicitado: <Text style={styles.debugBold}>{debugInfo.rangeRequested}</Text>
-            </Text>
-            
-            {/* Línea 5: Info del caché */}
-            <Text style={styles.debugText}>
-              📆 Caché más antiguo: <Text style={styles.debugBold}>{debugInfo.cacheOldestDate}</Text>
-            </Text>
-            
-            {/* Línea 6: Alerta si hay discrepancia */}
-            {debugInfo.totalAfterFilter !== (tableData?.plays?.length || 0) && (
-              <Text style={[styles.debugText, { color: '#D32F2F', fontWeight: 'bold', marginTop: 8 }]}>
-                ⚠️ DISCREPANCIA: Banner ({debugInfo.totalAfterFilter}) vs UI ({tableData?.plays?.length || 0})
-              </Text>
-            )}
-          </View>
-        )}
-        
-        {/* KPIs principales del hook - ocultar para colectores y admin */}
-        {kpiData && kpiData.length > 0 && userRole !== 'collector' && userRole !== 'colector' && userRole !== 'admin' && (
-          <View style={styles.kpiGrid}>
             {kpiData.map((kpi, index) => (
               <View key={index} style={styles.kpiCard}>
                 <Text style={styles.kpiIcon}>{kpi.icon}</Text>
@@ -3015,44 +2879,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     letterSpacing: 0.3,
   },
-  // 🐛 DEBUG: Banner de información temporal
-  debugBanner: {
-    backgroundColor: '#FFF3CD',
-    borderWidth: 2,
-    borderColor: '#FFC107',
-    borderRadius: 8,
-    padding: 12,
-    marginHorizontal: 10,
-    marginTop: 10,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  debugTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#856404',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  debugText: {
-    fontSize: 12,
-    color: '#856404',
-    marginBottom: 4,
-  },
-  debugBold: {
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  debugCache: {
-    color: '#27AE60',
-  },
-  debugSupabase: {
-    color: '#3498DB',
-  },
   
   filtersPanel:{ backgroundColor:'#F8F9FA', borderWidth:1, borderColor:'#E1E8E3', borderRadius:10, padding:8, margin:8 },
   filtersPanelDark:{ backgroundColor:'#2C3E50', borderColor:'#5D6D7E' },
@@ -3923,6 +3749,7 @@ const styles = StyleSheet.create({
 });
 
 export default StatisticsScreen;
+
 
 
 
