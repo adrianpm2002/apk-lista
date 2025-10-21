@@ -305,6 +305,11 @@ export const useAdminStatistics = (options = {}) => {
           rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
         });
         
+        // Limpiar loading state y salir
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+        
       } else {
         // CARGA NORMAL: Solo desde caché
         
