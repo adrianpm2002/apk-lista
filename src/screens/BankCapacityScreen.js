@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   Platform,
   TouchableOpacity,
+  TextInput,
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
@@ -34,10 +35,57 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
   const [loading, setLoading] = useState(true);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sortBy, setSortBy] = useState('capacity'); // 'capacity' o 'number'
+  const [lotteryFilter, setLotteryFilter] = useState(null);
+  const [playTypeFilter, setPlayTypeFilter] = useState(null);
+  const [lotteryExpanded, setLotteryExpanded] = useState(false);
+  const [playTypeExpanded, setPlayTypeExpanded] = useState(false);
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [searchNumber, setSearchNumber] = useState('');
 
   const formatTime = (timeString) => {
     if (!timeString) return '';
     return timeString.substring(0, 5);
+  };
+
+  // Función para verificar si un número coincide con la búsqueda considerando permutaciones
+  const matchesSearch = (numero, searchTerm) => {
+    if (!searchTerm) return true;
+    
+    const numStr = numero.toString();
+    const searchStr = searchTerm.toString();
+    
+    // Coincidencia exacta
+    if (numStr === searchStr) return true;
+    
+    const length = searchStr.length;
+    
+    // Para números de 4 dígitos: ABCD = CDAB
+    if (length === 4 && numStr.length === 4) {
+      const ab = searchStr.substring(0, 2);
+      const cd = searchStr.substring(2, 4);
+      const permuted = cd + ab; // CDAB
+      if (numStr === permuted) return true;
+    }
+    
+    // Para números de 6 dígitos: todas las permutaciones de los 3 pares
+    if (length === 6 && numStr.length === 6) {
+      const pair1 = searchStr.substring(0, 2);
+      const pair2 = searchStr.substring(2, 4);
+      const pair3 = searchStr.substring(4, 6);
+      
+      const permutations = [
+        pair1 + pair2 + pair3, // ABC (original)
+        pair1 + pair3 + pair2, // ACB
+        pair2 + pair1 + pair3, // BAC
+        pair2 + pair3 + pair1, // BCA
+        pair3 + pair1 + pair2, // CAB
+        pair3 + pair2 + pair1, // CBA
+      ];
+      
+      if (permutations.includes(numStr)) return true;
+    }
+    
+    return false;
   };
 
   const playTypeLabels = {
@@ -120,6 +168,36 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
     }
   }, [currentBankId, fetchBankCapacities]);
 
+  // Obtener opciones únicas de lotería y tipo de jugada
+  const lotteryOptions = useMemo(() => {
+    const unique = [...new Set(capacityData.map(item => item.nombre_loteria))];
+    return unique.filter(Boolean).sort();
+  }, [capacityData]);
+
+  const playTypeOptions = useMemo(() => {
+    const unique = [...new Set(capacityData.map(item => item.jugada))];
+    return unique.filter(Boolean).sort();
+  }, [capacityData]);
+
+  // Filtrar datos según los filtros seleccionados
+  const filteredData = useMemo(() => {
+    let filtered = [...capacityData];
+    
+    if (lotteryFilter) {
+      filtered = filtered.filter(item => item.nombre_loteria === lotteryFilter);
+    }
+    
+    if (playTypeFilter) {
+      filtered = filtered.filter(item => item.jugada === playTypeFilter);
+    }
+    
+    if (searchNumber) {
+      filtered = filtered.filter(item => matchesSearch(item.numero, searchNumber));
+    }
+    
+    return filtered;
+  }, [capacityData, lotteryFilter, playTypeFilter, searchNumber]);
+
   const renderCapacityItem = useCallback(({ item }) => {
     const playType = playTypeLabels[item.jugada] || item.jugada?.toUpperCase() || '';
     
@@ -153,23 +231,25 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
         {/* Barra de filtros */}
         <View style={styles.filtersBar}>
           <View style={styles.filtersContainer}>
-            <Text style={styles.filterLabel}>Ordenar:</Text>
-            <TouchableOpacity
-              style={[styles.sortButton, sortBy === 'capacity' && styles.sortButtonActive]}
-              onPress={() => setSortBy('capacity')}
-            >
-              <Text style={[styles.sortButtonText, sortBy === 'capacity' && styles.sortButtonTextActive]}>
-                Capacidad
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.sortButton, sortBy === 'number' && styles.sortButtonActive]}
-              onPress={() => setSortBy('number')}
-            >
-              <Text style={[styles.sortButtonText, sortBy === 'number' && styles.sortButtonTextActive]}>
-                Número
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Ordenar:</Text>
+              <TouchableOpacity
+                style={[styles.sortButton, sortBy === 'capacity' && styles.sortButtonActive]}
+                onPress={() => setSortBy('capacity')}
+              >
+                <Text style={[styles.sortButtonText, sortBy === 'capacity' && styles.sortButtonTextActive]}>
+                  Capacidad
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sortButton, sortBy === 'number' && styles.sortButtonActive]}
+                onPress={() => setSortBy('number')}
+              >
+                <Text style={[styles.sortButtonText, sortBy === 'number' && styles.sortButtonTextActive]}>
+                  Número
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -198,33 +278,175 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
       {/* Barra de filtros */}
       <View style={styles.filtersBar}>
         <View style={styles.filtersContainer}>
-          <Text style={styles.filterLabel}>Ordenar:</Text>
-          <TouchableOpacity
-            style={[styles.sortButton, sortBy === 'capacity' && styles.sortButtonActive]}
-            onPress={() => setSortBy('capacity')}
-          >
-            <Text style={[styles.sortButtonText, sortBy === 'capacity' && styles.sortButtonTextActive]}>
-              Capacidad
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.sortButton, sortBy === 'number' && styles.sortButtonActive]}
-            onPress={() => setSortBy('number')}
-          >
-            <Text style={[styles.sortButtonText, sortBy === 'number' && styles.sortButtonTextActive]}>
-              Número
-            </Text>
-          </TouchableOpacity>
+          {/* Ordenar */}
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Ordenar:</Text>
+            <TouchableOpacity
+              style={[styles.sortButton, sortBy === 'capacity' && styles.sortButtonActive]}
+              onPress={() => setSortBy('capacity')}
+            >
+              <Text style={[styles.sortButtonText, sortBy === 'capacity' && styles.sortButtonTextActive]}>
+                Capacidad
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortButton, sortBy === 'number' && styles.sortButtonActive]}
+              onPress={() => setSortBy('number')}
+            >
+              <Text style={[styles.sortButtonText, sortBy === 'number' && styles.sortButtonTextActive]}>
+                Número
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Filtro de Lotería */}
+          {lotteryOptions.length > 0 && (
+            <View style={styles.filterGroupWrapper}>
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterLabel}>Lotería:</Text>
+                <TouchableOpacity
+                  style={[styles.sortButton, styles.sortButtonActive]}
+                  onPress={() => setLotteryExpanded(!lotteryExpanded)}
+                >
+                  <Text style={[styles.sortButtonText, styles.sortButtonTextActive]}>
+                    {lotteryFilter || 'Todas'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {lotteryExpanded && (
+                <View style={styles.expandedOptions}>
+                  {lotteryOptions.map(lottery => (
+                    <TouchableOpacity
+                      key={lottery}
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setLotteryFilter(lottery);
+                        setLotteryExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>
+                        {lottery}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  {lotteryFilter && (
+                    <TouchableOpacity
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setLotteryFilter(null);
+                        setLotteryExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>
+                        Todas
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Filtro de Jugada */}
+          {playTypeOptions.length > 0 && (
+            <View style={styles.filterGroupWrapper}>
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterLabel}>Jugada:</Text>
+                <TouchableOpacity
+                  style={[styles.sortButton, styles.sortButtonActive]}
+                  onPress={() => setPlayTypeExpanded(!playTypeExpanded)}
+                >
+                  <Text style={[styles.sortButtonText, styles.sortButtonTextActive]}>
+                    {playTypeFilter ? (playTypeLabels[playTypeFilter] || playTypeFilter.toUpperCase()) : 'Todas'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {playTypeExpanded && (
+                <View style={styles.expandedOptions}>
+                  {playTypeOptions.map(playType => (
+                    <TouchableOpacity
+                      key={playType}
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setPlayTypeFilter(playType);
+                        setPlayTypeExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>
+                        {playTypeLabels[playType] || playType.toUpperCase()}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  {playTypeFilter && (
+                    <TouchableOpacity
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setPlayTypeFilter(null);
+                        setPlayTypeExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>
+                        Todas
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Filtro de Búsqueda por Número */}
+          <View style={styles.filterGroupWrapper}>
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Buscar:</Text>
+              <TouchableOpacity
+                style={[styles.sortButton, searchNumber ? styles.sortButtonActive : null]}
+                onPress={() => setSearchExpanded(!searchExpanded)}
+              >
+                <Text style={[styles.sortButtonText, searchNumber ? styles.sortButtonTextActive : null]}>
+                  {searchNumber || 'Número'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {searchExpanded ? (
+              <View style={styles.expandedOptions}>
+                <View style={styles.searchInputContainer}>
+                  <TextInput
+                    style={styles.searchInput}
+                    value={searchNumber}
+                    onChangeText={(text) => {
+                      const numericText = text.replace(/[^0-9]/g, '').substring(0, 6);
+                      setSearchNumber(numericText);
+                    }}
+                    placeholder="Número"
+                    keyboardType="numeric"
+                    maxLength={6}
+                  />
+                </View>
+                {searchNumber ? (
+                  <TouchableOpacity
+                    style={styles.sortButton}
+                    onPress={() => {
+                      setSearchNumber('');
+                      setSearchExpanded(false);
+                    }}
+                  >
+                    <Text style={styles.sortButtonText}>Limpiar</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
         </View>
       </View>
 
-      {capacityData.length === 0 ? (
+      {filteredData.length === 0 ? (
         <View style={styles.centerContent}>
           <Text style={styles.emptyText}>No hay datos de capacidad</Text>
         </View>
       ) : (
         <FlatList
-          data={capacityData}
+          data={filteredData}
           renderItem={renderCapacityItem}
           keyExtractor={(item, index) => 
             `${item.id_loteria}-${item.id_horario}-${item.jugada}-${item.numero}-${index}`
@@ -250,26 +472,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F9FA',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 50 : 16,
-    paddingBottom: 16,
     backgroundColor: '#FFFFFF',
+    padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E9ECEF',
-    elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 70,
+    position: 'absolute',
+    top: 40,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#2C3E50',
-    marginLeft: 12,
-    flex: 1,
+    marginRight: 16,
   },
   sidebarButton: {
     marginRight: 8,
@@ -280,23 +506,38 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E9ECEF',
     paddingVertical: 12,
     paddingHorizontal: 16,
+    marginTop: 110, // top (40) + height (70) del header
   },
   filtersContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  filterGroupWrapper: {
+    flexDirection: 'column',
+  },
+  filterGroup: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
+  },
+  expandedOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 4,
+    marginLeft: 0,
   },
   filterLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
     color: '#495057',
-    marginRight: 4,
   },
   sortButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
     backgroundColor: '#F8F9FA',
     borderWidth: 1,
     borderColor: '#DEE2E6',
@@ -306,12 +547,28 @@ const styles = StyleSheet.create({
     borderColor: '#27AE60',
   },
   sortButtonText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
     color: '#495057',
   },
   sortButtonTextActive: {
     color: '#FFFFFF',
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+  },
+  searchInput: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#27AE60',
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#495057',
+    minWidth: 60,
+    textAlign: 'center',
   },
   placeholderText: {
     fontSize: 13,
