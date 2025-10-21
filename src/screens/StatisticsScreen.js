@@ -1131,7 +1131,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           />
         }
       >
-        {/* � DEBUG INFO BANNER - SIEMPRE VISIBLE PARA TESTING */}
+        {/* KPIs principales del hook - ocultar para colectores y admin */}
+        {kpiData && kpiData.length > 0 && userRole !== 'collector' && userRole !== 'colector' && userRole !== 'admin' && (
+          <View style={styles.kpiGrid}>
             {kpiData.map((kpi, index) => (
               <View key={index} style={styles.kpiCard}>
                 <Text style={styles.kpiIcon}>{kpi.icon}</Text>
