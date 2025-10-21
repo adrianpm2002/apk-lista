@@ -303,7 +303,7 @@ export const useListeroStatistics = (options = {}) => {
           return;
         }
         
-        console.log('[useListeroStatistics] 🔄 Agrupando datos...');
+        // console.log('[useListeroStatistics] 🔄 Agrupando datos...');
         const groupedData = groupDataForListero(freshPlays);
         // console.log('[useListeroStatistics] 📊 Datos agrupados:', groupedData?.length || 0);
         setTableData({ plays: groupedData });
@@ -394,7 +394,7 @@ export const useListeroStatistics = (options = {}) => {
           return;
         }
         
-        console.log('[useListeroStatistics] 🔄 Agrupando datos desde caché...');
+        // console.log('[useListeroStatistics] 🔄 Agrupando datos desde caché...');
         const groupedData = groupDataForListero(cachedPlays);
         // console.log('[useListeroStatistics] 📊 Datos agrupados:', groupedData?.length || 0);
         setTableData({ plays: groupedData });
