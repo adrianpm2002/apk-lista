@@ -156,6 +156,19 @@ const BankCapacityScreen = ({ navigation }) => {
     return parseInt(a.numero) - parseInt(b.numero);
   });
 
+  // Calcular total bruto (suma de usado o excedentes si hay filtro de bote)
+  const totalBruto = useMemo(() => {
+    return filteredData.reduce((sum, item) => {
+      if (boteFilter) {
+        const boteAmount = parseFloat(boteFilter);
+        if (!isNaN(boteAmount)) {
+          return sum + (item.usado - boteAmount);
+        }
+      }
+      return sum + item.usado;
+    }, 0);
+  }, [filteredData, boteFilter]);
+
   const handleBack = () => {
     navigation.goBack();
   };
@@ -278,6 +291,10 @@ const BankCapacityScreen = ({ navigation }) => {
                 <Text style={styles.clearBoteText}>✕</Text>
               </Pressable>
             )}
+            <View style={styles.totalBrutoContainer}>
+              <Text style={styles.totalBrutoLabel}>Bruto:</Text>
+              <Text style={styles.totalBrutoValue}>${totalBruto.toFixed(2)}</Text>
+            </View>
           </View>
 
           <View style={styles.toolbarRight}>
@@ -576,6 +593,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FFFFFF',
     fontWeight: 'bold',
+  },
+  totalBrutoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingLeft: 12,
+    borderLeftWidth: 1,
+    borderLeftColor: '#DEE2E6',
+  },
+  totalBrutoLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#27AE60',
+  },
+  totalBrutoValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#27AE60',
   },
   sortButtonCompact: {
     width: 40,
