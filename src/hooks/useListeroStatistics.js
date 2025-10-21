@@ -108,7 +108,6 @@ const groupDataForListero = (rawData) => {
     return result;
   } catch (error) {
     console.error('[groupDataForListero] ❌ Error en agrupación:', error);
-    console.log('[groupDataForListero] 🔄 Retornando datos sin agrupar');
     // Si falla la agrupación, devolver los datos raw
     return rawData || [];
   }
@@ -256,7 +255,6 @@ export const useListeroStatistics = (options = {}) => {
     
     // 🎯 FIX: Si ya está cargando, ignorar nueva petición (prevenir race conditions)
     if (loadingRef.current) {
-      console.log('[useListeroStatistics] ⏸️ Carga en curso, ignorando nueva petición');
       return;
     }
     
@@ -288,26 +286,19 @@ export const useListeroStatistics = (options = {}) => {
       
       if (forceRefresh) {
         // PULL-TO-REFRESH: Cargar desde Supabase y actualizar caché
-        console.log('[useListeroStatistics] 🔄 Pull-to-refresh - Consultando Supabase');
-        
         const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
-        console.log(`[useListeroStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
         
         // Reemplazar caché con datos frescos para este rango
         await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'listero', freshPlays, startDate, endDate);
-        console.log(`[useListeroStatistics] 💾 Caché actualizado`);
         
         // Verificar token antes de setear datos
         if (currentToken !== loadTokenRef.current) {
-          console.log('[useListeroStatistics] ❌ Carga cancelada (token mismatch)');
           setIsLoading(false);
           loadingRef.current = false;
           return;
         }
         
-        console.log('[useListeroStatistics] 🔄 Agrupando datos...');
         const groupedData = groupDataForListero(freshPlays);
-        console.log('[useListeroStatistics] 📊 Datos agrupados:', groupedData?.length || 0);
         setTableData({ plays: groupedData });
         
         setDebugInfo({
@@ -325,8 +316,6 @@ export const useListeroStatistics = (options = {}) => {
         
       } else {
         // CARGA NORMAL: Solo desde caché
-        console.log('[useListeroStatistics] 📦 Carga normal - Solo caché');
-        
         let cachedPlays = [];
         try {
           // 🎯 FIX: Pasar filtros de fecha para optimizar query SQL
@@ -334,7 +323,6 @@ export const useListeroStatistics = (options = {}) => {
             startDate,
             endDate
           });
-          console.log(`[useListeroStatistics] 📦 Caché (filtrado): ${cachedPlays.length} registros`);
         } catch (cacheError) {
           console.error('[useListeroStatistics] ⚠️ Error leyendo caché:', cacheError);
           cachedPlays = [];
@@ -342,21 +330,17 @@ export const useListeroStatistics = (options = {}) => {
         
         // 🎯 FIX: Si caché está vacío, forzar carga desde Supabase
         if (cachedPlays.length === 0) {
-          console.log('[useListeroStatistics] ⚠️ Caché vacío, forzando carga desde Supabase...');
-          
           const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
-          console.log(`[useListeroStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
           
           // Intentar guardar en caché (puede fallar en web, pero intentamos)
           try {
             await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'listero', freshPlays, startDate, endDate);
           } catch (cacheError) {
-            console.log('[useListeroStatistics] ⚠️ No se pudo guardar en caché (probablemente en web)');
+            // Error silencioso al guardar en caché
           }
           
           // Verificar token
           if (currentToken !== loadTokenRef.current) {
-            console.log('[useListeroStatistics] ❌ Carga cancelada (token mismatch)');
             setIsLoading(false);
             loadingRef.current = false;
             return;
@@ -385,9 +369,6 @@ export const useListeroStatistics = (options = {}) => {
           return;
         }
         
-        // 🎯 FIX: Ya no necesitamos filtrar manualmente - SQL lo hizo por nosotros
-        console.log(`[useListeroStatistics] ✅ Caché ya filtrado por SQL: ${cachedPlays.length} registros`);
-        
         // Encontrar fecha más antigua en caché (para debugging)
         const oldestCached = cachedPlays.length > 0
           ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
@@ -395,15 +376,12 @@ export const useListeroStatistics = (options = {}) => {
         
         // Verificar token antes de setear datos
         if (currentToken !== loadTokenRef.current) {
-          console.log('[useListeroStatistics] ❌ Carga cancelada (token mismatch)');
           setIsLoading(false);
           loadingRef.current = false;
           return;
         }
         
-        console.log('[useListeroStatistics] 🔄 Agrupando datos desde caché...');
         const groupedData = groupDataForListero(cachedPlays);
-        console.log('[useListeroStatistics] 📊 Datos agrupados:', groupedData?.length || 0);
         setTableData({ plays: groupedData });
         
         setDebugInfo({
@@ -434,7 +412,6 @@ export const useListeroStatistics = (options = {}) => {
       
       // Verificar token antes de limpiar datos
       if (currentToken !== loadTokenRef.current) {
-        console.log('[useListeroStatistics] ❌ Error handler cancelado (token mismatch)');
         setIsLoading(false);
         loadingRef.current = false;
         return;
