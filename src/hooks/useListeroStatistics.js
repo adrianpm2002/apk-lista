@@ -107,9 +107,6 @@ const CACHE_DAYS = 30; // Cachear últimos 30 días
 export const useListeroStatistics = (options = {}) => {
   const { enabled = true } = options;
   
-  // 🔍 DEBUG: Log de inicialización del hook
-  console.log('🔍 [useListeroStatistics] Hook inicializado con enabled:', enabled);
-  
   // Estados básicos
   const [isLoading, setIsLoading] = useState(false);
   const [userId, setUserId] = useState(null);
@@ -140,30 +137,21 @@ export const useListeroStatistics = (options = {}) => {
 
   // Detectar userId y auto-cargar datos (se ejecuta cuando enabled cambia)
   useEffect(() => {
-    console.log('🔍 [useListeroStatistics] useEffect disparado - enabled:', enabled);
-    
     const initializeData = async () => {
       if (!enabled) {
-        console.log('🔍 [useListeroStatistics] Hook DESHABILITADO, saliendo...');
         setUserId(null);
         return;
       }
       
-      console.log('🔍 [useListeroStatistics] Hook HABILITADO, continuando...');
-      
       if (loadingRef.current) {
-        console.log('🔍 [useListeroStatistics] Ya está cargando, saliendo...');
         return;
       }
       
       try {
         const { data: { user } } = await supabase.auth.getUser();
         
-        console.log('🔍 [useListeroStatistics] Usuario obtenido:', user?.id ? 'SÍ' : 'NO');
-        
         if (user) {
           setUserId(user.id);
-          console.log('🔍 [useListeroStatistics] userId seteado a:', user.id);
           
           // 🎯 FIX: Cargar solo HOY en la primera carga
           const today = new Date();
@@ -171,8 +159,6 @@ export const useListeroStatistics = (options = {}) => {
           startDate.setHours(0, 0, 0, 0);
           const endDate = new Date(today);
           endDate.setHours(23, 59, 59, 999);
-          
-          console.log('🐛 [DEBUG Listero] 🚀 Inicialización - Cargando SOLO HOY:', startDate.toLocaleDateString());
                     
           // 🎯 CAMBIO: Primera carga siempre desde Supabase para poblar caché
           // Pasar userId explícitamente porque setUserId es asíncrono

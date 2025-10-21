@@ -31,12 +31,8 @@ const useStatistics = () => {
           .single();
 
         if (!error && profile && profile.role) {
-          console.log('🔍 [useStatistics] Rol detectado:', profile.role);
-          console.log('🔍 [useStatistics] User ID:', user.id);
           setUserRole(profile.role);
           setUserId(user.id);
-        } else {
-          console.log('🔍 [useStatistics] ❌ Error o rol no encontrado:', error?.message || 'No profile/role');
         }
       } catch (error) {
         // Error crítico: no hacer nada, dejar userRole como null
@@ -49,19 +45,14 @@ const useStatistics = () => {
 
   // Función para obtener el hook activo según el rol
   const getActiveStats = () => {
-    console.log('🔍 [useStatistics] getActiveStats llamado - userRole:', userRole);
-    
     switch (userRole) {
       case 'collector':
       case 'colector':
-        console.log('🔍 [useStatistics] Activando hook COLLECTOR');
         return collectorStats;
       case 'admin':
-        console.log('🔍 [useStatistics] Activando hook ADMIN');
         return adminStats;
       case 'listero':
       default:
-        console.log('🔍 [useStatistics] Activando hook LISTERO (default)');
         return listeroStats;
     }
   };
@@ -356,11 +347,6 @@ const useStatistics = () => {
                       userRole === 'admin' ? 
                         (activeStats.tableData?.plays || []) : [];
     
-    console.log('[useStatistics] 📊 playsData extraídos:', playsData?.length || 0);
-    console.log('[useStatistics] 📋 Tipo de playsData:', Array.isArray(playsData) ? 'Array' : typeof playsData);
-    if (playsData?.length > 0) {
-      console.log('[useStatistics] 📝 Primer elemento:', playsData[0]);
-    }
     
     if (!Array.isArray(playsData)) {
       console.warn('[useStatistics] ⚠️ playsData NO ES ARRAY, forzando a []');
@@ -374,8 +360,6 @@ const useStatistics = () => {
   const finalTableData = {
     plays: playsData
   };
-  
-  console.log('[useStatistics] 🎁 Retornando tableData con:', finalTableData.plays?.length || 0, 'registros');
   
   return {
     // Estados básicos

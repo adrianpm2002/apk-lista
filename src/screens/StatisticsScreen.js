@@ -971,8 +971,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           }
         });
 
-        console.log('[StatisticsScreen] 🎯 Listero Charts - Jugadas desagrupadas:', allPlays.length);
-
         if (allPlays.length === 0) {
           return null;
         }
@@ -1558,8 +1556,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             allPlays = allPlays.concat(collector.raw_plays);
           }
         });
-
-        console.log('[StatisticsScreen] 🎯 Listero - Jugadas desagrupadas:', allPlays.length);
 
         if (allPlays.length === 0) {
           return (

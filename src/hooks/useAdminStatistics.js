@@ -99,9 +99,6 @@ const CACHE_DAYS = 30; // Cachear últimos 30 días
 export const useAdminStatistics = (options = {}) => {
   const { enabled = true } = options;
   
-  // 🔍 DEBUG: Log de inicialización del hook
-  console.log('🔍 [useAdminStatistics] Hook inicializado con enabled:', enabled);
-  
   // Estados básicos
   const [isLoading, setIsLoading] = useState(false);
   const [userId, setUserId] = useState(null);
@@ -132,19 +129,13 @@ export const useAdminStatistics = (options = {}) => {
 
   // Detectar userId y auto-cargar datos (se ejecuta cuando enabled cambia)
   useEffect(() => {
-    console.log('🔍 [useAdminStatistics] useEffect disparado - enabled:', enabled);
-    
     const initializeData = async () => {
       if (!enabled) {
-        console.log('🔍 [useAdminStatistics] Hook DESHABILITADO, saliendo...');
         setUserId(null);
         return;
       }
       
-      console.log('🔍 [useAdminStatistics] Hook HABILITADO, continuando...');
-      
       if (loadingRef.current) {
-        console.log('🔍 [useAdminStatistics] Ya está cargando, saliendo...');
         return;
       }
       
