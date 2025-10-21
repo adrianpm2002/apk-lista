@@ -167,8 +167,6 @@ export const useAdminStatistics = (options = {}) => {
           startDate.setHours(0, 0, 0, 0);
           const endDate = new Date(today);
           endDate.setHours(23, 59, 59, 999);
-          
-          console.log('🐛 [DEBUG ADMIN] 🚀 Inicialización - Cargando SOLO HOY:', startDate.toLocaleDateString());
                     
           // 🎯 CAMBIO: Primera carga siempre desde Supabase para poblar caché
           // Pasar userId explícitamente porque setUserId es asíncrono
@@ -248,7 +246,6 @@ export const useAdminStatistics = (options = {}) => {
     
     // 🎯 FIX: Si ya está cargando, ignorar nueva petición (prevenir race conditions)
     if (loadingRef.current) {
-      console.log('[useAdminStatistics] ⏸️ Carga en curso, ignorando nueva petición');
       return;
     }
     
@@ -288,7 +285,6 @@ export const useAdminStatistics = (options = {}) => {
         
         // Verificar token antes de setear datos
         if (currentToken !== loadTokenRef.current) {
-          console.log('[useAdminStatistics] ❌ Carga cancelada (token mismatch)');
           setIsLoading(false);
           loadingRef.current = false;
           return;
@@ -336,7 +332,6 @@ export const useAdminStatistics = (options = {}) => {
           }
           
           if (currentToken !== loadTokenRef.current) {
-            console.log('[useAdminStatistics] ❌ Carga cancelada (token mismatch)');
             setIsLoading(false);
             loadingRef.current = false;
             return;
@@ -371,7 +366,6 @@ export const useAdminStatistics = (options = {}) => {
         
         // Verificar token antes de setear datos
         if (currentToken !== loadTokenRef.current) {
-          console.log('[useAdminStatistics] ❌ Carga cancelada (token mismatch)');
           setIsLoading(false);
           loadingRef.current = false;
           return;
@@ -401,7 +395,6 @@ export const useAdminStatistics = (options = {}) => {
       
       // Verificar token antes de limpiar datos
       if (currentToken !== loadTokenRef.current) {
-        console.log('[useAdminStatistics] ❌ Error handler cancelado (token mismatch)');
         setIsLoading(false);
         loadingRef.current = false;
         return;
