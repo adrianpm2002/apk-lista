@@ -293,7 +293,7 @@ const BankCapacityScreen = ({ navigation }) => {
             )}
             <View style={styles.totalBrutoContainer}>
               <Text style={styles.totalBrutoLabel}>Bruto:</Text>
-              <Text style={styles.totalBrutoValue}>{'$'}{totalBruto.toFixed(2)}</Text>
+              <Text style={styles.totalBrutoValue}>{'$'}{(totalBruto || 0).toFixed(2)}</Text>
             </View>
           </View>
 
