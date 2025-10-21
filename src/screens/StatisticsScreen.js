@@ -21,7 +21,6 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import DateTimePickerWrapper from '../components/DateTimePickerWrapper';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { createShadowStyle } from '../utils/shadowUtils';
-import { debugDatabase } from '../utils/sqliteCache';
 
 // Importación condicional para exportación PDF
 let exportPdfModule;
@@ -588,46 +587,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
             {refreshing ? '⏳ Actualizando...' : '🔄 Actualizar'}
           </Text>
-        </TouchableOpacity>
-        
-        {/* �🔍 BOTÓN DEBUG - SIEMPRE VISIBLE PARA TESTING */}
-        <TouchableOpacity
-          style={{
-            backgroundColor: '#D32F2F',
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 6,
-            marginLeft: 8,
-            elevation: 3,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 3.84,
-          }}
-          onPress={async () => {
-            console.log('=== 🔍 DEBUG DATABASE PRESSED ===');
-            console.log('Build mode: PREVIEW/PRODUCTION');
-            console.log('__DEV__:', __DEV__);
-            console.log('User Role:', userRole);
-            console.log('User ID:', userId);
-            
-            try {
-              if (debugDatabase && typeof debugDatabase === 'function') {
-                await debugDatabase();
-              } else {
-                console.error('❌ debugDatabase no está disponible');
-                // Fallback: mostrar información básica
-                console.log('=== FALLBACK INFO ===');
-                console.log('Table Data length:', tableData?.plays?.length || 0);
-              }
-            } catch (error) {
-              console.error('❌ Error ejecutando debugDatabase:', error);
-            }
-            
-            console.log('=== 🔍 END DEBUG ===');
-          }}
-        >
-          <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>🔍 DEBUG</Text>
         </TouchableOpacity>
         
         {/* TEMPORALMENTE OCULTO - Exportar PDF 
