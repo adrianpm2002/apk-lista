@@ -91,10 +91,6 @@ const groupDataForAdmin = (rawData) => {
   }
 };
 
-import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../supabaseClient';
-import * as SQLiteCache from '../utils/sqliteCache';
-
 /**
  * Formatear fecha para Supabase en formato timestamp LOCAL (NO UTC)
  * Supabase usa: "YYYY-MM-DD HH:MM:SS" (timestamp sin timezone)
