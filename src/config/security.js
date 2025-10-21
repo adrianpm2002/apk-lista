@@ -45,7 +45,8 @@ function clearLocalTokens() {
 
 // Configuración de desarrollo vs producción
 export const getEnvironmentConfig = () => {
-  const isDevelopment = __DEV__ || process.env.NODE_ENV === 'development';
+  // ✅ PRODUCCIÓN: Forzar modo producción (sin logs ni debug)
+  const isDevelopment = false;
   
   return {
     enableLogging: isDevelopment,
