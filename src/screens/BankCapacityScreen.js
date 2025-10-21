@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
@@ -32,6 +33,7 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
   const [capacityData, setCapacityData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [sortBy, setSortBy] = useState('capacity'); // 'capacity' o 'number'
 
   const formatTime = (timeString) => {
     if (!timeString) return '';
@@ -94,11 +96,12 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
     setLoading(true);
 
     try {
+      const orderColumn = sortBy === 'capacity' ? 'used_today_banco' : 'numero';
       const { data, error } = await supabase
         .from('v_capacidades_banco')
         .select('*')
         .eq('id_banco', currentBankId)
-        .order('used_today_banco', { ascending: false });
+        .order(orderColumn, { ascending: sortBy === 'number' });
 
       if (error) throw error;
 
@@ -109,7 +112,7 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
     } finally {
       setLoading(false);
     }
-  }, [currentBankId]);
+  }, [currentBankId, sortBy]);
 
   useEffect(() => {
     if (currentBankId) {
@@ -146,6 +149,30 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
           <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
           <Text style={styles.headerTitle}>Capacidad del Banco</Text>
         </View>
+
+        {/* Barra de filtros */}
+        <View style={styles.filtersBar}>
+          <View style={styles.filtersContainer}>
+            <Text style={styles.filterLabel}>Ordenar:</Text>
+            <TouchableOpacity
+              style={[styles.sortButton, sortBy === 'capacity' && styles.sortButtonActive]}
+              onPress={() => setSortBy('capacity')}
+            >
+              <Text style={[styles.sortButtonText, sortBy === 'capacity' && styles.sortButtonTextActive]}>
+                Capacidad
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortButton, sortBy === 'number' && styles.sortButtonActive]}
+              onPress={() => setSortBy('number')}
+            >
+              <Text style={[styles.sortButtonText, sortBy === 'number' && styles.sortButtonTextActive]}>
+                Número
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color="#27AE60" />
           <Text style={styles.loadingText}>Cargando capacidades...</Text>
@@ -166,6 +193,29 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
       <View style={styles.header}>
         <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
         <Text style={styles.headerTitle}>Capacidad del Banco</Text>
+      </View>
+
+      {/* Barra de filtros */}
+      <View style={styles.filtersBar}>
+        <View style={styles.filtersContainer}>
+          <Text style={styles.filterLabel}>Ordenar:</Text>
+          <TouchableOpacity
+            style={[styles.sortButton, sortBy === 'capacity' && styles.sortButtonActive]}
+            onPress={() => setSortBy('capacity')}
+          >
+            <Text style={[styles.sortButtonText, sortBy === 'capacity' && styles.sortButtonTextActive]}>
+              Capacidad
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.sortButton, sortBy === 'number' && styles.sortButtonActive]}
+            onPress={() => setSortBy('number')}
+          >
+            <Text style={[styles.sortButtonText, sortBy === 'number' && styles.sortButtonTextActive]}>
+              Número
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {capacityData.length === 0 ? (
@@ -224,6 +274,50 @@ const styles = StyleSheet.create({
   sidebarButton: {
     marginRight: 8,
   },
+  filtersBar: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  filtersContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+  },
+  filterLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#495057',
+    marginRight: 4,
+  },
+  sortButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#DEE2E6',
+  },
+  sortButtonActive: {
+    backgroundColor: '#27AE60',
+    borderColor: '#27AE60',
+  },
+  sortButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#495057',
+  },
+  sortButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  placeholderText: {
+    fontSize: 13,
+    color: '#7F8C8D',
+    fontStyle: 'italic',
+  },
   centerContent: {
     flex: 1,
     justifyContent: 'center',
@@ -269,9 +363,9 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
   },
   playTypeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#7F8C8D',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#000000',
     flex: 1,
   },
   amountText: {
@@ -296,7 +390,7 @@ const styles = StyleSheet.create({
   scheduleText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#495057',
+    color: '#A0826D',
   },
 });
 
