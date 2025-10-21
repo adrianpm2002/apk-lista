@@ -298,12 +298,16 @@ export const useCollectorStatistics = (options = {}) => {
         
       } else {
         // CARGA NORMAL: Solo desde caché
-        console.log('[useCollectorStatistics] 📦 Carga normal - Solo caché');
+        debugLog('[useCollectorStatistics] 📦 Carga normal - Intentar desde caché');
         
         let cachedPlays = [];
         try {
-          cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'collector', {});
-          console.log(`[useCollectorStatistics] 📦 Caché: ${cachedPlays.length} registros`);
+          // 🎯 FIX: Pasar filtros de fecha para optimizar query SQL
+          cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'collector', {
+            startDate,
+            endDate
+          });
+          debugLog(`[useCollectorStatistics] 📦 Caché (filtrado): ${cachedPlays.length} registros`);
         } catch (cacheError) {
           console.error('[useCollectorStatistics] ⚠️ Error leyendo caché:', cacheError);
           cachedPlays = [];
@@ -349,15 +353,10 @@ export const useCollectorStatistics = (options = {}) => {
           return;
         }
         
-        // Filtrar por rango de fechas solicitado
-        const filteredPlays = cachedPlays.filter(p => {
-          const playDate = new Date(p.fecha_jugada);
-          return playDate >= startDate && playDate <= endDate;
-        });
+        // 🎯 FIX: Ya no necesitamos filtrar manualmente - SQL lo hizo por nosotros
+        console.log(`[useCollectorStatistics] ✅ Caché ya filtrado por SQL: ${cachedPlays.length} registros`);
         
-        console.log(`[useCollectorStatistics] 📊 Filtrados: ${filteredPlays.length}/${cachedPlays.length}`);
-        
-        // Encontrar fecha más antigua en caché
+        // Encontrar fecha más antigua en caché (para debugging)
         const oldestCached = cachedPlays.length > 0
           ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
           : null;
@@ -370,13 +369,13 @@ export const useCollectorStatistics = (options = {}) => {
           return;
         }
         
-        const groupedData = groupDataForCollector(filteredPlays);
+        const groupedData = groupDataForCollector(cachedPlays);
         setTableData({ plays: groupedData });
         
         setDebugInfo({
           source: 'CACHE',
           totalBeforeFilter: cachedPlays.length,
-          totalAfterFilter: filteredPlays.length,
+          totalAfterFilter: cachedPlays.length, // Ya filtrado por SQL
           cacheOldestDate: oldestCached?.toLocaleDateString() || 'Sin datos',
           rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
         });

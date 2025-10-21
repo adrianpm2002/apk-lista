@@ -309,8 +309,12 @@ export const useAdminStatistics = (options = {}) => {
         
         let cachedPlays = [];
         try {
-          cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'admin', {});
-          console.log(`[useAdminStatistics] 📦 Caché: ${cachedPlays.length} registros`);
+          // 🎯 FIX: Pasar filtros de fecha para optimizar query SQL
+          cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'admin', {
+            startDate,
+            endDate
+          });
+          console.log(`[useAdminStatistics] 📦 Caché (filtrado): ${cachedPlays.length} registros`);
         } catch (cacheError) {
           console.error('[useAdminStatistics] ⚠️ Error leyendo caché:', cacheError);
           cachedPlays = [];
@@ -356,15 +360,10 @@ export const useAdminStatistics = (options = {}) => {
           return;
         }
         
-        // Filtrar por rango de fechas solicitado
-        const filteredPlays = cachedPlays.filter(p => {
-          const playDate = new Date(p.fecha_jugada);
-          return playDate >= startDate && playDate <= endDate;
-        });
+        // 🎯 FIX: Ya no necesitamos filtrar manualmente - SQL lo hizo por nosotros
+        console.log(`[useAdminStatistics] ✅ Caché ya filtrado por SQL: ${cachedPlays.length} registros`);
         
-        console.log(`[useAdminStatistics] 📊 Filtrados: ${filteredPlays.length}/${cachedPlays.length}`);
-        
-        // Encontrar fecha más antigua en caché
+        // Encontrar fecha más antigua en caché (para debugging)
         const oldestCached = cachedPlays.length > 0
           ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
           : null;
@@ -377,13 +376,13 @@ export const useAdminStatistics = (options = {}) => {
           return;
         }
         
-        const groupedData = groupDataForAdmin(filteredPlays);
+        const groupedData = groupDataForAdmin(cachedPlays);
         setTableData({ plays: groupedData });
         
         setDebugInfo({
           source: 'CACHE',
           totalBeforeFilter: cachedPlays.length,
-          totalAfterFilter: filteredPlays.length,
+          totalAfterFilter: cachedPlays.length, // Ya filtrado por SQL
           cacheOldestDate: oldestCached?.toLocaleDateString() || 'Sin datos',
           rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
         });
