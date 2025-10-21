@@ -143,7 +143,7 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <SideBarToggle onPress={() => setSidebarVisible(true)} />
+          <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
           <Text style={styles.headerTitle}>Capacidad del Banco</Text>
         </View>
         <View style={styles.centerContent}>
@@ -164,7 +164,7 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <SideBarToggle onPress={() => setSidebarVisible(true)} />
+        <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
         <Text style={styles.headerTitle}>Capacidad del Banco</Text>
       </View>
 
@@ -221,6 +221,9 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     flex: 1,
   },
+  sidebarButton: {
+    marginRight: 8,
+  },
   centerContent: {
     flex: 1,
     justifyContent: 'center',
@@ -243,9 +246,9 @@ const styles = StyleSheet.create({
   },
   capacityCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -257,22 +260,22 @@ const styles = StyleSheet.create({
   firstLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 12,
+    marginBottom: 6,
+    gap: 10,
   },
   numberText: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '700',
     color: '#2C3E50',
   },
   playTypeText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#7F8C8D',
     flex: 1,
   },
   amountText: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
     color: '#27AE60',
   },
@@ -282,16 +285,16 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   lotteryText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#3498DB',
   },
   separator: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#7F8C8D',
   },
   scheduleText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#495057',
   },
