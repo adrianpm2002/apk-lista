@@ -935,7 +935,6 @@ export const deletePlaysByDateRange = async (userId, role, startDate, endDate) =
 export const replacePlaysByDateRange = async (userId, role, plays, startDate, endDate) => {
   // Guard: En web no hacer nada
   if (Platform.OS === 'web' || !SQLite) {
-    console.log('[SQLiteCache] replacePlaysByDateRange: Running on web, skipping');
     return;
   }
 
