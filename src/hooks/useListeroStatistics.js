@@ -249,7 +249,6 @@ export const useListeroStatistics = (options = {}) => {
       throw error;
     }
   };
-
   /**
    * Cargar datos desde views específicas (v_estadisticas_hoy o v_estadisticas_ayer)
   /**
@@ -259,6 +258,12 @@ export const useListeroStatistics = (options = {}) => {
     const effectiveUserId = userIdOverride || userId;
     
     if (!effectiveUserId || !enabled) {
+      return;
+    }
+    
+    // 🎯 FIX: Si ya está cargando, ignorar nueva petición (prevenir race conditions)
+    if (loadingRef.current) {
+      console.log('[useListeroStatistics] ⏸️ Carga en curso, ignorando nueva petición');
       return;
     }
     

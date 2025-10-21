@@ -242,6 +242,12 @@ export const useAdminStatistics = (options = {}) => {
       return;
     }
     
+    // 🎯 FIX: Si ya está cargando, ignorar nueva petición (prevenir race conditions)
+    if (loadingRef.current) {
+      console.log('[useAdminStatistics] ⏸️ Carga en curso, ignorando nueva petición');
+      return;
+    }
+    
     // 🎯 FIX: Cancelar cargas anteriores incrementando el token
     loadTokenRef.current += 1;
     const currentToken = loadTokenRef.current;
