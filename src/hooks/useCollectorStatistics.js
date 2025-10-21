@@ -137,11 +137,11 @@ export const useCollectorStatistics = (options = {}) => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         
-        console.log('🔍 [useCollectorStatistics] Usuario obtenido:', user?.id ? 'SÍ' : 'NO');
+        // console.log('🔍 [useCollectorStatistics] Usuario obtenido:', user?.id ? 'SÍ' : 'NO');
         
         if (user) {
           setUserId(user.id);
-          console.log('🔍 [useCollectorStatistics] userId seteado a:', user.id);
+          // console.log('🔍 [useCollectorStatistics] userId seteado a:', user.id);
           
           // 🎯 FIX: Cargar solo HOY en la primera carga, no 30 días
           const today = new Date();
@@ -235,7 +235,7 @@ export const useCollectorStatistics = (options = {}) => {
     // 🎯 FIX: Cancelar cargas anteriores incrementando el token
     loadTokenRef.current += 1;
     const currentToken = loadTokenRef.current;
-    console.log('[useCollectorStatistics] 🎫 Nueva carga - Token:', currentToken);
+    // console.log('[useCollectorStatistics] 🎫 Nueva carga - Token:', currentToken);
     
     loadingRef.current = true;
     setIsLoading(true);
@@ -253,11 +253,11 @@ export const useCollectorStatistics = (options = {}) => {
         const now = new Date();
         startDate = new Date(now.setHours(0, 0, 0, 0));
         endDate = new Date(now.setHours(23, 59, 59, 999));
-        console.log('[useCollectorStatistics] ⚠️ No hay fechas, usando HOY por defecto');
+        // console.log('[useCollectorStatistics] ⚠️ No hay fechas, usando HOY por defecto');
       }
 
-      console.log(`[useCollectorStatistics] 🔄 Cargando: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
-      console.log(`[useCollectorStatistics] forceRefresh: ${forceRefresh}`);
+      // console.log(`[useCollectorStatistics] 🔄 Cargando: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
+      // console.log(`[useCollectorStatistics] forceRefresh: ${forceRefresh}`);
 
       // ========================================
       // ESTRATEGIA CACHE-FIRST SIMPLIFICADA
@@ -265,14 +265,14 @@ export const useCollectorStatistics = (options = {}) => {
       
       if (forceRefresh) {
         // PULL-TO-REFRESH: Cargar desde Supabase y actualizar caché
-        console.log('[useCollectorStatistics] 🔄 Pull-to-refresh - Consultando Supabase');
+        // console.log('[useCollectorStatistics] 🔄 Pull-to-refresh - Consultando Supabase');
         
         const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
-        console.log(`[useCollectorStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
+        // console.log(`[useCollectorStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
         
         // Reemplazar caché con datos frescos para este rango
         await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'collector', freshPlays, startDate, endDate);
-        console.log(`[useCollectorStatistics] 💾 Caché actualizado`);
+        // console.log(`[useCollectorStatistics] 💾 Caché actualizado`);
         
         // Verificar token antes de setear datos
         if (currentToken !== loadTokenRef.current) {
@@ -312,15 +312,15 @@ export const useCollectorStatistics = (options = {}) => {
         
         // 🎯 FIX: Si caché está vacío, forzar carga desde Supabase
         if (cachedPlays.length === 0) {
-          console.log('[useCollectorStatistics] ⚠️ Caché vacío, forzando carga desde Supabase...');
+          // console.log('[useCollectorStatistics] ⚠️ Caché vacío, forzando carga desde Supabase...');
           
           const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
-          console.log(`[useCollectorStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
+          // console.log(`[useCollectorStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
           
           try {
             await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'collector', freshPlays, startDate, endDate);
           } catch (cacheError) {
-            console.log('[useCollectorStatistics] ⚠️ No se pudo guardar en caché (probablemente en web)');
+            // console.log('[useCollectorStatistics] ⚠️ No se pudo guardar en caché (probablemente en web)');
           }
           
           if (currentToken !== loadTokenRef.current) {
@@ -351,7 +351,7 @@ export const useCollectorStatistics = (options = {}) => {
         }
         
         // 🎯 FIX: Ya no necesitamos filtrar manualmente - SQL lo hizo por nosotros
-        console.log(`[useCollectorStatistics] ✅ Caché ya filtrado por SQL: ${cachedPlays.length} registros`);
+        // console.log(`[useCollectorStatistics] ✅ Caché ya filtrado por SQL: ${cachedPlays.length} registros`);
         
         // Encontrar fecha más antigua en caché (para debugging)
         const oldestCached = cachedPlays.length > 0
