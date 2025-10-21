@@ -600,7 +600,49 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     </View>
   );
 
-  // Renderizar contenido del tab de resumen
+  // Renderizar tabs de navegación con filtros a la derecha
+  const renderTabs = () => (
+    <View style={styles.tabsContainer}>
+      <View style={styles.tabsRowContainer}>
+        {/* Pestañas a la izquierda */}
+        <View style={styles.tabsLeftSection}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {tabs.map(tab => (
+              <React.Fragment key={tab.id}>
+                <TouchableOpacity
+                  style={[
+                    styles.tab,
+                    activeTab === tab.id && styles.activeTab,
+                  ]}
+                  onPress={() => {
+                    setActiveTab(tab.id);
+                    // El filtro de fecha se mantiene igual para ambas pestañas
+                  }}
+                >
+                  <Text style={styles.tabIcon}>{tab.icon}</Text>
+                  <Text style={[
+                    styles.tabText,
+                    activeTab === tab.id && styles.activeTabText,
+                  ]}>
+                    {tab.title}
+                  </Text>
+                </TouchableOpacity>
+
+                {tab.id === 'details' && (
+                  <View></View>
+                )}
+              </React.Fragment>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Filtros a la derecha */}
+        <View style={styles.tabsRightSection}>
+          {renderCompactFilters()}
+        </View>
+      </View>
+    </View>
+  );
 
   // Filtros compactos para la línea de pestañas
   const renderCompactFilters = () => {
