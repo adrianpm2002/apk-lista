@@ -392,16 +392,7 @@ const useStatistics = () => {
       total_premio: 0,
       total_ganancia_colector: 0,
       balance_banco: 0
-    })),
-    
-    // 🐛 DEBUG: Metadata temporal
-    debugInfo: activeStats.debugInfo || {
-      source: 'N/A',
-      totalBeforeFilter: 0,
-      totalAfterFilter: 0,
-      cacheOldestDate: 'N/A',
-      rangeRequested: 'N/A'
-    }
+    }))
   };
 };
 

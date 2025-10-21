@@ -128,20 +128,12 @@ export const useAdminStatistics = (options = {}) => {
     endDate: new Date(new Date().setHours(23, 59, 59, 999))
   });
   
-  // Estado para debug info
-  const [debugInfo, setDebugInfo] = useState({
-    source: '', // 'CACHE' | 'SUPABASE'
-    totalBeforeFilter: 0,
-    totalAfterFilter: 0,
-    cacheOldestDate: null,
-    rangeRequested: ''
-  });
-  
   // Ref para evitar múltiples cargas simultáneas
   const loadingRef = useRef(false);
   
   // 🎯 FIX: Token de cancelación para race conditions
   const loadTokenRef = useRef(0);
+
 
   // Detectar userId y auto-cargar datos (se ejecuta cuando enabled cambia)
   useEffect(() => {
@@ -293,14 +285,6 @@ export const useAdminStatistics = (options = {}) => {
         const groupedData = groupDataForAdmin(freshPlays);
         setTableData({ plays: groupedData });
         
-        setDebugInfo({
-          source: 'SUPABASE (pull-to-refresh)',
-          totalBeforeFilter: freshPlays.length,
-          totalAfterFilter: freshPlays.length,
-          cacheOldestDate: 'Actualizado',
-          rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
-        });
-        
         // Limpiar loading state y salir
         setIsLoading(false);
         loadingRef.current = false;
@@ -340,14 +324,6 @@ export const useAdminStatistics = (options = {}) => {
           const groupedData = groupDataForAdmin(freshPlays);
           setTableData({ plays: groupedData });
           
-          setDebugInfo({
-            source: 'SUPABASE (caché vacío - fallback)',
-            totalBeforeFilter: freshPlays.length,
-            totalAfterFilter: freshPlays.length,
-            cacheOldestDate: 'N/A',
-            rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
-          });
-          
           try {
             await SQLiteCache.cleanOldRecords(effectiveUserId, 'admin');
           } catch (cacheError) {}
@@ -359,11 +335,6 @@ export const useAdminStatistics = (options = {}) => {
         
         // 🎯 FIX: Ya no necesitamos filtrar manualmente - SQL lo hizo por nosotros
         
-        // Encontrar fecha más antigua en caché (para debugging)
-        const oldestCached = cachedPlays.length > 0
-          ? new Date(Math.min(...cachedPlays.map(p => new Date(p.fecha_jugada).getTime())))
-          : null;
-        
         // Verificar token antes de setear datos
         if (currentToken !== loadTokenRef.current) {
           setIsLoading(false);
@@ -374,13 +345,6 @@ export const useAdminStatistics = (options = {}) => {
         const groupedData = groupDataForAdmin(cachedPlays);
         setTableData({ plays: groupedData });
         
-        setDebugInfo({
-          source: 'CACHE',
-          totalBeforeFilter: cachedPlays.length,
-          totalAfterFilter: cachedPlays.length, // Ya filtrado por SQL
-          cacheOldestDate: oldestCached?.toLocaleDateString() || 'Sin datos',
-          rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
-        });
       }
 
       // Limpiar registros muy antiguos (>60 días)
@@ -514,8 +478,7 @@ export const useAdminStatistics = (options = {}) => {
     loadPlaysData,
     applyFilters,
     refresh,
-    dateRange,
-    debugInfo
+    dateRange
   };
 };
 
