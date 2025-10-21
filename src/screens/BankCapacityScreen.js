@@ -190,7 +190,7 @@ const BankCapacityScreen = ({ navigation }) => {
         </View>
         <View style={styles.capacityInfo}>
           <Text style={styles.capacityText}>
-            ${displayAmount.toFixed(2)}
+            {'$'}{displayAmount.toFixed(2)}
           </Text>
           <Text style={styles.metaText}>
             <Text style={styles.metaStrong}>{item.loteriaNombre}</Text>
