@@ -131,15 +131,6 @@ export const useListeroStatistics = (options = {}) => {
     endDate: new Date(new Date().setHours(23, 59, 59, 999))
   });
   
-  // Estado para debug info
-  const [debugInfo, setDebugInfo] = useState({
-    source: '', // 'CACHE' | 'SUPABASE'
-    totalBeforeFilter: 0,
-    totalAfterFilter: 0,
-    cacheOldestDate: null,
-    rangeRequested: ''
-  });
-  
   // Ref para evitar múltiples cargas simultáneas
   const loadingRef = useRef(false);
   
@@ -301,14 +292,6 @@ export const useListeroStatistics = (options = {}) => {
         const groupedData = groupDataForListero(freshPlays);
         setTableData({ plays: groupedData });
         
-        setDebugInfo({
-          source: 'SUPABASE (pull-to-refresh)',
-          totalBeforeFilter: freshPlays.length,
-          totalAfterFilter: freshPlays.length,
-          cacheOldestDate: 'Actualizado',
-          rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
-        });
-        
         // Limpiar loading state y salir
         setIsLoading(false);
         loadingRef.current = false;
@@ -349,14 +332,6 @@ export const useListeroStatistics = (options = {}) => {
           const groupedData = groupDataForListero(freshPlays);
           setTableData({ plays: groupedData });
           
-          setDebugInfo({
-            source: 'SUPABASE (caché vacío - fallback)',
-            totalBeforeFilter: freshPlays.length,
-            totalAfterFilter: freshPlays.length,
-            cacheOldestDate: 'N/A',
-            rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
-          });
-          
           // Limpiar y salir
           try {
             await SQLiteCache.cleanOldRecords(effectiveUserId, 'listero');
@@ -383,14 +358,6 @@ export const useListeroStatistics = (options = {}) => {
         
         const groupedData = groupDataForListero(cachedPlays);
         setTableData({ plays: groupedData });
-        
-        setDebugInfo({
-          source: 'CACHE',
-          totalBeforeFilter: cachedPlays.length,
-          totalAfterFilter: cachedPlays.length, // Ya filtrado por SQL
-          cacheOldestDate: oldestCached?.toLocaleDateString() || 'Sin datos',
-          rangeRequested: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
-        });
       }
 
       // Limpiar registros muy antiguos (>60 días)
@@ -531,8 +498,7 @@ export const useListeroStatistics = (options = {}) => {
     loadPlaysData,
     applyFilters,
     refresh,
-    dateRange,
-    debugInfo
+    dateRange
   };
 };
 
