@@ -198,6 +198,11 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
     return filtered;
   }, [capacityData, lotteryFilter, playTypeFilter, searchNumber]);
 
+  // Calcular el total bruto de los datos filtrados
+  const totalBruto = useMemo(() => {
+    return filteredData.reduce((sum, item) => sum + (item.used_today_banco || 0), 0);
+  }, [filteredData]);
+
   const renderCapacityItem = useCallback(({ item }) => {
     const playType = playTypeLabels[item.jugada] || item.jugada?.toUpperCase() || '';
     
@@ -437,6 +442,12 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
               </View>
             ) : null}
           </View>
+
+          {/* Total Bruto */}
+          <View style={styles.totalBrutoContainer}>
+            <Text style={styles.totalBrutoLabel}>Total Bruto: </Text>
+            <Text style={styles.totalBrutoValue}>${totalBruto.toFixed(2)}</Text>
+          </View>
         </View>
       </View>
 
@@ -531,7 +542,7 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#495057',
   },
   sortButton: {
@@ -569,6 +580,22 @@ const styles = StyleSheet.create({
     color: '#495057',
     minWidth: 60,
     textAlign: 'center',
+  },
+  totalBrutoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto',
+    paddingLeft: 8,
+  },
+  totalBrutoLabel: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#495057',
+  },
+  totalBrutoValue: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#27AE60',
   },
   placeholderText: {
     fontSize: 13,
