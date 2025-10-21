@@ -2,8 +2,24 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import * as SQLiteCache from '../utils/sqliteCache';
 
-// 🎯 FIX: Usar toISOString() consistente con SQLiteCache
-// No necesitamos helper local, usaremos date.toISOString() directamente
+/**
+ * Formatear fecha para Supabase en formato timestamp LOCAL (NO UTC)
+ * Supabase usa: "YYYY-MM-DD HH:MM:SS" (timestamp sin timezone)
+ * NO usar toISOString() porque agrega "Z" y convierte a UTC
+ */
+const formatDateForSupabase = (date) => {
+  if (typeof date === 'string') return date;
+  
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  
+  // Formato: "2025-10-15 16:34:10"
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
 
 const CACHE_DAYS = 30; // Cachear últimos 30 días
 
@@ -173,9 +189,9 @@ export const useCollectorStatistics = (options = {}) => {
    */
   const loadFromSupabase = async (userId, startDate, endDate) => {
     try {
-      // 🎯 FIX: Usar toISOString() para compatibilidad con formato ISO
-      const startStr = startDate.toISOString();
-      const endStr = endDate.toISOString();
+      // Formatear fechas para Supabase (timestamp local, NO UTC)
+      const startStr = formatDateForSupabase(startDate);
+      const endStr = formatDateForSupabase(endDate);
 
       let allPlaysData = [];
       let page = 0;

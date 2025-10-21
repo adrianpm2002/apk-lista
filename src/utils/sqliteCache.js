@@ -575,11 +575,15 @@ export const readPlaysFromCache = async (userId, role, filters = {}) => {
     // Filtro por fecha
     if (startDate) {
       query += ` AND fecha_jugada >= ?`;
-      params.push(formatDateForSQL(startDate));
+      const startStr = formatDateForSQL(startDate);
+      params.push(startStr);
+      console.log(`[SQLiteCache] 🔍 Filtro startDate: ${startStr}`);
     }
     if (endDate) {
       query += ` AND fecha_jugada <= ?`;
-      params.push(formatDateForSQL(endDate));
+      const endStr = formatDateForSQL(endDate);
+      params.push(endStr);
+      console.log(`[SQLiteCache] 🔍 Filtro endDate: ${endStr}`);
     }
 
     // Filtro por lotería
@@ -595,6 +599,9 @@ export const readPlaysFromCache = async (userId, role, filters = {}) => {
     }
 
     query += ` ORDER BY fecha_jugada DESC`;
+
+    console.log(`[SQLiteCache] 📊 Query: ${query}`);
+    console.log(`[SQLiteCache] 📊 Params:`, params);
 
     const [results] = await db.executeSql(query, params);
     
@@ -840,15 +847,44 @@ export const getCacheStats = async (userId, role) => {
 // ========================================
 
 /**
- * Formatear fecha para SQL
- * 🎯 FIX CRÍTICO: Usar ISO string para compatibilidad total
+ * Formatear fecha para Supabase/SQL en formato timestamp LOCAL (NO UTC)
+ * Supabase usa: "YYYY-MM-DD HH:MM:SS.mmmmmm" (timestamp sin timezone)
+ * NO usar toISOString() porque agrega "Z" y convierte a UTC
  */
 const formatDateForSQL = (date) => {
   if (typeof date === 'string') return date;
   
-  // Usar toISOString() para formato consistente con Supabase
-  // Formato: "2025-10-17T04:26:10.195Z"
-  return date.toISOString();
+  // Convertir a timestamp local en formato Supabase
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const ms = String(date.getMilliseconds()).padStart(3, '0');
+  
+  // Formato: "2025-10-15 16:34:10.952"
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${ms}`;
+};
+
+/**
+ * Formatear fecha para operaciones de DB (inserts/deletes)
+ * Debe ser idéntico a formatDateForSQL para consistencia
+ */
+const formatDateForDB = (date) => {
+  if (typeof date === 'string') return date;
+  
+  // Convertir a timestamp local en formato Supabase
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const ms = String(date.getMilliseconds()).padStart(3, '0');
+  
+  // Formato: "2025-10-15 16:34:10.952"
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${ms}`;
 };
 
 /**

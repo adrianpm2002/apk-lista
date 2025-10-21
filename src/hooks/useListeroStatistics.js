@@ -2,8 +2,24 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import * as SQLiteCache from '../utils/sqliteCache';
 
-// 🎯 FIX: Usar toISOString() consistente con SQLiteCache
-// No necesitamos helper local, usaremos date.toISOString() directamente
+/**
+ * Formatear fecha para Supabase en formato timestamp LOCAL (NO UTC)
+ * Supabase usa: "YYYY-MM-DD HH:MM:SS" (timestamp sin timezone)
+ * NO usar toISOString() porque agrega "Z" y convierte a UTC
+ */
+const formatDateForSupabase = (date) => {
+  if (typeof date === 'string') return date;
+  
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  
+  // Formato: "2025-10-15 16:34:10"
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
 
 /**
  * Función para agrupar datos por estructura jerárquica: Colectores -> Listeros -> Jugadas
@@ -183,14 +199,14 @@ export const useListeroStatistics = (options = {}) => {
     // console.log('[useListeroStatistics] 🔍 loadFromSupabase iniciado');
     // console.log('[useListeroStatistics] 📋 Parámetros:', {
     //   userId,
-    //   startDate: startDate.toISOString(),
-    //   endDate: endDate.toISOString()
+    //   startDate: formatDateForSupabase(startDate),
+    //   endDate: formatDateForSupabase(endDate)
     // });
     
     try {
-      // 🎯 FIX: Usar toISOString() para compatibilidad con formato ISO
-      const startStr = startDate.toISOString();
-      const endStr = endDate.toISOString();
+      // Formatear fechas para Supabase (timestamp local, NO UTC)
+      const startStr = formatDateForSupabase(startDate);
+      const endStr = formatDateForSupabase(endDate);
 
       let allPlaysData = [];
       let page = 0;
@@ -286,14 +302,14 @@ export const useListeroStatistics = (options = {}) => {
       
       if (forceRefresh) {
         // PULL-TO-REFRESH: Cargar desde Supabase y actualizar caché
-        // console.log('[useListeroStatistics] 🔄 Pull-to-refresh - Consultando Supabase');
+        console.log('[useListeroStatistics] 🔄 Pull-to-refresh - Consultando Supabase');
         
         const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
-        // console.log(`[useListeroStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
+        console.log(`[useListeroStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
         
         // Reemplazar caché con datos frescos para este rango
         await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'listero', freshPlays, startDate, endDate);
-        // console.log(`[useListeroStatistics] 💾 Caché actualizado`);
+        console.log(`[useListeroStatistics] 💾 Caché actualizado`);
         
         // Verificar token antes de setear datos
         if (currentToken !== loadTokenRef.current) {
@@ -303,9 +319,9 @@ export const useListeroStatistics = (options = {}) => {
           return;
         }
         
-        // console.log('[useListeroStatistics] 🔄 Agrupando datos...');
+        console.log('[useListeroStatistics] 🔄 Agrupando datos...');
         const groupedData = groupDataForListero(freshPlays);
-        // console.log('[useListeroStatistics] 📊 Datos agrupados:', groupedData?.length || 0);
+        console.log('[useListeroStatistics] 📊 Datos agrupados:', groupedData?.length || 0);
         setTableData({ plays: groupedData });
         
         setDebugInfo({
@@ -318,7 +334,7 @@ export const useListeroStatistics = (options = {}) => {
         
       } else {
         // CARGA NORMAL: Solo desde caché
-        // console.log('[useListeroStatistics] 📦 Carga normal - Solo caché');
+        console.log('[useListeroStatistics] 📦 Carga normal - Solo caché');
         
         let cachedPlays = [];
         try {
@@ -327,7 +343,7 @@ export const useListeroStatistics = (options = {}) => {
             startDate,
             endDate
           });
-          // console.log(`[useListeroStatistics] 📦 Caché (filtrado): ${cachedPlays.length} registros`);
+          console.log(`[useListeroStatistics] 📦 Caché (filtrado): ${cachedPlays.length} registros`);
         } catch (cacheError) {
           console.error('[useListeroStatistics] ⚠️ Error leyendo caché:', cacheError);
           cachedPlays = [];
@@ -335,10 +351,10 @@ export const useListeroStatistics = (options = {}) => {
         
         // 🎯 FIX: Si caché está vacío, forzar carga desde Supabase
         if (cachedPlays.length === 0) {
-          // console.log('[useListeroStatistics] ⚠️ Caché vacío, forzando carga desde Supabase...');
+          console.log('[useListeroStatistics] ⚠️ Caché vacío, forzando carga desde Supabase...');
           
           const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
-          // console.log(`[useListeroStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
+          console.log(`[useListeroStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
           
           // Intentar guardar en caché (puede fallar en web, pero intentamos)
           try {
@@ -379,7 +395,7 @@ export const useListeroStatistics = (options = {}) => {
         }
         
         // 🎯 FIX: Ya no necesitamos filtrar manualmente - SQL lo hizo por nosotros
-        // console.log(`[useListeroStatistics] ✅ Caché ya filtrado por SQL: ${cachedPlays.length} registros`);
+        console.log(`[useListeroStatistics] ✅ Caché ya filtrado por SQL: ${cachedPlays.length} registros`);
         
         // Encontrar fecha más antigua en caché (para debugging)
         const oldestCached = cachedPlays.length > 0
@@ -394,9 +410,9 @@ export const useListeroStatistics = (options = {}) => {
           return;
         }
         
-        // console.log('[useListeroStatistics] 🔄 Agrupando datos desde caché...');
+        console.log('[useListeroStatistics] 🔄 Agrupando datos desde caché...');
         const groupedData = groupDataForListero(cachedPlays);
-        // console.log('[useListeroStatistics] 📊 Datos agrupados:', groupedData?.length || 0);
+        console.log('[useListeroStatistics] 📊 Datos agrupados:', groupedData?.length || 0);
         setTableData({ plays: groupedData });
         
         setDebugInfo({
