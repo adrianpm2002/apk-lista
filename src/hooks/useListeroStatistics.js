@@ -27,12 +27,9 @@ const formatDateForSupabase = (date) => {
  * y cada listero tiene sus jugadas.
  */
 const groupDataForListero = (rawData) => {
-  // console.log('[groupDataForListero] 🔍 Iniciando agrupación');
-  // console.log('[groupDataForListero] 📊 Datos recibidos:', rawData?.length || 0, 'registros');
   
   try {
     if (!rawData || !Array.isArray(rawData) || rawData.length === 0) {
-      // console.log('[groupDataForListero] ⚠️ Sin datos para agrupar');
       return [];
     }
 
@@ -108,7 +105,6 @@ const groupDataForListero = (rawData) => {
     });
 
     const result = Object.values(collectorGroups);
-    // console.log('[groupDataForListero] ✅ Agrupación exitosa:', result.length, 'colectores');
     return result;
   } catch (error) {
     console.error('[groupDataForListero] ❌ Error en agrupación:', error);
@@ -196,8 +192,6 @@ export const useListeroStatistics = (options = {}) => {
    * Cargar datos desde Supabase
    */
   const loadFromSupabase = async (userId, startDate, endDate) => {
-    // console.log('[useListeroStatistics] 🔍 loadFromSupabase iniciado');
-    // console.log('[useListeroStatistics] 📋 Parámetros:', {
     //   userId,
     //   startDate: formatDateForSupabase(startDate),
     //   endDate: formatDateForSupabase(endDate)
@@ -214,7 +208,6 @@ export const useListeroStatistics = (options = {}) => {
       let hasMore = true;
       
       while (hasMore) {
-        // console.log(`[useListeroStatistics] 📡 Consultando Supabase - Página ${page + 1}`);
         
         const { data: playsData, error } = await supabase
           .from('v_estadisticas')
@@ -229,8 +222,6 @@ export const useListeroStatistics = (options = {}) => {
           console.error('[useListeroStatistics] ❌ Error de Supabase:', error);
           throw error;
         }
-        
-        // console.log(`[useListeroStatistics] ✅ Página ${page + 1}: ${playsData?.length || 0} registros`);
         
         if (playsData && playsData.length > 0) {
           allPlaysData = allPlaysData.concat(playsData);
@@ -272,7 +263,6 @@ export const useListeroStatistics = (options = {}) => {
     // 🎯 FIX: Cancelar cargas anteriores incrementando el token
     loadTokenRef.current += 1;
     const currentToken = loadTokenRef.current;
-    // console.log('[useListeroStatistics] 🎫 Nueva carga - Token:', currentToken);
     
     loadingRef.current = true;
     setIsLoading(true);
@@ -290,11 +280,7 @@ export const useListeroStatistics = (options = {}) => {
         const now = new Date();
         startDate = new Date(now.setHours(0, 0, 0, 0));
         endDate = new Date(now.setHours(23, 59, 59, 999));
-        // console.log('[useListeroStatistics] ⚠️ No hay fechas, usando HOY por defecto');
       }
-
-      // console.log(`[useListeroStatistics] 🔄 Cargando: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
-      // console.log(`[useListeroStatistics] forceRefresh: ${forceRefresh}`);
 
       // ========================================
       // ESTRATEGIA CACHE-FIRST SIMPLIFICADA
@@ -530,8 +516,6 @@ export const useListeroStatistics = (options = {}) => {
 
     const finalStartDate = startDate || dateRange.startDate;
     const finalEndDate = endDate || dateRange.endDate;
-    
-    // console.log('[useListeroStatistics] Calling loadPlaysData with final range:', finalStartDate, 'to', finalEndDate, 'forceRefresh:', forceRefresh);
 
     await loadPlaysData({
       startDate: finalStartDate,

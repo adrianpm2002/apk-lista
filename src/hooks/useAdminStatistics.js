@@ -2,9 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import * as SQLiteCache from '../utils/sqliteCache';
 
-// 🎯 FIX: Usar toISOString() consistente con SQLiteCache
-// No necesitamos helper local, usaremos date.toISOString() directamente
-
 /**
  * Función para agrupar datos por estructura jerárquica: Colectores -> Listeros -> Jugadas
  * El admin ve su banco con datos agrupados por colector, cada colector tiene listeros, 
@@ -165,11 +162,8 @@ export const useAdminStatistics = (options = {}) => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         
-        // console.log('🔍 [useAdminStatistics] Usuario obtenido:', user?.id ? 'SÍ' : 'NO');
-        
         if (user) {
           setUserId(user.id);
-          // console.log('🔍 [useAdminStatistics] userId seteado a:', user.id);
           
           // 🎯 FIX: Cargar solo HOY en la primera carga, no 30 días
           const today = new Date();
@@ -265,7 +259,6 @@ export const useAdminStatistics = (options = {}) => {
     // 🎯 FIX: Cancelar cargas anteriores incrementando el token
     loadTokenRef.current += 1;
     const currentToken = loadTokenRef.current;
-    // console.log('[useAdminStatistics] 🎫 Nueva carga - Token:', currentToken);
     
     loadingRef.current = true;
     setIsLoading(true);
@@ -283,11 +276,7 @@ export const useAdminStatistics = (options = {}) => {
         const now = new Date();
         startDate = new Date(now.setHours(0, 0, 0, 0));
         endDate = new Date(now.setHours(23, 59, 59, 999));
-        // console.log('[useAdminStatistics] ⚠️ No hay fechas, usando HOY por defecto');
       }
-
-      // console.log(`[useAdminStatistics] 🔄 Cargando: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
-      // console.log(`[useAdminStatistics] forceRefresh: ${forceRefresh}`);
 
       // ========================================
       // ESTRATEGIA CACHE-FIRST SIMPLIFICADA
@@ -295,14 +284,11 @@ export const useAdminStatistics = (options = {}) => {
       
       if (forceRefresh) {
         // PULL-TO-REFRESH: Cargar desde Supabase y actualizar caché
-        // console.log('[useAdminStatistics] 🔄 Pull-to-refresh - Consultando Supabase');
         
         const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
-        // console.log(`[useAdminStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
         
         // Reemplazar caché con datos frescos para este rango
         await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'admin', freshPlays, startDate, endDate);
-        // console.log(`[useAdminStatistics] 💾 Caché actualizado`);
         
         // Verificar token antes de setear datos
         if (currentToken !== loadTokenRef.current) {
@@ -325,7 +311,6 @@ export const useAdminStatistics = (options = {}) => {
         
       } else {
         // CARGA NORMAL: Solo desde caché
-        // console.log('[useAdminStatistics] 📦 Carga normal - Solo caché');
         
         let cachedPlays = [];
         try {
@@ -334,7 +319,6 @@ export const useAdminStatistics = (options = {}) => {
             startDate,
             endDate
           });
-          // console.log(`[useAdminStatistics] 📦 Caché (filtrado): ${cachedPlays.length} registros`);
         } catch (cacheError) {
           console.error('[useAdminStatistics] ⚠️ Error leyendo caché:', cacheError);
           cachedPlays = [];
@@ -342,15 +326,12 @@ export const useAdminStatistics = (options = {}) => {
         
         // 🎯 FIX: Si caché está vacío, forzar carga desde Supabase
         if (cachedPlays.length === 0) {
-          // console.log('[useAdminStatistics] ⚠️ Caché vacío, forzando carga desde Supabase...');
           
           const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
-          // console.log(`[useAdminStatistics] ✅ Supabase devolvió: ${freshPlays.length} registros`);
           
           try {
             await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'admin', freshPlays, startDate, endDate);
           } catch (cacheError) {
-            // console.log('[useAdminStatistics] ⚠️ No se pudo guardar en caché (probablemente en web)');
           }
           
           if (currentToken !== loadTokenRef.current) {
@@ -381,7 +362,6 @@ export const useAdminStatistics = (options = {}) => {
         }
         
         // 🎯 FIX: Ya no necesitamos filtrar manualmente - SQL lo hizo por nosotros
-        // console.log(`[useAdminStatistics] ✅ Caché ya filtrado por SQL: ${cachedPlays.length} registros`);
         
         // Encontrar fecha más antigua en caché (para debugging)
         const oldestCached = cachedPlays.length > 0
@@ -507,8 +487,6 @@ export const useAdminStatistics = (options = {}) => {
 
     const finalStartDate = startDate || dateRange.startDate;
     const finalEndDate = endDate || dateRange.endDate;
-    
-    // console.log('[useAdminStatistics] Calling loadPlaysData with final range:', finalStartDate, 'to', finalEndDate, 'forceRefresh:', forceRefresh);
 
     await loadPlaysData({
       startDate: finalStartDate,
