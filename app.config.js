@@ -4,13 +4,13 @@ export default {
     slug: "apk-lista-clean-adrian-new",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/icon.png",
+  icon: "./assets/logo.png",
     userInterfaceStyle: "light",
     scheme: "apk-lista-clean",
     splash: {
-      image: "./assets/splash.png",
+      image: "./assets/logo.png",
       resizeMode: "contain",
-      backgroundColor: "#ffffff"
+      backgroundColor: "#F8F9FA"
     },
     assetBundlePatterns: [
       "**/*"
@@ -32,10 +32,10 @@ export default {
       }
     },
     android: {
-      icon: "./assets/icon.png",
+      icon: "./assets/logo.png",
       adaptiveIcon: {
-        foregroundImage: "./assets/icon.png",
-        backgroundColor: "#ffffff"
+        foregroundImage: "./assets/logo.png",
+        backgroundColor: "#F8F9FA"
       },
       package: "com.adrianpm.apklistaclean",
       permissions: [

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { authService } from '../services/authService';
 import { supabase } from '../supabaseClient';
 
@@ -98,7 +98,8 @@ const SplashScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <ActivityIndicator size="large" color="#27AE60" />
+        <Image source={require('../../assets/logo.png')} style={styles.logo} />
+        <ActivityIndicator size="large" color="#27AE60" style={styles.spinner} />
         <Text style={styles.statusText}>{status}</Text>
         <Text style={styles.appName}>Lista App</Text>
       </View>
@@ -117,6 +118,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 30,
+  },
+  logo: {
+    width: 200,
+    height: 200,
+    resizeMode: 'contain',
+    marginBottom: 20,
+  },
+  spinner: {
+    marginTop: 10,
   },
   statusText: {
     marginTop: 20,

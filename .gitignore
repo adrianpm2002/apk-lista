@@ -48,3 +48,22 @@ ios/certificates/
 
 # typescript
 *.tsbuildinfo
+
+# Plataformas, caches y carpetas de build (evitar reinstalaciones innecesarias)
+# Android
+android/.gradle/
+android/**/build/
+android/local.properties
+
+# iOS
+ios/Pods/
+ios/build/
+
+# Gradle y entorno de IDE
+.gradle/
+.idea/
+
+# Expo / Metro caches
+.expo-shared/
+.metro-cache/
+
