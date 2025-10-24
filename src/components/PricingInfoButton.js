@@ -34,58 +34,70 @@ const PricingInfoButton = () => {
       const effectiveBankId = profile ? (profile.role === 'admin' ? user.id : profile.id_banco) : null;
       setBankId(effectiveBankId);
       
-      // Cargar precios específicos por lotería desde JSONB id_precio
+      // Cargar precios específicos por lotería desde JSONB id_precio (fetch en batch)
       const lotteryPricesData = {};
       if (profile?.id_precio && typeof profile.id_precio === 'object') {
         const gainsData = profile.id_precio;
-        
         // Obtener todas las entradas de ganancias por lotería
         const lotteryEntries = Object.entries(gainsData).filter(([key]) => key.endsWith('_id'));
-        
-        for (const [key, gainId] of lotteryEntries) {
+
+        // Construir lista de gainIds y un map para asociarlos a la lotería
+        const gainIds = [];
+        const gainMap = {}; // gainId -> { lotteryId, lotteryName }
+        lotteryEntries.forEach(([key, gainId]) => {
           const lotteryId = key.replace('_id', '');
           const lotteryName = gainsData[`${lotteryId}_nombre`] || `Lotería ${lotteryId}`;
-          
+          if (gainId) {
+            gainIds.push(gainId);
+            gainMap[gainId] = { lotteryId, lotteryName };
+          }
+        });
+
+        if (gainIds.length) {
           try {
-            // Obtener configuración de precios para esta ganancia
-            const { data: priceRow, error: priceErr } = await supabase
+            console.time('pricesFetch');
+            const { data: priceRows, error: priceErr } = await supabase
               .from('precio')
-              .select('nombre, precios')
-              .eq('id', gainId)
-              .maybeSingle();
-            
+              .select('id, nombre, precios')
+              .in('id', gainIds);
+            console.timeEnd('pricesFetch');
             if (priceErr) throw priceErr;
-            
-            if (priceRow) {
-              lotteryPricesData[lotteryId] = {
-                nombre: lotteryName,
-                precios: priceRow.precios || {},
-                gainName: priceRow.nombre || 'Sin nombre',
-                gainId: gainId
-              };
-            }
+            (priceRows || []).forEach(priceRow => {
+              const info = gainMap[priceRow.id];
+              if (info) {
+                lotteryPricesData[info.lotteryId] = {
+                  nombre: info.lotteryName,
+                  precios: priceRow.precios || {},
+                  gainName: priceRow.nombre || 'Sin nombre',
+                  gainId: priceRow.id
+                };
+              }
+            });
           } catch (err) {
-            console.error(`Error cargando precios para lotería ${lotteryId}:`, err);
+            console.error('Error cargando precios en batch:', err);
           }
         }
       }
-      
+
       setLotteryPrices(lotteryPricesData);
   // Cargar límites por número y números limitados si hay bankId
       if (effectiveBankId) {
-        const { data: rows, error: nlErr } = await supabase
-          .from('limite_numero')
-          .select('numero, limite, jugada, id_horario')
-          .eq('id_banco', effectiveBankId);
-        if (nlErr) throw nlErr;
-        const limiteNumeroRows = rows || [];
+        // Cargar límites por número y números limitados en paralelo
+        try {
+          console.time('numLimitsFetch');
+          const [resLimits, resLimited] = await Promise.all([
+            supabase.from('limite_numero').select('numero, limite, jugada, id_horario').eq('id_banco', effectiveBankId),
+            supabase.from('numero_limitado').select('numero, jugada, id_horario').eq('id_banco', effectiveBankId)
+          ]);
+          console.timeEnd('numLimitsFetch');
 
-        const { data: limNums, error: lnErr } = await supabase
-          .from('numero_limitado')
-          .select('numero, jugada, id_horario')
-          .eq('id_banco', effectiveBankId);
-        if (lnErr) throw lnErr;
-        const limitedRows = limNums || [];
+          const nlErr = resLimits.error;
+          const lnErr = resLimited.error;
+          if (nlErr) throw nlErr;
+          if (lnErr) throw lnErr;
+
+          const limiteNumeroRows = resLimits.data || [];
+          const limitedRows = resLimited.data || [];
 
         // Unificar ids de horario presentes en ambos conjuntos
         const horarioIds = [...new Set([...limiteNumeroRows, ...limitedRows].map(r => r.id_horario).filter(Boolean))];
@@ -131,6 +143,13 @@ const PricingInfoButton = () => {
 
         setNumberLimits(limiteNumeroRows.slice().sort(comparator));
         setLimitedNumbers(limitedRows.slice().sort(comparator));
+        } catch (err) {
+          console.warn('Error cargando límites por número:', err?.message || err);
+          setNumberLimits([]);
+          setScheduleMap({});
+          setLotteryMap({});
+          setLimitedNumbers([]);
+        }
       } else {
         setNumberLimits([]);
         setScheduleMap({});
@@ -237,15 +256,30 @@ const PricingInfoButton = () => {
     if (loading) return <ActivityIndicator size="large" color="#2D5016" style={{ marginVertical: 20 }} />;
     if (error) return <Text style={styles.errorText}>{error}</Text>;
     
-    if (!Object.keys(lotteryPrices).length) {
-      return <Text style={styles.infoText}>{t('pricing.noConfig')}</Text>;
-    }
+    const lotteryPricesEmpty = !Object.keys(lotteryPrices).length;
+
     
     // Orden canónico para los tipos de jugada
     const ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
     
     return (
       <View>
+        {/* Mensaje cuando no hay configuración de precios */}
+        {lotteryPricesEmpty && (
+          <View style={[styles.lotteriesBlock, { borderStyle: 'dashed' }] }>
+            <Text style={styles.configName}>Información de Precios no configurada</Text>
+            <Text style={styles.infoText}>No se encontró una configuración de precios asignada a tu cuenta. Esto significa que los valores de pago por jugada no están disponibles.</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+              <Pressable onPress={() => loadData()} style={({ pressed }) => [{ padding: 8, backgroundColor: '#2D5016', borderRadius: 8, marginTop: 8 }, pressed && { opacity: 0.8 }]}>
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Recargar</Text>
+              </Pressable>
+              <Pressable onPress={() => { setVisible(false); /* Dejar que el usuario abra configuración manualmente */ }} style={({ pressed }) => [{ padding: 8, backgroundColor: '#E6F3FF', borderRadius: 8, marginTop: 8 }, pressed && { opacity: 0.8 }]}>
+                <Text style={{ color: '#2B5F8A', fontWeight: '600' }}>Cerrar</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
         {/* Loterías y Horarios */}
         <View style={styles.lotteriesBlock}>
           <Text style={styles.lotteriesTitle}>Loterías y Horarios</Text>
