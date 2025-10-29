@@ -170,6 +170,53 @@ export const usePlaySubmission = () => {
         nota: (formData.note && formData.note.trim()) || 'Sin nombre',
         id_listero: user?.id || null
       };
+
+      // Si el usuario actual es un CLIENT, usamos RPC atómica que verifica saldo y descuenta
+      try {
+        const { data: client, error: clientErr } = await supabase.from('clients').select('id,balance,lister_id').eq('user_id', user?.id).maybeSingle();
+        if (client && client.id) {
+          // Llamada RPC que inserta la jugada y descuenta el saldo de forma atómica
+          const rpcParams = {
+            p_id_horario: ids.scheduleId,
+            p_jugada: formData.playType,
+            p_numeros: formData.numbers,
+            p_monto_unitario: formData.amount || 0,
+            p_monto_total: calculatedTotal,
+            p_nota: (formData.note && formData.note.trim()) || 'Sin nombre',
+            p_comando: formData.comando && formData.comando.trim() ? formData.comando.trim() : null
+          };
+
+          const { data: rpcData, error: rpcError } = await supabase.rpc('insert_play_with_charge', rpcParams);
+          if (rpcError) {
+            console.error('RPC error inserting play for client:', rpcError);
+            // Detectar saldo insuficiente por mensaje del servidor
+            if (rpcError.message && rpcError.message.toLowerCase().includes('saldo')) {
+              return { success: false, error: 'Saldo insuficiente', message: 'No tienes suficiente saldo para esta jugada' };
+            }
+            // Si falla RPC, intentar fallback a guardar en pendientes
+            console.log('Error RPC - agregando a cola de pendientes');
+            const success = await backgroundTaskService.addPendingPlay(
+              formData,
+              numbersArray,
+              calculatedTotal,
+              ids
+            );
+            if (success) {
+              return {
+                success: true,
+                message: 'Error temporal. La jugada se enviará automáticamente.',
+                isPending: true
+              };
+            }
+            return { success: false, error: rpcError.message || 'Error al procesar jugada' };
+          }
+
+          return { success: true, play: rpcData, message: 'Jugada insertada exitosamente' };
+        }
+      } catch (e) {
+        console.error('Error comprobando client record:', e);
+        // seguir con el flujo normal si hay error comprobando client
+      }
       
       // Agregar comando si viene en formData (para modo texto y texto 2.0)
       if (formData.comando && formData.comando.trim()) {

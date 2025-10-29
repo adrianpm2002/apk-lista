@@ -24,6 +24,7 @@ export const useAuthContext = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -32,13 +33,23 @@ export const AuthProvider = ({ children }) => {
     sessionMonitor.startMonitoring();
 
     // Agregar listener para cambios de estado de autenticación
-    const handleAuthStateChange = (event, session) => {
+    const handleAuthStateChange = async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
         setSession(session);
         setUser(session.user);
+        // Obtener el rol del usuario
+        try {
+          const profile = await authService.getUserProfile(session.user.id);
+          console.log('🔑 AuthContext: Rol obtenido en SIGNED_IN:', profile?.role);
+          setUserRole(profile?.role || null);
+        } catch (error) {
+          console.error('Error obteniendo rol de usuario:', error);
+          setUserRole(null);
+        }
       } else if (event === 'SIGNED_OUT') {
         setSession(null);
         setUser(null);
+        setUserRole(null);
       } else if (event === 'TOKEN_REFRESHED' && session) {
         setSession(session);
         setUser(session.user);
@@ -60,12 +71,30 @@ export const AuthProvider = ({ children }) => {
         if (restoredSession && restoredSession.session) {
           setSession(restoredSession.session);
           setUser(restoredSession.session.user);
+          // Obtener el rol del usuario
+          try {
+            const profile = await authService.getUserProfile(restoredSession.session.user.id);
+            console.log('🔑 AuthContext: Rol obtenido en sesión restaurada:', profile?.role);
+            setUserRole(profile?.role || null);
+          } catch (error) {
+            console.error('Error obteniendo rol de usuario:', error);
+            setUserRole(null);
+          }
         } else {
           // Verificar si hay sesión activa
           const currentSession = await authService.getCurrentSession();
           if (currentSession) {
             setSession(currentSession);
             setUser(currentSession.user);
+            // Obtener el rol del usuario
+            try {
+              const profile = await authService.getUserProfile(currentSession.user.id);
+              console.log('🔑 AuthContext: Rol obtenido en sesión actual:', profile?.role);
+              setUserRole(profile?.role || null);
+            } catch (error) {
+              console.error('Error obteniendo rol de usuario:', error);
+              setUserRole(null);
+            }
           }
         }
       } catch (error) {
@@ -94,10 +123,12 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     session,
+    userRole,
     loading,
     isInitialized,
     authService,
     sessionMonitor,
+    setUserRole, // Exponer para actualización manual desde LoginScreen
   };
 
   return (

@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { authService } from '../services/authService';
 import { supabase } from '../supabaseClient';
+import { useAuthContext } from '../contexts/AuthContext';
 
 /**
  * Componente de Splash Screen que maneja la restauración de sesión
  * Actualizado con mejor manejo de errores y logs mejorados
  */
 const SplashScreen = ({ navigation }) => {
+  const { setUserRole } = useAuthContext();
   const [isLoading, setIsLoading] = useState(true);
   const [status, setStatus] = useState('Verificando sesión...');
 
@@ -28,10 +30,15 @@ const SplashScreen = ({ navigation }) => {
           if (userProfile && userProfile.activo !== false) {
             setStatus('Verificando permisos...');
             
+            // Actualizar el rol en el contexto
+            setUserRole(userProfile.role);
+            console.log('🔑 SplashScreen: Rol establecido en contexto (sesión activa):', userProfile.role);
+            
             setTimeout(() => {
               if (userProfile.role === 'admin' || userProfile.role === 'collector') {
                 navigation.replace('Statistics');
-              } else if (userProfile.role === 'listero') {
+              } else if (userProfile.role === 'listero' || userProfile.role === 'client') {
+                // Los clientes y listeros usan la app principal
                 navigation.replace('MainApp');
               } else {
                 console.error('Rol de usuario no reconocido:', userProfile.role);
@@ -63,11 +70,15 @@ const SplashScreen = ({ navigation }) => {
             return;
           }
           
+          // Actualizar el rol en el contexto
+          setUserRole(profile.role);
+          console.log('🔑 SplashScreen: Rol establecido en contexto (sesión restaurada):', profile.role);
+          
           // Navegar según el rol del usuario
           setTimeout(() => {
             if (profile.role === 'admin' || profile.role === 'collector') {
               navigation.replace('Statistics');
-            } else if (profile.role === 'listero') {
+            } else if (profile.role === 'listero' || profile.role === 'client') {
               navigation.replace('MainApp');
             } else {
               console.error('Rol de usuario no reconocido:', profile.role);
@@ -98,7 +109,8 @@ const SplashScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <Image source={require('../../assets/logo.png')} style={styles.logo} />
+        {/* resizeMode como prop para evitar warning en react-native-web */}
+        <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
         <ActivityIndicator size="large" color="#27AE60" style={styles.spinner} />
         <Text style={styles.statusText}>{status}</Text>
         <Text style={styles.appName}>Lista App</Text>
@@ -122,7 +134,6 @@ const styles = StyleSheet.create({
   logo: {
     width: 200,
     height: 200,
-    resizeMode: 'contain',
     marginBottom: 20,
   },
   spinner: {

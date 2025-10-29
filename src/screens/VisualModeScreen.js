@@ -31,7 +31,7 @@ import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils
 import { generateVisualModeCopyText } from '../utils/copyUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
 
-const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onModeVisibilityChange, visibleModes }) => {
+const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onModeVisibilityChange, visibleModes, userRole }) => {
   
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // values de loterías (máx 3)
@@ -1200,7 +1200,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
   visibleModes={visibleModes}
-        role="listero"
+        role={userRole || "listero"}
       />
     </View>
   );

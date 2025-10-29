@@ -38,7 +38,7 @@ import { supabase } from '../supabaseClient';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
 
-const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
+const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes, userRole }) => {
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // valores id lotería (máx 3 como visual)
   const [selectedSchedules, setSelectedSchedules] = useState({}); // { lotteryId: scheduleId }
@@ -663,7 +663,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
                 navigation={navigation}
                 onModeVisibilityChange={onModeVisibilityChange}
                 visibleModes={visibleModes}
-                role="listero"
+                role={userRole || "listero"}
               />
           </View>
           <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
@@ -961,7 +961,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         onToggleDarkMode={onToggleDarkMode}
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
-        role="listero"
+        role={userRole || "listero"}
       />
   {/* CapacityModal ahora gestionado por BatteryButton (🔋) */}
     </View>

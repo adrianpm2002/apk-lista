@@ -198,15 +198,15 @@ const PlaysInputField = ({
         </ScrollView>
         <TextInput
           ref={hiddenInputRef}
-            style={styles.hiddenInput}
-            value={rawDigits}
-            onChangeText={handleHiddenChange}
-            keyboardType='number-pad'
-            multiline
-            autoCorrect={false}
-            placeholder=''
-            editable={true}
-            pointerEvents="auto"
+          value={rawDigits}
+          onChangeText={handleHiddenChange}
+          keyboardType='number-pad'
+          multiline
+          autoCorrect={false}
+          placeholder=''
+          editable={true}
+          // react-native-web depreca pointerEvents como prop; usar style en su lugar
+          style={[styles.hiddenInput, { pointerEvents: 'auto' }]}
         />
         {showPasteButton && (
           <View style={styles.sideButtons}>

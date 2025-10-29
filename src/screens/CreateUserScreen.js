@@ -44,13 +44,18 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   
   const [users, setUsers] = useState([]);
   const [hierarchicalUsers, setHierarchicalUsers] = useState([]);
+  const [loadingClients, setLoadingClients] = useState(false);
   const [expandedCollectors, setExpandedCollectors] = useState(new Set());
   const [modalVisible, setModalVisible] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [rechargeModalVisible, setRechargeModalVisible] = useState(false);
+  const [rechargeTargetUser, setRechargeTargetUser] = useState(null);
+  const [rechargeAmount, setRechargeAmount] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [clientBalance, setClientBalance] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState('');
   const [selectedCollector, setSelectedCollector] = useState('');
@@ -90,11 +95,12 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         
         const { data: profile } = await supabase.from('profiles').select('role, id_banco').eq('id', user.id).single();
         if (profile) {
-          if (profile.role !== 'admin' && profile.role !== 'collector') {
-            Alert.alert('No Autorizado', 'Solo administradores o colectores autorizados');
+          // Permitir admin, collector y listero para gestionar/crear usuarios/crear clientes
+          if (profile.role !== 'admin' && profile.role !== 'collector' && profile.role !== 'listero') {
+            Alert.alert('No Autorizado', 'Solo administradores, colectores o listeros autorizados');
             return;
           }
-          
+
           setUserRole(profile.role);
           const bankId = profile.role === 'admin' ? user.id : profile.id_banco;
           setCurrentBankId(bankId);
@@ -143,37 +149,89 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         level: collectors.some(c => c.id === listero.id_collector) ? 1 : 0
       });
     });
-    
+
     setHierarchicalUsers(hierarchical);
   }, [expandedCollectors]);
 
   const fetchUsers = useCallback(async () => {
-    if (!currentBankId) return;
-    if (userRole === 'collector' && !currentUserId) {
-      return;
+    try {
+      setLoadingClients(true);
+      // Si el usuario es Listero, mostrar solo la lista de clientes asociados a ese listero
+      if (userRole === 'listero') {
+  // (diagnóstico removido) listero branch — currentUserId
+
+        const { data: clients, error: clientsErr } = await supabase
+          .from('clients')
+          .select('id, user_id, nombre, lister_id, balance, status')
+          .eq('lister_id', currentUserId)
+          .order('user_id');
+
+        // Si no hay resultados, intentar una búsqueda alternativa por user_id
+        let fallbackClients = null;
+        if ((!clients || clients.length === 0) && !clientsErr) {
+          // fallback by user_id = currentUserId
+          const { data: fdata, error: ferr } = await supabase
+            .from('clients')
+              .select('id, user_id, nombre, lister_id, balance, status')
+              .eq('user_id', currentUserId)
+              .order('user_id');
+          fallbackClients = fdata;
+          if (ferr) console.error('[fetchUsers] fallback query error:', ferr);
+        }
+
+        if (clientsErr) {
+          console.error('Error fetching clients for listero:', clientsErr);
+          return;
+        }
+
+        const effectiveClients = (clients && clients.length > 0) ? clients : (fallbackClients || []);
+
+  // resultados calculados: clients length and fallback length
+
+        // Mapear filas de clients a la forma esperada por la UI
+        const mapped = (effectiveClients || []).map(c => ({
+          id: c.id,
+          username: c.nombre || c.user_id || c.id,
+          role: 'client',
+          balance: c.balance,
+          activo: (c.status === undefined || c.status === null) ? true : (String(c.status).toLowerCase() === 'active' || String(c.status).toLowerCase() === 'activo' || String(c.status).toLowerCase() === 'true'),
+          client: c
+        }));
+
+        setUsers(mapped);
+        setHierarchicalUsers(mapped.map(u => ({ ...u, type: 'client', level: 0 })));
+        return;
+      }
+
+      // Por defecto (admin/collector), cargar perfiles desde la tabla profiles
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, role, id_banco, id_collector, activo, id_precio, limite_especifico')
+        .eq('id_banco', currentBankId)
+        .order('role', { ascending: false })
+        .order('username');
+
+      if (error) {
+        console.error('Error fetching users:', error);
+        return;
+      }
+
+      if (userRole === 'collector') {
+        const onlyListeros = (data || []).filter(u => (u.role === 'listero') && u.id_collector === currentUserId);
+        setUsers(onlyListeros);
+        setHierarchicalUsers(onlyListeros.map(u => ({ ...u, type: 'listero', level: 0 })));
+        return;
+      }
+      // Filtrar administradores - solo mostrar colectores y listeros
+      const filteredData = (data || []).filter(u => u.role !== 'admin');
+      setUsers(filteredData);
+      createHierarchicalStructure(filteredData);
+    } catch (e) {
+      console.error('Excepción fetchUsers:', e);
+    } finally {
+      setLoadingClients(false);
     }
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, username, role, id_banco, id_collector, activo, id_precio, limite_especifico')
-      .eq('id_banco', currentBankId)
-      .order('role', { ascending: false })
-      .order('username');
-    if (error) {
-      console.error('Error fetching users:', error);
-      return;
-    }
-    
-    if (userRole === 'collector') {
-      const onlyListeros = (data || []).filter(u => (u.role === 'listero') && u.id_collector === currentUserId);
-      setUsers(onlyListeros);
-      setHierarchicalUsers(onlyListeros.map(u => ({ ...u, type: 'listero', level: 0 })));
-      return;
-    }
-    // Filtrar administradores - solo mostrar colectores y listeros
-    const filteredData = (data || []).filter(u => u.role !== 'admin');
-    setUsers(filteredData);
-    createHierarchicalStructure(filteredData);
-  }, [currentBankId, userRole, currentUserId, createHierarchicalStructure]);
+   }, [currentBankId, userRole, currentUserId, createHierarchicalStructure]);
 
   useEffect(() => {
     const timeoutId = setTimeout(fetchUserProfile, 10);
@@ -414,9 +472,19 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     if (userRole === 'collector') {
       // Para collector, la lista es plana de sus listeros; reflejar cambios (ej. activo) inmediatamente
       setHierarchicalUsers(users.map(u => ({ ...u, type: 'listero', level: 0 })));
-    } else {
-      createHierarchicalStructure(users);
+      return;
     }
+
+    // Si estamos mostrando clientes (por ejemplo listero viendo sus clients),
+    // no reconstruimos la jerarquía basada en collectors/listeros porque eso
+    // vaciaría la lista — simplemente mantener la representación actual como 'client'.
+    if (userRole === 'listero' || (users[0] && users[0].role === 'client')) {
+      setHierarchicalUsers(users.map(u => ({ ...u, type: 'client', level: 0 })));
+      return;
+    }
+
+    // Caso por defecto: construir jerarquía collectors -> listeros
+    createHierarchicalStructure(users);
   }, [users, createHierarchicalStructure, userRole]);
 
   // ========== ANDROID BACK HANDLER ==========
@@ -543,6 +611,22 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
           return Alert.alert('Error', 'Ya existe un usuario con ese nombre. Por favor elige otro nombre.');
         }
 
+        // Además comprobar en la tabla clients por nombre (campo 'nombre') para evitar duplicados
+        try {
+          const { data: existingClientsByName, error: clientsCheckErr } = await supabase
+            .from('clients')
+            .select('id')
+            .eq('nombre', username)
+            .limit(1);
+          if (clientsCheckErr) {
+            console.error('clients check error:', clientsCheckErr);
+          } else if (existingClientsByName && existingClientsByName.length > 0) {
+            return Alert.alert('Error', 'Ya existe un cliente con ese nombre. Por favor elige otro nombre.');
+          }
+        } catch (e) {
+          console.error('Excepción comprobando clients por nombre:', e);
+        }
+
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: fakeEmail,
           password,
@@ -550,10 +634,11 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
 
         if (signUpError) {
           console.error('SignUp Error:', signUpError);
-          if (signUpError.message.includes('User already registered')) {
-            return Alert.alert('Error', 'Ya existe un usuario con ese nombre. Por favor elige otro nombre.');
+          if (signUpError.message && signUpError.message.includes('User already registered')) {
+            return Alert.alert('Error', 'Ya existe un usuario con ese nombre o email. Puedes usar "Olvidé mi contraseña" para recuperar el acceso, o elige otro nombre.');
           }
-          return Alert.alert('Error al registrar', signUpError.message);
+          // Mostrar mensaje detallado del servidor (puede contener causa como password inválida)
+          return Alert.alert('Error al registrar', signUpError.message || String(signUpError));
         }
 
         const newUserId = signUpData.user?.id;
@@ -567,48 +652,73 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
             id_collector = userRole === 'collector' ? currentUserId : selectedCollector;
           }
 
-          const insertData = {
-             id: newUserId,
-             username,
-             role: effectiveRole,
-             id_banco,
-             id_collector,
-             id_precio: ((userRole === 'collector' || userRole === 'admin') && effectiveRole === 'listero') ? buildGainsData() : null,
-           }; // sin ganancia
+          // Si el rol es CLIENT, no insertamos en profiles: los clientes viven en public.clients
+          if (effectiveRole === 'client') {
+            try {
+              const balanceNum = parseFloat(clientBalance) || 0;
+              // Importante: usar el mismo id que el usuario de Auth para que coincidan
+              // Establecemos tanto `id` como `user_id` al id generado por Supabase Auth
+              const clientInsert = await supabase.from('clients').insert({
+                id: newUserId,
+                user_id: newUserId,
+                // Guardar también el nombre para poder mostrarlo en la UI sin hacer joins
+                nombre: username,
+                lister_id: userRole === 'listero' ? currentUserId : null,
+                balance: balanceNum,
+                status: 'active'
+              });
+              if (clientInsert.error) {
+                console.error('Error creando cliente en clients:', clientInsert.error);
+                return Alert.alert('Error', `No se pudo crear el cliente: ${clientInsert.error.message}`);
+              }
+            } catch (ce) {
+              console.error('Exception creating client row:', ce);
+              return Alert.alert('Error', 'No se pudo crear el cliente. Intenta nuevamente.');
+            }
+          } else {
+            const insertData = {
+              id: newUserId,
+              username,
+              role: effectiveRole,
+              id_banco,
+              id_collector,
+              id_precio: ((userRole === 'collector' || userRole === 'admin') && effectiveRole === 'listero') ? buildGainsData() : null,
+            }; // sin ganancia
 
-
-          if (effectiveRole === 'listero' && enableSpecificLimits && userRole !== 'collector') {
-            const limitsObj = {};
-            
-            // Procesar límites por lotería
-            Object.entries(limitsValues).forEach(([lotteryId, lotteryLimits]) => {
-              const lotteryLimitsObj = {};
-              
-              Object.entries(lotteryLimits || {}).forEach(([playType, value]) => {
-                if (value && !isNaN(value)) {
-                  const num = parseInt(value, 10);
-                  if (num > 0) lotteryLimitsObj[playType] = num;
+            if (effectiveRole === 'listero' && enableSpecificLimits && userRole !== 'collector') {
+              const limitsObj = {};
+              // Procesar límites por lotería
+              Object.entries(limitsValues).forEach(([lotteryId, lotteryLimits]) => {
+                const lotteryLimitsObj = {};
+                Object.entries(lotteryLimits || {}).forEach(([playType, value]) => {
+                  if (value && !isNaN(value)) {
+                    const num = parseInt(value, 10);
+                    if (num > 0) lotteryLimitsObj[playType] = num;
+                  }
+                });
+                if (Object.keys(lotteryLimitsObj).length > 0) {
+                  limitsObj[lotteryId] = lotteryLimitsObj;
                 }
               });
-              
-              if (Object.keys(lotteryLimitsObj).length > 0) {
-                limitsObj[lotteryId] = lotteryLimitsObj;
+              if (Object.keys(limitsObj).length > 0) {
+                insertData.limite_especifico = limitsObj; // JSONB por lotería
               }
-            });
-            
-            if (Object.keys(limitsObj).length > 0) {
-              insertData.limite_especifico = limitsObj; // JSONB por lotería
             }
-          }
 
-          const { error: insertError } = await supabase
-            .from('profiles')
-            .insert(insertData, { returning: 'minimal' });
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert(insertData, { returning: 'minimal' });
 
-          if (insertError) {
-            console.error('Insert Error:', insertError);
-            await supabase.auth.admin.deleteUser(newUserId);
-            return Alert.alert('Error al guardar perfil', insertError.message);
+            if (insertError) {
+              console.error('Insert Error:', insertError);
+              // Intentar limpiar el perfil creado en la tabla profiles si existe
+              try {
+                await supabase.from('profiles').delete().eq('id', newUserId);
+              } catch (cleanupErr) {
+                console.error('Error cleaning up profile after failed insert:', cleanupErr);
+              }
+              return Alert.alert('Error al guardar perfil', insertError.message);
+            }
           }
 
           Alert.alert('Éxito', 'Usuario creado');
@@ -629,14 +739,16 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
 
   const handleDelete = useCallback((id) => {
     const executeDeletion = async () => {
-      // Eliminación optimista local
-      setUsers(prev => {
-        const toDelete = prev.find(u => u.id === id);
-        const filtered = prev.filter(u => u.id !== id);
-        // Si era colector y el backend también elimina/ajusta listeros, dejamos que fetch sincronice.
-        // Si no, esos listeros quedarán como huérfanos tras fetch si siguen existiendo.
-        return filtered;
-      });
+        // Buscar el usuario objetivo en el estado actual antes de la eliminación optimista
+        const targetUser = users.find(u => u.id === id);
+
+        // Eliminación optimista local
+        setUsers(prev => {
+          const filtered = prev.filter(u => u.id !== id);
+          // Si era colector y el backend también elimina/ajusta listeros, dejamos que fetch sincronice.
+          // Si no, esos listeros quedarán como huérfanos tras fetch si siguen existiendo.
+          return filtered;
+        });
       // Si estaba expandido quitarlo
       setExpandedCollectors(prev => {
         if (prev.has(id)) {
@@ -654,10 +766,34 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       }, 0);
 
       try {
-        const { data, error } = await supabase.rpc('delete_user_complete', { user_id: id });
-        if (error) throw error;
-        if (data && data.success === false) {
-          throw new Error(data.message || data.error || 'Fallo al eliminar');
+        // Eliminación sin endpoint server-side: eliminamos la fila en `clients`
+        // y creamos/actualizamos un registro en `profiles` con activo=false para
+        // impedir que la app acepte al usuario al iniciar sesión. Esto es un
+        // "soft-delete" que evita usar la service_role (no elimina el user de Auth).
+        try {
+          const { error: delErr } = await supabase.from('clients').delete().eq('id', id);
+          if (delErr) throw delErr;
+
+          // Preparar username único temporal para evitar colisiones
+          const deletedUsername = `deleted_${id.slice ? id.slice(0,8) : id}`;
+
+          // Upsert en profiles para marcar como inactivo. Si ya existe profile, lo actualizamos.
+          const upsertPayload = {
+            id,
+            username: deletedUsername,
+            role: 'client',
+            activo: false
+          };
+
+          const { error: upErr } = await supabase.from('profiles').upsert(upsertPayload, { returning: 'minimal' });
+          if (upErr) {
+            // No bloquear si falla el upsert, emitimos advertencia
+            console.warn('Warning: no se pudo upsertar profile para bloqueo de login:', upErr);
+          }
+
+          Alert.alert('Éxito', 'Cliente eliminado localmente. Nota: el usuario de Auth aún existe; está marcado como inactivo en profiles para bloquear acceso en la app. Para eliminarlo completamente de Auth usa el Dashboard o un endpoint seguro.');
+        } catch (innerErr) {
+          throw innerErr;
         }
       } catch (e) {
         console.error('Delete Error:', e);
@@ -853,6 +989,50 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       setEnableSpecificLimits(false);
     }
     setModalVisible(true);
+  };
+
+  const openRechargeModal = (user) => {
+    setRechargeTargetUser(user);
+    setRechargeAmount('');
+    setRechargeModalVisible(true);
+  };
+
+  const handleConfirmRecharge = async () => {
+    if (!rechargeTargetUser) return;
+    const amount = parseFloat(rechargeAmount);
+    if (isNaN(amount) || amount <= 0) {
+      return Alert.alert('Monto inválido', 'Ingresa un monto válido mayor que 0');
+    }
+
+    const userId = rechargeTargetUser.id;
+    // Determinar balance actual desde el objeto en estado
+    const current = typeof rechargeTargetUser.balance === 'number' ? rechargeTargetUser.balance : (Number(rechargeTargetUser.client?.balance) || 0);
+    const newBalance = current + amount;
+
+    try {
+      // Actualizar en la base de datos
+      const { error } = await supabase
+        .from('clients')
+        .update({ balance: newBalance })
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Error updating client balance:', error);
+        return Alert.alert('Error', `No se pudo actualizar el saldo: ${error.message || String(error)}`);
+      }
+
+      // Actualizar estado local (users y hierarchicalUsers)
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, balance: newBalance, client: { ...u.client, balance: newBalance } } : u));
+      setHierarchicalUsers(prev => prev.map(h => h.id === userId ? { ...h, balance: newBalance, client: { ...h.client, balance: newBalance } } : h));
+
+      setRechargeModalVisible(false);
+      setRechargeTargetUser(null);
+      setRechargeAmount('');
+      Alert.alert('Éxito', 'Saldo recargado correctamente');
+    } catch (e) {
+      console.error('Exception recharging client:', e);
+      Alert.alert('Error', 'Ocurrió un error al recargar. Intenta nuevamente.');
+    }
   };
 
   // Abrir modal de cambio de contraseña (solo admin)
@@ -1321,10 +1501,36 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         </View>
       );
     }
+
+    // Cliente card
+    const isClient = item.type === 'client' || item.role === 'client';
+    if (isClient) {
+      return (
+        <View style={[styles.userCard, styles.clientCard, { backgroundColor: '#fefefe' }]}> 
+          <View style={styles.userNameContainer}>
+            <Text style={[styles.listeroName, { color: '#2c3e50' }]} numberOfLines={2} ellipsizeMode="tail">
+              🧑 {item.username}
+            </Text>
+            <Text style={[styles.userRole, { color: '#6c757d' }]}>Cliente • {item.activo ? 'Habilitado' : 'Deshabilitado'}</Text>
+            <Text style={[styles.userDetails, { color: '#7f8c8d' }]}>Saldo: {typeof item.balance !== 'undefined' ? item.balance : '0.00'}</Text>
+          </View>
+
+          <View style={styles.buttonRow}>
+            <TouchableOpacity style={styles.editButton} onPress={() => openRechargeModal(item)}>
+              <Text style={styles.buttonText}>Recargar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item.id)}>
+              <Text style={styles.buttonText}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
     
     return null;
   };
 
+  // Nota: logs diagnósticos removidos para reducir ruido en consola
   return (
     <View style={styles.container}>
       <View style={styles.customHeader}>
@@ -1333,10 +1539,18 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       </View>
 
       <View style={styles.content}>
-  <CustomButton title={userRole === 'collector' ? 'Crear Listero' : 'Crear Usuario'} onPress={() => { clearForm(); if (userRole==='collector'){ setRole('listero'); setSelectedCollector(currentUserId);} setModalVisible(true); }} />
+  <CustomButton title={userRole === 'collector' ? 'Crear Listero' : (userRole === 'listero' ? 'Crear Cliente' : 'Crear Usuario')} onPress={() => { clearForm(); if (userRole==='collector'){ setRole('listero'); setSelectedCollector(currentUserId);} if (userRole === 'listero'){ setRole('client'); } setModalVisible(true); }} />
 
-        {userRole === 'collector' && hierarchicalUsers.length === 0 && (
+        {userRole === 'collector' && !loadingClients && hierarchicalUsers.length === 0 && (
           <Text style={styles.emptyListText}>No tienes listeros asignados todavía.</Text>
+        )}
+        {userRole === 'listero' && !loadingClients && hierarchicalUsers.length === 0 && (
+          <Text style={styles.emptyListText}>No hay clientes creados.</Text>
+        )}
+        {loadingClients && (
+          <View style={{ paddingVertical: 12 }}>
+            <Text style={styles.emptyListText}>Cargando clientes...</Text>
+          </View>
         )}
         
         {/* Solo mostrar Collectors y Listeros */}
@@ -1390,19 +1604,32 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                 </View>
               )}
 
+              {/* Campo de balance para creación de CLIENT */}
+              {(role === 'client' || userRole === 'listero') && (
+                <TextInput
+                  placeholder="Saldo inicial (ej. 100.00)"
+                  keyboardType="numeric"
+                  value={clientBalance}
+                  onChangeText={val => setClientBalance(val.replace(/[^0-9\.]/g, ''))}
+                  style={[styles.input, { marginTop: 10 }]}
+                  placeholderTextColor="#95a5a6"
+                />
+              )}
+
               {userRole !== 'collector' && (
                 <>
-                  <DropdownPicker
-                    label="Rol"
-                    value={role ? (role === 'collector' ? 'Colector' : 'Listero') : ''}
-                    onSelect={(item) => setRole(item.value)}
-                    options={[
-                      { label: 'Colector', value: 'collector' },
-                      { label: 'Listero', value: 'listero' }
-                    ]}
-                    placeholder="Selecciona un rol"
-                    style={{ marginBottom: 15 }}
-                  />
+                      <DropdownPicker
+                        label="Rol"
+                        value={role ? (role === 'collector' ? 'Colector' : (role === 'listero' ? 'Listero' : (role === 'client' ? 'Cliente' : ''))) : ''}
+                        onSelect={(item) => setRole(item.value)}
+                        options={[
+                          { label: 'Colector', value: 'collector' },
+                          { label: 'Listero', value: 'listero' },
+                          { label: 'Cliente', value: 'client' }
+                        ]}
+                        placeholder="Selecciona un rol"
+                        style={{ marginBottom: 15 }}
+                      />
                 </>
               )}
 
@@ -1549,6 +1776,30 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                 setShowResetPassword2(false);
               }} />
             </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Modal para recargar saldo de cliente */}
+        <Modal visible={rechargeModalVisible} animationType="fade" transparent={true}>
+          <View style={[styles.modalContent, { margin: 20, borderRadius: 8 }]}>
+            <Text style={styles.modalTitle}>Recargar saldo</Text>
+            <Text style={{ marginBottom: 8 }}>Cliente: {rechargeTargetUser?.username || rechargeTargetUser?.id}</Text>
+            <TextInput
+              placeholder="Monto a recargar (ej. 100.00)"
+              keyboardType="numeric"
+              value={rechargeAmount}
+              onChangeText={val => setRechargeAmount(val.replace(/[^0-9\.]/g, ''))}
+              style={styles.input}
+              placeholderTextColor="#95a5a6"
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+              <TouchableOpacity style={[styles.editButton, { flex: 1, marginRight: 8 }]} onPress={handleConfirmRecharge}>
+                <Text style={styles.buttonText}>Confirmar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.deleteButton, { flex: 1 }]} onPress={() => { setRechargeModalVisible(false); setRechargeTargetUser(null); setRechargeAmount(''); }}>
+                <Text style={styles.buttonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </Modal>
 

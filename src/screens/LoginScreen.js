@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { authService } from '../services/authService';
+import { useAuthContext } from '../contexts/AuthContext';
 
 const LoginScreen = ({ navigation }) => {
   return (
@@ -16,6 +17,7 @@ const LoginScreen = ({ navigation }) => {
 };
 
 const LoginContent = ({ navigation }) => {
+  const { setUserRole } = useAuthContext();
   const [isPreloading, setIsPreloading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
@@ -54,6 +56,10 @@ const LoginContent = ({ navigation }) => {
 
       const { profile } = result;
 
+      // Actualizar el rol en el contexto inmediatamente
+      setUserRole(profile.role);
+      console.log('🔑 LoginScreen: Rol establecido en contexto:', profile.role);
+
       // Configurar información del usuario en el storage local si es necesario
       // (Para este ejemplo, navegamos directamente sin precarga)
       
@@ -65,7 +71,7 @@ const LoginContent = ({ navigation }) => {
           setIsPreloading(false);
           navigation.navigate('Statistics');
         }, 100); // Reducido a 100ms
-      } else if (profile.role === 'listero') {
+      } else if (profile.role === 'listero' || profile.role === 'client') {
         navigation.navigate('MainApp');
       } else {
         setFieldError('general', 'Rol de usuario no reconocido.');

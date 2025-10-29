@@ -15,7 +15,7 @@ import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils
 import { validateScheduleById } from '../utils/scheduleValidator';
 import FeedbackBanner from '../components/FeedbackBanner';
 
-const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
+const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes, userRole }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
 
 
@@ -588,8 +588,8 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   return (
   <View style={[styles.container, { minHeight: '100vh' }]}> 
       {/* Barra de navegación superior */}
-      <View style={styles.headerFloating} pointerEvents="box-none">
-        <View style={styles.inlineHeaderRow} pointerEvents="box-none">
+      <View style={[styles.headerFloating, { pointerEvents: 'box-none' }]}> 
+        <View style={[styles.inlineHeaderRow, { pointerEvents: 'box-none' }]}> 
           <SideBarToggle inline onToggle={() => setSidebarVisible(s => !s)} />
           <View style={styles.modeSelectorWrapper}>
             <ModeSelector 
@@ -598,7 +598,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
               visibleModes={visibleModes} 
             />
           </View>
-          <View style={styles.rightButtonsGroup} pointerEvents="box-none">
+          <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}> 
             <PricingInfoButton />
             {/* <NotificationsButton /> */}
           </View>
@@ -1074,7 +1074,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
         visibleModes={visibleModes}
-        role="listero"
+        role={userRole || "listero"}
       />
     </View>
   );

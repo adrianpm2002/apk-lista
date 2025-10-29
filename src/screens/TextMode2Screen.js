@@ -36,7 +36,7 @@ import { supabase } from '../supabaseClient';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
 
-const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes}) => {
+const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes, userRole}) => {
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // valores id lotería (máx 3 como visual)
   const [selectedSchedules, setSelectedSchedules] = useState({}); // { lotteryId: scheduleId }
@@ -945,7 +945,7 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
   visibleModes={visibleModes}
-        role="listero"
+        role={userRole || "listero"}
       />
   {/* CapacityModal ahora gestionado por BatteryButton (🔋) */}
     </View>

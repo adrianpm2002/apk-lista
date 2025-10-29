@@ -182,14 +182,84 @@ class AuthService {
    */
   async getUserProfile(userId) {
     try {
+      // PRIMERO: Intentar en la tabla 'clients' (evita el 406 para usuarios tipo client)
+      try {
+        // Intentar por user_id (lo esperado)
+        let { data: clientRow, error: clientErr } = await supabase
+          .from('clients')
+          .select('id, user_id, nombre, lister_id, balance, status')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (clientErr) {
+          console.error('Error comprobando clients por user_id:', clientErr);
+        }
+
+        // Si no encontramos por user_id, intentar por id (por si se guardó el id directo)
+        if (!clientRow) {
+          const { data: clientById, error: clientByIdErr } = await supabase
+            .from('clients')
+            .select('id, user_id, nombre, lister_id, balance, status')
+            .eq('id', userId)
+            .maybeSingle();
+          if (clientByIdErr) {
+            console.error('Error comprobando clients por id:', clientByIdErr);
+          }
+          clientRow = clientById || null;
+        }
+
+        // Si encontramos un cliente, retornar su perfil
+        if (clientRow) {
+          // Obtener banco asociado al listero si es posible
+          let bankId = null;
+          try {
+            const { data: listerProfile, error: listerErr } = await supabase
+              .from('profiles')
+              .select('id_banco')
+              .eq('id', clientRow.lister_id)
+              .maybeSingle();
+            if (listerErr) {
+              console.error('Error obteniendo profile del lister:', listerErr);
+            }
+            bankId = listerProfile?.id_banco || null;
+          } catch (e) {
+            console.error('Excepción al obtener profile del lister:', e);
+          }
+
+          // Determinar estado activo - soportar varias convenciones de columna
+          const statusVal = clientRow.status ?? clientRow.activo ?? clientRow.estado;
+          const isActive = (typeof statusVal === 'boolean') ? statusVal : (String(statusVal).toLowerCase() === 'active' || String(statusVal).toLowerCase() === 'activo' || String(statusVal).toLowerCase() === 'true');
+
+          const clientProfile = {
+            role: 'client',
+            activo: isActive,
+            id_banco: bankId,
+            bankId: bankId,
+            username: clientRow.nombre || null,
+            client: clientRow
+          };
+          
+          console.log('✅ authService.getUserProfile: Encontrado en clients, retornando:', clientProfile);
+          return clientProfile;
+        }
+      } catch (e) {
+        console.error('Error buscando client row (excepción):', e);
+      }
+
+      // SEGUNDO: Si no se encontró en 'clients', buscar en 'profiles'
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role, activo, id_banco, username')
         .eq('id', userId)
         .maybeSingle();
 
-      if (profileError || !profile) {
-        console.error('Error al obtener perfil:', profileError);
+      if (profileError) {
+        console.error('Error consultando tabla profiles:', profileError, 'userId:', userId);
+        return null;
+      }
+
+      if (!profile) {
+        console.warn('No se encontró usuario en profiles ni en clients para userId:', userId);
         return null;
       }
 
@@ -201,10 +271,13 @@ class AuthService {
         bankId = profile.id_banco;
       }
 
-      return {
+      const profileResult = {
         ...profile,
         bankId
       };
+      
+      console.log('✅ authService.getUserProfile: Encontrado en profiles, retornando:', profileResult);
+      return profileResult;
     } catch (error) {
       console.error('Error inesperado al obtener perfil:', error);
       return null;

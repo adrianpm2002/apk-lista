@@ -23,6 +23,11 @@ const { width: screenWidth } = Dimensions.get('window');
 
 const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
 
+  // DEBUG: Log para verificar el rol recibido
+  useEffect(() => {
+    console.log('🔍 SideBar recibió role:', role);
+  }, [role]);
+
   const sidebarWidth = screenWidth * 0.75;
   // Inicializar slideAnim con validación
   const slideAnim = useRef(new Animated.Value(isNaN(sidebarWidth) ? -300 : -sidebarWidth)).current;
@@ -85,9 +90,13 @@ const roleOptionsMap = {
   ],
   listero: [
   { id: 'play', icon: '🎮', title: 'Inicio' },
+  { id: 'createUser', icon: '🧑‍💼', title: 'Usuarios' },
   { id: 'statistics', icon: '📈', title: 'Estadísticas' },
   { id: 'insertResults', icon: '🎯', title: 'Resultados' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
+  ],
+  client: [
+    { id: 'play', icon: '🎮', title: 'Jugar' },
   ]
 };
 

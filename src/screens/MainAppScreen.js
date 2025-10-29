@@ -8,12 +8,20 @@ import {
   BackHandler,
   Alert,
 } from 'react-native';
+import { useAuthContext } from '../contexts/AuthContext';
 import VisualModeScreen from './VisualModeScreen';
 import TextModeScreen from './TextModeScreen';
 import TextMode2Screen from './TextMode2Screen';
 import VaultModeScreen from './VaultModeScreen';
 
 const MainAppScreen = ({ navigation, route }) => {
+  const { userRole } = useAuthContext();
+  
+  // DEBUG: Log para verificar el rol en MainAppScreen
+  useEffect(() => {
+    console.log('📱 MainAppScreen: userRole desde contexto:', userRole);
+  }, [userRole]);
+  
   const [currentMode, setCurrentMode] = useState('Visual');
   const [visibleModes, setVisibleModes] = useState({
     visual: true,
@@ -135,6 +143,7 @@ const MainAppScreen = ({ navigation, route }) => {
           onModeChange={handleModeChange}
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
+          userRole={userRole}
         />
       ) : currentMode === 'Texto' && visibleModes.text ? (
         <TextModeScreen 
@@ -144,6 +153,7 @@ const MainAppScreen = ({ navigation, route }) => {
           onModeChange={handleModeChange}
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
+          userRole={userRole}
         />
       ) : currentMode === 'Texto2' && visibleModes.text2 ? (
         <TextMode2Screen 
@@ -153,6 +163,7 @@ const MainAppScreen = ({ navigation, route }) => {
           onModeChange={handleModeChange}
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
+          userRole={userRole}
         />
       ) : currentMode === 'Vault' && visibleModes.vault ? (
         <VaultModeScreen
@@ -162,6 +173,7 @@ const MainAppScreen = ({ navigation, route }) => {
           onModeChange={handleModeChange}
           onModeVisibilityChange={handleModeVisibilityChange}
           visibleModes={visibleModes}
+          userRole={userRole}
         />
       ) : null}
     </View>
