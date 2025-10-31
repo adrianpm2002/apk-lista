@@ -11,9 +11,25 @@ import { AuthProvider } from './src/contexts/AuthContext';
 import { AppStateProvider } from './src/contexts/AppStateContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ConnectionStatusIndicator from './src/components/ConnectionStatusIndicator';
+import OfflineTestingPanel from './src/components/OfflineTestingPanel';
+import * as OfflineStorage from './src/services/offlineStorageService';
 
 function AppContent() {
   useEffect(() => {
+    // Inicializar base de datos offline
+    const initializeOfflineDB = async () => {
+      try {
+        if (Platform.OS !== 'web') {
+          await OfflineStorage.initOfflineDB();
+          console.log('[App] Offline database initialized');
+        }
+      } catch (error) {
+        console.error('[App] Error initializing offline database:', error);
+      }
+    };
+
+    initializeOfflineDB();
+
     if (Platform.OS === 'android') {
       // Configurando app para Android con soporte de segundo plano
     }
@@ -31,6 +47,7 @@ function AppContent() {
         <AppNavigator />
       </NavigationContainer>
       <ConnectionStatusIndicator />
+      <OfflineTestingPanel />
     </View>
   );
 }
