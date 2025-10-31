@@ -22,7 +22,7 @@ let dbInstance = null;
  */
 const getDatabase = async () => {
   if (Platform.OS === 'web' || !SQLite) {
-    console.warn('[OfflineStorage] SQLite not available on web platform');
+    console.log('[OfflineStorage] ⚠️ SQLite not available on web platform - Offline mode disabled');
     return null;
   }
 
@@ -348,11 +348,20 @@ export const readTestRecords = async () => {
  */
 export const initOfflineDB = async () => {
   try {
-    await getDatabase();
+    console.log('[OfflineStorage] 🔄 Attempting to initialize offline database...');
+    const db = await getDatabase();
+    
+    if (!db) {
+      console.log('[OfflineStorage] ⚠️ Database initialization skipped (not available on this platform)');
+      return false;
+    }
+    
     await addLog('INFO', 'Offline database initialized');
+    console.log('[OfflineStorage] ✅ Database initialized successfully');
+    console.log('[OfflineStorage] ✅ Tables initialized successfully');
     return true;
   } catch (error) {
-    console.error('[OfflineStorage] Error initializing offline DB:', error);
+    console.error('[OfflineStorage] ❌ Error initializing offline DB:', error);
     return false;
   }
 };

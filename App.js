@@ -7,7 +7,7 @@ import React, { useEffect } from 'react';
 import { Platform, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
-import { AuthProvider } from './src/contexts/AuthContext';
+import { AuthProvider, useAuthContext } from './src/contexts/AuthContext';
 import { AppStateProvider } from './src/contexts/AppStateContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ConnectionStatusIndicator from './src/components/ConnectionStatusIndicator';
@@ -15,6 +15,34 @@ import OfflineTestingPanel from './src/components/OfflineTestingPanel';
 import * as OfflineStorage from './src/services/offlineStorageService';
 
 function AppContent() {
+  const { user } = useAuthContext();
+  const [userRole, setUserRole] = React.useState(null);
+
+  // Obtener rol del usuario cuando cambie
+  React.useEffect(() => {
+    const fetchUserRole = async () => {
+      if (user) {
+        try {
+          const { supabase } = require('./src/supabaseClient');
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+          
+          if (profile) {
+            setUserRole(profile.role);
+          }
+        } catch (error) {
+          console.error('[App] Error fetching user role:', error);
+        }
+      } else {
+        setUserRole(null);
+      }
+    };
+
+    fetchUserRole();
+  }, [user]);
   useEffect(() => {
     // Inicializar base de datos offline
     const initializeOfflineDB = async () => {
@@ -28,7 +56,12 @@ function AppContent() {
       }
     };
 
-    initializeOfflineDB();
+    const initResult = await initializeOfflineDB();
+    if (initResult) {
+      console.log('[App] ✅ Offline database initialized');
+    } else {
+      console.log('[App] ⚠️ Offline database not initialized (platform not supported or error)');
+    }
 
     if (Platform.OS === 'android') {
       // Configurando app para Android con soporte de segundo plano
@@ -47,7 +80,7 @@ function AppContent() {
         <AppNavigator />
       </NavigationContainer>
       <ConnectionStatusIndicator />
-      <OfflineTestingPanel />
+      <OfflineTestingPanel userRole={userRole} />
     </View>
   );
 }

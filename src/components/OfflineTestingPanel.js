@@ -13,14 +13,14 @@ import * as OfflineStorage from '../services/offlineStorageService';
 
 /**
  * Componente de testing para probar funcionalidades offline
- * Solo visible en modo desarrollo
+ * Solo visible en modo desarrollo y para rol listero
  */
-const OfflineTestingPanel = () => {
+const OfflineTestingPanel = ({ userRole }) => {
   const [visible, setVisible] = useState(false);
   const [testResults, setTestResults] = useState([]);
 
-  // Solo mostrar en desarrollo y en plataformas nativas
-  if (!__DEV__ || Platform.OS === 'web') {
+  // Solo mostrar en desarrollo, plataformas nativas, y para rol listero
+  if (!__DEV__ || Platform.OS === 'web' || userRole !== 'listero') {
     return null;
   }
 
@@ -63,7 +63,7 @@ const OfflineTestingPanel = () => {
       const logs = await OfflineStorage.getLogs(10);
       addResult('Obtener Logs', true, `${logs.length} logs encontrados`);
       Alert.alert(
-        '✅ Logs Obtenidos',
+        '✅ Logs Obtenidos (Últimos 10)',
         `Total: ${logs.length} logs\n\n${logs.slice(0, 3).map(l => 
           `[${l.level}] ${l.message}`
         ).join('\n')}`
@@ -72,6 +72,40 @@ const OfflineTestingPanel = () => {
       addResult('Obtener Logs', false, error.message);
       Alert.alert('❌ Error', error.message);
     }
+  };
+
+  const testGetAllLogs = async () => {
+    try {
+      const logs = await OfflineStorage.getLogs(1000); // Obtener hasta 1000 logs
+      addResult('Obtener Todos los Logs', true, `${logs.length} logs encontrados`);
+      
+      const logsText = logs.map((l, i) => 
+        `${i + 1}. [${l.level}] ${l.timestamp}\n   ${l.message}${l.data ? `\n   Data: ${JSON.stringify(l.data)}` : ''}`
+      ).join('\n\n');
+      
+      Alert.alert(
+        '✅ Todos los Logs',
+        `Total: ${logs.length} logs\n\n${logsText}`,
+        [{ text: 'OK' }],
+        { cancelable: true }
+      );
+    } catch (error) {
+      addResult('Obtener Todos los Logs', false, error.message);
+      Alert.alert('❌ Error', error.message);
+    }
+  };
+
+  const showAllConsoleLogs = () => {
+    // Mostrar información sobre cómo ver los logs de la aplicación
+    Alert.alert(
+      '📱 Ver Logs de la Aplicación',
+      Platform.select({
+        android: 'Para ver todos los logs de la aplicación:\n\n1. Abre una terminal\n2. Ejecuta: adb logcat *:S ReactNative:V ReactNativeJS:V\n\nO en Metro Bundler verás los console.log()',
+        ios: 'Para ver todos los logs de la aplicación:\n\n1. Abre Xcode\n2. Window → Devices and Simulators\n3. Selecciona tu dispositivo\n4. Click en "Open Console"\n\nO en Metro Bundler verás los console.log()',
+        default: 'Los logs de la aplicación se muestran en la consola del navegador (F12)',
+      }),
+      [{ text: 'Entendido' }]
+    );
   };
 
   const testClearLogs = async () => {
@@ -154,7 +188,20 @@ const OfflineTestingPanel = () => {
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.testButton} onPress={testGetLogs}>
-                <Text style={styles.testButtonText}>📋 Ver Logs</Text>
+                <Text style={styles.testButtonText}>📋 Ver Últimos 10 Logs</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.testButton} onPress={testGetAllLogs}>
+                <Text style={styles.testButtonText}>📚 Ver TODOS los Logs SQLite</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.testButton, styles.infoButton]}
+                onPress={showAllConsoleLogs}
+              >
+                <Text style={styles.testButtonText}>
+                  🖥️ Cómo Ver Logs de la App
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -285,6 +332,9 @@ const styles = StyleSheet.create({
   },
   dangerButtonText: {
     color: '#FFFFFF',
+  },
+  infoButton: {
+    backgroundColor: '#2196F3',
   },
   resultItem: {
     padding: 12,
