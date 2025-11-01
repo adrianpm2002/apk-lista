@@ -13,24 +13,16 @@ import * as OfflineStorage from '../services/offlineStorageService';
 
 /**
  * Componente de testing para probar funcionalidades offline
- * Solo visible en modo desarrollo y para rol listero
+ * Solo visible en modo desarrollo
+ * @param {boolean} inline - Si es true, muestra botón inline en lugar de flotante
+ * @param {boolean} allowWeb - Permite mostrar en web (por defecto false)
  */
-const OfflineTestingPanel = ({ userRole, allowWeb = false }) => {
+const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   const [visible, setVisible] = useState(false);
   const [testResults, setTestResults] = useState([]);
 
-  // Debug logs
-  console.log('[OfflineTestingPanel] Render check:', {
-    __DEV__,
-    userRole,
-    allowWeb,
-    platform: Platform.OS,
-    shouldShow: __DEV__ && userRole === 'listero' && (allowWeb || Platform.OS !== 'web')
-  });
-
-  // Solo mostrar en desarrollo y para rol listero
-  // allowWeb permite mostrar en web para testing (por defecto false)
-  if (!__DEV__ || userRole !== 'listero') {
+  // Solo mostrar en modo desarrollo
+  if (!__DEV__) {
     return null;
   }
   
@@ -156,15 +148,27 @@ const OfflineTestingPanel = ({ userRole, allowWeb = false }) => {
     }
   };
 
+  // Botón que abre el modal (inline o flotante)
+  const TriggerButton = inline ? (
+    <TouchableOpacity
+      style={styles.inlineButton}
+      onPress={() => setVisible(true)}
+    >
+      <Text style={styles.inlineButtonText}>🔧</Text>
+    </TouchableOpacity>
+  ) : (
+    <TouchableOpacity
+      style={styles.floatingButton}
+      onPress={() => setVisible(true)}
+    >
+      <Text style={styles.floatingButtonText}>🔧</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <>
-      {/* Botón flotante para abrir panel */}
-      <TouchableOpacity
-        style={styles.floatingButton}
-        onPress={() => setVisible(true)}
-      >
-        <Text style={styles.floatingButtonText}>🔧</Text>
-      </TouchableOpacity>
+      {/* Botón para abrir panel (inline o flotante) */}
+      {TriggerButton}
 
       {/* Modal con panel de testing */}
       <Modal
@@ -281,6 +285,24 @@ const styles = StyleSheet.create({
   },
   floatingButtonText: {
     fontSize: 28,
+  },
+  inlineButton: {
+    backgroundColor: '#FF6B6B',
+    borderWidth: 2,
+    borderColor: '#FF6B6B',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  inlineButtonText: {
+    fontSize: 18,
   },
   modalContainer: {
     flex: 1,
