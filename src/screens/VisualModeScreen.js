@@ -30,8 +30,12 @@ import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { generateVisualModeCopyText } from '../utils/copyUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
+import { useAuthContext } from '../contexts/AuthContext';
+import OfflineTestingPanel from '../components/OfflineTestingPanel';
 
 const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onModeVisibilityChange, visibleModes }) => {
+  const { user } = useAuthContext();
+  const [userRole, setUserRole] = useState(null);
   
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // values de loterías (máx 3)
@@ -121,6 +125,33 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
 
   const getLotteryLabel = (value) => lotteries.find(l=>l.value===value)?.label || value;
   const getScheduleLabel = (lotteryValue, scheduleValue) => (scheduleOptionsMap[lotteryValue]||[]).find(s=>s.value===scheduleValue)?.label || scheduleValue;
+
+  // Obtener rol del usuario
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      if (!user) {
+        console.log('[VisualModeScreen] No user yet, skipping role fetch');
+        return;
+      }
+      console.log('[VisualModeScreen] Fetching user role for user:', user.id);
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        if (profile) {
+          console.log('[VisualModeScreen] User role fetched:', profile.role);
+          setUserRole(profile.role);
+        } else {
+          console.log('[VisualModeScreen] No profile found for user');
+        }
+      } catch (error) {
+        console.log('[VisualModeScreen] Error fetching user role:', error);
+      }
+    };
+    fetchUserRole();
+  }, [user]);
 
   // Cargar banco (id_banco) y luego loterías + jugadas activas
   useEffect(()=>{
@@ -1202,6 +1233,9 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   visibleModes={visibleModes}
         role="listero"
       />
+      
+      {/* Panel de Testing de Modo Offline */}
+      <OfflineTestingPanel userRole={userRole} allowWeb={true} />
     </View>
   );
 };

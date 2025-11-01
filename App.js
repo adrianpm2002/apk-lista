@@ -43,25 +43,24 @@ function AppContent() {
 
     fetchUserRole();
   }, [user]);
+  
   useEffect(() => {
     // Inicializar base de datos offline
-    const initializeOfflineDB = async () => {
+    const initDB = async () => {
+      console.log('[App] 🔄 Starting offline database initialization...');
       try {
-        if (Platform.OS !== 'web') {
-          await OfflineStorage.initOfflineDB();
-          console.log('[App] Offline database initialized');
+        const initResult = await OfflineStorage.initOfflineDB();
+        if (initResult) {
+          console.log('[App] ✅ Offline database initialized successfully');
+        } else {
+          console.log('[App] ⚠️ Offline database not initialized (platform not supported or error)');
         }
       } catch (error) {
-        console.error('[App] Error initializing offline database:', error);
+        console.error('[App] ❌ Error initializing offline database:', error);
       }
     };
 
-    const initResult = await initializeOfflineDB();
-    if (initResult) {
-      console.log('[App] ✅ Offline database initialized');
-    } else {
-      console.log('[App] ⚠️ Offline database not initialized (platform not supported or error)');
-    }
+    initDB();
 
     if (Platform.OS === 'android') {
       // Configurando app para Android con soporte de segundo plano

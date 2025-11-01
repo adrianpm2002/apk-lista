@@ -15,12 +15,27 @@ import * as OfflineStorage from '../services/offlineStorageService';
  * Componente de testing para probar funcionalidades offline
  * Solo visible en modo desarrollo y para rol listero
  */
-const OfflineTestingPanel = ({ userRole }) => {
+const OfflineTestingPanel = ({ userRole, allowWeb = false }) => {
   const [visible, setVisible] = useState(false);
   const [testResults, setTestResults] = useState([]);
 
-  // Solo mostrar en desarrollo, plataformas nativas, y para rol listero
-  if (!__DEV__ || Platform.OS === 'web' || userRole !== 'listero') {
+  // Debug logs
+  console.log('[OfflineTestingPanel] Render check:', {
+    __DEV__,
+    userRole,
+    allowWeb,
+    platform: Platform.OS,
+    shouldShow: __DEV__ && userRole === 'listero' && (allowWeb || Platform.OS !== 'web')
+  });
+
+  // Solo mostrar en desarrollo y para rol listero
+  // allowWeb permite mostrar en web para testing (por defecto false)
+  if (!__DEV__ || userRole !== 'listero') {
+    return null;
+  }
+  
+  // Si no se permite web y estamos en web, no mostrar
+  if (!allowWeb && Platform.OS === 'web') {
     return null;
   }
 
