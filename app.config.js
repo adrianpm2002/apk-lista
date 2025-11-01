@@ -68,7 +68,7 @@ export default {
     },
     extra: {
       eas: {
-        // projectId será generado automáticamente para nicole2706
+        projectId: "83929415-67d9-4199-8f74-4d86a5ec37dd"
       }
     },
     plugins: [
