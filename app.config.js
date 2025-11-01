@@ -2,6 +2,7 @@ export default {
   expo: {
     name: "Cloud",
     slug: "apk-lista-clean-adrian-new",
+    owner: "nicole2706",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
