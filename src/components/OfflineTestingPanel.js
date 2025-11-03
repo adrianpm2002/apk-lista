@@ -24,30 +24,15 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   // Verificar si dev tools está habilitado (por variable de entorno o __DEV__)
   const isDevToolsEnabled = process.env.EXPO_PUBLIC_ENABLE_DEV_TOOLS === 'true' || __DEV__;
 
-  // Debug detallado
-  console.log('[OfflineTestingPanel] 🔍 Estado de renderizado:', {
-    __DEV__,
-    EXPO_PUBLIC_ENABLE_DEV_TOOLS: process.env.EXPO_PUBLIC_ENABLE_DEV_TOOLS,
-    isDevToolsEnabled,
-    inline,
-    allowWeb,
-    platform: Platform.OS,
-    willRender: isDevToolsEnabled && (allowWeb || Platform.OS !== 'web')
-  });
-
   // Solo mostrar en modo desarrollo
   if (!isDevToolsEnabled) {
-    console.log('[OfflineTestingPanel] ❌ No se muestra: isDevToolsEnabled es false');
     return null;
   }
   
   // Si no se permite web y estamos en web, no mostrar
   if (!allowWeb && Platform.OS === 'web') {
-    console.log('[OfflineTestingPanel] ❌ No se muestra: Platform.OS === web y allowWeb === false');
     return null;
   }
-
-  console.log('[OfflineTestingPanel] ✅ Renderizando botón', inline ? 'INLINE' : 'FLOTANTE');
 
   const addResult = (test, success, data) => {
     const result = {
@@ -170,26 +155,18 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   const TriggerButton = inline ? (
     <TouchableOpacity
       style={[styles.inlineButton, { backgroundColor: '#FF0000' }]} // Rojo brillante temporal
-      onPress={() => {
-        console.log('[OfflineTestingPanel] 🖱️ Botón presionado!');
-        setVisible(true);
-      }}
+      onPress={() => setVisible(true)}
     >
       <Text style={styles.inlineButtonText}>🔧</Text>
     </TouchableOpacity>
   ) : (
     <TouchableOpacity
       style={styles.floatingButton}
-      onPress={() => {
-        console.log('[OfflineTestingPanel] 🖱️ Botón flotante presionado!');
-        setVisible(true);
-      }}
+      onPress={() => setVisible(true)}
     >
       <Text style={styles.floatingButtonText}>🔧</Text>
     </TouchableOpacity>
   );
-
-  console.log('[OfflineTestingPanel] 📦 Retornando componente con botón');
 
   return (
     <>
