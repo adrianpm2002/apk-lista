@@ -413,39 +413,67 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       return;
     }
 
-    // Preparar payloads para inserción
+    // Preparar payloads para inserción (AGRUPADOS por tipo de jugada y monto)
     const payloads = [];
     
     selectedLotteries.forEach(lv => {
       const id_horario = selectedSchedules[lv];
       
-      // Agregar jugadas de fijos y corridos
+      // AGRUPAR jugadas de fijos por monto unitario
+      const fijosPorMonto = {};
       jugadasFijosYCorridos.forEach(jugada => {
         if (jugada.fijo && parseFloat(jugada.fijo) > 0) {
-          payloads.push({
-            id_listero: userId,
-            id_horario,
-            jugada: 'fijo',
-            numeros: jugada.numero,
-            nota: note?.trim() || null,
-            monto_unitario: parseFloat(jugada.fijo),
-            monto_total: parseFloat(jugada.fijo)
-          });
-        }
-        if (jugada.corrido && parseFloat(jugada.corrido) > 0) {
-          payloads.push({
-            id_listero: userId,
-            id_horario,
-            jugada: 'corrido',
-            numeros: jugada.numero,
-            nota: note?.trim() || null,
-            monto_unitario: parseFloat(jugada.corrido),
-            monto_total: parseFloat(jugada.corrido)
-          });
+          const monto = parseFloat(jugada.fijo);
+          if (!fijosPorMonto[monto]) {
+            fijosPorMonto[monto] = [];
+          }
+          fijosPorMonto[monto].push(jugada.numero);
         }
       });
       
-      // Agregar jugadas de parles
+      // Crear un payload por cada grupo de fijos con el mismo monto
+      Object.keys(fijosPorMonto).forEach(monto => {
+        const numeros = fijosPorMonto[monto];
+        const montoFloat = parseFloat(monto);
+        payloads.push({
+          id_listero: userId,
+          id_horario,
+          jugada: 'fijo',
+          numeros: numeros.join(','),
+          nota: note?.trim() || null,
+          monto_unitario: montoFloat,
+          monto_total: montoFloat * numeros.length
+        });
+      });
+      
+      // AGRUPAR jugadas de corridos por monto unitario
+      const corridosPorMonto = {};
+      jugadasFijosYCorridos.forEach(jugada => {
+        if (jugada.corrido && parseFloat(jugada.corrido) > 0) {
+          const monto = parseFloat(jugada.corrido);
+          if (!corridosPorMonto[monto]) {
+            corridosPorMonto[monto] = [];
+          }
+          corridosPorMonto[monto].push(jugada.numero);
+        }
+      });
+      
+      // Crear un payload por cada grupo de corridos con el mismo monto
+      Object.keys(corridosPorMonto).forEach(monto => {
+        const numeros = corridosPorMonto[monto];
+        const montoFloat = parseFloat(monto);
+        payloads.push({
+          id_listero: userId,
+          id_horario,
+          jugada: 'corrido',
+          numeros: numeros.join(','),
+          nota: note?.trim() || null,
+          monto_unitario: montoFloat,
+          monto_total: montoFloat * numeros.length
+        });
+      });
+      
+      // Agregar jugadas de parles (ya vienen agrupadas por el usuario)
       jugadasParles.forEach(jugada => {
         payloads.push({
           id_listero: userId,
@@ -458,16 +486,30 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         });
       });
       
-      // Agregar jugadas de centenas
+      // AGRUPAR jugadas de centenas por monto unitario
+      const centenasPorMonto = {};
       jugadasCentenas.forEach(jugada => {
+        const monto = parseFloat(jugada.precio);
+        if (monto > 0) {
+          if (!centenasPorMonto[monto]) {
+            centenasPorMonto[monto] = [];
+          }
+          centenasPorMonto[monto].push(jugada.numero);
+        }
+      });
+      
+      // Crear un payload por cada grupo de centenas con el mismo monto
+      Object.keys(centenasPorMonto).forEach(monto => {
+        const numeros = centenasPorMonto[monto];
+        const montoFloat = parseFloat(monto);
         payloads.push({
           id_listero: userId,
           id_horario,
           jugada: 'centena',
-          numeros: jugada.numero,
+          numeros: numeros.join(','),
           nota: note?.trim() || null,
-          monto_unitario: parseFloat(jugada.precio),
-          monto_total: parseFloat(jugada.precio)
+          monto_unitario: montoFloat,
+          monto_total: montoFloat * numeros.length
         });
       });
     });
