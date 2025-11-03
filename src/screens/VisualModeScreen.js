@@ -1172,8 +1172,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             <Text style={styles.copyText}>Copiar</Text>
           </Pressable>
           
-          {/* Botón de Testing Offline (solo en DEV) */}
-          {__DEV__ && <OfflineTestingPanel inline={true} allowWeb={true} />}
+          {/* Botón de Testing Offline (siempre visible) */}
+          <OfflineTestingPanel inline={true} allowWeb={true} />
         </View>
 
         {/* Row 6: Botones de acción */}

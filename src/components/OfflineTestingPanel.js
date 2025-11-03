@@ -13,18 +13,13 @@ import * as OfflineStorage from '../services/offlineStorageService';
 
 /**
  * Componente de testing para probar funcionalidades offline
- * Solo visible en modo desarrollo
+ * Siempre visible (sin restricción de desarrollo/producción)
  * @param {boolean} inline - Si es true, muestra botón inline en lugar de flotante
  * @param {boolean} allowWeb - Permite mostrar en web (por defecto false)
  */
 const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   const [visible, setVisible] = useState(false);
   const [testResults, setTestResults] = useState([]);
-
-  // Solo mostrar en modo desarrollo
-  if (!__DEV__) {
-    return null;
-  }
   
   // Si no se permite web y estamos en web, no mostrar
   if (!allowWeb && Platform.OS === 'web') {
