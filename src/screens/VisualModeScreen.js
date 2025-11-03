@@ -1173,7 +1173,16 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           </Pressable>
           
           {/* Botón de Testing Offline (solo en DEV) */}
-          {__DEV__ && <OfflineTestingPanel inline={true} allowWeb={true} />}
+          {(() => {
+            console.log('[VisualModeScreen] 🔍 Intentando renderizar OfflineTestingPanel. __DEV__ =', __DEV__);
+            if (__DEV__) {
+              console.log('[VisualModeScreen] ✅ Renderizando OfflineTestingPanel');
+              return <OfflineTestingPanel inline={true} allowWeb={true} />;
+            } else {
+              console.log('[VisualModeScreen] ❌ NO renderizando OfflineTestingPanel (__DEV__ es false)');
+              return null;
+            }
+          })()}
         </View>
 
         {/* Row 6: Botones de acción */}

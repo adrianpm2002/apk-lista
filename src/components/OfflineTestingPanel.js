@@ -21,15 +21,28 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   const [visible, setVisible] = useState(false);
   const [testResults, setTestResults] = useState([]);
 
+  // Debug detallado
+  console.log('[OfflineTestingPanel] 🔍 Estado de renderizado:', {
+    __DEV__,
+    inline,
+    allowWeb,
+    platform: Platform.OS,
+    willRender: __DEV__ && (allowWeb || Platform.OS !== 'web')
+  });
+
   // Solo mostrar en modo desarrollo
   if (!__DEV__) {
+    console.log('[OfflineTestingPanel] ❌ No se muestra: __DEV__ es false');
     return null;
   }
   
   // Si no se permite web y estamos en web, no mostrar
   if (!allowWeb && Platform.OS === 'web') {
+    console.log('[OfflineTestingPanel] ❌ No se muestra: Platform.OS === web y allowWeb === false');
     return null;
   }
+
+  console.log('[OfflineTestingPanel] ✅ Renderizando botón', inline ? 'INLINE' : 'FLOTANTE');
 
   const addResult = (test, success, data) => {
     const result = {
@@ -151,19 +164,27 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   // Botón que abre el modal (inline o flotante)
   const TriggerButton = inline ? (
     <TouchableOpacity
-      style={styles.inlineButton}
-      onPress={() => setVisible(true)}
+      style={[styles.inlineButton, { backgroundColor: '#FF0000' }]} // Rojo brillante temporal
+      onPress={() => {
+        console.log('[OfflineTestingPanel] 🖱️ Botón presionado!');
+        setVisible(true);
+      }}
     >
       <Text style={styles.inlineButtonText}>🔧</Text>
     </TouchableOpacity>
   ) : (
     <TouchableOpacity
       style={styles.floatingButton}
-      onPress={() => setVisible(true)}
+      onPress={() => {
+        console.log('[OfflineTestingPanel] 🖱️ Botón flotante presionado!');
+        setVisible(true);
+      }}
     >
       <Text style={styles.floatingButtonText}>🔧</Text>
     </TouchableOpacity>
   );
+
+  console.log('[OfflineTestingPanel] 📦 Retornando componente con botón');
 
   return (
     <>
