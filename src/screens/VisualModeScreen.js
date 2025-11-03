@@ -1174,12 +1174,17 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           
           {/* Botón de Testing Offline (solo en DEV) */}
           {(() => {
-            console.log('[VisualModeScreen] 🔍 Intentando renderizar OfflineTestingPanel. __DEV__ =', __DEV__);
-            if (__DEV__) {
+            const isDevToolsEnabled = process.env.EXPO_PUBLIC_ENABLE_DEV_TOOLS === 'true' || __DEV__;
+            console.log('[VisualModeScreen] 🔍 Intentando renderizar OfflineTestingPanel:', {
+              __DEV__,
+              EXPO_PUBLIC_ENABLE_DEV_TOOLS: process.env.EXPO_PUBLIC_ENABLE_DEV_TOOLS,
+              isDevToolsEnabled
+            });
+            if (isDevToolsEnabled) {
               console.log('[VisualModeScreen] ✅ Renderizando OfflineTestingPanel');
               return <OfflineTestingPanel inline={true} allowWeb={true} />;
             } else {
-              console.log('[VisualModeScreen] ❌ NO renderizando OfflineTestingPanel (__DEV__ es false)');
+              console.log('[VisualModeScreen] ❌ NO renderizando OfflineTestingPanel');
               return null;
             }
           })()}

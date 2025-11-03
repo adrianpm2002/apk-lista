@@ -21,18 +21,23 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   const [visible, setVisible] = useState(false);
   const [testResults, setTestResults] = useState([]);
 
+  // Verificar si dev tools está habilitado (por variable de entorno o __DEV__)
+  const isDevToolsEnabled = process.env.EXPO_PUBLIC_ENABLE_DEV_TOOLS === 'true' || __DEV__;
+
   // Debug detallado
   console.log('[OfflineTestingPanel] 🔍 Estado de renderizado:', {
     __DEV__,
+    EXPO_PUBLIC_ENABLE_DEV_TOOLS: process.env.EXPO_PUBLIC_ENABLE_DEV_TOOLS,
+    isDevToolsEnabled,
     inline,
     allowWeb,
     platform: Platform.OS,
-    willRender: __DEV__ && (allowWeb || Platform.OS !== 'web')
+    willRender: isDevToolsEnabled && (allowWeb || Platform.OS !== 'web')
   });
 
   // Solo mostrar en modo desarrollo
-  if (!__DEV__) {
-    console.log('[OfflineTestingPanel] ❌ No se muestra: __DEV__ es false');
+  if (!isDevToolsEnabled) {
+    console.log('[OfflineTestingPanel] ❌ No se muestra: isDevToolsEnabled es false');
     return null;
   }
   
@@ -314,6 +319,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
+    minWidth: 40,
+    minHeight: 40,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#FF6B6B',
