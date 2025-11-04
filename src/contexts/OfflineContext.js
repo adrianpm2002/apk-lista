@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useConnection } from '../hooks/useConnection';
 import * as OfflineStorage from '../services/offlineStorageService';
-import * as playSyncService from '../services/playSyncService';
+import { syncOfflinePlays, getSyncStats } from '../services/syncService';
+import { getPendingPlayCount } from '../services/offlinePlayService';
 
 /**
  * Context para gestionar estado offline global de la aplicación
@@ -26,9 +27,9 @@ export const OfflineProvider = ({ children }) => {
    */
   const loadPendingPlaysCount = useCallback(async () => {
     try {
-      const pendingPlays = await OfflineStorage.getPendingPlays();
-      setPendingPlaysCount(pendingPlays.length);
-      console.log('[OfflineContext] Jugadas pendientes:', pendingPlays.length);
+      const count = await getPendingPlayCount();
+      setPendingPlaysCount(count);
+      console.log('[OfflineContext] Jugadas pendientes:', count);
     } catch (error) {
       console.error('[OfflineContext] Error cargando jugadas pendientes:', error);
     }
@@ -89,7 +90,7 @@ export const OfflineProvider = ({ children }) => {
 
   /**
    * Iniciar proceso de sincronización
-   * FASE 7: Sincronización real con playSyncService
+   * FASE 7: Sincronización real con syncService
    */
   const startSync = useCallback(async () => {
     if (!isOnline || isSyncing) {
@@ -105,10 +106,10 @@ export const OfflineProvider = ({ children }) => {
     setSyncError(null);
 
     try {
-      // Sincronizar jugadas pendientes usando playSyncService
-      const result = await playSyncService.syncPendingPlays();
+      // Sincronizar jugadas pendientes usando syncService
+      const result = await syncOfflinePlays();
       
-      if (result.success) {
+      if (result.success || result.synced > 0) {
         console.log('[OfflineContext] ✅ Sincronización completada:', result);
         
         // Actualizar última sincronización
@@ -117,8 +118,10 @@ export const OfflineProvider = ({ children }) => {
         // Recargar conteo de pendientes
         await loadPendingPlaysCount();
         
-        // Limpiar cola de sincronización
-        clearSyncQueue();
+        // Limpiar cola de sincronización si todo se sincronizó
+        if (result.failed === 0) {
+          clearSyncQueue();
+        }
         
         await OfflineStorage.addLog('info', 'Sincronización completada', {
           synced: result.synced,
@@ -127,7 +130,7 @@ export const OfflineProvider = ({ children }) => {
           timestamp: Date.now()
         });
       } else {
-        throw new Error(result.error || 'Error desconocido en sincronización');
+        throw new Error(result.message || 'Error desconocido en sincronización');
       }
     } catch (error) {
       console.error('[OfflineContext] ❌ Error en sincronización:', error);
@@ -140,7 +143,7 @@ export const OfflineProvider = ({ children }) => {
     } finally {
       setIsSyncing(false);
     }
-  }, [isOnline, isSyncing, updateLastSync, clearSyncQueue]);
+  }, [isOnline, isSyncing, updateLastSync, loadPendingPlaysCount, clearSyncQueue]);
 
   /**
    * Cargar última sincronización desde SQLite al montar
@@ -164,10 +167,11 @@ export const OfflineProvider = ({ children }) => {
 
   /**
    * Auto-sincronizar cuando vuelve la conexión
+   * FASE 7: Sincronización automática cuando se detecta conexión
    */
   useEffect(() => {
-    if (isOnline && !isChecking && syncQueue.length > 0 && !isSyncing) {
-      console.log('[OfflineContext] 🔄 Conexión restaurada, iniciando auto-sincronización...');
+    if (isOnline && !isChecking && pendingPlaysCount > 0 && !isSyncing) {
+      console.log(`[OfflineContext] 🔄 Conexión restaurada con ${pendingPlaysCount} jugadas pendientes, iniciando auto-sincronización...`);
       // Esperar 2 segundos antes de sincronizar para estabilizar conexión
       const timer = setTimeout(() => {
         startSync();
@@ -175,7 +179,7 @@ export const OfflineProvider = ({ children }) => {
       
       return () => clearTimeout(timer);
     }
-  }, [isOnline, isChecking, syncQueue.length, isSyncing, startSync]);
+  }, [isOnline, isChecking, pendingPlaysCount, isSyncing, startSync]);
 
   const value = {
     // Estado de conexión
