@@ -589,14 +589,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           </Text>
         </TouchableOpacity>
         
-        {/* TEMPORALMENTE OCULTO - Exportar PDF 
-        <TouchableOpacity
-          style={styles.exportButton}
-          onPress={() => setShowExportModal(true)}
-        >
-          <Text style={styles.exportButtonText}>📤 Exportar</Text>
-        </TouchableOpacity>
-        */}
+        {/* Botón Exportar PDF - Solo visible para listeros */}
+        {userRole === 'listero' && (
+          <TouchableOpacity
+            style={styles.exportButton}
+            onPress={() => setShowExportModal(true)}
+          >
+            <Text style={styles.exportButtonText}>📤 Exportar</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
