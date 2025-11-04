@@ -85,6 +85,7 @@ const roleOptionsMap = {
   ],
   listero: [
   { id: 'play', icon: '🎮', title: 'Inicio' },
+  { id: 'pendingPlays', icon: '📤', title: 'Jugadas Pendientes' },
   { id: 'statistics', icon: '📈', title: 'Estadísticas' },
   { id: 'insertResults', icon: '🎯', title: 'Resultados' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
@@ -203,6 +204,10 @@ const configOptions = role ? roleOptionsMap[role] : null;
     case 'collectorStatistics':
       handleClose();
       navigation.navigate('CollectorStatistics');
+      break;
+    case 'pendingPlays':
+      handleClose();
+      navigation.navigate('PendingPlays');
       break;
     case 'play':
       handleClose();

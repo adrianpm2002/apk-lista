@@ -14,6 +14,7 @@ import LimitNumero from '../screens/limitNumero';
 import StatisticsScreen from '../screens/StatisticsScreen';
 import SavedPlaysScreen from '../screens/SavedPlaysScreen';
 import BankCapacityScreen from '../screens/BankCapacityScreen';
+import PendingPlaysScreen from '../screens/PendingPlaysScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -142,6 +143,15 @@ const AppNavigator = () => (
     <Stack.Screen 
       name="BankCapacity" 
       component={BankCapacityScreen} 
+      options={{
+        headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
+      }}
+    />
+
+    <Stack.Screen 
+      name="PendingPlays" 
+      component={PendingPlaysScreen} 
       options={{
         headerShown: false,
         gestureEnabled: Platform.OS === 'ios',
