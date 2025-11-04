@@ -37,8 +37,12 @@ import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { supabase } from '../supabaseClient';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
+import { useConnection } from '../hooks/useConnection';
+import { saveOfflinePlays } from '../services/offlinePlayService';
 
 const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
+  const { isConnected } = useConnection();
+  
   // Estados para los campos
   const [selectedLotteries, setSelectedLotteries] = useState([]); // valores id lotería (máx 3 como visual)
   const [selectedSchedules, setSelectedSchedules] = useState({}); // { lotteryId: scheduleId }
@@ -565,7 +569,54 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
           }
         }
 
-        // Inserción usando batch (más eficiente)
+        // 🔌 MODO OFFLINE: Si no hay conexión, guardar en SQLite
+        if (!isConnected) {
+          try {
+            // Convertir payloads al formato de offline_plays
+            const offlinePlays = payloads.map(p => ({
+              user_id: p.id_listero,
+              loteria_id: selectedLotteries[0],
+              horario_id: p.id_horario,
+              numero: p.numeros,
+              jugada: p.jugada,
+              monto_unitario: p.monto_unitario,
+              monto_total: p.monto_total,
+              fecha_jugada: new Date().toISOString().split('T')[0],
+              created_at: new Date().toISOString()
+            }));
+
+            const result = await saveOfflinePlays(offlinePlays);
+
+            // Limpiar pantalla
+            setPlays(''); 
+            setCalculatedAmount(0); 
+            setTotal(0); 
+            setParsedInstructions([]);
+
+            setInsertFeedback({ 
+              success: result.count, 
+              fail: 0, 
+              duplicates: [],
+              edit: false,
+              offline: true,
+              message: `📴 Sin conexión: ${result.count} jugada(s) guardada(s) offline`
+            });
+
+            return;
+          } catch (error) {
+            console.error('Error guardando jugadas offline:', error);
+            setInsertFeedback({ 
+              success: 0, 
+              fail: payloads.length, 
+              duplicates: [],
+              edit: false,
+              serverError: 'Error al guardar offline: ' + error.message
+            });
+            return;
+          }
+        }
+
+        // Inserción online usando batch (más eficiente)
         try {
           // Intentar batch insert primero
           const { data: insertedData, error: batchError } = await supabase
