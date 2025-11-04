@@ -367,18 +367,135 @@ export const initOfflineDB = async () => {
 };
 
 // ========================================
-// FUNCIONES PLACEHOLDER (implementar en fases siguientes)
+// ========================================
+// JUGADAS OFFLINE
 // ========================================
 
-// Jugadas
+/**
+ * Guardar jugada offline para sincronizar después
+ * @param {Object} playData - Datos de la jugada
+ */
 export const savePlayOffline = async (playData) => {
-  await addLog('TODO', 'savePlayOffline not implemented yet', playData);
-  throw new Error('Not implemented yet');
+  try {
+    const db = await getDatabase();
+    if (!db) {
+      console.log('[OfflineStorage] DB not available, cannot save play');
+      return false;
+    }
+
+    const {
+      id_loteria,
+      id_horario,
+      tipo_jugada,
+      numeros,
+      monto_unitario,
+      monto_total,
+      user_id,
+      id_banco
+    } = playData;
+
+    await db.executeSql(
+      `INSERT INTO offline_plays 
+       (id_loteria, id_horario, tipo_jugada, numeros, monto_unitario, monto_total, 
+        user_id, id_banco, pending, synced, created_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, datetime('now'))`,
+      [
+        id_loteria,
+        id_horario,
+        tipo_jugada,
+        numeros, // Puede ser string "12,34,56" o único "12"
+        monto_unitario,
+        monto_total,
+        user_id,
+        id_banco
+      ]
+    );
+
+    await addLog('info', 'Jugada guardada offline', {
+      tipo_jugada,
+      numeros,
+      monto_total
+    });
+
+    console.log('[OfflineStorage] ✅ Jugada guardada offline:', tipo_jugada, numeros);
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error saving play offline:', error);
+    await addLog('error', 'Error guardando jugada offline', {
+      error: error.message,
+      playData
+    });
+    return false;
+  }
 };
 
+/**
+ * Obtener jugadas pendientes de sincronizar
+ * @returns {Array} Jugadas con pending=true
+ */
 export const getPendingPlays = async () => {
-  await addLog('TODO', 'getPendingPlays not implemented yet');
-  return [];
+  try {
+    const db = await getDatabase();
+    if (!db) return [];
+
+    const [result] = await db.executeSql(
+      `SELECT * FROM offline_plays WHERE pending = 1 ORDER BY created_at ASC`
+    );
+
+    const plays = [];
+    for (let i = 0; i < result.rows.length; i++) {
+      plays.push(result.rows.item(i));
+    }
+
+    console.log(`[OfflineStorage] 📋 ${plays.length} jugadas pendientes`);
+    return plays;
+  } catch (error) {
+    console.error('[OfflineStorage] Error getting pending plays:', error);
+    return [];
+  }
+};
+
+/**
+ * Marcar jugada como sincronizada
+ * @param {number} play_id - ID de la jugada offline
+ */
+export const markPlayAsSynced = async (play_id) => {
+  try {
+    const db = await getDatabase();
+    if (!db) return false;
+
+    await db.executeSql(
+      `UPDATE offline_plays 
+       SET pending = 0, synced = 1, sync_timestamp = datetime('now') 
+       WHERE id = ?`,
+      [play_id]
+    );
+
+    console.log(`[OfflineStorage] ✅ Jugada ${play_id} marcada como sincronizada`);
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error marking play as synced:', error);
+    return false;
+  }
+};
+
+/**
+ * Eliminar jugada offline
+ * @param {number} play_id - ID de la jugada offline
+ */
+export const deleteOfflinePlay = async (play_id) => {
+  try {
+    const db = await getDatabase();
+    if (!db) return false;
+
+    await db.executeSql(`DELETE FROM offline_plays WHERE id = ?`, [play_id]);
+
+    console.log(`[OfflineStorage] 🗑️ Jugada ${play_id} eliminada`);
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error deleting play:', error);
+    return false;
+  }
 };
 
 // ========================================
@@ -749,9 +866,12 @@ export default {
   getCredentials,
   getCredentialsByUsername,
   validatePassword,
-  // Placeholders
+  // Jugadas offline
   savePlayOffline,
   getPendingPlays,
+  markPlayAsSynced,
+  deleteOfflinePlay,
+  // Loterías y horarios
   saveLotteries,
   getLotteries,
   saveSchedules,
