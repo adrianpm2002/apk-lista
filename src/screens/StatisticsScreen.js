@@ -573,33 +573,91 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       
       const style = `
         <style>
-          body{ font-family: Arial, sans-serif; padding: 20px; }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          
+          body{ 
+            font-family: Arial, sans-serif; 
+            padding: 20px;
+            margin: 0;
+          }
+          
           h2{ margin: 10px 0; font-size:16px; }
+          
           .group-header{ 
-            background: #2196F3; 
-            color: white; 
+            background: #2196F3 !important; 
+            color: white !important; 
             padding: 10px; 
             margin-top: 15px;
             margin-bottom: 5px;
             font-weight: bold;
             border-radius: 4px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
+          
           .group-totals{
-            background: #E3F2FD;
+            background: #E3F2FD !important;
             padding: 8px;
             margin-bottom: 10px;
-            border-left: 4px solid #2196F3;
+            border-left: 4px solid #2196F3 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
+          
           .group-totals-item{
             display: inline-block;
             margin-right: 20px;
             font-size: 11px;
           }
-          table{ width:100%; border-collapse: collapse; margin-bottom: 20px; table-layout: fixed; }
-          th, td{ border:1px solid #ccc; padding:6px; font-size: 10px; text-align:left; vertical-align: top; }
-          thead{ background:#f3f3f3; }
-          .positive{ color: #2E7D32; font-weight: bold; }
-          .negative{ color: #D32F2F; font-weight: bold; }
+          
+          table{ 
+            width:100%; 
+            border-collapse: collapse; 
+            margin-bottom: 20px; 
+            table-layout: fixed;
+            page-break-inside: auto;
+          }
+          
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          
+          thead {
+            display: table-header-group;
+          }
+          
+          th, td{ 
+            border:1px solid #ccc !important; 
+            padding:6px; 
+            font-size: 10px; 
+            text-align:left; 
+            vertical-align: top;
+          }
+          
+          thead{ 
+            background:#f3f3f3 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          .positive{ 
+            color: #2E7D32 !important; 
+            font-weight: bold;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          .negative{ 
+            color: #D32F2F !important; 
+            font-weight: bold;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
           
           /* Ancho fijo para columnas específicas */
           th:nth-child(1), td:nth-child(1) { width: 60px; } /* Hora */
@@ -616,6 +674,39 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           th:nth-child(6), td:nth-child(6) { width: 75px; } /* Ganancia */
           th:nth-child(7), td:nth-child(7) { width: 75px; } /* Premio */
           th:nth-child(8), td:nth-child(8) { width: 75px; } /* Balance */
+          
+          /* Estilos específicos para impresión/PDF */
+          @media print {
+            body {
+              margin: 0;
+              padding: 10px;
+            }
+            
+            .group-header {
+              background: #2196F3 !important;
+              color: white !important;
+            }
+            
+            .group-totals {
+              background: #E3F2FD !important;
+            }
+            
+            thead {
+              background: #f3f3f3 !important;
+            }
+            
+            table, th, td {
+              border: 1px solid #000 !important;
+            }
+            
+            .positive {
+              color: #2E7D32 !important;
+            }
+            
+            .negative {
+              color: #D32F2F !important;
+            }
+          }
         </style>`;
       
       const sections = groups.map(g=>{
