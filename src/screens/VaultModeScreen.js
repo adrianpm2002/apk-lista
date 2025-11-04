@@ -14,10 +14,12 @@ import ListButton from '../components/ListButton';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
 import FeedbackBanner from '../components/FeedbackBanner';
+import { useConnection } from '../hooks/useConnection';
+import { saveOfflinePlays } from '../services/offlinePlayService';
 
 const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
-
+  const { isConnected } = useConnection();
 
   // Estados para loterías, horarios y nota (con lógica real de VisualModeScreen)
   const [selectedLotteries, setSelectedLotteries] = useState([]); // values de loterías
@@ -510,8 +512,60 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       return;
     }
     
-    // Inserción usando batch (más eficiente)
     setIsInserting(true);
+
+    // 🔌 MODO OFFLINE: Si no hay conexión, guardar en SQLite
+    if (!isConnected) {
+      try {
+        // Convertir payloads al formato de offline_plays
+        const offlinePlays = payloads.map(p => ({
+          user_id: p.id_listero,
+          loteria_id: selectedLotteries[0], // Obtenemos la lotería del primer seleccionado
+          horario_id: p.id_horario,
+          numero: p.numeros,
+          jugada: p.jugada,
+          monto_unitario: p.monto_unitario,
+          monto_total: p.monto_total,
+          fecha_jugada: new Date().toISOString().split('T')[0],
+          created_at: new Date().toISOString()
+        }));
+
+        const result = await saveOfflinePlays(offlinePlays);
+
+        // Limpiar pantalla
+        setJugadasFijosYCorridos([]);
+        setJugadasParles([]);
+        setJugadasCentenas([]);
+        setNote('');
+        setNumero('');
+        setFijo('');
+        setCorrido('');
+        setParleInput('');
+        setPrecioParle('');
+        setCentenaNumero('');
+        setCentenaPrecio('');
+        setJugadasConError(new Set());
+        setShowFieldErrors(false);
+
+        setInsertFeedback({ 
+          type: 'warning',
+          message: `📴 Sin conexión: ${result.count} jugada(s) guardada(s) offline. Se sincronizarán automáticamente cuando haya internet.`
+        });
+
+        setIsInserting(false);
+        return;
+      } catch (error) {
+        console.error('Error guardando jugadas offline:', error);
+        setInsertFeedback({ 
+          type: 'error',
+          message: 'Error al guardar jugadas offline: ' + error.message
+        });
+        setIsInserting(false);
+        return;
+      }
+    }
+    
+    // Inserción online usando batch (más eficiente)
     
     try {
         // Intentar batch insert primero
