@@ -9,9 +9,11 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { AuthProvider, useAuthContext } from './src/contexts/AuthContext';
 import { AppStateProvider } from './src/contexts/AppStateContext';
+import { OfflineProvider } from './src/contexts/OfflineContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ConnectionStatusIndicator from './src/components/ConnectionStatusIndicator';
 import ConnectionIndicator from './src/components/ConnectionIndicator';
+import SyncStatusBanner from './src/components/SyncStatusBanner';
 import OfflineTestingPanel from './src/components/OfflineTestingPanel';
 import * as OfflineStorage from './src/services/offlineStorageService';
 import * as ConnectionService from './src/services/connectionService';
@@ -94,6 +96,7 @@ function AppContent() {
         <AppNavigator />
       </NavigationContainer>
       <ConnectionIndicator />
+      <SyncStatusBanner />
       <ConnectionStatusIndicator />
       <OfflineTestingPanel userRole={userRole} />
     </View>
@@ -103,9 +106,11 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppStateProvider>
-        <AppContent />
-      </AppStateProvider>
+      <OfflineProvider>
+        <AppStateProvider>
+          <AppContent />
+        </AppStateProvider>
+      </OfflineProvider>
     </AuthProvider>
   );
 }

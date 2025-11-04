@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import * as OfflineStorage from '../services/offlineStorageService';
 import * as ConnectionService from '../services/connectionService';
+import { useOfflineContext } from '../contexts/OfflineContext';
 
 /**
  * Componente de testing para probar funcionalidades offline
@@ -22,6 +23,17 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   const [visible, setVisible] = useState(false);
   const [testResults, setTestResults] = useState([]);
   const [forceOffline, setForceOffline] = useState(false);
+  
+  // Contexto offline
+  const { 
+    pendingPlaysCount, 
+    syncQueue,
+    addToSyncQueue,
+    clearSyncQueue,
+    startSync,
+    isSyncing,
+    lastSyncTime
+  } = useOfflineContext();
   
   // Si no se permite web y estamos en web, no mostrar
   if (!allowWeb && Platform.OS === 'web') {
@@ -158,6 +170,93 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
     );
   };
 
+  // FASE 3: Testing de Context y Cola de Sincronización
+  const testAddToQueue = () => {
+    const mockPlay = {
+      id: `test_play_${Date.now()}`,
+      type: 'fijo',
+      number: '12',
+      amount: 100,
+      lottery: 'Leidsa',
+      timestamp: Date.now()
+    };
+    
+    addToSyncQueue(mockPlay);
+    addResult('Agregar a Cola', true, `Play #${mockPlay.id} agregado`);
+    Alert.alert('✅ Agregado a Cola', `Jugada de prueba agregada\n\nCola actual: ${syncQueue.length + 1} items\nPendientes: ${pendingPlaysCount + 1}`);
+  };
+
+  const testViewQueue = () => {
+    if (syncQueue.length === 0) {
+      Alert.alert('ℹ️ Cola Vacía', 'No hay items en la cola de sincronización');
+      return;
+    }
+
+    const queueInfo = syncQueue.map((item, index) => 
+      `${index + 1}. ${item.type || 'unknown'} - ${item.number || 'N/A'} ($${item.amount || 0})`
+    ).join('\n');
+
+    Alert.alert(
+      '📋 Cola de Sincronización',
+      `Total: ${syncQueue.length} items\nPendientes: ${pendingPlaysCount}\n\n${queueInfo}`,
+      [{ text: 'OK' }],
+      { cancelable: true }
+    );
+    addResult('Ver Cola', true, `${syncQueue.length} items`);
+  };
+
+  const testClearQueue = () => {
+    Alert.alert(
+      '⚠️ Confirmar',
+      `¿Eliminar ${syncQueue.length} items de la cola?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Limpiar',
+          style: 'destructive',
+          onPress: () => {
+            clearSyncQueue();
+            addResult('Limpiar Cola', true, 'Cola limpiada');
+            Alert.alert('✅ Cola Limpiada', 'Todos los items han sido eliminados');
+          }
+        }
+      ]
+    );
+  };
+
+  const testManualSync = async () => {
+    if (syncQueue.length === 0) {
+      Alert.alert('ℹ️ No hay nada que sincronizar', 'La cola está vacía');
+      return;
+    }
+
+    addResult('Sincronización Manual', true, 'Iniciando...');
+    Alert.alert('🔄 Sincronizando', `Iniciando sincronización de ${syncQueue.length} items...`);
+    
+    try {
+      await startSync();
+      addResult('Sincronización Manual', true, 'Completada');
+    } catch (error) {
+      addResult('Sincronización Manual', false, error.message);
+    }
+  };
+
+  const testViewSyncStatus = () => {
+    const lastSyncText = lastSyncTime 
+      ? new Date(lastSyncTime).toLocaleString('es-ES')
+      : 'Nunca';
+
+    Alert.alert(
+      '📊 Estado de Sincronización',
+      `Pendientes: ${pendingPlaysCount}\n` +
+      `En cola: ${syncQueue.length}\n` +
+      `Sincronizando: ${isSyncing ? 'Sí' : 'No'}\n` +
+      `Última sync: ${lastSyncText}`,
+      [{ text: 'OK' }]
+    );
+    addResult('Estado Sincronización', true, { pendingPlaysCount, queueLength: syncQueue.length });
+  };
+
   // Botón que abre el modal (inline o flotante)
   const TriggerButton = inline ? (
     <TouchableOpacity
@@ -202,6 +301,42 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
 
             {/* Botones de testing */}
             <ScrollView style={styles.content}>
+              <Text style={styles.sectionTitle}>FASE 3: Context y Cola de Sync</Text>
+              
+              <TouchableOpacity style={styles.testButton} onPress={testAddToQueue}>
+                <Text style={styles.testButtonText}>➕ Agregar Jugada a Cola</Text>
+                <Text style={styles.testButtonSubtext}>
+                  Cola: {syncQueue.length} | Pendientes: {pendingPlaysCount}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.testButton} onPress={testViewQueue}>
+                <Text style={styles.testButtonText}>📋 Ver Cola de Sincronización</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.testButton} onPress={testViewSyncStatus}>
+                <Text style={styles.testButtonText}>📊 Ver Estado de Sincronización</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.testButton, styles.infoButton]} 
+                onPress={testManualSync}
+                disabled={isSyncing || syncQueue.length === 0}
+              >
+                <Text style={styles.testButtonText}>
+                  {isSyncing ? '🔄 Sincronizando...' : '🔄 Sincronizar Manualmente'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.testButton, styles.dangerButton]} 
+                onPress={testClearQueue}
+              >
+                <Text style={[styles.testButtonText, styles.dangerButtonText]}>
+                  🗑️ Limpiar Cola
+                </Text>
+              </TouchableOpacity>
+
               <Text style={styles.sectionTitle}>FASE 2: Detección de Conexión</Text>
               
               <TouchableOpacity 
