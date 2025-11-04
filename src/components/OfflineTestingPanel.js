@@ -12,6 +12,7 @@ import {
 import * as OfflineStorage from '../services/offlineStorageService';
 import * as ConnectionService from '../services/connectionService';
 import * as LotterySync from '../services/lotterySyncService';
+import * as PlaySync from '../services/playSyncService';
 import { useOfflineContext } from '../contexts/OfflineContext';
 
 /**
@@ -477,6 +478,139 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
     }
   };
 
+  // ========== FASE 6-7: JUGADAS OFFLINE Y SINCRONIZACIÓN ==========
+  
+  const testSavePlayOffline = async () => {
+    try {
+      // Crear jugada de prueba
+      const mockPlay = {
+        id_usuario: 1,
+        tipo_jugada: 'parle',
+        numeros: JSON.stringify([{ num: '12', apuesta: 500 }]),
+        monto_total: 500,
+        comision: 50,
+        premio_potencial: 5000,
+        id_banco: 1,
+        fecha_sorteo: new Date().toISOString().split('T')[0],
+        hora_sorteo: '12:00'
+      };
+
+      await OfflineStorage.savePlayOffline(mockPlay);
+      
+      const pending = await OfflineStorage.getPendingPlays();
+      
+      Alert.alert(
+        '✅ Jugada Guardada Offline',
+        `Jugada guardada exitosamente\n\nJugadas pendientes: ${pending.length}\n\nTipo: ${mockPlay.tipo_jugada}\nMonto: RD$ ${mockPlay.monto_total}`
+      );
+    } catch (error) {
+      Alert.alert('❌ Error', error.message);
+    }
+  };
+
+  const testViewPendingPlays = async () => {
+    try {
+      const pending = await OfflineStorage.getPendingPlays();
+      
+      if (pending.length === 0) {
+        Alert.alert('ℹ️ Sin Jugadas Pendientes', 'No hay jugadas offline para sincronizar');
+        return;
+      }
+
+      const playsText = pending.map((play, index) => {
+        const createdAt = new Date(play.created_at).toLocaleString();
+        return `${index + 1}. ${play.tipo_jugada} - RD$ ${play.monto_total}\n   Creada: ${createdAt}`;
+      }).join('\n\n');
+
+      Alert.alert(
+        `📋 Jugadas Pendientes (${pending.length})`,
+        playsText,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert('❌ Error', error.message);
+    }
+  };
+
+  const testSyncPlays = async () => {
+    try {
+      const pending = await OfflineStorage.getPendingPlays();
+      
+      if (pending.length === 0) {
+        Alert.alert('ℹ️ Sin Jugadas Pendientes', 'No hay jugadas para sincronizar');
+        return;
+      }
+
+      Alert.alert(
+        '🔄 Sincronizar Jugadas',
+        `¿Deseas sincronizar ${pending.length} jugada(s) pendiente(s)?`,
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel'
+          },
+          {
+            text: 'Sincronizar',
+            onPress: async () => {
+              try {
+                const result = await PlaySync.syncPendingPlays();
+                
+                if (result.success) {
+                  Alert.alert(
+                    '✅ Sincronización Completada',
+                    `Total: ${result.total}\nSincronizadas: ${result.synced}\nFallidas: ${result.failed}\n\n${result.errors.length > 0 ? 'Errores:\n' + result.errors.join('\n') : '¡Todo sincronizado correctamente!'}`
+                  );
+                } else {
+                  Alert.alert('❌ Error en Sincronización', result.error || 'Error desconocido');
+                }
+              } catch (error) {
+                Alert.alert('❌ Error', error.message);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('❌ Error', error.message);
+    }
+  };
+
+  const testClearPendingPlays = async () => {
+    try {
+      const pending = await OfflineStorage.getPendingPlays();
+      
+      if (pending.length === 0) {
+        Alert.alert('ℹ️ Sin Jugadas Pendientes', 'No hay jugadas para limpiar');
+        return;
+      }
+
+      Alert.alert(
+        '⚠️ Limpiar Jugadas Pendientes',
+        `Esto eliminará ${pending.length} jugada(s) pendiente(s) sin sincronizar. ¿Estás seguro?`,
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel'
+          },
+          {
+            text: 'Limpiar',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await PlaySync.clearPendingPlays();
+                Alert.alert('✅ Limpiado', 'Todas las jugadas pendientes fueron eliminadas');
+              } catch (error) {
+                Alert.alert('❌ Error', error.message);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('❌ Error', error.message);
+    }
+  };
+
   // Botón que abre el modal (inline o flotante)
   const TriggerButton = inline ? (
     <TouchableOpacity
@@ -521,6 +655,38 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
 
             {/* Botones de testing */}
             <ScrollView style={styles.content}>
+              <Text style={styles.sectionTitle}>FASE 6-7: Jugadas Offline y Sincronización</Text>
+              
+              <TouchableOpacity style={styles.testButton} onPress={testSavePlayOffline}>
+                <Text style={styles.testButtonText}>💾 Guardar Jugada de Prueba</Text>
+                <Text style={styles.testButtonSubtext}>
+                  Guarda jugada offline pendiente
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.testButton} onPress={testViewPendingPlays}>
+                <Text style={styles.testButtonText}>📋 Ver Jugadas Pendientes</Text>
+                <Text style={styles.testButtonSubtext}>
+                  Pendientes: {pendingPlaysCount || 0}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.testButton, styles.successButton]} 
+                onPress={testSyncPlays}
+              >
+                <Text style={styles.testButtonText}>🔄 Sincronizar Jugadas</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.testButton, styles.dangerButton]} 
+                onPress={testClearPendingPlays}
+              >
+                <Text style={[styles.testButtonText, styles.dangerButtonText]}>
+                  🗑️ Limpiar Jugadas Pendientes
+                </Text>
+              </TouchableOpacity>
+
               <Text style={styles.sectionTitle}>FASE 5: Sincronización de Loterías</Text>
               
               <TouchableOpacity style={styles.testButton} onPress={testSyncLotteries}>

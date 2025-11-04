@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useConnection } from '../hooks/useConnection';
 import * as OfflineStorage from '../services/offlineStorageService';
+import * as playSyncService from '../services/playSyncService';
 
 /**
  * Context para gestionar estado offline global de la aplicación
@@ -20,16 +21,14 @@ export const OfflineProvider = ({ children }) => {
   const [syncError, setSyncError] = useState(null);
 
   /**
-   * Cargar contador de jugadas pendientes desde SQLite
+   * Cargar contador de jugadas pendientes desde offline_plays
+   * FASE 6: Ahora lee de la tabla offline_plays en lugar de logs
    */
   const loadPendingPlaysCount = useCallback(async () => {
     try {
-      const logs = await OfflineStorage.getLogs(1000);
-      const pendingLogs = logs.filter(log => 
-        log.message?.includes('pending') || log.data?.pending === true
-      );
-      setPendingPlaysCount(pendingLogs.length);
-      console.log('[OfflineContext] Jugadas pendientes:', pendingLogs.length);
+      const pendingPlays = await OfflineStorage.getPendingPlays();
+      setPendingPlaysCount(pendingPlays.length);
+      console.log('[OfflineContext] Jugadas pendientes:', pendingPlays.length);
     } catch (error) {
       console.error('[OfflineContext] Error cargando jugadas pendientes:', error);
     }
@@ -90,52 +89,58 @@ export const OfflineProvider = ({ children }) => {
 
   /**
    * Iniciar proceso de sincronización
-   * En FASE 7 se implementará la lógica completa
+   * FASE 7: Sincronización real con playSyncService
    */
   const startSync = useCallback(async () => {
-    if (!isOnline || isSyncing || syncQueue.length === 0) {
+    if (!isOnline || isSyncing) {
       console.log('[OfflineContext] No se puede sincronizar:', { 
         isOnline, 
-        isSyncing, 
-        queueLength: syncQueue.length 
+        isSyncing
       });
       return;
     }
 
-    console.log('[OfflineContext] Iniciando sincronización de', syncQueue.length, 'items...');
+    console.log('[OfflineContext] Iniciando sincronización de jugadas pendientes...');
     setIsSyncing(true);
     setSyncError(null);
 
     try {
-      // TODO FASE 7: Implementar lógica de sincronización con Supabase
-      // Por ahora solo simulamos éxito
-      console.log('[OfflineContext] ⚠️ Sincronización simulada (FASE 7 pendiente)');
+      // Sincronizar jugadas pendientes usando playSyncService
+      const result = await playSyncService.syncPendingPlays();
       
-      // Simular delay de red
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Marcar como sincronizado
-      updateLastSync();
-      clearSyncQueue();
-      
-      await OfflineStorage.addLog('info', 'Sincronización completada (simulada)', {
-        itemCount: syncQueue.length,
-        timestamp: Date.now()
-      });
-
-      console.log('[OfflineContext] ✅ Sincronización completada');
+      if (result.success) {
+        console.log('[OfflineContext] ✅ Sincronización completada:', result);
+        
+        // Actualizar última sincronización
+        updateLastSync();
+        
+        // Recargar conteo de pendientes
+        await loadPendingPlaysCount();
+        
+        // Limpiar cola de sincronización
+        clearSyncQueue();
+        
+        await OfflineStorage.addLog('info', 'Sincronización completada', {
+          synced: result.synced,
+          failed: result.failed,
+          total: result.total,
+          timestamp: Date.now()
+        });
+      } else {
+        throw new Error(result.error || 'Error desconocido en sincronización');
+      }
     } catch (error) {
       console.error('[OfflineContext] ❌ Error en sincronización:', error);
       setSyncError(error.message);
       
       await OfflineStorage.addLog('error', 'Error en sincronización', {
         error: error.message,
-        itemCount: syncQueue.length
+        timestamp: Date.now()
       });
     } finally {
       setIsSyncing(false);
     }
-  }, [isOnline, isSyncing, syncQueue, updateLastSync, clearSyncQueue]);
+  }, [isOnline, isSyncing, updateLastSync, clearSyncQueue]);
 
   /**
    * Cargar última sincronización desde SQLite al montar
