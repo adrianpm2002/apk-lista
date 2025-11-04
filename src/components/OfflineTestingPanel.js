@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import * as OfflineStorage from '../services/offlineStorageService';
 import * as ConnectionService from '../services/connectionService';
+import * as LotterySync from '../services/lotterySyncService';
 import { useOfflineContext } from '../contexts/OfflineContext';
 
 /**
@@ -368,6 +369,114 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
     }
   };
 
+  // FASE 5: Testing de Sincronización de Loterías
+  const testSyncLotteries = async () => {
+    try {
+      addResult('Sync Loterías', true, 'Iniciando...');
+      
+      const result = await LotterySync.syncLotteries();
+      
+      if (result) {
+        const lotteries = await OfflineStorage.getLotteries();
+        addResult('Sync Loterías', true, `${lotteries.length} loterías sincronizadas`);
+        Alert.alert(
+          '✅ Sincronización Exitosa',
+          `${lotteries.length} loterías guardadas en SQLite\n\nAhora están disponibles offline`
+        );
+      } else {
+        addResult('Sync Loterías', false, 'No se pudo sincronizar');
+        Alert.alert('ℹ️ Sin Conexión', 'Activa la conexión para sincronizar loterías');
+      }
+    } catch (error) {
+      addResult('Sync Loterías', false, error.message);
+      Alert.alert('❌ Error', error.message);
+    }
+  };
+
+  const testSyncSchedules = async () => {
+    try {
+      addResult('Sync Horarios', true, 'Iniciando...');
+      
+      const result = await LotterySync.syncSchedules();
+      
+      if (result) {
+        const schedules = await OfflineStorage.getSchedules();
+        addResult('Sync Horarios', true, `${schedules.length} horarios sincronizados`);
+        Alert.alert(
+          '✅ Sincronización Exitosa',
+          `${schedules.length} horarios guardados en SQLite\n\nAhora están disponibles offline`
+        );
+      } else {
+        addResult('Sync Horarios', false, 'No se pudo sincronizar');
+        Alert.alert('ℹ️ Sin Conexión', 'Activa la conexión para sincronizar horarios');
+      }
+    } catch (error) {
+      addResult('Sync Horarios', false, error.message);
+      Alert.alert('❌ Error', error.message);
+    }
+  };
+
+  const testViewOfflineLotteries = async () => {
+    try {
+      const lotteries = await OfflineStorage.getLotteries();
+      
+      if (lotteries.length === 0) {
+        Alert.alert(
+          'ℹ️ No hay loterías',
+          'Primero sincroniza las loterías usando el botón "🔄 Sincronizar Loterías"'
+        );
+        return;
+      }
+
+      const list = lotteries
+        .slice(0, 10)
+        .map((l, i) => `${i + 1}. ${l.nombre} (ID: ${l.id_loteria})`)
+        .join('\n');
+
+      addResult('Ver Loterías Offline', true, `${lotteries.length} loterías`);
+      Alert.alert(
+        '📋 Loterías Guardadas Offline',
+        `Total: ${lotteries.length}\n\nPrimeras 10:\n${list}`,
+        [{ text: 'OK' }],
+        { cancelable: true }
+      );
+    } catch (error) {
+      addResult('Ver Loterías Offline', false, error.message);
+      Alert.alert('❌ Error', error.message);
+    }
+  };
+
+  const testAutoSync = async () => {
+    try {
+      const needs = await LotterySync.needsSync();
+      
+      Alert.alert(
+        '🔄 Auto-Sincronización',
+        needs
+          ? 'Última sincronización hace más de 1 hora\n\n¿Sincronizar ahora?'
+          : 'Sincronización reciente (< 1 hora)\n\nNo es necesario sincronizar',
+        needs
+          ? [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Sincronizar',
+                onPress: async () => {
+                  const result = await LotterySync.syncAll();
+                  Alert.alert(
+                    'Resultado',
+                    `Loterías: ${result.lotteries ? '✅' : '❌'}\n` +
+                    `Horarios: ${result.schedules ? '✅' : '❌'}`
+                  );
+                }
+              }
+            ]
+          : [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert('❌ Error', error.message);
+    }
+  };
+
   // Botón que abre el modal (inline o flotante)
   const TriggerButton = inline ? (
     <TouchableOpacity
@@ -412,6 +521,24 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
 
             {/* Botones de testing */}
             <ScrollView style={styles.content}>
+              <Text style={styles.sectionTitle}>FASE 5: Sincronización de Loterías</Text>
+              
+              <TouchableOpacity style={styles.testButton} onPress={testSyncLotteries}>
+                <Text style={styles.testButtonText}>🔄 Sincronizar Loterías</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.testButton} onPress={testSyncSchedules}>
+                <Text style={styles.testButtonText}>⏰ Sincronizar Horarios</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.testButton} onPress={testViewOfflineLotteries}>
+                <Text style={styles.testButtonText}>📋 Ver Loterías Guardadas</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={[styles.testButton, styles.infoButton]} onPress={testAutoSync}>
+                <Text style={styles.testButtonText}>🔁 Test Auto-Sincronización</Text>
+              </TouchableOpacity>
+
               <Text style={styles.sectionTitle}>FASE 4: Login Offline</Text>
               
               <TouchableOpacity style={styles.testButton} onPress={testSaveCredentials}>

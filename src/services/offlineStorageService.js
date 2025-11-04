@@ -381,26 +381,188 @@ export const getPendingPlays = async () => {
   return [];
 };
 
-// Loterías
-export const saveLotteries = async (lotteries) => {
-  await addLog('TODO', 'saveLotteries not implemented yet', { count: lotteries?.length });
-  throw new Error('Not implemented yet');
+// ========================================
+// LOTERÍAS Y HORARIOS OFFLINE
+// ========================================
+
+/**
+ * Guardar loterías en SQLite para uso offline
+ * @param {Array} lotteries - Array de loterías desde Supabase
+ * @param {number} id_banco - ID del banco (opcional, para filtrar)
+ */
+export const saveLotteries = async (lotteries, id_banco = null) => {
+  try {
+    const db = await getDatabase();
+    if (!db) {
+      console.log('[OfflineStorage] DB not available, skipping lottery save');
+      return false;
+    }
+
+    if (!Array.isArray(lotteries) || lotteries.length === 0) {
+      console.log('[OfflineStorage] No lotteries to save');
+      return false;
+    }
+
+    // Limpiar loterías anteriores del banco (si se especifica)
+    if (id_banco) {
+      await db.executeSql('DELETE FROM offline_lotteries WHERE id_banco = ?', [id_banco]);
+    } else {
+      await db.executeSql('DELETE FROM offline_lotteries');
+    }
+
+    // Insertar loterías
+    for (const lottery of lotteries) {
+      await db.executeSql(
+        `INSERT INTO offline_lotteries 
+         (id_loteria, nombre, id_banco, activo, fecha_sync) 
+         VALUES (?, ?, ?, ?, datetime('now'))`,
+        [
+          lottery.id_loteria,
+          lottery.nombre,
+          lottery.id_banco,
+          lottery.activo ? 1 : 0
+        ]
+      );
+    }
+
+    await addLog('info', 'Loterías guardadas offline', { 
+      count: lotteries.length,
+      id_banco 
+    });
+    console.log(`[OfflineStorage] ✅ ${lotteries.length} loterías guardadas`);
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error saving lotteries:', error);
+    await addLog('error', 'Error guardando loterías', { error: error.message });
+    return false;
+  }
 };
 
-export const getLotteries = async (id_banco) => {
-  await addLog('TODO', 'getLotteries not implemented yet', { id_banco });
-  return [];
+/**
+ * Obtener loterías guardadas offline
+ * @param {number} id_banco - ID del banco (opcional)
+ */
+export const getLotteries = async (id_banco = null) => {
+  try {
+    const db = await getDatabase();
+    if (!db) return [];
+
+    let query = 'SELECT * FROM offline_lotteries WHERE activo = 1';
+    const params = [];
+
+    if (id_banco) {
+      query += ' AND id_banco = ?';
+      params.push(id_banco);
+    }
+
+    query += ' ORDER BY nombre';
+
+    const [result] = await db.executeSql(query, params);
+    
+    const lotteries = [];
+    for (let i = 0; i < result.rows.length; i++) {
+      const row = result.rows.item(i);
+      lotteries.push({
+        id_loteria: row.id_loteria,
+        nombre: row.nombre,
+        id_banco: row.id_banco,
+        activo: row.activo === 1,
+        fecha_sync: row.fecha_sync
+      });
+    }
+
+    console.log(`[OfflineStorage] 📋 ${lotteries.length} loterías obtenidas offline`);
+    return lotteries;
+  } catch (error) {
+    console.error('[OfflineStorage] Error getting lotteries:', error);
+    return [];
+  }
 };
 
-// Horarios
+/**
+ * Guardar horarios en SQLite para uso offline
+ * @param {Array} schedules - Array de horarios desde Supabase
+ */
 export const saveSchedules = async (schedules) => {
-  await addLog('TODO', 'saveSchedules not implemented yet', { count: schedules?.length });
-  throw new Error('Not implemented yet');
+  try {
+    const db = await getDatabase();
+    if (!db) {
+      console.log('[OfflineStorage] DB not available, skipping schedules save');
+      return false;
+    }
+
+    if (!Array.isArray(schedules) || schedules.length === 0) {
+      console.log('[OfflineStorage] No schedules to save');
+      return false;
+    }
+
+    // Limpiar horarios anteriores
+    await db.executeSql('DELETE FROM offline_schedules');
+
+    // Insertar horarios
+    for (const schedule of schedules) {
+      await db.executeSql(
+        `INSERT INTO offline_schedules 
+         (id_horario, id_loteria, hora_cierre, activo, fecha_sync) 
+         VALUES (?, ?, ?, ?, datetime('now'))`,
+        [
+          schedule.id_horario,
+          schedule.id_loteria,
+          schedule.hora_cierre,
+          schedule.activo ? 1 : 0
+        ]
+      );
+    }
+
+    await addLog('info', 'Horarios guardados offline', { count: schedules.length });
+    console.log(`[OfflineStorage] ✅ ${schedules.length} horarios guardados`);
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error saving schedules:', error);
+    await addLog('error', 'Error guardando horarios', { error: error.message });
+    return false;
+  }
 };
 
-export const getSchedules = async (id_loteria) => {
-  await addLog('TODO', 'getSchedules not implemented yet', { id_loteria });
-  return [];
+/**
+ * Obtener horarios guardados offline para una lotería
+ * @param {number} id_loteria - ID de la lotería
+ */
+export const getSchedules = async (id_loteria = null) => {
+  try {
+    const db = await getDatabase();
+    if (!db) return [];
+
+    let query = 'SELECT * FROM offline_schedules WHERE activo = 1';
+    const params = [];
+
+    if (id_loteria) {
+      query += ' AND id_loteria = ?';
+      params.push(id_loteria);
+    }
+
+    query += ' ORDER BY hora_cierre';
+
+    const [result] = await db.executeSql(query, params);
+    
+    const schedules = [];
+    for (let i = 0; i < result.rows.length; i++) {
+      const row = result.rows.item(i);
+      schedules.push({
+        id_horario: row.id_horario,
+        id_loteria: row.id_loteria,
+        hora_cierre: row.hora_cierre,
+        activo: row.activo === 1,
+        fecha_sync: row.fecha_sync
+      });
+    }
+
+    console.log(`[OfflineStorage] ⏰ ${schedules.length} horarios obtenidos offline`);
+    return schedules;
+  } catch (error) {
+    console.error('[OfflineStorage] Error getting schedules:', error);
+    return [];
+  }
 };
 
 // ========================================
