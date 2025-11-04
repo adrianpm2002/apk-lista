@@ -595,11 +595,27 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             margin-right: 20px;
             font-size: 11px;
           }
-          table{ width:100%; border-collapse: collapse; margin-bottom: 20px; }
-          th, td{ border:1px solid #ccc; padding:6px; font-size: 10px; text-align:left; }
+          table{ width:100%; border-collapse: collapse; margin-bottom: 20px; table-layout: fixed; }
+          th, td{ border:1px solid #ccc; padding:6px; font-size: 10px; text-align:left; vertical-align: top; }
           thead{ background:#f3f3f3; }
           .positive{ color: #2E7D32; font-weight: bold; }
           .negative{ color: #D32F2F; font-weight: bold; }
+          
+          /* Ancho fijo para columnas específicas */
+          th:nth-child(1), td:nth-child(1) { width: 60px; } /* Hora */
+          th:nth-child(2), td:nth-child(2) { width: 80px; } /* Nota */
+          th:nth-child(3), td:nth-child(3) { width: 70px; } /* Jugada */
+          th:nth-child(4), td:nth-child(4) { 
+            width: 150px; 
+            word-wrap: break-word; 
+            word-break: break-word;
+            white-space: normal;
+            max-width: 150px;
+          } /* Números - con salto de línea */
+          th:nth-child(5), td:nth-child(5) { width: 75px; } /* Bruto */
+          th:nth-child(6), td:nth-child(6) { width: 75px; } /* Ganancia */
+          th:nth-child(7), td:nth-child(7) { width: 75px; } /* Premio */
+          th:nth-child(8), td:nth-child(8) { width: 75px; } /* Balance */
         </style>`;
       
       const sections = groups.map(g=>{
@@ -619,11 +635,16 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         
         const rows = g.plays.map(p=> {
           const balancePlayClass = p.balance >= 0 ? 'positive' : 'negative';
+          // Formatear números con comas cada 3 caracteres para mejor legibilidad
+          const formattedNumeros = (p.numeros || '')
+            .replace(/</g,'&lt;')
+            .replace(/,/g, ', '); // Agregar espacio después de cada coma para mejor salto de línea
+          
           return `<tr>
             <td>${p.time}</td>
             <td>${(p.nota||'Sin nota')}</td>
             <td>${(p.jugada||'')}</td>
-            <td>${(p.numeros || '').replace(/</g,'&lt;')}</td>
+            <td>${formattedNumeros}</td>
             <td>${formatSantiagoMoney(p.bruto)}</td>
             <td>${formatSantiagoMoney(p.ganancia)}</td>
             <td>${p.pagado > 0 ? formatMoney(p.pagado) : 'Sin premio'}</td>
