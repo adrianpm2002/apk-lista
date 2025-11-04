@@ -438,70 +438,124 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // ===== Export helpers (Web) =====
   const groupDetailsForExport = () => {
-    // Validar que tableData sea un array
-    if (!tableData || !Array.isArray(tableData)) {
+    // Para listero, extraer raw_plays de tableData.plays
+    if (!tableData?.plays || tableData.plays.length === 0) {
       return [];
     }
     
-    if (tableData.length === 0) {
+    // Desagrupar datos de colectores para obtener jugadas individuales (igual que en renderListeroDetailsTab)
+    let allPlays = [];
+    tableData.plays.forEach(collector => {
+      if (collector.raw_plays && Array.isArray(collector.raw_plays)) {
+        allPlays = allPlays.concat(collector.raw_plays);
+      }
+    });
+
+    if (allPlays.length === 0) {
       return [];
     }
     
     // Reutilizar misma agrupación base que en pantalla
     const dayKeyOf = (ts)=>{ 
       const d=new Date(ts); 
-      if (isNaN(d.getTime())) return 0; // Manejar fecha inválida
+      if (isNaN(d.getTime())) return 0;
       d.setHours(0,0,0,0); 
       return d.getTime(); 
     };
     const dayLabelOf = (ts)=>{ 
       const d=new Date(ts); 
-      if (isNaN(d.getTime())) return 'Fecha inválida'; // Manejar fecha inválida
+      if (isNaN(d.getTime())) return 'Fecha inválida';
       return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }); 
     };
     const timeStr = (ts)=> {
       const d = new Date(ts);
-      if (isNaN(d.getTime())) return 'Hora inválida'; // Manejar fecha inválida
+      if (isNaN(d.getTime())) return 'Hora inválida';
       return d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit', hour12: true});
     };
-    const inferCollected = (row)=>{
-      const mt = row.monto_total;
-      if(mt!=null && mt!==undefined) return Number(mt)||0;
-      const count = String(row.numeros || row.numeros_jugados || '').split(',').map(s=>s.trim()).filter(Boolean).length;
-      return (Number(row.monto_unitario)||0)*count;
-    };
+    
     const map = new Map();
-    
 
+    // Filtrar registros con fechas válidas Y por lotería seleccionada Y por período (igual que en pantalla)
+    const validPlays = allPlays.filter(r => {
+      if (!r.fecha_jugada) return false;
+      
+      // Aplicar filtro de lotería
+      if (selectedLotteryDetails !== 'all') {
+        const playLottery = r.loteria || r.nombre_loteria || 'Lotería';
+        if (playLottery !== selectedLotteryDetails) return false;
+      }
+      
+      // Aplicar filtro de período de fechas
+      if (currentStartDate && currentEndDate) {
+        const playDate = new Date(r.fecha_jugada);
+        if (isNaN(playDate.getTime())) return false;
+        
+        const playDateOnly = new Date(playDate.getFullYear(), playDate.getMonth(), playDate.getDate());
+        const startDateOnly = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth(), currentStartDate.getDate());
+        const endDateOnly = new Date(currentEndDate.getFullYear(), currentEndDate.getMonth(), currentEndDate.getDate());
+        
+        if (playDateOnly < startDateOnly || playDateOnly > endDateOnly) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
     
-    // Filtrar registros con fechas válidas antes de procesarlos
-    const validRecords = tableData.filter(r => r.created_at);
-    
-    for(const r of validRecords){
-      const dayKey = dayKeyOf(r.created_at);
-      const dayLabel = dayLabelOf(r.created_at);
-      const lot = r.lottery_name || 'Lotería';
-      const sch = r.schedule_name || 'Horario';
-      const key = `${dayKey}|${lot}|${sch}`;
-      if(!map.has(key)) map.set(key, { key, dayKey, dayLabel, lottery: lot, schedule: sch, plays: [], totalRecogido:0, totalPagado:0, resultado: r.resultado || null });
-      const g = map.get(key);
-      const collected = inferCollected(r);
-      g.totalRecogido += collected;
-      g.totalPagado += Number(r.pago_calculado||0);
-      if (!g.resultado && r.resultado) g.resultado = r.resultado;
-      g.plays.push({
+    for(const r of validPlays){
+      const dayKey = dayKeyOf(r.fecha_jugada);
+      const dayLabel = dayLabelOf(r.fecha_jugada);
+      const lottery = r.loteria || r.nombre_loteria || 'Lotería';
+      const schedule = r.horario || r.nombre_horario || 'Horario';
+      const resultado = r.resultado || null;
+      
+      const key = `${dayKey}|${lottery}|${schedule}|${resultado || 'sin_resultado'}`;
+      
+      if(!map.has(key)) {
+        map.set(key, { 
+          key, 
+          dayKey, 
+          dayLabel, 
+          lottery, 
+          schedule, 
+          resultado,
+          plays: [], 
+          totalGananciaListero: 0,
+          totalRecogido: 0,
+          totalLimpio: 0,
+          totalBalance: 0,
+          totalPagado: 0
+        });
+      }
+      
+      const group = map.get(key);
+      
+      // Acumular totales (igual que en pantalla)
+      const bruto = Number(r.monto_total || 0);
+      const ganancia = Number(r.ganancia_listero || 0);
+      group.totalGananciaListero += ganancia;
+      group.totalRecogido += bruto;
+      group.totalLimpio += (bruto - ganancia);
+      group.totalBalance += Number(r.balance_listero || 0);
+      group.totalPagado += Number(r.monto_a_pagar || 0);
+      
+      // Agregar jugada individual
+      group.plays.push({
+        time: timeStr(r.fecha_jugada),
         ts: (() => {
-          const d = new Date(r.created_at);
+          const d = new Date(r.fecha_jugada);
           return isNaN(d.getTime()) ? 0 : d.getTime();
         })(),
-        time: timeStr(r.created_at),
-        nota: r.nota,
-        jugada: r.jugada,
-        numeros: r.numeros || r.numeros_jugados,
-        total: collected,
-        pagado: Number(r.pago_calculado||0),
+        nota: r.nota || '',
+        jugada: r.tipo_jugada || '',
+        numeros: r.numeros || r.numeros_jugados || '',
+        bruto: bruto,
+        ganancia: ganancia,
+        pagado: Number(r.monto_a_pagar || 0),
+        balance: Number(r.balance_listero || 0)
       });
     }
+    
     const groups = Array.from(map.values()).sort((a,b)=> (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
     groups.forEach(g=> g.plays.sort((a,b)=> b.ts - a.ts));
     
@@ -512,34 +566,99 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     try{
       const groups = groupDetailsForExport();
       
+      if (groups.length === 0) {
+        Alert.alert('Sin datos', 'No hay datos para exportar con los filtros aplicados');
+        return false;
+      }
+      
       const style = `
         <style>
-          body{ font-family: Arial, sans-serif; }
-          h2{ margin: 6px 0; font-size:14px; }
-          table{ width:100%; border-collapse: collapse; margin-bottom: 12px; }
-          th, td{ border:1px solid #ccc; padding:6px; font-size: 11px; text-align:left; }
+          body{ font-family: Arial, sans-serif; padding: 20px; }
+          h2{ margin: 10px 0; font-size:16px; }
+          .group-header{ 
+            background: #2196F3; 
+            color: white; 
+            padding: 10px; 
+            margin-top: 15px;
+            margin-bottom: 5px;
+            font-weight: bold;
+            border-radius: 4px;
+          }
+          .group-totals{
+            background: #E3F2FD;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #2196F3;
+          }
+          .group-totals-item{
+            display: inline-block;
+            margin-right: 20px;
+            font-size: 11px;
+          }
+          table{ width:100%; border-collapse: collapse; margin-bottom: 20px; }
+          th, td{ border:1px solid #ccc; padding:6px; font-size: 10px; text-align:left; }
           thead{ background:#f3f3f3; }
-          .meta{ color:#333; margin-bottom:4px; }
+          .positive{ color: #2E7D32; font-weight: bold; }
+          .negative{ color: #D32F2F; font-weight: bold; }
         </style>`;
+      
       const sections = groups.map(g=>{
-        const header = `<div class="meta"><strong>${g.dayLabel}</strong> · ${g.lottery} · ${g.schedule} · Resultado: ${g.resultado || 'no disponible'}</div>`;
-        const rows = g.plays.map(p=> `<tr>
+        const balanceClass = g.totalBalance >= 0 ? 'positive' : 'negative';
+        
+        const groupHeader = `
+          <div class="group-header">
+            ${g.dayLabel} · ${g.lottery} · ${g.schedule} · Resultado: ${g.resultado || 'No disponible'}
+          </div>
+          <div class="group-totals">
+            <span class="group-totals-item"><strong>Bruto:</strong> ${formatSantiagoMoney(g.totalRecogido)}</span>
+            <span class="group-totals-item"><strong>Limpio:</strong> ${formatSantiagoMoney(g.totalLimpio)}</span>
+            <span class="group-totals-item"><strong>Ganancia:</strong> ${formatSantiagoMoney(g.totalGananciaListero)}</span>
+            <span class="group-totals-item"><strong>Premio:</strong> ${formatMoney(g.totalPagado)}</span>
+            <span class="group-totals-item"><strong>Balance:</strong> <span class="${balanceClass}">${formatSantiagoMoney(g.totalBalance)}</span></span>
+          </div>`;
+        
+        const rows = g.plays.map(p=> {
+          const balancePlayClass = p.balance >= 0 ? 'positive' : 'negative';
+          return `<tr>
             <td>${p.time}</td>
-            <td>${(p.nota||'')}</td>
+            <td>${(p.nota||'Sin nota')}</td>
             <td>${(p.jugada||'')}</td>
-            <td>${(p.numeros || p.numeros_jugados || '').replace(/</g,'&lt;')}</td>
+            <td>${(p.numeros || '').replace(/</g,'&lt;')}</td>
             <td>${formatSantiagoMoney(p.bruto)}</td>
-            <td>${p.pagado>0? formatMoney(p.pagado) : 'Sin premio'}</td>
-          </tr>`).join('');
-        return `${header}
+            <td>${formatSantiagoMoney(p.ganancia)}</td>
+            <td>${p.pagado > 0 ? formatMoney(p.pagado) : 'Sin premio'}</td>
+            <td class="${balancePlayClass}">${formatSantiagoMoney(p.balance)}</td>
+          </tr>`;
+        }).join('');
+        
+        return `${groupHeader}
           <table>
-            <thead><tr><th>Hora</th><th>Nota</th><th>Jugada</th><th>Números</th><th>Total</th><th>Pagado</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Nota</th>
+                <th>Jugada</th>
+                <th>Números</th>
+                <th>${getSantiagoHeader('Bruto')}</th>
+                <th>${getSantiagoHeader('Ganancia')}</th>
+                <th>Premio</th>
+                <th>${getSantiagoHeader('Balance')}</th>
+              </tr>
+            </thead>
             <tbody>${rows}</tbody>
           </table>`;
       }).join('');
+      
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>${style}</head><body>
-        <h2>Detalles de Jugadas</h2>
+        <h2>📊 Detalles de Jugadas - Listero</h2>
+        <p style="font-size: 11px; color: #666;">
+          Período: ${currentStartDate ? currentStartDate.toLocaleDateString('es-ES') : 'No especificado'} - ${currentEndDate ? currentEndDate.toLocaleDateString('es-ES') : 'No especificado'}
+          ${selectedLotteryDetails !== 'all' ? ` | Lotería: ${selectedLotteryDetails}` : ''}
+        </p>
         ${sections}
+        <p style="font-size: 10px; color: #999; margin-top: 30px; text-align: center;">
+          Generado el ${new Date().toLocaleString('es-ES')}
+        </p>
       </body></html>`;
       
       // Verificar que el módulo esté disponible
@@ -551,6 +670,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       const ok = await exportPdfModule.exportPdf(html);
       return !!ok;
     }catch(e){ 
+      console.error('Error en exportDetailsToPDF:', e);
       return false; 
     }
   };
