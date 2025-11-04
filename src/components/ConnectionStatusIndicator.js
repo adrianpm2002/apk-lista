@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useAppState } from '../contexts/AppStateContext';
+import { useConnection } from '../hooks/useConnection';
+import { isForceOffline } from '../services/connectionService';
 
 const ConnectionStatusIndicator = ({ style }) => {
   const { 
@@ -9,6 +11,10 @@ const ConnectionStatusIndicator = ({ style }) => {
     forceProcessPendingPlays, 
     clearAllPendingPlays 
   } = useAppState();
+  
+  // Usar el nuevo hook de conexión
+  const { isOnline } = useConnection();
+  const isForcedOffline = isForceOffline();
 
   const handlePendingPlaysPress = () => {
     if (pendingPlaysCount === 0) return;
@@ -47,16 +53,21 @@ const ConnectionStatusIndicator = ({ style }) => {
     );
   };
 
-  if (isConnected && pendingPlaysCount === 0) {
-    // No mostrar nada si está conectado y no hay jugadas pendientes
+  // Determinar si mostrar indicador offline
+  const showOffline = !isOnline || isForcedOffline;
+  
+  if (isOnline && !isForcedOffline && pendingPlaysCount === 0) {
+    // No mostrar nada si está conectado, no forzado offline, y no hay jugadas pendientes
     return null;
   }
 
   return (
     <View style={[styles.container, style]}>
-      {!isConnected && (
-        <View style={styles.offlineIndicator}>
-          <Text style={styles.offlineText}>Sin conexión</Text>
+      {showOffline && (
+        <View style={[styles.offlineIndicator, isForcedOffline && styles.forcedOfflineIndicator]}>
+          <Text style={styles.offlineText}>
+            {isForcedOffline ? '📵 Modo Offline (Forzado)' : 'Sin conexión'}
+          </Text>
         </View>
       )}
       
@@ -95,6 +106,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+  },
+  forcedOfflineIndicator: {
+    backgroundColor: '#FF9800', // Naranja para modo forzado
   },
   offlineText: {
     color: 'white',

@@ -25,10 +25,21 @@ export const SyncStatusBanner = () => {
     startSync 
   } = offlineContext;
 
+  // Debug log
+  console.log('[SyncStatusBanner] Estado:', { 
+    isOnline, 
+    isSyncing, 
+    pendingPlaysCount, 
+    syncError 
+  });
+
   // No mostrar si no hay jugadas pendientes y no hay error
   if (pendingPlaysCount === 0 && !syncError && !isSyncing) {
+    console.log('[SyncStatusBanner] No mostrar - sin jugadas pendientes');
     return null;
   }
+  
+  console.log('[SyncStatusBanner] MOSTRANDO BANNER');
 
   // Calcular mensaje y color según estado
   let message = '';

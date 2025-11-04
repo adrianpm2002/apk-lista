@@ -247,13 +247,15 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
     }
 
     addResult('Sincronización Manual', true, 'Iniciando...');
-    Alert.alert('🔄 Sincronizando', `Iniciando sincronización de ${syncQueue.length} items...`);
+    // No mostrar Alert, el SyncStatusBanner ya muestra el estado visual
     
     try {
       await startSync();
       addResult('Sincronización Manual', true, 'Completada');
+      Alert.alert('✅ Sincronización Completada', `${syncQueue.length} jugadas sincronizadas correctamente`);
     } catch (error) {
       addResult('Sincronización Manual', false, error.message);
+      Alert.alert('❌ Error', `Error en sincronización: ${error.message}`);
     }
   };
 

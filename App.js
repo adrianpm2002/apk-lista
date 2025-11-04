@@ -95,7 +95,6 @@ function AppContent() {
       <NavigationContainer>
         <AppNavigator />
       </NavigationContainer>
-      <ConnectionIndicator />
       <SyncStatusBanner />
       <ConnectionStatusIndicator />
       <OfflineTestingPanel userRole={userRole} />
