@@ -24,7 +24,23 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   const [testResults, setTestResults] = useState([]);
   const [forceOffline, setForceOffline] = useState(false);
   
-  // Contexto offline
+  // Contexto offline (puede no estar disponible aún)
+  let offlineContext;
+  try {
+    offlineContext = useOfflineContext();
+  } catch (error) {
+    // Contexto no disponible, usar valores por defecto
+    offlineContext = {
+      pendingPlaysCount: 0,
+      syncQueue: [],
+      addToSyncQueue: () => console.warn('OfflineContext no disponible'),
+      clearSyncQueue: () => console.warn('OfflineContext no disponible'),
+      startSync: () => console.warn('OfflineContext no disponible'),
+      isSyncing: false,
+      lastSyncTime: null
+    };
+  }
+
   const { 
     pendingPlaysCount, 
     syncQueue,
@@ -33,7 +49,7 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
     startSync,
     isSyncing,
     lastSyncTime
-  } = useOfflineContext();
+  } = offlineContext;
   
   // Si no se permite web y estamos en web, no mostrar
   if (!allowWeb && Platform.OS === 'web') {

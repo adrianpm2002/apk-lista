@@ -7,6 +7,15 @@ import { useOfflineContext } from '../contexts/OfflineContext';
  * Se muestra cuando hay jugadas pendientes o sincronización en progreso
  */
 export const SyncStatusBanner = () => {
+  // Intentar obtener contexto offline (puede no estar disponible al inicio)
+  let offlineContext;
+  try {
+    offlineContext = useOfflineContext();
+  } catch (error) {
+    // Contexto no disponible, no mostrar banner
+    return null;
+  }
+
   const { 
     isOnline, 
     isSyncing, 
@@ -14,7 +23,7 @@ export const SyncStatusBanner = () => {
     syncError,
     lastSyncTime,
     startSync 
-  } = useOfflineContext();
+  } = offlineContext;
 
   // No mostrar si no hay jugadas pendientes y no hay error
   if (pendingPlaysCount === 0 && !syncError && !isSyncing) {
