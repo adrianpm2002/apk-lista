@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import * as OfflineStorage from '../services/offlineStorageService';
+import * as ConnectionService from '../services/connectionService';
 
 /**
  * Componente de testing para probar funcionalidades offline
@@ -20,6 +21,7 @@ import * as OfflineStorage from '../services/offlineStorageService';
 const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   const [visible, setVisible] = useState(false);
   const [testResults, setTestResults] = useState([]);
+  const [forceOffline, setForceOffline] = useState(false);
   
   // Si no se permite web y estamos en web, no mostrar
   if (!allowWeb && Platform.OS === 'web') {
@@ -143,6 +145,19 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
     }
   };
 
+  const toggleForceOffline = () => {
+    const newState = !forceOffline;
+    ConnectionService.setForceOffline(newState);
+    setForceOffline(newState);
+    addResult('Modo Offline Forzado', true, newState ? 'ACTIVADO' : 'DESACTIVADO');
+    Alert.alert(
+      newState ? '📵 Modo Offline Activado' : '🌐 Modo Online Activado',
+      newState 
+        ? 'La app ahora simulará estar sin conexión.\nPuedes probar las funcionalidades offline.'
+        : 'La app ahora detectará la conexión real.\nSe comportará según el estado de red.'
+    );
+  };
+
   // Botón que abre el modal (inline o flotante)
   const TriggerButton = inline ? (
     <TouchableOpacity
@@ -187,6 +202,23 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
 
             {/* Botones de testing */}
             <ScrollView style={styles.content}>
+              <Text style={styles.sectionTitle}>FASE 2: Detección de Conexión</Text>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.testButton, 
+                  forceOffline ? styles.warningButton : styles.successButton
+                ]} 
+                onPress={toggleForceOffline}
+              >
+                <Text style={styles.testButtonText}>
+                  {forceOffline ? '📵 Desactivar Modo Offline' : '🌐 Simular Modo Offline'}
+                </Text>
+                <Text style={styles.testButtonSubtext}>
+                  Estado: {forceOffline ? 'OFFLINE FORZADO' : 'DETECCIÓN AUTOMÁTICA'}
+                </Text>
+              </TouchableOpacity>
+
               <Text style={styles.sectionTitle}>FASE 1: SQLite Básico</Text>
               
               <TouchableOpacity style={styles.testButton} onPress={testInsertRecord}>
@@ -359,6 +391,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
+  testButtonSubtext: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '400',
+    textAlign: 'center',
+    marginTop: 4,
+    opacity: 0.9,
+  },
   dangerButton: {
     backgroundColor: '#F44336',
   },
@@ -367,6 +407,12 @@ const styles = StyleSheet.create({
   },
   infoButton: {
     backgroundColor: '#2196F3',
+  },
+  warningButton: {
+    backgroundColor: '#FF9800',
+  },
+  successButton: {
+    backgroundColor: '#4CAF50',
   },
   resultItem: {
     padding: 12,

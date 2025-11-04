@@ -11,8 +11,10 @@ import { AuthProvider, useAuthContext } from './src/contexts/AuthContext';
 import { AppStateProvider } from './src/contexts/AppStateContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ConnectionStatusIndicator from './src/components/ConnectionStatusIndicator';
+import ConnectionIndicator from './src/components/ConnectionIndicator';
 import OfflineTestingPanel from './src/components/OfflineTestingPanel';
 import * as OfflineStorage from './src/services/offlineStorageService';
+import * as ConnectionService from './src/services/connectionService';
 
 function AppContent() {
   const { user } = useAuthContext();
@@ -62,9 +64,22 @@ function AppContent() {
 
     initDB();
 
+    // Inicializar monitor de conexión
+    console.log('[App] 🔄 Starting connection monitor...');
+    const unsubscribe = ConnectionService.initConnectionMonitor();
+    console.log('[App] ✅ Connection monitor initialized');
+
     if (Platform.OS === 'android') {
       // Configurando app para Android con soporte de segundo plano
     }
+
+    // Cleanup
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+        console.log('[App] 🔌 Connection monitor unsubscribed');
+      }
+    };
   }, []);
 
   return (
@@ -78,6 +93,7 @@ function AppContent() {
       <NavigationContainer>
         <AppNavigator />
       </NavigationContainer>
+      <ConnectionIndicator />
       <ConnectionStatusIndicator />
       <OfflineTestingPanel userRole={userRole} />
     </View>
