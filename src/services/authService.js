@@ -1,6 +1,8 @@
 import { supabase } from '../supabaseClient';
 import { secureStorage } from '../utils/storage';
 import { mapAuthError, logAuthError } from '../utils/authErrorUtils';
+import * as OfflineStorage from './offlineStorageService';
+import { isOnline as checkIsOnline } from './connectionService';
 
 /**
  * Servicio de autenticación que maneja el login, logout y restauración de sesión
@@ -111,6 +113,15 @@ class AuthService {
         throw new Error('Credenciales requeridas');
       }
 
+      // Verificar conexión
+      const online = await checkIsOnline();
+      
+      // Si offline, intentar login offline
+      if (!online) {
+        console.log('[AuthService] 📵 Sin conexión, intentando login offline...');
+        return await this.loginOffline(username, password);
+      }
+
       const email = `${username.toLowerCase()}@example.com`;
 
       const { data: authData, error: loginError } = await supabase.auth.signInWithPassword({
@@ -158,12 +169,20 @@ class AuthService {
         loginAt: new Date().toISOString()
       });
 
-      
+      // Guardar credenciales para login offline
+      await OfflineStorage.saveCredentials({
+        user_id: userId,
+        username: username.toLowerCase(),
+        password: password, // Se encriptará en offlineStorageService
+        email: email,
+        profile: userProfile
+      });
 
       return {
         success: true,
         session: authData.session,
-        profile: userProfile
+        profile: userProfile,
+        isOffline: false
       };
 
     } catch (error) {
@@ -171,6 +190,74 @@ class AuthService {
       return {
         success: false,
         error: error.message
+      };
+    }
+  }
+
+  /**
+   * Login offline usando credenciales guardadas en SQLite
+   * @param {string} username - Nombre de usuario
+   * @param {string} password - Contraseña
+   * @returns {Promise<Object>} Resultado del login offline
+   */
+  async loginOffline(username, password) {
+    try {
+      console.log('[AuthService] 🔄 Intentando login offline para:', username);
+
+      // Obtener credenciales guardadas
+      const storedCredentials = await OfflineStorage.getCredentialsByUsername(
+        username.toLowerCase()
+      );
+
+      if (!storedCredentials) {
+        throw new Error('No hay credenciales guardadas. Necesitas conectarte a internet para iniciar sesión por primera vez.');
+      }
+
+      // Validar contraseña
+      const isValid = OfflineStorage.validatePassword(
+        password,
+        storedCredentials.password_hash
+      );
+
+      if (!isValid) {
+        throw new Error('Credenciales incorrectas');
+      }
+
+      // Verificar que el usuario esté activo
+      if (storedCredentials.profile?.activo === false) {
+        throw new Error('Cuenta desactivada, contacte con su administrador.');
+      }
+
+      console.log('[AuthService] ✅ Login offline exitoso:', username);
+
+      // Marcar como logged in offline
+      await OfflineStorage.setConfig('logged_in_offline', 'true');
+      await OfflineStorage.setConfig('offline_user_id', storedCredentials.user_id);
+
+      await OfflineStorage.addLog('info', 'Login offline exitoso', {
+        username,
+        user_id: storedCredentials.user_id
+      });
+
+      return {
+        success: true,
+        session: null, // No hay sesión real de Supabase
+        profile: storedCredentials.profile,
+        isOffline: true,
+        offlineLogin: true
+      };
+
+    } catch (error) {
+      console.error('[AuthService] ❌ Error en login offline:', error.message);
+      await OfflineStorage.addLog('error', 'Error en login offline', {
+        username,
+        error: error.message
+      });
+      
+      return {
+        success: false,
+        error: error.message,
+        isOffline: true
       };
     }
   }

@@ -275,6 +275,99 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
     addResult('Estado Sincronización', true, { pendingPlaysCount, queueLength: syncQueue.length });
   };
 
+  // FASE 4: Testing de Login Offline
+  const testSaveCredentials = async () => {
+    try {
+      const mockCredentials = {
+        user_id: 'test-user-123',
+        username: 'testuser',
+        password: 'test123',
+        email: 'testuser@example.com',
+        profile: {
+          role: 'listero',
+          bankId: 1,
+          activo: true
+        }
+      };
+
+      const result = await OfflineStorage.saveCredentials(mockCredentials);
+      if (result) {
+        addResult('Guardar Credenciales', true, 'Credenciales guardadas');
+        Alert.alert('✅ Credenciales Guardadas', 'Usuario de prueba guardado:\n\nUsername: testuser\nPassword: test123');
+      } else {
+        addResult('Guardar Credenciales', false, 'Error al guardar');
+        Alert.alert('❌ Error', 'No se pudieron guardar las credenciales');
+      }
+    } catch (error) {
+      addResult('Guardar Credenciales', false, error.message);
+      Alert.alert('❌ Error', error.message);
+    }
+  };
+
+  const testValidateCredentials = async () => {
+    try {
+      const credentials = await OfflineStorage.getCredentialsByUsername('testuser');
+      
+      if (!credentials) {
+        Alert.alert('ℹ️ No hay credenciales', 'Primero guarda credenciales de prueba');
+        return;
+      }
+
+      const testPasswords = [
+        { password: 'test123', expected: true },
+        { password: 'wrong', expected: false }
+      ];
+
+      let results = '';
+      testPasswords.forEach(({ password, expected }) => {
+        const isValid = OfflineStorage.validatePassword(password, credentials.password_hash);
+        const icon = isValid === expected ? '✅' : '❌';
+        results += `${icon} "${password}": ${isValid ? 'Válida' : 'Inválida'}\n`;
+      });
+
+      addResult('Validar Credenciales', true, results);
+      Alert.alert('🔐 Prueba de Validación', results);
+    } catch (error) {
+      addResult('Validar Credenciales', false, error.message);
+      Alert.alert('❌ Error', error.message);
+    }
+  };
+
+  const testOfflineLogin = async () => {
+    try {
+      // Primero verificar si hay credenciales guardadas
+      const credentials = await OfflineStorage.getCredentialsByUsername('testuser');
+      
+      if (!credentials) {
+        Alert.alert(
+          'ℹ️ Sin Credenciales',
+          'Primero guarda credenciales de prueba usando el botón "💾 Guardar Credenciales de Prueba"',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Simular login offline
+      Alert.alert(
+        '🔐 Test Login Offline',
+        'Credenciales encontradas:\n\n' +
+        `Username: ${credentials.username}\n` +
+        `Email: ${credentials.email}\n` +
+        `Role: ${credentials.profile?.role || 'N/A'}\n\n` +
+        'Para probar login offline real:\n' +
+        '1. Activa modo offline\n' +
+        '2. Cierra sesión\n' +
+        '3. Intenta login con: testuser / test123',
+        [{ text: 'Entendido' }]
+      );
+
+      addResult('Test Login Offline', true, 'Credenciales verificadas');
+    } catch (error) {
+      addResult('Test Login Offline', false, error.message);
+      Alert.alert('❌ Error', error.message);
+    }
+  };
+
   // Botón que abre el modal (inline o flotante)
   const TriggerButton = inline ? (
     <TouchableOpacity
@@ -319,6 +412,23 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
 
             {/* Botones de testing */}
             <ScrollView style={styles.content}>
+              <Text style={styles.sectionTitle}>FASE 4: Login Offline</Text>
+              
+              <TouchableOpacity style={styles.testButton} onPress={testSaveCredentials}>
+                <Text style={styles.testButtonText}>💾 Guardar Credenciales de Prueba</Text>
+                <Text style={styles.testButtonSubtext}>
+                  User: testuser | Pass: test123
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.testButton} onPress={testValidateCredentials}>
+                <Text style={styles.testButtonText}>🔐 Validar Contraseñas</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.testButton} onPress={testOfflineLogin}>
+                <Text style={styles.testButtonText}>🔑 Ver Info Login Offline</Text>
+              </TouchableOpacity>
+
               <Text style={styles.sectionTitle}>FASE 3: Context y Cola de Sync</Text>
               
               <TouchableOpacity style={styles.testButton} onPress={testAddToQueue}>

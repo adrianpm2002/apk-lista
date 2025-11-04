@@ -403,15 +403,136 @@ export const getSchedules = async (id_loteria) => {
   return [];
 };
 
-// Credenciales
-export const saveCredentials = async (credentials) => {
-  await addLog('TODO', 'saveCredentials not implemented yet');
-  throw new Error('Not implemented yet');
+// ========================================
+// CREDENCIALES OFFLINE
+// ========================================
+
+/**
+ * Hash simple para contraseñas (no usar en producción real)
+ * En producción usar bcrypt o similar
+ */
+const hashPassword = (password) => {
+  // Simple hash - en producción usar bcrypt
+  let hash = 0;
+  for (let i = 0; i < password.length; i++) {
+    const char = password.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return hash.toString(36);
 };
 
+/**
+ * Guardar credenciales del usuario para login offline
+ * @param {Object} credentials - { user_id, username, password, email, profile }
+ */
+export const saveCredentials = async (credentials) => {
+  try {
+    const db = await getDatabase();
+    if (!db) {
+      console.log('[OfflineStorage] DB not available, skipping credential save');
+      return false;
+    }
+
+    const { user_id, username, password, email, profile } = credentials;
+    const hashedPassword = hashPassword(password);
+
+    await db.executeSql(
+      `INSERT OR REPLACE INTO offline_credentials 
+       (user_id, username, password_hash, email, profile_data, last_login, created_at) 
+       VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [
+        user_id,
+        username,
+        hashedPassword,
+        email,
+        JSON.stringify(profile),
+      ]
+    );
+
+    await addLog('info', 'Credenciales guardadas para offline', { user_id, username });
+    console.log('[OfflineStorage] ✅ Credentials saved for offline login:', username);
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error saving credentials:', error);
+    await addLog('error', 'Error guardando credenciales', { error: error.message });
+    return false;
+  }
+};
+
+/**
+ * Obtener credenciales guardadas por username
+ * @param {string} username - Nombre de usuario
+ */
+export const getCredentialsByUsername = async (username) => {
+  try {
+    const db = await getDatabase();
+    if (!db) return null;
+
+    const [result] = await db.executeSql(
+      `SELECT * FROM offline_credentials WHERE username = ?`,
+      [username]
+    );
+
+    if (result.rows.length > 0) {
+      const row = result.rows.item(0);
+      return {
+        user_id: row.user_id,
+        username: row.username,
+        password_hash: row.password_hash,
+        email: row.email,
+        profile: JSON.parse(row.profile_data || '{}'),
+        last_login: row.last_login,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[OfflineStorage] Error getting credentials:', error);
+    return null;
+  }
+};
+
+/**
+ * Validar contraseña contra hash guardado
+ * @param {string} password - Contraseña a validar
+ * @param {string} storedHash - Hash guardado
+ */
+export const validatePassword = (password, storedHash) => {
+  const inputHash = hashPassword(password);
+  return inputHash === storedHash;
+};
+
+/**
+ * Obtener credenciales por user_id (legacy)
+ */
 export const getCredentials = async (user_id) => {
-  await addLog('TODO', 'getCredentials not implemented yet', { user_id });
-  return null;
+  try {
+    const db = await getDatabase();
+    if (!db) return null;
+
+    const [result] = await db.executeSql(
+      `SELECT * FROM offline_credentials WHERE user_id = ?`,
+      [user_id]
+    );
+
+    if (result.rows.length > 0) {
+      const row = result.rows.item(0);
+      return {
+        user_id: row.user_id,
+        username: row.username,
+        email: row.email,
+        profile: JSON.parse(row.profile_data || '{}'),
+        last_login: row.last_login,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[OfflineStorage] Error getting credentials:', error);
+    await addLog('error', 'Error obteniendo credenciales', { user_id, error: error.message });
+    return null;
+  }
 };
 
 // Configuración
@@ -461,6 +582,11 @@ export default {
   readTestRecords,
   getConfig,
   setConfig,
+  // Credenciales
+  saveCredentials,
+  getCredentials,
+  getCredentialsByUsername,
+  validatePassword,
   // Placeholders
   savePlayOffline,
   getPendingPlays,
@@ -468,6 +594,4 @@ export default {
   getLotteries,
   saveSchedules,
   getSchedules,
-  saveCredentials,
-  getCredentials,
 };
