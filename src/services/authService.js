@@ -158,7 +158,12 @@ class AuthService {
         loginAt: new Date().toISOString()
       });
 
-      
+      // Guardar credenciales para login offline (automático)
+      await this.saveCredentialsForOffline(username, password, {
+        userId,
+        role: userProfile.role,
+        bankId: userProfile.bankId,
+      });
 
       return {
         success: true,
@@ -315,6 +320,195 @@ class AuthService {
     } catch (error) {
       console.error('Error al obtener sesión actual:', error);
       return null;
+    }
+  }
+
+  // ========================================
+  // FUNCIONALIDAD OFFLINE
+  // ========================================
+
+  /**
+   * Guardar credenciales para login offline (al hacer login online exitoso)
+   * @param {string} username - Nombre de usuario
+   * @param {string} password - Contraseña (se encriptará)
+   * @param {Object} profile - Perfil del usuario
+   */
+  async saveCredentialsForOffline(username, password, profile) {
+    try {
+      const { encryptPassword } = require('./encryptionService');
+      const OfflineStorage = require('./offlineStorageService');
+
+      // Encriptar contraseña
+      const encryptedData = await encryptPassword(password);
+
+      // Calcular fecha de expiración (24 horas)
+      const now = Date.now();
+      const expiresAt = now + (24 * 60 * 60 * 1000);
+
+      // Guardar en SQLite
+      const saved = await OfflineStorage.saveCredentials({
+        user_id: profile.userId || profile.id,
+        encrypted_data: JSON.stringify({
+          username,
+          password: encryptedData,
+        }),
+        role: profile.role,
+        id_banco: profile.bankId,
+        last_login: now.toString(),
+        session_expires: expiresAt.toString(),
+      });
+
+      if (saved) {
+        console.log('[AuthService] Credentials saved for offline login');
+        await OfflineStorage.setLastLoginTimestamp(now);
+      }
+
+      return saved;
+    } catch (error) {
+      console.error('[AuthService] Error saving offline credentials:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Login offline usando credenciales guardadas
+   * @param {string} username - Nombre de usuario
+   * @param {string} password - Contraseña
+   * @returns {Promise<Object>} Resultado del login
+   */
+  async loginOffline(username, password) {
+    try {
+      const { decryptPassword } = require('./encryptionService');
+      const OfflineStorage = require('./offlineStorageService');
+
+      // Buscar credenciales guardadas
+      // Como no tenemos user_id, buscar por username en encrypted_data
+      const hasCredentials = await OfflineStorage.hasStoredCredentials();
+      
+      if (!hasCredentials) {
+        throw new Error('No hay credenciales guardadas para login offline');
+      }
+
+      // Obtener todas las credenciales y buscar por username
+      // (En producción, podrías agregar un índice por username)
+      const db = await OfflineStorage.default.getDatabase?.();
+      if (!db) {
+        throw new Error('Base de datos no disponible');
+      }
+
+      const [result] = await db.executeSql(
+        'SELECT * FROM offline_credentials LIMIT 100'
+      );
+
+      let matchedCredentials = null;
+      
+      for (let i = 0; i < result.rows.length; i++) {
+        const row = result.rows.item(i);
+        try {
+          const data = JSON.parse(row.encrypted_data);
+          if (data.username === username) {
+            matchedCredentials = {
+              user_id: row.user_id,
+              encrypted_data: row.encrypted_data,
+              role: row.role,
+              id_banco: row.id_banco,
+              last_login: row.last_login,
+              session_expires: row.session_expires,
+            };
+            break;
+          }
+        } catch (e) {
+          // Ignorar filas con datos corruptos
+          continue;
+        }
+      }
+
+      if (!matchedCredentials) {
+        throw new Error('Usuario no encontrado');
+      }
+
+      // Verificar expiración de sesión (24h)
+      const now = Date.now();
+      const expiresAt = parseInt(matchedCredentials.session_expires);
+      
+      if (now > expiresAt) {
+        throw new Error('Sesión offline expirada (>24h). Conéctese a internet para renovar.');
+      }
+
+      // Desencriptar y verificar contraseña
+      const data = JSON.parse(matchedCredentials.encrypted_data);
+      const decryptedPassword = await decryptPassword(data.password);
+
+      if (decryptedPassword !== password) {
+        throw new Error('Contraseña incorrecta');
+      }
+
+      // Login exitoso
+      console.log('[AuthService] Offline login successful');
+
+      return {
+        success: true,
+        offline: true,
+        profile: {
+          userId: matchedCredentials.user_id,
+          role: matchedCredentials.role,
+          bankId: matchedCredentials.id_banco,
+          username: data.username,
+          activo: true, // Asumimos activo si está guardado
+        }
+      };
+
+    } catch (error) {
+      console.error('[AuthService] Offline login failed:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Validar si la sesión offline sigue válida
+   * @returns {Promise<boolean>} true si es válida
+   */
+  async validateOfflineSession() {
+    try {
+      const OfflineStorage = require('./offlineStorageService');
+      const lastLogin = await OfflineStorage.getLastLoginTimestamp();
+
+      if (!lastLogin) {
+        return false;
+      }
+
+      const now = Date.now();
+      const hoursSinceLogin = (now - lastLogin) / (1000 * 60 * 60);
+
+      return hoursSinceLogin < 24;
+    } catch (error) {
+      console.error('[AuthService] Error validating offline session:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Logout offline (limpiar credenciales si se desea)
+   * @param {boolean} clearCredentials - Si eliminar credenciales guardadas
+   */
+  async logoutOffline(clearCredentials = false) {
+    try {
+      if (clearCredentials) {
+        const OfflineStorage = require('./offlineStorageService');
+        // Eliminar todas las credenciales
+        const db = await OfflineStorage.default.getDatabase?.();
+        if (db) {
+          await db.executeSql('DELETE FROM offline_credentials');
+        }
+        console.log('[AuthService] Offline credentials cleared');
+      }
+      return true;
+    } catch (error) {
+      console.error('[AuthService] Error during offline logout:', error);
+      return false;
     }
   }
 }

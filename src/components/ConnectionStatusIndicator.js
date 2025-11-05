@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useAppState } from '../contexts/AppStateContext';
 import { useConnection } from '../hooks/useConnection';
 
-const ConnectionStatusIndicator = ({ style }) => {
+const ConnectionStatusIndicator = memo(({ style }) => {
   // Usar useConnection para detectar estado real (incluye forceOffline)
   const { isOnline, isChecking } = useConnection();
   
@@ -111,7 +111,7 @@ const ConnectionStatusIndicator = ({ style }) => {
       )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -119,66 +119,56 @@ const styles = StyleSheet.create({
     top: 50,
     left: 10,
     right: 10,
-    zIndex: 1000,
+    zIndex: 999,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    pointerEvents: 'box-none', // Solo capturar eventos en los banners, no en el contenedor
   },
   offlineIndicator: {
     backgroundColor: '#FF6B6B',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    elevation: 2, // Reducido de 3 a 2
   },
   offlineText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   pendingIndicator: {
     backgroundColor: '#FFA500',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    elevation: 2,
   },
   pendingText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     textAlign: 'center',
   },
   tapText: {
     color: 'white',
-    fontSize: 10,
+    fontSize: 9,
     textAlign: 'center',
     opacity: 0.8,
   },
   onlineIndicator: {
     backgroundColor: '#10B981',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    elevation: 2,
   },
   onlineText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     textAlign: 'center',
   },
 });
 
+// Evitar re-renders innecesarios
 export default ConnectionStatusIndicator;

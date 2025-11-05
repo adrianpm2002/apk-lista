@@ -377,8 +377,29 @@ export const savePlayOffline = async (playData) => {
 };
 
 export const getPendingPlays = async () => {
-  await addLog('TODO', 'getPendingPlays not implemented yet');
-  return [];
+  try {
+    const db = await getDatabase();
+    if (!db) return [];
+
+    const [result] = await db.executeSql(
+      `SELECT * FROM offline_plays ORDER BY created_at ASC`
+    );
+
+    const plays = [];
+    for (let i = 0; i < result.rows.length; i++) {
+      const row = result.rows.item(i);
+      plays.push({
+        ...row,
+        numeros: JSON.parse(row.numeros),
+        created_at: new Date(row.created_at),
+      });
+    }
+
+    return plays;
+  } catch (error) {
+    console.error('[OfflineStorage] Error getting pending plays:', error);
+    return [];
+  }
 };
 
 // Loterías
@@ -404,14 +425,172 @@ export const getSchedules = async (id_loteria) => {
 };
 
 // Credenciales
+/**
+ * Guardar credenciales encriptadas en SQLite
+ * @param {Object} credentials - { user_id, encrypted_data, role, id_banco, last_login, session_expires }
+ */
 export const saveCredentials = async (credentials) => {
-  await addLog('TODO', 'saveCredentials not implemented yet');
-  throw new Error('Not implemented yet');
+  try {
+    const db = await getDatabase();
+    if (!db) return false;
+
+    const {
+      user_id,
+      encrypted_data,
+      role,
+      id_banco,
+      last_login,
+      session_expires
+    } = credentials;
+
+    await db.executeSql(
+      `INSERT OR REPLACE INTO offline_credentials 
+       (user_id, encrypted_data, role, id_banco, last_login, session_expires) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [user_id, encrypted_data, role, id_banco || null, last_login, session_expires]
+    );
+
+    await addLog('INFO', 'Credentials saved', { user_id, role });
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error saving credentials:', error);
+    await addLog('ERROR', 'Failed to save credentials', { error: error.message });
+    return false;
+  }
 };
 
+/**
+ * Obtener credenciales guardadas de un usuario
+ * @param {string} user_id - ID del usuario
+ * @returns {Promise<Object|null>} Credenciales o null si no existen
+ */
 export const getCredentials = async (user_id) => {
-  await addLog('TODO', 'getCredentials not implemented yet', { user_id });
-  return null;
+  try {
+    const db = await getDatabase();
+    if (!db) return null;
+
+    const [result] = await db.executeSql(
+      `SELECT * FROM offline_credentials WHERE user_id = ?`,
+      [user_id]
+    );
+
+    if (result.rows.length > 0) {
+      const row = result.rows.item(0);
+      return {
+        user_id: row.user_id,
+        encrypted_data: row.encrypted_data,
+        role: row.role,
+        id_banco: row.id_banco,
+        last_login: row.last_login,
+        session_expires: row.session_expires,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[OfflineStorage] Error getting credentials:', error);
+    await addLog('ERROR', 'Failed to get credentials', { user_id, error: error.message });
+    return null;
+  }
+};
+
+/**
+ * Eliminar credenciales de un usuario
+ * @param {string} user_id - ID del usuario
+ */
+export const deleteCredentials = async (user_id) => {
+  try {
+    const db = await getDatabase();
+    if (!db) return false;
+
+    await db.executeSql(
+      `DELETE FROM offline_credentials WHERE user_id = ?`,
+      [user_id]
+    );
+
+    await addLog('INFO', 'Credentials deleted', { user_id });
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error deleting credentials:', error);
+    return false;
+  }
+};
+
+/**
+ * Verificar si existen credenciales guardadas
+ * @returns {Promise<boolean>} true si hay credenciales
+ */
+export const hasStoredCredentials = async () => {
+  try {
+    const db = await getDatabase();
+    if (!db) return false;
+
+    const [result] = await db.executeSql(
+      `SELECT COUNT(*) as count FROM offline_credentials`
+    );
+
+    return result.rows.item(0).count > 0;
+  } catch (error) {
+    console.error('[OfflineStorage] Error checking credentials:', error);
+    return false;
+  }
+};
+
+/**
+ * Obtener timestamp del último login guardado
+ */
+export const getLastLoginTimestamp = async () => {
+  try {
+    const value = await getConfig('last_login_timestamp');
+    return value ? parseInt(value) : null;
+  } catch (error) {
+    console.error('[OfflineStorage] Error getting last login timestamp:', error);
+    return null;
+  }
+};
+
+/**
+ * Guardar timestamp del último login
+ */
+export const setLastLoginTimestamp = async (timestamp) => {
+  try {
+    await setConfig('last_login_timestamp', timestamp.toString());
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error setting last login timestamp:', error);
+    return false;
+  }
+};
+
+/**
+ * Obtener valor de configuración (alias para compatibilidad)
+ */
+export const getConfigValue = async (key) => {
+  return await getConfig(key);
+};
+
+/**
+ * Establecer valor de configuración (alias para compatibilidad)
+ */
+export const setConfigValue = async (key, value) => {
+  return await setConfig(key, value);
+};
+
+/**
+ * Limpiar todas las jugadas offline
+ */
+export const clearAllOfflinePlays = async () => {
+  try {
+    const db = await getDatabase();
+    if (!db) return false;
+
+    await db.executeSql('DELETE FROM offline_plays');
+    await addLog('INFO', 'All offline plays cleared');
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error clearing offline plays:', error);
+    return false;
+  }
 };
 
 // Configuración
@@ -461,6 +640,16 @@ export default {
   readTestRecords,
   getConfig,
   setConfig,
+  getConfigValue,
+  setConfigValue,
+  getLastLoginTimestamp,
+  setLastLoginTimestamp,
+  clearAllOfflinePlays,
+  // Credenciales
+  saveCredentials,
+  getCredentials,
+  deleteCredentials,
+  hasStoredCredentials,
   // Placeholders
   savePlayOffline,
   getPendingPlays,
@@ -468,6 +657,4 @@ export default {
   getLotteries,
   saveSchedules,
   getSchedules,
-  saveCredentials,
-  getCredentials,
 };

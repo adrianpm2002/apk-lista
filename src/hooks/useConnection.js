@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { subscribeToConnection, checkConnection, isForceOffline } from '../services/connectionService';
+import { subscribeToConnection, checkConnection } from '../services/connectionService';
 
 /**
  * Hook para monitorear estado de conexión a internet
@@ -14,8 +14,7 @@ export const useConnection = () => {
     const initialCheck = async () => {
       try {
         const online = await checkConnection();
-        const forcedOffline = isForceOffline();
-        setIsOnline(forcedOffline ? false : online);
+        setIsOnline(online);
       } catch (error) {
         console.error('[useConnection] Error en check inicial:', error);
         setIsOnline(false);

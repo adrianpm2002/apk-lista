@@ -1,11 +1,95 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, Modal, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, Modal, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { Formik } from 'formik';
 import Svg, { Path, G } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { authService } from '../services/authService';
+import * as OfflineStorage from '../services/offlineStorageService';
+
+/**
+ * Botón de Login Offline
+ * Solo se muestra si hay credenciales guardadas
+ */
+const OfflineLoginButton = ({ username, password, setFieldError, navigation }) => {
+  const [hasCredentials, setHasCredentials] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    checkStoredCredentials();
+  }, []);
+
+  const checkStoredCredentials = async () => {
+    const hasStored = await OfflineStorage.hasStoredCredentials();
+    setHasCredentials(hasStored);
+  };
+
+  const handleOfflineLogin = async () => {
+    if (!username || !password) {
+      setFieldError('general', 'Ingrese usuario y contraseña');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const result = await authService.loginOffline(username, password);
+
+      if (!result.success) {
+        setFieldError('general', result.error);
+        setIsLoading(false);
+        return;
+      }
+
+      // Login offline exitoso
+      Alert.alert(
+        'Modo Offline',
+        'Sesión iniciada sin conexión. Algunas funciones estarán limitadas.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              const { profile } = result;
+              if (profile.role === 'admin' || profile.role === 'collector') {
+                navigation.navigate('Statistics');
+              } else if (profile.role === 'listero') {
+                navigation.navigate('MainApp');
+              }
+            }
+          }
+        ]
+      );
+
+    } catch (error) {
+      console.error('Offline login error:', error);
+      setFieldError('general', 'Error en login offline: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // No mostrar botón si no hay credenciales guardadas
+  if (!hasCredentials) {
+    return null;
+  }
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.buttonOffline,
+        pressed && styles.buttonOfflinePressed,
+        isLoading && styles.buttonDisabled
+      ]}
+      onPress={handleOfflineLogin}
+      disabled={isLoading}
+    >
+      <Text style={styles.buttonOfflineText}>
+        {isLoading ? 'Verificando...' : '📵 Login Offline'}
+      </Text>
+    </Pressable>
+  );
+};
 
 const LoginScreen = ({ navigation }) => {
   return (
@@ -187,6 +271,14 @@ const LoginContent = ({ navigation }) => {
                   {isSubmitting ? 'Iniciando sesión...' : 'Iniciar sesión'}
                 </Text>
               </Pressable>
+
+              {/* Botón de Login Offline */}
+              <OfflineLoginButton 
+                username={values.username}
+                password={values.password}
+                setFieldError={setFieldError}
+                navigation={navigation}
+              />
             </>
           )}
         </Formik>
@@ -360,6 +452,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     textAlign: 'center',
+  },
+  buttonOffline: {
+    backgroundColor: '#F39C12',
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  buttonOfflinePressed: {
+    backgroundColor: '#E67E22',
+    transform: [{ scale: 0.98 }],
+  },
+  buttonOfflineText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 

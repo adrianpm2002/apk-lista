@@ -8,13 +8,15 @@ import { Platform } from 'react-native';
 
 let connectionListeners = [];
 let currentConnectionState = null;
+let throttleTimer = null;
+let pendingNotification = null;
 
 /**
  * Inicializar listener de conexión
  * Debe llamarse al inicio de la app
  */
 export const initConnectionMonitor = () => {
-  // Suscribirse a cambios de estado de red
+  // Suscribirse a cambios de estado de red con throttling agresivo
   const unsubscribe = NetInfo.addEventListener(state => {
     const wasOnline = currentConnectionState?.isConnected;
     const isOnline = state.isConnected && state.isInternetReachable;
@@ -26,27 +28,40 @@ export const initConnectionMonitor = () => {
       details: state.details,
     };
 
-    // Solo notificar (sin logging pesado) cuando cambia el estado
-    // Comentamos logs ruidosos para evitar saturar adb logcat durante pruebas.
-    // if (wasOnline !== isOnline) {
-    //   console.log('[ConnectionService] 🔄 Cambio de conexión:', {
-    //     anterior: wasOnline ? 'ONLINE' : 'OFFLINE',
-    //     actual: isOnline ? 'ONLINE' : 'OFFLINE',
-    //     type: state.type,
-    //   });
-    // }
+    // THROTTLING: Solo notificar cada 800ms para reducir lag
+    // Guardar notificación pendiente
+    pendingNotification = { isOnline, wasOnline };
 
-    // Notificar a todos los listeners
-    connectionListeners.forEach(listener => {
-      try {
-        listener(isOnline, wasOnline);
-      } catch (error) {
-        console.error('[ConnectionService] Error en listener:', error);
-      }
-    });
+    if (!throttleTimer) {
+      // Primera notificación: inmediata
+      notifyListeners(isOnline, wasOnline);
+      
+      // Establecer throttle para siguientes notificaciones
+      throttleTimer = setTimeout(() => {
+        // Si hay notificación pendiente, enviarla
+        if (pendingNotification) {
+          notifyListeners(pendingNotification.isOnline, pendingNotification.wasOnline);
+          pendingNotification = null;
+        }
+        throttleTimer = null;
+      }, 800); // 800ms de throttle agresivo
+    }
   });
 
   return unsubscribe;
+};
+
+/**
+ * Notificar a listeners (extraído para reutilizar con throttling)
+ */
+const notifyListeners = (isOnline, wasOnline) => {
+  connectionListeners.forEach(listener => {
+    try {
+      listener(isOnline, wasOnline);
+    } catch (error) {
+      console.error('[ConnectionService] Error en listener:', error);
+    }
+  });
 };
 
 /**
@@ -92,41 +107,4 @@ export const getConnectionState = () => {
     return null;
   }
   return currentConnectionState.isConnected && currentConnectionState.isInternetReachable;
-};
-
-/**
- * Simular modo offline (para testing)
- * Solo funciona en desarrollo
- */
-let forceOfflineMode = false;
-
-export const setForceOffline = (offline) => {
-  if (__DEV__) {
-    forceOfflineMode = offline;
-    console.log('[ConnectionService] Modo offline forzado:', offline);
-    
-    // Notificar a listeners del cambio
-    connectionListeners.forEach(listener => {
-      try {
-        listener(!offline, true);
-      } catch (error) {
-        console.error('[ConnectionService] Error en listener:', error);
-      }
-    });
-  }
-};
-
-export const isForceOffline = () => {
-  return __DEV__ && forceOfflineMode;
-};
-
-/**
- * Verificar conexión considerando modo offline forzado
- * @returns {Promise<boolean>}
- */
-export const isOnline = async () => {
-  if (isForceOffline()) {
-    return false;
-  }
-  return await checkConnection();
 };
