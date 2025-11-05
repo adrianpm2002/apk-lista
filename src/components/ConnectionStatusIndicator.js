@@ -1,28 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useAppState } from '../contexts/AppStateContext';
+import { useConnection } from '../hooks/useConnection';
 
 const ConnectionStatusIndicator = ({ style }) => {
+  // Usar useConnection para detectar estado real (incluye forceOffline)
+  const { isOnline, isChecking } = useConnection();
+  
   const { 
-    isConnected, 
     pendingPlaysCount, 
     forceProcessPendingPlays, 
     clearAllPendingPlays 
   } = useAppState();
+  
+  // isConnected viene de useConnection ahora (más preciso)
+  const isConnected = isOnline;
 
   // Mostrar un indicador breve cuando la conexión se restaura
   const [showConnected, setShowConnected] = useState(false);
+  const [debouncedConnected, setDebouncedConnected] = useState(isConnected);
 
+  // Debounce para evitar lag en cambios rápidos
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedConnected(isConnected);
+    }, 300); // 300ms de delay para estabilizar
+    
+    return () => clearTimeout(timer);
+  }, [isConnected]);
+
+  // Mostrar banner verde brevemente cuando se conecta
   useEffect(() => {
     let t;
-    if (isConnected) {
+    if (debouncedConnected && !isChecking) {
       setShowConnected(true);
       t = setTimeout(() => setShowConnected(false), 3000);
     } else {
       setShowConnected(false);
     }
     return () => clearTimeout(t);
-  }, [isConnected]);
+  }, [debouncedConnected, isChecking]);
 
   const handlePendingPlaysPress = () => {
     if (pendingPlaysCount === 0) return;
@@ -61,7 +78,8 @@ const ConnectionStatusIndicator = ({ style }) => {
     );
   };
 
-  if (isConnected && pendingPlaysCount === 0 && !showConnected) {
+  // Usar debouncedConnected para decisiones de UI (evita lag)
+  if (debouncedConnected && pendingPlaysCount === 0 && !showConnected) {
     // No mostrar nada si está conectado y no hay jugadas pendientes
     // y no estamos en el breve periodo de notificación
     return null;
@@ -69,12 +87,12 @@ const ConnectionStatusIndicator = ({ style }) => {
 
   return (
     <View style={[styles.container, style]}>
-      {!isConnected && (
+      {!debouncedConnected && (
         <View style={styles.offlineIndicator}>
           <Text style={styles.offlineText}>Sin conexión</Text>
         </View>
       )}
-      {isConnected && showConnected && (
+      {debouncedConnected && showConnected && (
         <View style={styles.onlineIndicator}>
           <Text style={styles.onlineText}>Conectado</Text>
         </View>

@@ -11,8 +11,7 @@ import { AuthProvider, useAuthContext } from './src/contexts/AuthContext';
 import { AppStateProvider } from './src/contexts/AppStateContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ConnectionStatusIndicator from './src/components/ConnectionStatusIndicator';
-import ConnectionIndicator from './src/components/ConnectionIndicator';
-import OfflineTestingPanel from './src/components/OfflineTestingPanel';
+// ConnectionIndicator removido - causa duplicados y lag
 import * as OfflineStorage from './src/services/offlineStorageService';
 import * as ConnectionService from './src/services/connectionService';
 
@@ -93,9 +92,8 @@ function AppContent() {
       <NavigationContainer>
         <AppNavigator />
       </NavigationContainer>
-      <ConnectionIndicator />
+      {/* Solo usar ConnectionStatusIndicator - elimina ConnectionIndicator para evitar duplicados y lag */}
       <ConnectionStatusIndicator />
-      <OfflineTestingPanel userRole={userRole} />
     </View>
   );
 }
