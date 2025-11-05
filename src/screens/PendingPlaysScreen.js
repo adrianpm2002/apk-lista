@@ -20,7 +20,18 @@ import { syncSinglePlay, retrySyncFailedPlays } from '../services/syncService';
 
 const PendingPlaysScreen = ({ navigation }) => {
   const { isConnected } = useConnection();
-  const { loadPendingPlaysCount, isSyncing } = useOfflineContext();
+  
+  // Manejo seguro del contexto offline
+  let loadPendingPlaysCount, isSyncing;
+  try {
+    const offlineContext = useOfflineContext();
+    loadPendingPlaysCount = offlineContext.loadPendingPlaysCount;
+    isSyncing = offlineContext.isSyncing;
+  } catch (error) {
+    console.warn('[PendingPlaysScreen] OfflineContext no disponible:', error.message);
+    loadPendingPlaysCount = () => Promise.resolve();
+    isSyncing = false;
+  }
   
   const [pendingPlays, setPendingPlays] = useState([]);
   const [failedPlays, setFailedPlays] = useState([]);
