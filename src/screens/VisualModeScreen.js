@@ -31,7 +31,6 @@ import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils
 import { generateVisualModeCopyText } from '../utils/copyUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
 import { useAuthContext } from '../contexts/AuthContext';
-import OfflineTestingPanel from '../components/OfflineTestingPanel';
 
 const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onModeVisibilityChange, visibleModes }) => {
   const { user } = useAuthContext();
@@ -1171,9 +1170,6 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           >
             <Text style={styles.copyText}>Copiar</Text>
           </Pressable>
-          
-          {/* Botón de Testing Offline (siempre visible) */}
-          <OfflineTestingPanel inline={true} allowWeb={true} />
         </View>
 
         {/* Row 6: Botones de acción */}
