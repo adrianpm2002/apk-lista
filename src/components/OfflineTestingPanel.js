@@ -18,7 +18,9 @@ import * as ConnectionService from '../services/connectionService';
  * @param {boolean} inline - Si es true, muestra botón inline en lugar de flotante
  * @param {boolean} allowWeb - Permite mostrar en web (por defecto false)
  */
-const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
+// Por seguridad forzamos que el panel se muestre en modo inline por defecto
+// para evitar botones flotantes no deseados en build de testing.
+const OfflineTestingPanel = ({ inline = true, allowWeb = false }) => {
   const [visible, setVisible] = useState(false);
   const [testResults, setTestResults] = useState([]);
   const [forceOffline, setForceOffline] = useState(false);
@@ -334,13 +336,16 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    // Alinear hacia el inicio para que el panel quede más arriba y no se corte
+    justifyContent: 'flex-start',
+    paddingTop: 60,
+    paddingBottom: 20,
   },
   panel: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
+    borderRadius: 20,
+    maxHeight: '85%',
+    marginHorizontal: 10,
     elevation: 10,
   },
   header: {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useAppState } from '../contexts/AppStateContext';
 
@@ -9,6 +9,20 @@ const ConnectionStatusIndicator = ({ style }) => {
     forceProcessPendingPlays, 
     clearAllPendingPlays 
   } = useAppState();
+
+  // Mostrar un indicador breve cuando la conexión se restaura
+  const [showConnected, setShowConnected] = useState(false);
+
+  useEffect(() => {
+    let t;
+    if (isConnected) {
+      setShowConnected(true);
+      t = setTimeout(() => setShowConnected(false), 3000);
+    } else {
+      setShowConnected(false);
+    }
+    return () => clearTimeout(t);
+  }, [isConnected]);
 
   const handlePendingPlaysPress = () => {
     if (pendingPlaysCount === 0) return;
@@ -47,8 +61,9 @@ const ConnectionStatusIndicator = ({ style }) => {
     );
   };
 
-  if (isConnected && pendingPlaysCount === 0) {
+  if (isConnected && pendingPlaysCount === 0 && !showConnected) {
     // No mostrar nada si está conectado y no hay jugadas pendientes
+    // y no estamos en el breve periodo de notificación
     return null;
   }
 
@@ -57,6 +72,11 @@ const ConnectionStatusIndicator = ({ style }) => {
       {!isConnected && (
         <View style={styles.offlineIndicator}>
           <Text style={styles.offlineText}>Sin conexión</Text>
+        </View>
+      )}
+      {isConnected && showConnected && (
+        <View style={styles.onlineIndicator}>
+          <Text style={styles.onlineText}>Conectado</Text>
         </View>
       )}
       
@@ -123,6 +143,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     textAlign: 'center',
     opacity: 0.8,
+  },
+  onlineIndicator: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  onlineText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 

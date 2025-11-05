@@ -26,12 +26,15 @@ export const initConnectionMonitor = () => {
       details: state.details,
     };
 
-    console.log('[ConnectionService] Estado de red:', {
-      isOnline,
-      wasOnline,
-      type: state.type,
-      isInternetReachable: state.isInternetReachable,
-    });
+    // Solo notificar (sin logging pesado) cuando cambia el estado
+    // Comentamos logs ruidosos para evitar saturar adb logcat durante pruebas.
+    // if (wasOnline !== isOnline) {
+    //   console.log('[ConnectionService] 🔄 Cambio de conexión:', {
+    //     anterior: wasOnline ? 'ONLINE' : 'OFFLINE',
+    //     actual: isOnline ? 'ONLINE' : 'OFFLINE',
+    //     type: state.type,
+    //   });
+    // }
 
     // Notificar a todos los listeners
     connectionListeners.forEach(listener => {
@@ -55,12 +58,7 @@ export const checkConnection = async () => {
     const state = await NetInfo.fetch();
     const isOnline = state.isConnected && state.isInternetReachable;
     
-    console.log('[ConnectionService] Check conexión:', {
-      isConnected: state.isConnected,
-      isInternetReachable: state.isInternetReachable,
-      type: state.type,
-      isOnline,
-    });
+  // No log por defecto para evitar saturación de consola en dev
 
     return isOnline;
   } catch (error) {
