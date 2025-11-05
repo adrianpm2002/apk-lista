@@ -1,7 +1,7 @@
 export default {
   expo: {
     name: "Cloud",
-    slug: "apk-lista-clean-adrian-new",
+    slug: "apk-lista-clean-2024",
     owner: "lazaroadrian0803",
     version: "1.0.0",
     orientation: "portrait",
@@ -68,7 +68,7 @@ export default {
     },
     extra: {
       eas: {
-        projectId: "83929415-67d9-4199-8f74-4d86a5ec37dd"
+        projectId: "791d2570-1ee3-40e0-a272-e1b727e72523"
       }
     },
     plugins: [
