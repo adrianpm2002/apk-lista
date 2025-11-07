@@ -224,18 +224,23 @@
 
 ## 🔧 ESTADO ACTUAL DEL BUILD
 
-**Último build:** EAS Build - Preview  
+**Último build:** `4637c820-9b50-44b6-b704-c681a86af62a`  
 **Account:** lazaroadrian0803  
 **Proyecto:** apk-lista-clean-2024  
 **Package:** com.adrianpm.apklistaclean  
+**Link:** https://expo.dev/accounts/lazaroadrian0803/projects/apk-lista-clean-2024/builds/4637c820-9b50-44b6-b704-c681a86af62a
 
-**Fixes aplicados (pendientes de build):**
+**Fixes aplicados (incluidos en build):**
 1. ✅ Corregido ReferenceError `setFieldError` en LoginScreen
 2. ✅ Eliminada condición `__DEV__` de OfflineTestingPanel
 3. ✅ Panel de testing mejorado con 9 pruebas completas
 4. ✅ Botón "🧪 Testing" más visible (morado, con sombra)
+5. ✅ Eliminado código duplicado (SyntaxError)
+6. ✅ Modal centrado y scrolleable en Android
 
-**Próximo paso:** Esperar nuevo build y probar en dispositivo físico
+**Documento de pruebas:** `docs/PRUEBAS_FASE_4.md` (13 pruebas detalladas)
+
+**Próximo paso:** Descargar APK y ejecutar todas las pruebas de FASE 4
 
 ---
 
