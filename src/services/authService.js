@@ -158,12 +158,18 @@ class AuthService {
         loginAt: new Date().toISOString()
       });
 
-      // Guardar credenciales para login offline (automático)
-      await this.saveCredentialsForOffline(username, password, {
-        userId,
-        role: userProfile.role,
-        bankId: userProfile.bankId,
-      });
+      // Guardar credenciales para login offline (automático, NO bloqueante)
+      try {
+        await this.saveCredentialsForOffline(username, password, {
+          userId,
+          role: userProfile.role,
+          bankId: userProfile.bankId,
+        });
+      } catch (offlineError) {
+        // No fallar el login si falla el guardado offline
+        console.warn('[AuthService] ⚠️ No se pudieron guardar credenciales offline, pero el login fue exitoso');
+        console.warn('[AuthService] Error:', offlineError.message);
+      }
 
       return {
         success: true,
@@ -335,18 +341,24 @@ class AuthService {
    */
   async saveCredentialsForOffline(username, password, profile) {
     try {
+      console.log('[AuthService] Iniciando guardado de credenciales offline...');
+      console.log('[AuthService] Usuario:', username);
+      console.log('[AuthService] Profile recibido:', JSON.stringify(profile));
+
       const { encryptPassword } = require('./encryptionService');
       const OfflineStorage = require('./offlineStorageService');
 
       // Encriptar contraseña
+      console.log('[AuthService] Encriptando contraseña...');
       const encryptedData = await encryptPassword(password);
+      console.log('[AuthService] Contraseña encriptada:', encryptedData ? 'OK' : 'FALLÓ');
 
       // Calcular fecha de expiración (24 horas)
       const now = Date.now();
       const expiresAt = now + (24 * 60 * 60 * 1000);
 
-      // Guardar en SQLite
-      const saved = await OfflineStorage.saveCredentials({
+      console.log('[AuthService] Preparando datos para SQLite...');
+      const credentialsData = {
         user_id: profile.userId || profile.id,
         encrypted_data: JSON.stringify({
           username,
@@ -356,17 +368,28 @@ class AuthService {
         id_banco: profile.bankId,
         last_login: now.toString(),
         session_expires: expiresAt.toString(),
-      });
+      };
+      console.log('[AuthService] Datos a guardar:', JSON.stringify(credentialsData, null, 2));
+
+      // Guardar en SQLite
+      console.log('[AuthService] Guardando en SQLite...');
+      const saved = await OfflineStorage.saveCredentials(credentialsData);
+      console.log('[AuthService] Resultado de guardado:', saved ? 'ÉXITO' : 'FALLÓ');
 
       if (saved) {
-        console.log('[AuthService] Credentials saved for offline login');
+        console.log('[AuthService] ✅ Credenciales guardadas exitosamente para login offline');
         await OfflineStorage.setLastLoginTimestamp(now);
+        console.log('[AuthService] ✅ Timestamp actualizado');
+      } else {
+        console.error('[AuthService] ❌ saveCredentials retornó false');
       }
 
       return saved;
     } catch (error) {
-      console.error('[AuthService] Error saving offline credentials:', error);
-      return false;
+      console.error('[AuthService] ❌ Error al guardar credenciales offline:', error);
+      console.error('[AuthService] Error stack:', error.stack);
+      // NO retornar false silenciosamente, lanzar el error para que se vea
+      throw error;
     }
   }
 
