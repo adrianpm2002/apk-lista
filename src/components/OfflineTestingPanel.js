@@ -205,18 +205,6 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
       Alert.alert('Error', `No se pudo obtener info: ${error.message}`);
     }
   };
-        Alert.alert(
-          'Último Login',
-          `📅 ${date.toLocaleString()}\n⏱️ Hace ${hoursAgo} horas`,
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Info', 'No hay registro de último login');
-      }
-    } catch (error) {
-      Alert.alert('Error', error.message);
-    }
-  };
 
   // ============================================
   // PRUEBAS GENERALES
