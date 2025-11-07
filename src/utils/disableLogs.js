@@ -1,11 +1,10 @@
-// Desactivar console.log en producción para Android
-// Agregar al inicio de App.js o index.js
+// Logs activos en todas las builds (desarrollo y producción)
+// Para debugging de funcionalidades offline
 
-if (!__DEV__) {
-  console.log = () => {};
-  console.warn = () => {};
-  // Mantener console.error para debugging crítico
-  // console.error = () => {};
-}
+// NOTA: __DEV__ eliminado - logs siempre activos
+// if (!__DEV__) {
+//   console.log = () => {};
+//   console.warn = () => {};
+// }
 
 export default {};

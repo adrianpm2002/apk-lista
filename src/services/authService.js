@@ -474,19 +474,30 @@ class AuthService {
   async validateOfflineSession() {
     try {
       const OfflineStorage = require('./offlineStorageService');
-      const lastLogin = await OfflineStorage.getLastLoginTimestamp();
+      const credentials = await OfflineStorage.getCredentials();
 
-      if (!lastLogin) {
-        return false;
+      if (!credentials || !credentials.session_expires) {
+        return {
+          valid: false,
+          error: 'No hay sesión guardada',
+        };
       }
 
+      const sessionExpires = parseInt(credentials.session_expires);
       const now = Date.now();
-      const hoursSinceLogin = (now - lastLogin) / (1000 * 60 * 60);
+      const isValid = now < sessionExpires;
 
-      return hoursSinceLogin < 24;
+      return {
+        valid: isValid,
+        expiresAt: sessionExpires,
+        error: isValid ? null : 'Sesión expirada (>24h)',
+      };
     } catch (error) {
       console.error('[AuthService] Error validating offline session:', error);
-      return false;
+      return {
+        valid: false,
+        error: error.message,
+      };
     }
   }
 

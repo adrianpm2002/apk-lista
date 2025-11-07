@@ -464,21 +464,41 @@ export const saveCredentials = async (credentials) => {
  * @param {string} user_id - ID del usuario
  * @returns {Promise<Object|null>} Credenciales o null si no existen
  */
-export const getCredentials = async (user_id) => {
+export const getCredentials = async (user_id = null) => {
   try {
     const db = await getDatabase();
     if (!db) return null;
 
-    const [result] = await db.executeSql(
-      `SELECT * FROM offline_credentials WHERE user_id = ?`,
-      [user_id]
-    );
+    let query, params;
+    
+    if (user_id) {
+      // Buscar por user_id específico
+      query = 'SELECT * FROM offline_credentials WHERE user_id = ?';
+      params = [user_id];
+    } else {
+      // Obtener las credenciales más recientes
+      query = 'SELECT * FROM offline_credentials ORDER BY id DESC LIMIT 1';
+      params = [];
+    }
+
+    const [result] = await db.executeSql(query, params);
 
     if (result.rows.length > 0) {
       const row = result.rows.item(0);
+      
+      // Parsear encrypted_data para obtener username
+      let username = null;
+      try {
+        const encryptedData = JSON.parse(row.encrypted_data);
+        username = encryptedData.username;
+      } catch (e) {
+        console.warn('[OfflineStorage] Could not parse encrypted_data for username');
+      }
+      
       return {
         user_id: row.user_id,
         encrypted_data: row.encrypted_data,
+        username: username,
         role: row.role,
         id_banco: row.id_banco,
         last_login: row.last_login,
@@ -631,6 +651,82 @@ export const setConfig = async (key, value) => {
   }
 };
 
+/**
+ * Actualiza el timestamp de expiración de sesión
+ * Útil para testing (forzar expiración)
+ */
+export const updateSessionExpiry = async (newExpiry) => {
+  const db = await getDatabase();
+  if (!db) return;
+
+  try {
+    await db.executeSql(
+      'UPDATE offline_credentials SET session_expires = ? WHERE id = (SELECT MAX(id) FROM offline_credentials)',
+      [newExpiry.toString()]
+    );
+    console.log('[OfflineStorage] Session expiry updated to:', new Date(newExpiry).toLocaleString());
+  } catch (error) {
+    console.error('[OfflineStorage] Error updating session expiry:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene información general de la base de datos
+ * Para panel de testing
+ */
+export const getDatabaseInfo = async () => {
+  const db = await getDatabase();
+  if (!db) {
+    return {
+      credentials: 0,
+      logs: 0,
+      pendingPlays: 0,
+      lotteries: 0,
+      schedules: 0,
+    };
+  }
+
+  try {
+    const info = {};
+
+    // Contar credenciales
+    const [credResult] = await db.executeSql(
+      'SELECT COUNT(*) as count FROM offline_credentials'
+    );
+    info.credentials = credResult.rows.item(0).count;
+
+    // Contar logs
+    const [logsResult] = await db.executeSql(
+      'SELECT COUNT(*) as count FROM offline_logs'
+    );
+    info.logs = logsResult.rows.item(0).count;
+
+    // Contar jugadas pendientes
+    const [playsResult] = await db.executeSql(
+      "SELECT COUNT(*) as count FROM offline_plays WHERE status = 'pending'"
+    );
+    info.pendingPlays = playsResult.rows.item(0).count;
+
+    // Contar loterías
+    const [lotteriesResult] = await db.executeSql(
+      'SELECT COUNT(*) as count FROM offline_lotteries'
+    );
+    info.lotteries = lotteriesResult.rows.item(0).count;
+
+    // Contar horarios
+    const [schedulesResult] = await db.executeSql(
+      'SELECT COUNT(*) as count FROM offline_schedules'
+    );
+    info.schedules = schedulesResult.rows.item(0).count;
+
+    return info;
+  } catch (error) {
+    console.error('[OfflineStorage] Error getting database info:', error);
+    throw error;
+  }
+};
+
 export default {
   initOfflineDB,
   addLog,
@@ -650,6 +746,8 @@ export default {
   getCredentials,
   deleteCredentials,
   hasStoredCredentials,
+  updateSessionExpiry,
+  getDatabaseInfo,
   // Placeholders
   savePlayOffline,
   getPendingPlays,
