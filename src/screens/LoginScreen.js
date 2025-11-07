@@ -201,7 +201,8 @@ const LoginContent = ({ navigation }) => {
             handleSubmit, 
             values, 
             errors, 
-            isSubmitting 
+            isSubmitting,
+            setFieldError
           }) => (
             <>
               <View style={styles.flexColumn}>
