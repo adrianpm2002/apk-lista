@@ -298,7 +298,12 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
             </View>
 
             {/* Contenido scrolleable */}
-            <ScrollView style={styles.scrollContent}>
+            <ScrollView 
+              style={styles.scrollContent}
+              contentContainerStyle={styles.scrollContentContainer}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+            >
               {/* FASE 4: Login Offline */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>📱 FASE 4: Login Offline</Text>
@@ -427,14 +432,17 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center', // Centrado vertical
+    alignItems: 'center', // Centrado horizontal
+    padding: 20, // Padding para evitar que toque los bordes
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '85%',
-    paddingTop: 20,
+    borderRadius: 20, // Border radius en todos los lados
+    width: '100%', // Ancho completo menos padding
+    maxWidth: 500, // Máximo ancho para tablets
+    maxHeight: '90%', // 90% de altura máxima
+    overflow: 'hidden', // Importante para Android
   },
 
   // Header
@@ -443,6 +451,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingTop: 20, // Agregado padding superior
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
@@ -490,7 +499,10 @@ const styles = StyleSheet.create({
 
   // Contenido
   scrollContent: {
-    flex: 1,
+    flexGrow: 1, // Cambiado de flex: 1 a flexGrow: 1
+  },
+  scrollContentContainer: {
+    paddingBottom: 20, // Padding inferior para que el último elemento no quede pegado
   },
   section: {
     paddingHorizontal: 20,
