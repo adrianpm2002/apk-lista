@@ -15,16 +15,10 @@ import { authService } from '../services/authService';
 
 /**
  * Panel de Testing para funcionalidades offline
- * Solo visible en modo desarrollo (__DEV__)
  */
 const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const { isOnline, isChecking } = useConnection();
-
-  // No mostrar en producción
-  if (!__DEV__) {
-    return null;
-  }
 
   // No mostrar en web a menos que se permita explícitamente
   if (Platform.OS === 'web' && !allowWeb) {
