@@ -571,7 +571,8 @@ const styles = StyleSheet.create({
     flexGrow: 1, // Cambiado de flex: 1 a flexGrow: 1
   },
   scrollContentContainer: {
-    paddingBottom: 20, // Padding inferior para que el último elemento no quede pegado
+    paddingBottom: 40, // Aumentado para mejor scroll hasta el final
+    paddingTop: 5, // Pequeño padding superior
   },
   section: {
     paddingHorizontal: 20,
