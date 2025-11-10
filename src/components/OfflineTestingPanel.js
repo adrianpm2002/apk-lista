@@ -206,6 +206,61 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
     }
   };
 
+  const testInsertFakeCredentials = async () => {
+    Alert.alert(
+      'Insertar Credenciales de Prueba',
+      '¿Insertar credenciales fake para testing?\n\nEsto te permitirá probar las funcionalidades offline sin necesidad de hacer login online.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Insertar',
+          onPress: async () => {
+            try {
+              const { encryptPassword } = require('../services/encryptionService');
+              
+              // Datos de prueba
+              const testUsername = 'test_user';
+              const testPassword = 'test123';
+              const encryptedPassword = await encryptPassword(testPassword);
+              
+              const now = Date.now();
+              const expiresAt = now + (24 * 60 * 60 * 1000); // 24 horas
+              
+              // Guardar en SQLite
+              await OfflineStorage.saveCredentials({
+                user_id: 999,
+                encrypted_data: JSON.stringify({
+                  username: testUsername,
+                  password: encryptedPassword,
+                }),
+                role: 'listero',
+                id_banco: 1,
+                last_login: now.toString(),
+                session_expires: expiresAt.toString(),
+              });
+              
+              Alert.alert(
+                '✅ Credenciales Insertadas',
+                `Usuario: ${testUsername}\n` +
+                `Contraseña: ${testPassword}\n` +
+                `Rol: listero\n` +
+                `ID Banco: 1\n\n` +
+                `Ahora puedes probar:\n` +
+                `- Ver Credenciales\n` +
+                `- Validar Sesión\n` +
+                `- Ver Último Login\n` +
+                `- Login Offline (sin conexión)`,
+                [{ text: 'OK' }]
+              );
+            } catch (error) {
+              Alert.alert('Error', `No se pudo insertar: ${error.message}`);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // ============================================
   // PRUEBAS GENERALES
   // ============================================
@@ -348,6 +403,11 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
                 <TestButton 
                   title="📊 Ver Info de BD"
                   onPress={testDatabaseInfo}
+                />
+                
+                <TestButton 
+                  title="🧪 Insertar Credenciales de Prueba"
+                  onPress={testInsertFakeCredentials}
                 />
               </View>
 
