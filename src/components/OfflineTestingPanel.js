@@ -216,28 +216,33 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
           text: 'Insertar',
           onPress: async () => {
             try {
-              const { encryptPassword } = require('../services/encryptionService');
-              
               // Datos de prueba
               const testUsername = 'test_user';
               const testPassword = 'test123';
-              const encryptedPassword = await encryptPassword(testPassword);
+              
+              // Contraseña "encriptada" fake (solo para testing de visualización)
+              // NO usar expo-crypto aquí porque puede fallar, solo string simple
+              const fakeEncryptedPassword = 'FAKE_ENCRYPTED_' + testPassword;
               
               const now = Date.now();
               const expiresAt = now + (24 * 60 * 60 * 1000); // 24 horas
+              
+              console.log('[TestingPanel] Insertando credenciales de prueba...');
               
               // Guardar en SQLite
               await OfflineStorage.saveCredentials({
                 user_id: 999,
                 encrypted_data: JSON.stringify({
                   username: testUsername,
-                  password: encryptedPassword,
+                  password: fakeEncryptedPassword,
                 }),
                 role: 'listero',
                 id_banco: 1,
                 last_login: now.toString(),
                 session_expires: expiresAt.toString(),
               });
+              
+              console.log('[TestingPanel] ✅ Credenciales de prueba insertadas');
               
               Alert.alert(
                 '✅ Credenciales Insertadas',
@@ -249,11 +254,15 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
                 `- Ver Credenciales\n` +
                 `- Validar Sesión\n` +
                 `- Ver Último Login\n` +
-                `- Login Offline (sin conexión)`,
+                `- Info de BD\n\n` +
+                `NOTA: Login Offline NO funcionará\n` +
+                `con estas credenciales fake (solo\n` +
+                `para probar visualización de datos)`,
                 [{ text: 'OK' }]
               );
             } catch (error) {
-              Alert.alert('Error', `No se pudo insertar: ${error.message}`);
+              console.error('[TestingPanel] Error al insertar credenciales:', error);
+              Alert.alert('Error', `No se pudo insertar: ${error.message}\n\nStack: ${error.stack}`);
             }
           }
         }
