@@ -284,10 +284,10 @@ const LoginContent = ({ navigation }) => {
             </>
           )}
         </Formik>
-        </View>
         
         {/* Panel de Testing Offline - Visible en web también */}
         <OfflineTestingPanel inline={true} allowWeb={true} />
+        </View>
       )}
     </View>
   );
