@@ -367,6 +367,9 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
               contentContainerStyle={styles.scrollContentContainer}
               showsVerticalScrollIndicator={true}
               nestedScrollEnabled={true}
+              bounces={false}
+              overScrollMode="never"
+              keyboardShouldPersistTaps="handled"
             >
               {/* FASE 4: Login Offline */}
               <View style={styles.section}>
@@ -510,7 +513,8 @@ const styles = StyleSheet.create({
     borderRadius: 20, // Border radius en todos los lados
     width: '100%', // Ancho completo menos padding
     maxWidth: 500, // Máximo ancho para tablets
-    maxHeight: '90%', // 90% de altura máxima
+    maxHeight: '85%', // Reducido a 85% para dar más margen
+    flex: 0, // No expandir más allá del maxHeight
     overflow: 'hidden', // Importante para Android
   },
 
@@ -568,11 +572,12 @@ const styles = StyleSheet.create({
 
   // Contenido
   scrollContent: {
-    flexGrow: 1, // Cambiado de flex: 1 a flexGrow: 1
+    flex: 1, // Usar flex: 1 para ocupar todo el espacio disponible
   },
   scrollContentContainer: {
-    paddingBottom: 40, // Aumentado para mejor scroll hasta el final
+    paddingBottom: 80, // Mucho más padding para asegurar scroll completo
     paddingTop: 5, // Pequeño padding superior
+    flexGrow: 1, // Permitir que el contenido crezca
   },
   section: {
     paddingHorizontal: 20,
