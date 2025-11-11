@@ -7,6 +7,7 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { authService } from '../services/authService';
 import * as OfflineStorage from '../services/offlineStorageService';
+import OfflineTestingPanel from '../components/OfflineTestingPanel';
 
 /**
  * Botón de Login Offline
@@ -284,6 +285,9 @@ const LoginContent = ({ navigation }) => {
           )}
         </Formik>
         </View>
+        
+        {/* Panel de Testing Offline - Visible en web también */}
+        <OfflineTestingPanel inline={true} allowWeb={true} />
       )}
     </View>
   );
