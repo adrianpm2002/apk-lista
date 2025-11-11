@@ -401,73 +401,49 @@ class AuthService {
    */
   async loginOffline(username, password) {
     try {
+      console.log('[AuthService] Iniciando login offline para:', username);
       const { decryptPassword } = require('./encryptionService');
       const OfflineStorage = require('./offlineStorageService');
 
-      // Buscar credenciales guardadas
-      // Como no tenemos user_id, buscar por username en encrypted_data
-      const hasCredentials = await OfflineStorage.hasStoredCredentials();
+      // Buscar credenciales por username
+      console.log('[AuthService] Buscando credenciales...');
+      const matchedCredentials = await OfflineStorage.getCredentialsByUsername(username);
       
-      if (!hasCredentials) {
-        throw new Error('No hay credenciales guardadas para login offline');
-      }
-
-      // Obtener todas las credenciales y buscar por username
-      // (En producción, podrías agregar un índice por username)
-      const db = await OfflineStorage.default.getDatabase?.();
-      if (!db) {
-        throw new Error('Base de datos no disponible');
-      }
-
-      const [result] = await db.executeSql(
-        'SELECT * FROM offline_credentials LIMIT 100'
-      );
-
-      let matchedCredentials = null;
-      
-      for (let i = 0; i < result.rows.length; i++) {
-        const row = result.rows.item(i);
-        try {
-          const data = JSON.parse(row.encrypted_data);
-          if (data.username === username) {
-            matchedCredentials = {
-              user_id: row.user_id,
-              encrypted_data: row.encrypted_data,
-              role: row.role,
-              id_banco: row.id_banco,
-              last_login: row.last_login,
-              session_expires: row.session_expires,
-            };
-            break;
-          }
-        } catch (e) {
-          // Ignorar filas con datos corruptos
-          continue;
-        }
-      }
-
       if (!matchedCredentials) {
-        throw new Error('Usuario no encontrado');
+        console.log('[AuthService] ❌ No se encontraron credenciales para', username);
+        throw new Error('No hay credenciales guardadas para este usuario');
       }
+
+      console.log('[AuthService] ✅ Credenciales encontradas');
 
       // Verificar expiración de sesión (24h)
+      console.log('[AuthService] Verificando expiración de sesión...');
       const now = Date.now();
       const expiresAt = parseInt(matchedCredentials.session_expires);
+      console.log('[AuthService] Sesión expira en:', new Date(expiresAt).toLocaleString());
       
       if (now > expiresAt) {
+        console.log('[AuthService] ❌ Sesión expirada');
         throw new Error('Sesión offline expirada (>24h). Conéctese a internet para renovar.');
       }
 
+      console.log('[AuthService] ✅ Sesión válida');
+
       // Desencriptar y verificar contraseña
+      console.log('[AuthService] Desencriptando contraseña...');
       const data = JSON.parse(matchedCredentials.encrypted_data);
       const decryptedPassword = await decryptPassword(data.password);
+      console.log('[AuthService] Contraseña desencriptada, verificando...');
 
       if (decryptedPassword !== password) {
+        console.log('[AuthService] ❌ Contraseña incorrecta');
         throw new Error('Contraseña incorrecta');
       }
 
+      console.log('[AuthService] ✅ Contraseña correcta');
+
       // Login exitoso
-      console.log('[AuthService] Offline login successful');
+      console.log('[AuthService] ✅ Offline login successful');
 
       return {
         success: true,

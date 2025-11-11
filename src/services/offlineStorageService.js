@@ -515,6 +515,61 @@ export const getCredentials = async (user_id = null) => {
 };
 
 /**
+ * Obtener credenciales por nombre de usuario
+ * Busca en el JSON de encrypted_data
+ * @param {string} username - Nombre de usuario a buscar
+ * @returns {Promise<Object|null>} Credenciales del usuario o null
+ */
+export const getCredentialsByUsername = async (username) => {
+  try {
+    console.log('[OfflineStorage] Buscando credenciales para username:', username);
+    const db = await getDatabase();
+    if (!db) {
+      console.error('[OfflineStorage] Base de datos no disponible');
+      return null;
+    }
+
+    // Obtener todas las credenciales (normalmente solo hay 1)
+    const [result] = await db.executeSql(
+      'SELECT * FROM offline_credentials ORDER BY id DESC LIMIT 10'
+    );
+
+    console.log('[OfflineStorage] Credenciales encontradas en BD:', result.rows.length);
+
+    // Buscar la que coincida con el username
+    for (let i = 0; i < result.rows.length; i++) {
+      const row = result.rows.item(i);
+      try {
+        const encryptedData = JSON.parse(row.encrypted_data);
+        console.log('[OfflineStorage] Verificando username:', encryptedData.username);
+        
+        if (encryptedData.username === username) {
+          console.log('[OfflineStorage] ✅ Credenciales encontradas para', username);
+          return {
+            user_id: row.user_id,
+            encrypted_data: row.encrypted_data,
+            username: encryptedData.username,
+            role: row.role,
+            id_banco: row.id_banco,
+            last_login: row.last_login,
+            session_expires: row.session_expires,
+          };
+        }
+      } catch (e) {
+        console.warn('[OfflineStorage] Error parseando encrypted_data:', e.message);
+      }
+    }
+
+    console.log('[OfflineStorage] ❌ No se encontraron credenciales para', username);
+    return null;
+  } catch (error) {
+    console.error('[OfflineStorage] Error buscando credenciales por username:', error);
+    await addLog('ERROR', 'Failed to get credentials by username', { username, error: error.message });
+    return null;
+  }
+};
+
+/**
  * Eliminar credenciales de un usuario
  * @param {string} user_id - ID del usuario
  */
