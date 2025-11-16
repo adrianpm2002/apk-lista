@@ -26,6 +26,7 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   }
 
   const handleOpenPanel = () => {
+    console.log('[OfflineTestingPanel] Opening panel...');
     setModalVisible(true);
   };
 
@@ -342,6 +343,7 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            {console.log('[OfflineTestingPanel] Modal visible:', modalVisible)}
             {/* Header */}
             <View style={styles.header}>
               <Text style={styles.title}>🔧 Panel de Testing Offline</Text>
@@ -514,8 +516,9 @@ const styles = StyleSheet.create({
     width: '100%', // Ancho completo menos padding
     maxWidth: 500, // Máximo ancho para tablets
     maxHeight: '85%', // Reducido a 85% para dar más margen
-    flex: 0, // No expandir más allá del maxHeight
     overflow: 'hidden', // Importante para Android
+    display: 'flex',
+    flexDirection: 'column',
   },
 
   // Header
@@ -548,6 +551,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
     backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   statusRow: {
     flexDirection: 'row',
