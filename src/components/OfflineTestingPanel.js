@@ -512,11 +512,11 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderRadius: 20, // Border radius en todos los lados
-    width: '100%', // Ancho completo menos padding
-    maxWidth: 500, // Máximo ancho para tablets
-    maxHeight: '85%', // Reducido a 85% para dar más margen
-    overflow: 'hidden', // Importante para Android
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 500,
+    height: '85%', // Usar height en lugar de maxHeight
+    overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
   },
