@@ -402,29 +402,213 @@ export const getPendingPlays = async () => {
   }
 };
 
-// Loterías
+// =================================================================
+// LOTERÍAS - FASE 5
+// =================================================================
+
+/**
+ * Guardar loterías en caché offline
+ * @param {Array} lotteries - Array de objetos lotería desde Supabase
+ * @returns {Promise<boolean>} true si se guardó correctamente
+ */
 export const saveLotteries = async (lotteries) => {
-  await addLog('TODO', 'saveLotteries not implemented yet', { count: lotteries?.length });
-  throw new Error('Not implemented yet');
+  try {
+    if (!Array.isArray(lotteries) || lotteries.length === 0) {
+      console.log('[OfflineStorage] saveLotteries: Array vacío');
+      return false;
+    }
+
+    console.log(`[OfflineStorage] Guardando ${lotteries.length} loterías en caché...`);
+    const db = await getDatabase();
+    if (!db) {
+      console.error('[OfflineStorage] Base de datos no disponible');
+      return false;
+    }
+
+    // Usar transacción para guardar todas las loterías
+    await db.transaction(async (tx) => {
+      for (const lottery of lotteries) {
+        await tx.executeSql(
+          `INSERT OR REPLACE INTO offline_lotteries 
+           (id, nombre, id_banco, tipo, activo, cached_at, updated_at) 
+           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+          [
+            lottery.id,
+            lottery.nombre,
+            lottery.id_banco,
+            lottery.tipo || 'normal',
+            lottery.activo !== undefined ? lottery.activo : 1
+          ]
+        );
+      }
+    });
+
+    console.log(`[OfflineStorage] ✅ ${lotteries.length} loterías guardadas en caché`);
+    await addLog('INFO', 'Loterías guardadas en caché', { count: lotteries.length });
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error guardando loterías:', error);
+    await addLog('ERROR', 'Error guardando loterías', { error: error.message });
+    return false;
+  }
 };
 
+/**
+ * Obtener loterías del caché offline
+ * @param {number} id_banco - ID del banco
+ * @returns {Promise<Array>} Array de loterías
+ */
 export const getLotteries = async (id_banco) => {
-  await addLog('TODO', 'getLotteries not implemented yet', { id_banco });
-  return [];
+  try {
+    console.log(`[OfflineStorage] Obteniendo loterías del caché para banco: ${id_banco}`);
+    const db = await getDatabase();
+    if (!db) {
+      console.error('[OfflineStorage] Base de datos no disponible');
+      return [];
+    }
+
+    const [result] = await db.executeSql(
+      `SELECT id, nombre, id_banco, tipo, activo, cached_at 
+       FROM offline_lotteries 
+       WHERE id_banco = ? AND activo = 1
+       ORDER BY nombre ASC`,
+      [id_banco]
+    );
+
+    const lotteries = [];
+    for (let i = 0; i < result.rows.length; i++) {
+      lotteries.push(result.rows.item(i));
+    }
+
+    console.log(`[OfflineStorage] ✅ ${lotteries.length} loterías encontradas en caché`);
+    return lotteries;
+  } catch (error) {
+    console.error('[OfflineStorage] Error obteniendo loterías:', error);
+    await addLog('ERROR', 'Error obteniendo loterías del caché', { error: error.message });
+    return [];
+  }
 };
 
-// Horarios
+// =================================================================
+// HORARIOS - FASE 5
+// =================================================================
+
+/**
+ * Guardar horarios en caché offline
+ * @param {Array} schedules - Array de objetos horario desde Supabase
+ * @returns {Promise<boolean>} true si se guardó correctamente
+ */
 export const saveSchedules = async (schedules) => {
-  await addLog('TODO', 'saveSchedules not implemented yet', { count: schedules?.length });
-  throw new Error('Not implemented yet');
+  try {
+    if (!Array.isArray(schedules) || schedules.length === 0) {
+      console.log('[OfflineStorage] saveSchedules: Array vacío');
+      return false;
+    }
+
+    console.log(`[OfflineStorage] Guardando ${schedules.length} horarios en caché...`);
+    const db = await getDatabase();
+    if (!db) {
+      console.error('[OfflineStorage] Base de datos no disponible');
+      return false;
+    }
+
+    // Usar transacción para guardar todos los horarios
+    await db.transaction(async (tx) => {
+      for (const schedule of schedules) {
+        await tx.executeSql(
+          `INSERT OR REPLACE INTO offline_schedules 
+           (id, nombre, hora_inicio, hora_fin, id_loteria, cached_at, updated_at) 
+           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+          [
+            schedule.id,
+            schedule.nombre,
+            schedule.hora_inicio,
+            schedule.hora_fin,
+            schedule.id_loteria
+          ]
+        );
+      }
+    });
+
+    console.log(`[OfflineStorage] ✅ ${schedules.length} horarios guardados en caché`);
+    await addLog('INFO', 'Horarios guardados en caché', { count: schedules.length });
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error guardando horarios:', error);
+    await addLog('ERROR', 'Error guardando horarios', { error: error.message });
+    return false;
+  }
 };
 
+/**
+ * Obtener horarios del caché offline para una lotería
+ * @param {number} id_loteria - ID de la lotería
+ * @returns {Promise<Array>} Array de horarios
+ */
 export const getSchedules = async (id_loteria) => {
-  await addLog('TODO', 'getSchedules not implemented yet', { id_loteria });
-  return [];
+  try {
+    console.log(`[OfflineStorage] Obteniendo horarios del caché para lotería: ${id_loteria}`);
+    const db = await getDatabase();
+    if (!db) {
+      console.error('[OfflineStorage] Base de datos no disponible');
+      return [];
+    }
+
+    const [result] = await db.executeSql(
+      `SELECT id, nombre, hora_inicio, hora_fin, id_loteria, cached_at 
+       FROM offline_schedules 
+       WHERE id_loteria = ?
+       ORDER BY hora_inicio ASC`,
+      [id_loteria]
+    );
+
+    const schedules = [];
+    for (let i = 0; i < result.rows.length; i++) {
+      schedules.push(result.rows.item(i));
+    }
+
+    console.log(`[OfflineStorage] ✅ ${schedules.length} horarios encontrados en caché`);
+    return schedules;
+  } catch (error) {
+    console.error('[OfflineStorage] Error obteniendo horarios:', error);
+    await addLog('ERROR', 'Error obteniendo horarios del caché', { error: error.message });
+    return [];
+  }
 };
 
-// Credenciales
+/**
+ * Obtener timestamp de última actualización del caché
+ * @returns {Promise<number|null>} Timestamp en milisegundos o null
+ */
+export const getLastCacheUpdate = async () => {
+  try {
+    const value = await getConfig('last_cache_update');
+    return value ? parseInt(value) : null;
+  } catch (error) {
+    console.error('[OfflineStorage] Error obteniendo last_cache_update:', error);
+    return null;
+  }
+};
+
+/**
+ * Guardar timestamp de última actualización del caché
+ * @param {number} timestamp - Timestamp en milisegundos (Date.now())
+ * @returns {Promise<boolean>} true si se guardó correctamente
+ */
+export const setLastCacheUpdate = async (timestamp) => {
+  try {
+    await setConfig('last_cache_update', timestamp.toString());
+    console.log('[OfflineStorage] ✅ Timestamp de caché actualizado:', new Date(timestamp).toISOString());
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error guardando last_cache_update:', error);
+    return false;
+  }
+};
+
+// =================================================================
+// CREDENCIALES - FASE 4
+// =================================================================
 /**
  * Guardar credenciales encriptadas en SQLite
  * @param {Object} credentials - { user_id, encrypted_data, role, id_banco, last_login, session_expires }
@@ -820,7 +1004,7 @@ export default {
   getLastLoginTimestamp,
   setLastLoginTimestamp,
   clearAllOfflinePlays,
-  // Credenciales
+  // Credenciales - FASE 4
   saveCredentials,
   getCredentials,
   deleteCredentials,
@@ -828,11 +1012,15 @@ export default {
   hasStoredCredentials,
   updateSessionExpiry,
   getDatabaseInfo,
-  // Placeholders
-  savePlayOffline,
-  getPendingPlays,
+  getCredentialsByUsername,
+  // Loterías y Horarios - FASE 5
   saveLotteries,
   getLotteries,
   saveSchedules,
   getSchedules,
+  getLastCacheUpdate,
+  setLastCacheUpdate,
+  // Jugadas offline - FASE 6 (placeholder)
+  savePlayOffline,
+  getPendingPlays,
 };
