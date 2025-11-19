@@ -131,9 +131,11 @@ const createInitialSchema = async (db) => {
     CREATE TABLE IF NOT EXISTS offline_lotteries (
       id TEXT PRIMARY KEY,
       nombre TEXT NOT NULL,
-      creada_en TEXT NOT NULL,
       id_banco TEXT NOT NULL,
-      last_sync TEXT NOT NULL
+      tipo TEXT,
+      activo INTEGER DEFAULT 1,
+      cached_at TEXT,
+      updated_at TEXT
     )
   `);
 
@@ -145,8 +147,8 @@ const createInitialSchema = async (db) => {
       hora_inicio TEXT NOT NULL,
       hora_fin TEXT NOT NULL,
       id_loteria TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      last_sync TEXT NOT NULL
+      cached_at TEXT,
+      updated_at TEXT
     )
   `);
 
