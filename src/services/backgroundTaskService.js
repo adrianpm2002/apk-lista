@@ -237,18 +237,34 @@ export const syncOfflineCache = async () => {
 
     // 2. Obtener perfil del usuario para saber su id_banco
     const { data: profile, error: profileError } = await supabase
-      .from('usuarios')
-      .select('id_banco')
+      .from('profiles')
+      .select('role, id_banco')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     if (profileError || !profile) {
       console.error('[BackgroundTask] Error obteniendo perfil:', profileError);
-      await OfflineStorage.addLog('ERROR', 'Cache sync failed - profile error', { error: profileError?.message });
-      return { success: false, error: 'Error obteniendo perfil' };
+      console.error('[BackgroundTask] User ID:', user.id);
+      await OfflineStorage.addLog('ERROR', 'Cache sync failed - profile error', { 
+        error: profileError?.message,
+        user_id: user.id 
+      });
+      return { success: false, error: `Error obteniendo perfil: ${profileError?.message || 'Perfil no encontrado'}` };
     }
 
-    const id_banco = profile.id_banco;
+    // Determinar el banco_id correcto según el rol
+    let id_banco;
+    if (profile.role === 'admin') {
+      id_banco = user.id; // El admin ES el banco
+    } else if (profile.role === 'collector' || profile.role === 'listero') {
+      id_banco = profile.id_banco;
+    } else {
+      console.error('[BackgroundTask] Rol desconocido:', profile.role);
+      await OfflineStorage.addLog('ERROR', 'Cache sync failed - unknown role', { role: profile.role });
+      return { success: false, error: `Rol desconocido: ${profile.role}` };
+    }
+
+    console.log('[BackgroundTask] Rol del usuario:', profile.role);
     console.log('[BackgroundTask] ID Banco del usuario:', id_banco);
 
     // 3. Fetch loterías del banco del usuario
