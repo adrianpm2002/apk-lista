@@ -302,6 +302,46 @@ const LoginContent = ({ navigation }) => {
         
         {/* Panel de Testing Offline - Visible en web también */}
         <OfflineTestingPanel inline={true} allowWeb={true} />
+        
+        {/* DEBUG TEMPORAL - Botón para verificar estado */}
+        <Pressable
+          style={{
+            position: 'absolute',
+            bottom: 20,
+            right: 20,
+            backgroundColor: '#FF6B6B',
+            padding: 15,
+            borderRadius: 10,
+          }}
+          onPress={async () => {
+            console.log('=== DEBUG: Verificando estado completo ===');
+            
+            // 1. Verificar hasStoredCredentials
+            const hasStored = await OfflineStorage.hasStoredCredentials();
+            console.log('hasStoredCredentials():', hasStored);
+            
+            // 2. Verificar getCredentials
+            const creds = await OfflineStorage.getCredentials();
+            console.log('getCredentials():', creds ? 'Encontradas' : 'No encontradas');
+            if (creds) {
+              console.log('Credentials data:', JSON.stringify(creds, null, 2));
+            }
+            
+            // 3. Verificar getDatabaseInfo
+            const dbInfo = await OfflineStorage.getDatabaseInfo();
+            console.log('Database Info:', JSON.stringify(dbInfo, null, 2));
+            
+            Alert.alert(
+              'Debug Info',
+              `hasStoredCredentials: ${hasStored}\n` +
+              `getCredentials: ${creds ? 'OK' : 'NULL'}\n` +
+              `Credenciales count: ${dbInfo.credentials}\n\n` +
+              `Ver console para detalles completos`
+            );
+          }}
+        >
+          <Text style={{ color: 'white', fontWeight: 'bold' }}>🐛 DEBUG</Text>
+        </Pressable>
         </View>
       )}
     </View>
