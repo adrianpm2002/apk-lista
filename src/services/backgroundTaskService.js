@@ -217,11 +217,129 @@ export const processPendingPlaysManually = async () => {
   await processPendingPlays();
 };
 
+/**
+ * Sincronizar caché offline de loterías y horarios
+ * FASE 5.2 - Background sync
+ */
+export const syncOfflineCache = async () => {
+  try {
+    console.log('[BackgroundTask] Iniciando sincronización de caché offline...');
+    
+    // Importar servicios necesarios
+    const OfflineStorage = require('./offlineStorageService');
+    
+    // 1. Obtener usuario actual
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.log('[BackgroundTask] No hay usuario autenticado, omitiendo sync');
+      return { success: false, error: 'No autenticado' };
+    }
+
+    // 2. Obtener perfil del usuario para saber su id_banco
+    const { data: profile, error: profileError } = await supabase
+      .from('usuarios')
+      .select('id_banco')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      console.error('[BackgroundTask] Error obteniendo perfil:', profileError);
+      await OfflineStorage.addLog('ERROR', 'Cache sync failed - profile error', { error: profileError?.message });
+      return { success: false, error: 'Error obteniendo perfil' };
+    }
+
+    const id_banco = profile.id_banco;
+    console.log('[BackgroundTask] ID Banco del usuario:', id_banco);
+
+    // 3. Fetch loterías del banco del usuario
+    const { data: lotteries, error: lotteriesError } = await supabase
+      .from('loterias')
+      .select('*')
+      .eq('id_banco', id_banco)
+      .eq('activo', true)
+      .order('nombre');
+
+    if (lotteriesError) {
+      console.error('[BackgroundTask] Error fetching loterías:', lotteriesError);
+      await OfflineStorage.addLog('ERROR', 'Cache sync failed - lotteries fetch error', { error: lotteriesError.message });
+      return { success: false, error: 'Error fetching loterías' };
+    }
+
+    console.log(`[BackgroundTask] Loterías obtenidas: ${lotteries?.length || 0}`);
+
+    // 4. Guardar loterías en SQLite
+    if (lotteries && lotteries.length > 0) {
+      await OfflineStorage.saveLotteries(lotteries);
+      await OfflineStorage.setLastCacheUpdate('lotteries', Date.now());
+      console.log('[BackgroundTask] ✅ Loterías guardadas en caché');
+    }
+
+    // 5. Obtener IDs de loterías para fetch de horarios
+    const lotteryIds = lotteries?.map(lot => lot.id_loteria) || [];
+
+    if (lotteryIds.length === 0) {
+      console.log('[BackgroundTask] No hay loterías para sincronizar horarios');
+      await OfflineStorage.addLog('INFO', 'Cache sync completed', { lotteries: 0, schedules: 0 });
+      return { success: true, lotteries: 0, schedules: 0 };
+    }
+
+    // 6. Fetch horarios de todas las loterías del banco
+    const { data: schedules, error: schedulesError } = await supabase
+      .from('horarios')
+      .select('*')
+      .in('id_loteria', lotteryIds)
+      .eq('activo', true)
+      .order('hora_inicio');
+
+    if (schedulesError) {
+      console.error('[BackgroundTask] Error fetching horarios:', schedulesError);
+      await OfflineStorage.addLog('ERROR', 'Cache sync failed - schedules fetch error', { error: schedulesError.message });
+      return { success: false, error: 'Error fetching horarios' };
+    }
+
+    console.log(`[BackgroundTask] Horarios obtenidos: ${schedules?.length || 0}`);
+
+    // 7. Guardar horarios en SQLite
+    if (schedules && schedules.length > 0) {
+      await OfflineStorage.saveSchedules(schedules);
+      await OfflineStorage.setLastCacheUpdate('schedules', Date.now());
+      console.log('[BackgroundTask] ✅ Horarios guardados en caché');
+    }
+
+    // 8. Log de operación exitosa
+    const timestamp = Date.now();
+    await OfflineStorage.addLog('INFO', 'Cache sync completed successfully', {
+      lotteries: lotteries?.length || 0,
+      schedules: schedules?.length || 0,
+      timestamp
+    });
+
+    console.log('[BackgroundTask] ✅ Sincronización de caché completada exitosamente');
+
+    return {
+      success: true,
+      lotteries: lotteries?.length || 0,
+      schedules: schedules?.length || 0,
+      timestamp
+    };
+
+  } catch (error) {
+    console.error('[BackgroundTask] Error en syncOfflineCache:', error);
+    const OfflineStorage = require('./offlineStorageService');
+    await OfflineStorage.addLog('ERROR', 'Cache sync failed - unexpected error', { 
+      error: error.message,
+      stack: error.stack 
+    });
+    return { success: false, error: error.message };
+  }
+};
+
 export default {
   registerBackgroundFetch,
   unregisterBackgroundFetch,
   addPendingPlay,
   getPendingPlays,
   clearPendingPlays,
-  processPendingPlaysManually
+  processPendingPlaysManually,
+  syncOfflineCache
 };

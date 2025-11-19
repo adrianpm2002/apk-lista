@@ -323,6 +323,109 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
     );
   };
 
+  /**
+   * FASE 5: Test de sincronización de caché
+   */
+  const testSyncCache = async () => {
+    try {
+      Alert.alert('Sincronizando...', 'Descargando loterías y horarios del servidor');
+      
+      const backgroundTask = require('../services/backgroundTaskService');
+      const result = await backgroundTask.syncOfflineCache();
+      
+      if (result.success) {
+        Alert.alert(
+          'Éxito',
+          `✅ Caché sincronizado\n\n` +
+          `Loterías: ${result.lotteries}\n` +
+          `Horarios: ${result.schedules}\n\n` +
+          `Timestamp: ${new Date(result.timestamp).toLocaleString()}`
+        );
+      } else {
+        Alert.alert('Error', `❌ ${result.error}`);
+      }
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  /**
+   * FASE 5: Test para ver loterías cacheadas
+   */
+  const testViewCachedLotteries = async () => {
+    try {
+      const lotteries = await OfflineStorage.getLotteries();
+      const lastUpdate = await OfflineStorage.getLastCacheUpdate('lotteries');
+      
+      if (!lotteries || lotteries.length === 0) {
+        Alert.alert('Sin datos', 'No hay loterías en caché.\n\nPrimero sincroniza el caché.');
+        return;
+      }
+
+      const lastUpdateStr = lastUpdate 
+        ? new Date(lastUpdate).toLocaleString() 
+        : 'Nunca';
+
+      const lotteriesStr = lotteries
+        .map(lot => `• ${lot.nombre} (ID: ${lot.id_loteria})`)
+        .join('\n');
+
+      Alert.alert(
+        'Loterías en Caché',
+        `Total: ${lotteries.length}\n` +
+        `Última actualización: ${lastUpdateStr}\n\n` +
+        `${lotteriesStr}`
+      );
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  /**
+   * FASE 5: Test para ver horarios cacheados
+   */
+  const testViewCachedSchedules = async () => {
+    try {
+      const schedules = await OfflineStorage.getSchedules();
+      const lastUpdate = await OfflineStorage.getLastCacheUpdate('schedules');
+      
+      if (!schedules || schedules.length === 0) {
+        Alert.alert('Sin datos', 'No hay horarios en caché.\n\nPrimero sincroniza el caché.');
+        return;
+      }
+
+      const lastUpdateStr = lastUpdate 
+        ? new Date(lastUpdate).toLocaleString() 
+        : 'Nunca';
+
+      // Agrupar por lotería
+      const byLottery = schedules.reduce((acc, sch) => {
+        const lotId = sch.id_loteria;
+        if (!acc[lotId]) acc[lotId] = [];
+        acc[lotId].push(sch);
+        return acc;
+      }, {});
+
+      const schedulesStr = Object.entries(byLottery)
+        .map(([lotId, scheds]) => {
+          const times = scheds.map(s => s.hora_inicio).join(', ');
+          return `Lotería ${lotId}: ${scheds.length} horarios\n  ${times}`;
+        })
+        .join('\n\n');
+
+      Alert.alert(
+        'Horarios en Caché',
+        `Total: ${schedules.length}\n` +
+        `Última actualización: ${lastUpdateStr}\n\n` +
+        `${schedulesStr}`,
+        [{ text: 'OK' }],
+        { cancelable: true }
+      );
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
   // ============================================
   // RENDER
   // ============================================
@@ -446,6 +549,26 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
                   title="🗑️ Limpiar Logs"
                   onPress={testClearLogs}
                   danger
+                />
+              </View>
+
+              {/* FASE 5: Caché de Loterías y Horarios */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>🎰 FASE 5: Caché Offline</Text>
+                
+                <TestButton 
+                  title="🔄 Sincronizar Caché (Loterías + Horarios)"
+                  onPress={testSyncCache}
+                />
+                
+                <TestButton 
+                  title="👁️ Ver Loterías Cacheadas"
+                  onPress={testViewCachedLotteries}
+                />
+                
+                <TestButton 
+                  title="⏰ Ver Horarios Cacheados"
+                  onPress={testViewCachedSchedules}
                 />
               </View>
 
