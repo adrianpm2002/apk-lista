@@ -65,6 +65,11 @@ export default {
       favicon: "./assets/favicon.png",
       bundler: "metro"
     },
+    extra: {
+      eas: {
+        projectId: "eebd5cf6-bc00-4ad1-863f-f8461ebd7219"
+      }
+    },
     plugins: [
       "expo-splash-screen",
       "expo-notifications",
