@@ -19,10 +19,25 @@ const OfflineLoginButton = ({ username, password, setFieldError, navigation }) =
 
   useEffect(() => {
     checkStoredCredentials();
-  }, []);
+    
+    // Revalidar cada vez que la pantalla recibe foco
+    const unsubscribe = navigation.addListener('focus', () => {
+      checkStoredCredentials();
+    });
+
+    // También revisar periódicamente mientras está visible
+    const interval = setInterval(checkStoredCredentials, 2000); // Cada 2 segundos
+
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
+  }, [navigation]);
 
   const checkStoredCredentials = async () => {
+    console.log('[LoginScreen] Verificando credenciales guardadas...');
     const hasStored = await OfflineStorage.hasStoredCredentials();
+    console.log('[LoginScreen] Credenciales guardadas:', hasStored);
     setHasCredentials(hasStored);
   };
 

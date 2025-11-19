@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
     flex: 1, // Usar flex: 1 para ocupar todo el espacio disponible
   },
   scrollContentContainer: {
-    paddingBottom: 80, // Mucho más padding para asegurar scroll completo
+    paddingBottom: 120, // Aumentado para ver contenido completo al final
     paddingTop: 5, // Pequeño padding superior
     flexGrow: 1, // Permitir que el contenido crezca
   },
