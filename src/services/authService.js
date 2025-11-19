@@ -264,7 +264,7 @@ class AuthService {
       
       // Limpiar credenciales de SQLite (offline)
       const OfflineStorage = require('./offlineStorageService');
-      await OfflineStorage.deleteCredentials();
+      await OfflineStorage.deleteAllCredentials();
       console.log('[AuthService] ✅ Credenciales SQLite eliminadas');
 
     } catch (error) {
@@ -273,7 +273,7 @@ class AuthService {
       try {
         await secureStorage.clearStoredCredentials();
         const OfflineStorage = require('./offlineStorageService');
-        await OfflineStorage.deleteCredentials();
+        await OfflineStorage.deleteAllCredentials();
       } catch (cleanupError) {
         console.error('[AuthService] Error en limpieza forzada:', cleanupError);
       }

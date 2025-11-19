@@ -592,6 +592,30 @@ export const deleteCredentials = async (user_id) => {
 };
 
 /**
+ * Eliminar TODAS las credenciales offline (sin filtro)
+ * @returns {Promise<boolean>} true si se eliminaron correctamente
+ */
+export const deleteAllCredentials = async () => {
+  try {
+    console.log('[OfflineStorage] Eliminando TODAS las credenciales offline...');
+    const db = await getDatabase();
+    if (!db) {
+      console.error('[OfflineStorage] Base de datos no disponible');
+      return false;
+    }
+
+    await db.executeSql('DELETE FROM offline_credentials');
+    console.log('[OfflineStorage] ✅ Todas las credenciales eliminadas');
+
+    await addLog('INFO', 'All credentials deleted', {});
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error deleting all credentials:', error);
+    return false;
+  }
+};
+
+/**
  * Verificar si existen credenciales guardadas
  * @returns {Promise<boolean>} true si hay credenciales
  */
@@ -800,6 +824,7 @@ export default {
   saveCredentials,
   getCredentials,
   deleteCredentials,
+  deleteAllCredentials,
   hasStoredCredentials,
   updateSessionExpiry,
   getDatabaseInfo,

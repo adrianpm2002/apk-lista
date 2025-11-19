@@ -102,9 +102,17 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await OfflineStorage.deleteCredentials();
-              Alert.alert('Éxito', '✅ Credenciales eliminadas correctamente');
+              console.log('[TestingPanel] Solicitando eliminar TODAS las credenciales...');
+              const result = await OfflineStorage.deleteAllCredentials();
+              if (result) {
+                console.log('[TestingPanel] ✅ Credenciales eliminadas exitosamente');
+                Alert.alert('Éxito', '✅ Credenciales eliminadas correctamente');
+              } else {
+                console.error('[TestingPanel] ❌ deleteAllCredentials retornó false');
+                Alert.alert('Error', 'No se pudieron eliminar las credenciales');
+              }
             } catch (error) {
+              console.error('[TestingPanel] Error al eliminar:', error);
               Alert.alert('Error', `No se pudo eliminar: ${error.message}`);
             }
           }
