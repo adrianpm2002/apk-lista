@@ -248,23 +248,35 @@ class AuthService {
    */
   async logout(clearPersistentPreference = false) {
     try {
-
+      console.log('[AuthService] Iniciando logout...');
       
       // Cerrar sesión en Supabase
       await supabase.auth.signOut();
+      console.log('[AuthService] Sesión Supabase cerrada');
       
-      // Limpiar credenciales almacenadas
+      // Limpiar credenciales de AsyncStorage
       if (clearPersistentPreference) {
         await secureStorage.clearAllSessionData();
       } else {
         await secureStorage.clearStoredCredentials();
       }
+      console.log('[AuthService] Credenciales AsyncStorage limpiadas');
       
+      // Limpiar credenciales de SQLite (offline)
+      const OfflineStorage = require('./offlineStorageService');
+      await OfflineStorage.deleteCredentials();
+      console.log('[AuthService] ✅ Credenciales SQLite eliminadas');
 
     } catch (error) {
-      console.error('Error al cerrar sesión:', error);
+      console.error('[AuthService] Error al cerrar sesión:', error);
       // Forzar limpieza incluso si hay error
-      await secureStorage.clearStoredCredentials();
+      try {
+        await secureStorage.clearStoredCredentials();
+        const OfflineStorage = require('./offlineStorageService');
+        await OfflineStorage.deleteCredentials();
+      } catch (cleanupError) {
+        console.error('[AuthService] Error en limpieza forzada:', cleanupError);
+      }
     }
   }
 
