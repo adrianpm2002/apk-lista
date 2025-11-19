@@ -254,26 +254,26 @@ class AuthService {
       await supabase.auth.signOut();
       console.log('[AuthService] Sesión Supabase cerrada');
       
-      // Limpiar credenciales de AsyncStorage
+      // Limpiar credenciales de AsyncStorage (online)
       if (clearPersistentPreference) {
         await secureStorage.clearAllSessionData();
+        console.log('[AuthService] Todos los datos de sesión limpiados (incluyendo preferencias)');
+        
+        // Solo si clearPersistentPreference = true, borrar credenciales offline
+        const OfflineStorage = require('./offlineStorageService');
+        await OfflineStorage.deleteAllCredentials();
+        console.log('[AuthService] ✅ Credenciales offline eliminadas (preferencia deshabilitada)');
       } else {
         await secureStorage.clearStoredCredentials();
+        console.log('[AuthService] Credenciales AsyncStorage limpiadas');
+        console.log('[AuthService] ℹ️ Credenciales offline preservadas para próximo login');
       }
-      console.log('[AuthService] Credenciales AsyncStorage limpiadas');
-      
-      // Limpiar credenciales de SQLite (offline)
-      const OfflineStorage = require('./offlineStorageService');
-      await OfflineStorage.deleteAllCredentials();
-      console.log('[AuthService] ✅ Credenciales SQLite eliminadas');
 
     } catch (error) {
       console.error('[AuthService] Error al cerrar sesión:', error);
-      // Forzar limpieza incluso si hay error
+      // Forzar limpieza de AsyncStorage incluso si hay error
       try {
         await secureStorage.clearStoredCredentials();
-        const OfflineStorage = require('./offlineStorageService');
-        await OfflineStorage.deleteAllCredentials();
       } catch (cleanupError) {
         console.error('[AuthService] Error en limpieza forzada:', cleanupError);
       }
@@ -293,12 +293,16 @@ class AuthService {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.refresh_token) {
           await secureStorage.saveRefreshToken(session.refresh_token);
-
+          console.log('[AuthService] Sesión persistente habilitada, refresh token guardado');
         }
       } else {
-        // Si se deshabilita, limpiar solo los datos almacenados pero mantener sesión actual
-
+        // Si se deshabilita, limpiar datos de AsyncStorage Y credenciales offline
+        console.log('[AuthService] Sesión persistente deshabilitada, limpiando datos...');
         await secureStorage.clearStoredCredentials();
+        
+        const OfflineStorage = require('./offlineStorageService');
+        await OfflineStorage.deleteAllCredentials();
+        console.log('[AuthService] ✅ Credenciales offline eliminadas (sesión persistente deshabilitada)');
       }
     } catch (error) {
       console.error('Error al cambiar estado de sesión persistente:', error);
