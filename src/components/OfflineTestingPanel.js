@@ -484,6 +484,26 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
               overScrollMode="never"
               keyboardShouldPersistTaps="handled"
             >
+              {/* FASE 5: Caché de Loterías y Horarios - MOVIDO AL INICIO */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>🎰 FASE 5: Caché Offline</Text>
+                
+                <TestButton 
+                  title="🔄 Sincronizar Caché (Loterías + Horarios)"
+                  onPress={testSyncCache}
+                />
+                
+                <TestButton 
+                  title="👁️ Ver Loterías Cacheadas"
+                  onPress={testViewCachedLotteries}
+                />
+                
+                <TestButton 
+                  title="⏰ Ver Horarios Cacheados"
+                  onPress={testViewCachedSchedules}
+                />
+              </View>
+
               {/* FASE 4: Login Offline */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>📱 FASE 4: Login Offline</Text>
@@ -549,26 +569,6 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
                   title="🗑️ Limpiar Logs"
                   onPress={testClearLogs}
                   danger
-                />
-              </View>
-
-              {/* FASE 5: Caché de Loterías y Horarios */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🎰 FASE 5: Caché Offline</Text>
-                
-                <TestButton 
-                  title="🔄 Sincronizar Caché (Loterías + Horarios)"
-                  onPress={testSyncCache}
-                />
-                
-                <TestButton 
-                  title="👁️ Ver Loterías Cacheadas"
-                  onPress={testViewCachedLotteries}
-                />
-                
-                <TestButton 
-                  title="⏰ Ver Horarios Cacheados"
-                  onPress={testViewCachedSchedules}
                 />
               </View>
 
