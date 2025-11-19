@@ -131,9 +131,8 @@ const createInitialSchema = async (db) => {
     CREATE TABLE IF NOT EXISTS offline_lotteries (
       id TEXT PRIMARY KEY,
       nombre TEXT NOT NULL,
+      creada_en TEXT NOT NULL,
       id_banco TEXT NOT NULL,
-      tipo TEXT,
-      activo INTEGER DEFAULT 1,
       cached_at TEXT,
       updated_at TEXT
     )
@@ -432,14 +431,13 @@ export const saveLotteries = async (lotteries) => {
       for (const lottery of lotteries) {
         await tx.executeSql(
           `INSERT OR REPLACE INTO offline_lotteries 
-           (id, nombre, id_banco, tipo, activo, cached_at, updated_at) 
-           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+           (id, nombre, creada_en, id_banco, cached_at, updated_at) 
+           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
           [
             lottery.id,
             lottery.nombre,
-            lottery.id_banco,
-            lottery.tipo || 'normal',
-            lottery.activo !== undefined ? lottery.activo : 1
+            lottery.creada_en,
+            lottery.id_banco
           ]
         );
       }

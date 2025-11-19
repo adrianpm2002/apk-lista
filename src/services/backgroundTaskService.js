@@ -272,7 +272,6 @@ export const syncOfflineCache = async () => {
       .from('loterias')
       .select('*')
       .eq('id_banco', id_banco)
-      .eq('activo', true)
       .order('nombre');
 
     if (lotteriesError) {
@@ -304,7 +303,6 @@ export const syncOfflineCache = async () => {
       .from('horarios')
       .select('*')
       .in('id_loteria', lotteryIds)
-      .eq('activo', true)
       .order('hora_inicio');
 
     if (schedulesError) {
