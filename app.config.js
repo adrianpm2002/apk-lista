@@ -2,7 +2,6 @@ export default {
   expo: {
     name: "Cloud",
     slug: "apk-lista-clean-2024",
-    owner: "lazaroadrian0803",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
@@ -65,11 +64,6 @@ export default {
     web: {
       favicon: "./assets/favicon.png",
       bundler: "metro"
-    },
-    extra: {
-      eas: {
-        projectId: "791d2570-1ee3-40e0-a272-e1b727e72523"
-      }
     },
     plugins: [
       "expo-splash-screen",
