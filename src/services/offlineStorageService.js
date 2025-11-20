@@ -581,14 +581,15 @@ export const getSchedules = async (id_loteria) => {
 
 /**
  * Obtener timestamp de última actualización del caché
+ * @param {string} type - Tipo de caché ('lotteries' o 'schedules')
  * @returns {Promise<number|null>} Timestamp en milisegundos o null
  */
-export const getLastCacheUpdate = async () => {
+export const getLastCacheUpdate = async (type) => {
   try {
-    const value = await getConfig('last_cache_update');
+    const value = await getConfig(`cache_update_${type}`);
     return value ? parseInt(value) : null;
   } catch (error) {
-    console.error('[OfflineStorage] Error obteniendo last_cache_update:', error);
+    console.error(`[OfflineStorage] Error obteniendo cache_update_${type}:`, error);
     return null;
   }
 };
