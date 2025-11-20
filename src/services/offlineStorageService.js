@@ -426,27 +426,25 @@ export const saveLotteries = async (lotteries) => {
       return false;
     }
 
-    // Usar transacción para guardar todas las loterías
-    await db.transaction(async (tx) => {
-      for (const lottery of lotteries) {
-        console.log(`[OfflineStorage] Guardando lotería: ${lottery.nombre} (${lottery.id})`);
-        console.log(`[OfflineStorage] Datos completos:`, JSON.stringify(lottery));
-        
-        await tx.executeSql(
-          `INSERT OR REPLACE INTO offline_lotteries 
-           (id, nombre, creada_en, id_banco, cached_at, updated_at) 
-           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
-          [
-            lottery.id,
-            lottery.nombre,
-            lottery.creada_en,
-            lottery.id_banco
-          ]
-        );
-        
-        console.log(`[OfflineStorage] ✅ Lotería guardada: ${lottery.nombre}`);
-      }
-    });
+    // Guardar todas las loterías secuencialmente
+    for (const lottery of lotteries) {
+      console.log(`[OfflineStorage] Guardando lotería: ${lottery.nombre} (${lottery.id})`);
+      console.log(`[OfflineStorage] Datos completos:`, JSON.stringify(lottery));
+      
+      await db.executeSql(
+        `INSERT OR REPLACE INTO offline_lotteries 
+         (id, nombre, creada_en, id_banco, cached_at, updated_at) 
+         VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        [
+          lottery.id,
+          lottery.nombre,
+          lottery.creada_en,
+          lottery.id_banco
+        ]
+      );
+      
+      console.log(`[OfflineStorage] ✅ Lotería guardada: ${lottery.nombre}`);
+    }
 
     console.log(`[OfflineStorage] ✅ ${lotteries.length} loterías guardadas en caché`);
     await addLog('INFO', 'Loterías guardadas en caché', { count: lotteries.length });
@@ -516,23 +514,25 @@ export const saveSchedules = async (schedules) => {
       return false;
     }
 
-    // Usar transacción para guardar todos los horarios
-    await db.transaction(async (tx) => {
-      for (const schedule of schedules) {
-        await tx.executeSql(
-          `INSERT OR REPLACE INTO offline_schedules 
-           (id, nombre, hora_inicio, hora_fin, id_loteria, cached_at, updated_at) 
-           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-          [
-            schedule.id,
-            schedule.nombre,
-            schedule.hora_inicio,
-            schedule.hora_fin,
-            schedule.id_loteria
-          ]
-        );
-      }
-    });
+    // Guardar todos los horarios secuencialmente
+    for (const schedule of schedules) {
+      console.log(`[OfflineStorage] Guardando horario: ${schedule.nombre} (${schedule.id})`);
+      
+      await db.executeSql(
+        `INSERT OR REPLACE INTO offline_schedules 
+         (id, nombre, hora_inicio, hora_fin, id_loteria, cached_at, updated_at) 
+         VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        [
+          schedule.id,
+          schedule.nombre,
+          schedule.hora_inicio,
+          schedule.hora_fin,
+          schedule.id_loteria
+        ]
+      );
+      
+      console.log(`[OfflineStorage] ✅ Horario guardado: ${schedule.nombre}`);
+    }
 
     console.log(`[OfflineStorage] ✅ ${schedules.length} horarios guardados en caché`);
     await addLog('INFO', 'Horarios guardados en caché', { count: schedules.length });
