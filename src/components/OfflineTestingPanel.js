@@ -440,6 +440,55 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
     }
   };
 
+  /**
+   * FASE 5: Test para ver datos RAW del caché (debug)
+   */
+  const testViewRawCacheData = async () => {
+    try {
+      const lotteries = await OfflineStorage.getLotteries(null);
+      const schedules = await OfflineStorage.getSchedules(null);
+      
+      if ((!lotteries || lotteries.length === 0) && (!schedules || schedules.length === 0)) {
+        Alert.alert('Sin datos', 'No hay datos en caché.\n\nPrimero sincroniza el caché.');
+        return;
+      }
+
+      // Mostrar datos raw de la primera lotería
+      const lotSample = lotteries && lotteries.length > 0 ? lotteries[0] : null;
+      const schSample = schedules && schedules.length > 0 ? schedules[0] : null;
+
+      let message = '📊 DATOS RAW (primer registro de cada tabla):\n\n';
+      
+      if (lotSample) {
+        message += '🎰 LOTERÍA:\n';
+        message += `Columnas: ${Object.keys(lotSample).join(', ')}\n\n`;
+        message += 'Valores:\n';
+        Object.entries(lotSample).forEach(([key, value]) => {
+          message += `  ${key}: ${value}\n`;
+        });
+        message += '\n';
+      }
+
+      if (schSample) {
+        message += '⏰ HORARIO:\n';
+        message += `Columnas: ${Object.keys(schSample).join(', ')}\n\n`;
+        message += 'Valores:\n';
+        Object.entries(schSample).forEach(([key, value]) => {
+          message += `  ${key}: ${value}\n`;
+        });
+      }
+
+      Alert.alert(
+        '🔍 Datos RAW del Caché',
+        message,
+        [{ text: 'OK' }],
+        { cancelable: true }
+      );
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
   // ============================================
   // RENDER
   // ============================================
@@ -515,6 +564,11 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
                 <TestButton 
                   title="⏰ Ver Horarios Cacheados"
                   onPress={testViewCachedSchedules}
+                />
+                
+                <TestButton 
+                  title="🔍 Ver Datos RAW (Debug)"
+                  onPress={testViewRawCacheData}
                 />
               </View>
 
