@@ -467,13 +467,12 @@ export const getLotteries = async (id_banco) => {
       return [];
     }
 
-    const [result] = await db.executeSql(
-      `SELECT id, nombre, id_banco, tipo, activo, cached_at 
-       FROM offline_lotteries 
-       WHERE id_banco = ? AND activo = 1
-       ORDER BY nombre ASC`,
-      [id_banco]
-    );
+    const query = id_banco
+      ? `SELECT * FROM offline_lotteries WHERE id_banco = ? ORDER BY nombre ASC`
+      : `SELECT * FROM offline_lotteries ORDER BY nombre ASC`;
+    
+    const params = id_banco ? [id_banco] : [];
+    const [result] = await db.executeSql(query, params);
 
     const lotteries = [];
     for (let i = 0; i < result.rows.length; i++) {
@@ -554,13 +553,12 @@ export const getSchedules = async (id_loteria) => {
       return [];
     }
 
-    const [result] = await db.executeSql(
-      `SELECT id, nombre, hora_inicio, hora_fin, id_loteria, cached_at 
-       FROM offline_schedules 
-       WHERE id_loteria = ?
-       ORDER BY hora_inicio ASC`,
-      [id_loteria]
-    );
+    const query = id_loteria
+      ? `SELECT * FROM offline_schedules WHERE id_loteria = ? ORDER BY hora_inicio ASC`
+      : `SELECT * FROM offline_schedules ORDER BY hora_inicio ASC`;
+    
+    const params = id_loteria ? [id_loteria] : [];
+    const [result] = await db.executeSql(query, params);
 
     const schedules = [];
     for (let i = 0; i < result.rows.length; i++) {

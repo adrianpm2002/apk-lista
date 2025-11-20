@@ -354,7 +354,8 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
    */
   const testViewCachedLotteries = async () => {
     try {
-      const lotteries = await OfflineStorage.getLotteries();
+      // Llamar sin parámetro para obtener todas las loterías
+      const lotteries = await OfflineStorage.getLotteries(null);
       const lastUpdate = await OfflineStorage.getLastCacheUpdate('lotteries');
       
       if (!lotteries || lotteries.length === 0) {
@@ -367,7 +368,7 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
         : 'Nunca';
 
       const lotteriesStr = lotteries
-        .map(lot => `• ${lot.nombre} (ID: ${lot.id_loteria})`)
+        .map(lot => `• ${lot.nombre} (ID: ${lot.id})`)
         .join('\n');
 
       Alert.alert(
@@ -386,7 +387,8 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
    */
   const testViewCachedSchedules = async () => {
     try {
-      const schedules = await OfflineStorage.getSchedules();
+      // Llamar sin parámetro para obtener todos los horarios
+      const schedules = await OfflineStorage.getSchedules(null);
       const lastUpdate = await OfflineStorage.getLastCacheUpdate('schedules');
       
       if (!schedules || schedules.length === 0) {
