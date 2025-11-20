@@ -612,6 +612,59 @@ export const setLastCacheUpdate = async (type, timestamp) => {
 };
 
 // =================================================================
+// JUGADAS OFFLINE - FASE 6
+// =================================================================
+
+/**
+ * Guardar jugada offline en SQLite
+ * @param {Object} playData - Datos de la jugada
+ * @returns {Promise<Object>} { success, id?, error? }
+ */
+export const saveOfflinePlay = async (playData) => {
+  try {
+    console.log('[OfflineStorage] Guardando jugada offline...');
+    const db = await getDatabase();
+    if (!db) {
+      console.error('[OfflineStorage] Base de datos no disponible');
+      return { success: false, error: 'Base de datos no disponible' };
+    }
+
+    const [result] = await db.executeSql(
+      `INSERT INTO offline_plays (
+        id_listero, id_horario, jugada, numeros, 
+        monto_unitario, monto_total, nota, comando, id_cliente,
+        created_at, created_from, status, last_error, sync_attempts, last_sync_attempt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        playData.user_id,
+        playData.id_horario,
+        `${playData.tipo}:${playData.numeros}`, // jugada en formato "quiniela:12,34"
+        playData.numeros,
+        playData.monto_total, // Por ahora usar monto_total como unitario
+        playData.monto_total,
+        `${playData.nombre_loteria} - ${playData.nombre_horario}`, // nota
+        null, // comando
+        null, // id_cliente
+        playData.created_at,
+        'offline', // created_from
+        playData.status,
+        playData.last_error,
+        playData.sync_attempts,
+        null, // last_sync_attempt
+      ]
+    );
+
+    const playId = result.insertId;
+    console.log(`[OfflineStorage] ✅ Jugada offline guardada con ID: ${playId}`);
+
+    return { success: true, id: playId };
+  } catch (error) {
+    console.error('[OfflineStorage] Error guardando jugada offline:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// =================================================================
 // CREDENCIALES - FASE 4
 // =================================================================
 /**
