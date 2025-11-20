@@ -290,7 +290,7 @@ export const syncOfflineCache = async () => {
     }
 
     // 5. Obtener IDs de loterías para fetch de horarios
-    const lotteryIds = lotteries?.map(lot => lot.id_loteria) || [];
+    const lotteryIds = lotteries?.map(lot => lot.id) || [];
 
     if (lotteryIds.length === 0) {
       console.log('[BackgroundTask] No hay loterías para sincronizar horarios');
