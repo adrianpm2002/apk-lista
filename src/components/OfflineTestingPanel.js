@@ -323,6 +323,81 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
     );
   };
 
+  // ============================================
+  // PRUEBAS FASE 6: JUGADAS OFFLINE
+  // ============================================
+
+  /**
+   * FASE 6: Test para crear jugada offline de prueba
+   */
+  const testCreateOfflinePlay = async () => {
+    try {
+      // Obtener usuario actual
+      const { data: { user } } = await authService.supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Error', 'No hay usuario autenticado');
+        return;
+      }
+
+      // Obtener loterías y horarios del caché
+      const lotteries = await OfflineStorage.getLotteries(null);
+      const schedules = await OfflineStorage.getSchedules(null);
+
+      if (!lotteries || lotteries.length === 0) {
+        Alert.alert('Error', 'No hay loterías en caché.\n\nPrimero sincroniza el caché (FASE 5)');
+        return;
+      }
+
+      if (!schedules || schedules.length === 0) {
+        Alert.alert('Error', 'No hay horarios en caché.\n\nPrimero sincroniza el caché (FASE 5)');
+        return;
+      }
+
+      // Tomar primera lotería y primer horario para la prueba
+      const loteria = lotteries[0];
+      const horario = schedules[0];
+
+      // Datos de prueba
+      const playData = {
+        user_id: user.id,
+        id_horario: horario.id,
+        numeros: '12,34,56,78', // 4 números de prueba
+        monto_unitario: 10, // RD$10 por número
+        nota: 'Jugada de prueba offline',
+        comando: null,
+        id_cliente: null,
+        nombres: {
+          loteria: loteria.nombre,
+          horario: horario.nombre,
+        },
+      };
+
+      // Guardar jugada offline
+      const useOfflinePlay = require('../hooks/useOfflinePlaySubmission').default;
+      const { savePlayOffline } = useOfflinePlay();
+      
+      const result = await savePlayOffline(playData);
+
+      if (result.success) {
+        Alert.alert(
+          '✅ Jugada Guardada Offline',
+          `ID: ${result.data.id}\n` +
+          `Números: ${result.data.numeros}\n` +
+          `Cantidad: 4 números\n` +
+          `Monto unitario: RD$${result.data.monto_unitario}\n` +
+          `Monto total: RD$${result.data.monto_total}\n\n` +
+          `Lotería: ${result.data.nombre_loteria}\n` +
+          `Horario: ${result.data.nombre_horario}\n\n` +
+          `Status: ${result.data.status}`
+        );
+      } else {
+        Alert.alert('Error', `❌ ${result.error}`);
+      }
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
   /**
    * FASE 5: Test de sincronización de caché
    */
@@ -550,6 +625,23 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
               overScrollMode="never"
               keyboardShouldPersistTaps="handled"
             >
+              {/* FASE 6: Jugadas Offline */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>🎮 FASE 6: Jugadas Offline (Paso 6.1)</Text>
+                
+                <TestButton 
+                  title="🧪 Crear Jugada Offline de Prueba"
+                  onPress={testCreateOfflinePlay}
+                />
+                
+                <Text style={styles.helperText}>
+                  💡 Crea una jugada de prueba: 4 números (12,34,56,78) × RD$10 = RD$40
+                </Text>
+                <Text style={styles.helperText}>
+                  ⚠️ Requiere caché sincronizado (FASE 5)
+                </Text>
+              </View>
+
               {/* FASE 5: Caché de Loterías y Horarios - MOVIDO AL INICIO */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>🎰 FASE 5: Caché Offline</Text>
@@ -839,6 +931,14 @@ const styles = StyleSheet.create({
     color: '#7f8c8d',
     marginBottom: 5,
     lineHeight: 18,
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#95a5a6',
+    marginTop: 5,
+    marginLeft: 10,
+    fontStyle: 'italic',
+    lineHeight: 16,
   },
 });
 
