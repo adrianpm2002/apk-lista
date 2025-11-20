@@ -580,6 +580,11 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
                 <Text style={styles.sectionTitle}>📱 FASE 4: Login Offline</Text>
                 
                 <TestButton 
+                  title="📋 Ver Logs del Sistema"
+                  onPress={testViewLogs}
+                />
+                
+                <TestButton 
                   title="✅ Ver Credenciales Guardadas"
                   onPress={testCheckStoredCredentials}
                 />
