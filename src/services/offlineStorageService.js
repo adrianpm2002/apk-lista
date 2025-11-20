@@ -595,16 +595,17 @@ export const getLastCacheUpdate = async () => {
 
 /**
  * Guardar timestamp de última actualización del caché
+ * @param {string} type - Tipo de caché ('lotteries' o 'schedules')
  * @param {number} timestamp - Timestamp en milisegundos (Date.now())
  * @returns {Promise<boolean>} true si se guardó correctamente
  */
-export const setLastCacheUpdate = async (timestamp) => {
+export const setLastCacheUpdate = async (type, timestamp) => {
   try {
-    await setConfig('last_cache_update', timestamp.toString());
-    console.log('[OfflineStorage] ✅ Timestamp de caché actualizado:', new Date(timestamp).toISOString());
+    await setConfig(`cache_update_${type}`, timestamp.toString());
+    console.log(`[OfflineStorage] ✅ Timestamp de ${type} actualizado:`, new Date(timestamp).toISOString());
     return true;
   } catch (error) {
-    console.error('[OfflineStorage] Error guardando last_cache_update:', error);
+    console.error(`[OfflineStorage] Error guardando cache_update_${type}:`, error);
     return false;
   }
 };
