@@ -358,6 +358,9 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
       const lotteries = await OfflineStorage.getLotteries(null);
       const lastUpdate = await OfflineStorage.getLastCacheUpdate('lotteries');
       
+      // DEBUG: Ver qué datos realmente vienen
+      console.log('[TestPanel] Loterías obtenidas:', JSON.stringify(lotteries, null, 2));
+      
       if (!lotteries || lotteries.length === 0) {
         Alert.alert('Sin datos', 'No hay loterías en caché.\n\nPrimero sincroniza el caché.');
         return;
@@ -368,7 +371,10 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
         : 'Nunca';
 
       const lotteriesStr = lotteries
-        .map(lot => `• ${lot.nombre} (ID: ${lot.id})`)
+        .map(lot => {
+          console.log('[TestPanel] Lotería:', lot);
+          return `• ${lot.nombre || 'Sin nombre'} (ID: ${lot.id})`;
+        })
         .join('\n');
 
       Alert.alert(
@@ -391,6 +397,9 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
       const schedules = await OfflineStorage.getSchedules(null);
       const lastUpdate = await OfflineStorage.getLastCacheUpdate('schedules');
       
+      // DEBUG: Ver qué datos realmente vienen
+      console.log('[TestPanel] Horarios obtenidos:', JSON.stringify(schedules, null, 2));
+      
       if (!schedules || schedules.length === 0) {
         Alert.alert('Sin datos', 'No hay horarios en caché.\n\nPrimero sincroniza el caché.');
         return;
@@ -402,6 +411,7 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
 
       // Agrupar por lotería
       const byLottery = schedules.reduce((acc, sch) => {
+        console.log('[TestPanel] Horario:', sch);
         const lotId = sch.id_loteria;
         if (!acc[lotId]) acc[lotId] = [];
         acc[lotId].push(sch);
@@ -410,8 +420,10 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
 
       const schedulesStr = Object.entries(byLottery)
         .map(([lotId, scheds]) => {
-          const times = scheds.map(s => s.hora_inicio).join(', ');
-          return `Lotería ${lotId}: ${scheds.length} horarios\n  ${times}`;
+          const times = scheds
+            .map(s => `${s.nombre || s.hora_inicio} (${s.hora_inicio}-${s.hora_fin})`)
+            .join('\n  ');
+          return `Lotería ${lotId}:\n  ${times}`;
         })
         .join('\n\n');
 
