@@ -429,6 +429,9 @@ export const saveLotteries = async (lotteries) => {
     // Usar transacción para guardar todas las loterías
     await db.transaction(async (tx) => {
       for (const lottery of lotteries) {
+        console.log(`[OfflineStorage] Guardando lotería: ${lottery.nombre} (${lottery.id})`);
+        console.log(`[OfflineStorage] Datos completos:`, JSON.stringify(lottery));
+        
         await tx.executeSql(
           `INSERT OR REPLACE INTO offline_lotteries 
            (id, nombre, creada_en, id_banco, cached_at, updated_at) 
@@ -440,6 +443,8 @@ export const saveLotteries = async (lotteries) => {
             lottery.id_banco
           ]
         );
+        
+        console.log(`[OfflineStorage] ✅ Lotería guardada: ${lottery.nombre}`);
       }
     });
 

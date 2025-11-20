@@ -453,28 +453,31 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
         return;
       }
 
-      // Mostrar datos raw de la primera lotería
-      const lotSample = lotteries && lotteries.length > 0 ? lotteries[0] : null;
-      const schSample = schedules && schedules.length > 0 ? schedules[0] : null;
-
-      let message = '📊 DATOS RAW (primer registro de cada tabla):\n\n';
+      let message = '📊 DATOS RAW DEL CACHÉ:\n\n';
       
-      if (lotSample) {
-        message += '🎰 LOTERÍA:\n';
-        message += `Columnas: ${Object.keys(lotSample).join(', ')}\n\n`;
-        message += 'Valores:\n';
-        Object.entries(lotSample).forEach(([key, value]) => {
-          message += `  ${key}: ${value}\n`;
+      if (lotteries && lotteries.length > 0) {
+        message += `🎰 LOTERÍAS (${lotteries.length}):\n`;
+        message += `Columnas: ${Object.keys(lotteries[0]).join(', ')}\n\n`;
+        
+        lotteries.forEach((lot, idx) => {
+          message += `--- Lotería ${idx + 1} ---\n`;
+          Object.entries(lot).forEach(([key, value]) => {
+            message += `  ${key}: ${value}\n`;
+          });
+          message += '\n';
         });
-        message += '\n';
       }
 
-      if (schSample) {
-        message += '⏰ HORARIO:\n';
-        message += `Columnas: ${Object.keys(schSample).join(', ')}\n\n`;
-        message += 'Valores:\n';
-        Object.entries(schSample).forEach(([key, value]) => {
-          message += `  ${key}: ${value}\n`;
+      if (schedules && schedules.length > 0) {
+        message += `⏰ HORARIOS (${schedules.length}):\n`;
+        message += `Columnas: ${Object.keys(schedules[0]).join(', ')}\n\n`;
+        
+        schedules.forEach((sch, idx) => {
+          message += `--- Horario ${idx + 1} ---\n`;
+          Object.entries(sch).forEach(([key, value]) => {
+            message += `  ${key}: ${value}\n`;
+          });
+          message += '\n';
         });
       }
 
