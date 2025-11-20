@@ -269,7 +269,7 @@ export const syncOfflineCache = async () => {
 
     // 3. Fetch loterías del banco del usuario
     const { data: lotteries, error: lotteriesError } = await supabase
-      .from('loterias')
+      .from('loteria')
       .select('*')
       .eq('id_banco', id_banco)
       .order('nombre');
@@ -300,7 +300,7 @@ export const syncOfflineCache = async () => {
 
     // 6. Fetch horarios de todas las loterías del banco
     const { data: schedules, error: schedulesError } = await supabase
-      .from('horarios')
+      .from('horario')
       .select('*')
       .in('id_loteria', lotteryIds)
       .order('hora_inicio');
