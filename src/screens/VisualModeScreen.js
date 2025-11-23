@@ -1200,7 +1200,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
   visibleModes={visibleModes}
-        role="listero"
+        role={userProfile?.role || 'listero'}
       />
     </View>
   );

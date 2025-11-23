@@ -89,6 +89,10 @@ const roleOptionsMap = {
   { id: 'insertResults', icon: '🎯', title: 'Resultados' },
   { id: 'createUser', icon: '👥', title: 'Clientes' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
+  ],
+  client: [
+  { id: 'play', icon: '🎮', title: 'Jugar' },
+  { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ]
 };
 

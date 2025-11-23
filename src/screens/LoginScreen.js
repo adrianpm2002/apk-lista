@@ -65,7 +65,8 @@ const LoginContent = ({ navigation }) => {
           setIsPreloading(false);
           navigation.navigate('Statistics');
         }, 100); // Reducido a 100ms
-      } else if (profile.role === 'listero') {
+      } else if (profile.role === 'listero' || profile.role === 'client') {
+        // Listeros y clientes van a la pantalla de jugar
         navigation.navigate('MainApp');
       } else {
         setFieldError('general', 'Rol de usuario no reconocido.');

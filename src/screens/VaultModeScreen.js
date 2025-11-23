@@ -30,6 +30,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   const [scheduleError, setScheduleError] = useState(false);
   const [showFieldErrors, setShowFieldErrors] = useState(false);
   const [bankId, setBankId] = useState(null);
+  const [userProfile, setUserProfile] = useState(null); // Para el rol del usuario
   
   // Estados para modo Santiago
   const [modoSantiago, setModoSantiago] = useState(false);
@@ -48,6 +49,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         if (!user) return;
         const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).single();
         if (!profile) return;
+        setUserProfile(profile); // Guardar el perfil completo para tener acceso al rol
         const bId = profile.role === 'admin' ? user.id : profile.id_banco;
         setBankId(bId);
       } catch (e) { /* silencioso */ }
@@ -1124,7 +1126,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
         visibleModes={visibleModes}
-        role="listero"
+        role={userProfile?.role || 'listero'}
       />
     </View>
   );
