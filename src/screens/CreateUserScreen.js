@@ -157,12 +157,14 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     if ((userRole === 'collector' || userRole === 'listero') && !currentUserId) {
       return;
     }
+    
     const { data, error } = await supabase
       .from('profiles')
       .select('id, username, role, id_banco, id_collector, activo, id_precio, limite_especifico, balance, lister_id')
       .eq('id_banco', currentBankId)
       .order('role', { ascending: false })
       .order('username');
+    
     if (error) {
       console.error('Error fetching users:', error);
       return;
@@ -425,9 +427,13 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   // Recrear estructura jerárquica cuando cambien los usuarios
   useEffect(() => {
     if (users.length === 0) return;
+    
     if (userRole === 'collector') {
       // Para collector, la lista es plana de sus listeros; reflejar cambios (ej. activo) inmediatamente
       setHierarchicalUsers(users.map(u => ({ ...u, type: 'listero', level: 0 })));
+    } else if (userRole === 'listero') {
+      // Para listero, la lista es plana de sus clientes
+      setHierarchicalUsers(users.map(u => ({ ...u, type: 'client', level: 0 })));
     } else {
       createHierarchicalStructure(users);
     }
@@ -615,6 +621,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
              balance: effectiveRole === 'client' ? parseFloat(balanceAmount) || 0 : null,
            };
 
+          console.log('Creando usuario con datos:', insertData);
 
           if (effectiveRole === 'listero' && enableSpecificLimits && userRole !== 'collector') {
             const limitsObj = {};
