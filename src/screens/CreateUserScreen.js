@@ -54,6 +54,11 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState('');
   const [selectedCollector, setSelectedCollector] = useState('');
+  // Estados específicos para gestión de clientes (listero)
+  const [balanceModalVisible, setBalanceModalVisible] = useState(false);
+  const [balanceTargetClient, setBalanceTargetClient] = useState(null);
+  const [balanceAmount, setBalanceAmount] = useState('');
+  const [isAddingBalance, setIsAddingBalance] = useState(false);
   // Uso actualizado: se guarda id_precio como JSONB con {loteria_id: ganancia_id, loteria_nombre: nombre} en profiles
   // Ganancias disponibles (tabla precio) y selección (solo colector asigna a listeros)
   const [gainOptions, setGainOptions] = useState([]); // [{id,nombre,precios}] - todas las configuraciones para resolución de nombres
@@ -90,8 +95,8 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         
         const { data: profile } = await supabase.from('profiles').select('role, id_banco').eq('id', user.id).single();
         if (profile) {
-          if (profile.role !== 'admin' && profile.role !== 'collector') {
-            Alert.alert('No Autorizado', 'Solo administradores o colectores autorizados');
+          if (profile.role !== 'admin' && profile.role !== 'collector' && profile.role !== 'listero') {
+            Alert.alert('No Autorizado', 'Solo administradores, colectores o listeros autorizados');
             return;
           }
           
@@ -149,12 +154,12 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
 
   const fetchUsers = useCallback(async () => {
     if (!currentBankId) return;
-    if (userRole === 'collector' && !currentUserId) {
+    if ((userRole === 'collector' || userRole === 'listero') && !currentUserId) {
       return;
     }
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, role, id_banco, id_collector, activo, id_precio, limite_especifico')
+      .select('id, username, role, id_banco, id_collector, activo, id_precio, limite_especifico, balance, lister_id')
       .eq('id_banco', currentBankId)
       .order('role', { ascending: false })
       .order('username');
@@ -169,6 +174,15 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       setHierarchicalUsers(onlyListeros.map(u => ({ ...u, type: 'listero', level: 0 })));
       return;
     }
+    
+    if (userRole === 'listero') {
+      // Solo mostrar clientes del listero actual
+      const onlyClients = (data || []).filter(u => (u.role === 'client') && u.lister_id === currentUserId);
+      setUsers(onlyClients);
+      setHierarchicalUsers(onlyClients.map(u => ({ ...u, type: 'client', level: 0 })));
+      return;
+    }
+    
     // Filtrar administradores - solo mostrar colectores y listeros
     const filteredData = (data || []).filter(u => u.role !== 'admin');
     setUsers(filteredData);
@@ -440,8 +454,13 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
 
   const handleCreateOrUpdate = async () => {
     try {
-      // Forzar role listero si collector
-      const effectiveRole = userRole === 'collector' ? 'listero' : role;
+      // Forzar role según el tipo de usuario
+      let effectiveRole = role;
+      if (userRole === 'collector') {
+        effectiveRole = 'listero';
+      } else if (userRole === 'listero') {
+        effectiveRole = 'client';
+      }
 
       if (!username || (!isEditing && !password) || !effectiveRole) {
         Alert.alert('Error', 'Todos los campos son obligatorios.');
@@ -452,11 +471,18 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         Alert.alert('Error', 'El nombre de usuario no debe contener "@".');
         return;
       }
-      if (userRole !== 'collector' && effectiveRole === 'listero' && !selectedCollector) {
+      
+      // Validaciones específicas por rol
+      if (userRole !== 'collector' && userRole !== 'listero' && effectiveRole === 'listero' && !selectedCollector) {
         Alert.alert('Error', 'Debes seleccionar un colector.');
         return;
       }
-      // Validación de ganancias no obligatoria para listeros del colector
+      
+      // Validación de balance para clientes (listero creando cliente)
+      if (effectiveRole === 'client' && !isEditing && !balanceAmount) {
+        Alert.alert('Error', 'Debes asignar un balance inicial al cliente.');
+        return;
+      }
 
       const fakeEmail = `${username.toLowerCase()}@example.com`;
 
@@ -471,6 +497,12 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
             id_precio: ((userRole === 'collector' || userRole === 'admin') && effectiveRole === 'listero') ? buildGainsData() : (editingUser.id_precio || null),
             activo: editingUser.activo !== undefined ? editingUser.activo : true
           };
+          
+          // Si es cliente, añadir lister_id
+          if (effectiveRole === 'client') {
+            directUpdate.lister_id = userRole === 'listero' ? currentUserId : editingUser.lister_id;
+          }
+          
           const { error: updateError } = await supabase
             .from('profiles')
             .update(directUpdate)
@@ -561,10 +593,15 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
         if (newUserId) {
           let id_banco = currentBankId;
           let id_collector = null;
+          let lister_id = null;
+          
           if (effectiveRole === 'collector') {
             id_collector = null;
           } else if (effectiveRole === 'listero') {
             id_collector = userRole === 'collector' ? currentUserId : selectedCollector;
+          } else if (effectiveRole === 'client') {
+            // Los clientes tienen lister_id (el listero que los crea)
+            lister_id = currentUserId;
           }
 
           const insertData = {
@@ -573,8 +610,10 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
              role: effectiveRole,
              id_banco,
              id_collector,
+             lister_id,
              id_precio: ((userRole === 'collector' || userRole === 'admin') && effectiveRole === 'listero') ? buildGainsData() : null,
-           }; // sin ganancia
+             balance: effectiveRole === 'client' ? parseFloat(balanceAmount) || 0 : null,
+           };
 
 
           if (effectiveRole === 'listero' && enableSpecificLimits && userRole !== 'collector') {
@@ -628,6 +667,15 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
   };
 
   const handleDelete = useCallback((id) => {
+    // Verificar permisos según rol
+    if (userRole === 'listero') {
+      const target = users.find(u => u.id === id);
+      if (!target || target.role !== 'client' || target.lister_id !== currentUserId) {
+        Alert.alert('Acción no permitida', 'Solo puedes eliminar tus propios clientes.');
+        return;
+      }
+    }
+    
     const executeDeletion = async () => {
       // Eliminación optimista local
       setUsers(prev => {
@@ -668,21 +716,75 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       }
     };
 
+    const userType = userRole === 'listero' ? 'cliente' : 'usuario';
     if (Platform.OS === 'web') {
-      if (window.confirm('¿Eliminar definitivamente este usuario?')) {
+      if (window.confirm(`¿Eliminar definitivamente este ${userType}?`)) {
         executeDeletion();
       }
     } else {
       Alert.alert(
-        'Eliminar Usuario',
-        '¿Eliminar definitivamente este usuario?',
+        `Eliminar ${userType.charAt(0).toUpperCase() + userType.slice(1)}`,
+        `¿Eliminar definitivamente este ${userType}?`,
         [
           { text: 'Cancelar', style: 'cancel' },
           { text: 'Eliminar', style: 'destructive', onPress: executeDeletion }
         ]
       );
     }
-  }, [users, fetchUsers, createHierarchicalStructure]);
+  }, [users, fetchUsers, createHierarchicalStructure, userRole, currentUserId]);
+
+  // Función para abrir modal de recarga de balance
+  const openBalanceModal = (client) => {
+    if (userRole !== 'listero') return;
+    setBalanceTargetClient(client);
+    setBalanceAmount('');
+    setBalanceModalVisible(true);
+  };
+
+  // Función para recargar balance de un cliente
+  const handleRechargeBalance = async () => {
+    if (!balanceTargetClient || !balanceAmount) {
+      Alert.alert('Error', 'Debe ingresar una cantidad válida.');
+      return;
+    }
+
+    const amount = parseFloat(balanceAmount);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Error', 'La cantidad debe ser un número positivo.');
+      return;
+    }
+
+    setIsAddingBalance(true);
+    try {
+      const { data: currentProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('id', balanceTargetClient.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const currentBalance = parseFloat(currentProfile.balance) || 0;
+      const newBalance = currentBalance + amount;
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ balance: newBalance })
+        .eq('id', balanceTargetClient.id);
+
+      if (updateError) throw updateError;
+
+      Alert.alert('Éxito', `Se ha recargado $${amount.toFixed(2)} al cliente ${balanceTargetClient.username}. Nuevo balance: $${newBalance.toFixed(2)}`);
+      setBalanceModalVisible(false);
+      setBalanceAmount('');
+      fetchUsers();
+    } catch (error) {
+      console.error('Error recargando balance:', error);
+      Alert.alert('Error', 'No se pudo recargar el balance del cliente.');
+    } finally {
+      setIsAddingBalance(false);
+    }
+  };
 
   const handleToggleActive = async (userId, currentStatus) => {
     // Permitir a collector solo sobre sus listeros
@@ -690,6 +792,15 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       const target = users.find(u => u.id === userId);
       if (!target || target.role !== 'listero' || target.id_collector !== currentUserId) {
         Alert.alert('Acción no permitida', 'Solo puedes cambiar estado de tus listeros.');
+        return;
+      }
+    }
+    
+    // Permitir a listero solo sobre sus clientes
+    if (userRole === 'listero') {
+      const target = users.find(u => u.id === userId);
+      if (!target || target.role !== 'client' || target.lister_id !== currentUserId) {
+        Alert.alert('Acción no permitida', 'Solo puedes cambiar estado de tus clientes.');
         return;
       }
     }
@@ -791,9 +902,13 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     setIsEditing(true);
     setEditingUser(user);
     setUsername(user.username);
+    
     if (userRole === 'collector') {
       setRole('listero');
       setSelectedCollector(currentUserId);
+    } else if (userRole === 'listero') {
+      setRole('client');
+      setBalanceAmount(''); // No se usa en edición, solo en creación
     } else {
       setRole(user.role);
       setSelectedCollector(user.id_collector || '');
@@ -1024,6 +1139,7 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     setIsEditing(false);
     setEditingUser(null);
     setEnableSpecificLimits(false);
+    setBalanceAmount('');
   };
 
   // Función para obtener el texto de las ganancias seleccionadas
@@ -1322,6 +1438,70 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
       );
     }
     
+    // Client card (para listeros)
+    const isClient = item.type === 'client' || item.role === 'client';
+    if (isClient) {
+      return (
+        <View style={[styles.userCard, styles.clientCard, { backgroundColor: '#f0f8ff' }]}>
+          <View style={styles.userNameContainer}>
+            <Text 
+              style={[styles.username, { color: '#2c3e50' }]}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
+              👤 {item.username}
+            </Text>
+            <Text style={[styles.userRole, { color: '#5dade2' }]}>
+              Cliente • {item.activo ? 'Habilitado' : 'Deshabilitado'}
+            </Text>
+            
+            {/* Balance del cliente */}
+            <Text style={[styles.userDetails, { color: '#27ae60', fontWeight: 'bold', fontSize: 14 }]}>
+              💰 Balance: ${parseFloat(item.balance || 0).toFixed(2)}
+            </Text>
+          </View>
+          
+          {userRole === 'listero' && (
+            <View style={styles.buttonRow}>
+              <View style={styles.toggleContainer}>
+                <Switch
+                  style={styles.toggleSwitch}
+                  value={item.activo}
+                  onValueChange={() => handleToggleActive(item.id, item.activo)}
+                  trackColor={{ false: '#e74c3c', true: '#27ae60' }}
+                  thumbColor={item.activo ? '#fff' : '#fff'}
+                />
+                <Text style={styles.toggleLabel}>
+                  {item.activo ? 'ON' : 'OFF'}
+                </Text>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => openEditModal(item)}
+              >
+                <Text style={styles.buttonText}>Editar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.rechargeButton}
+                onPress={() => openBalanceModal(item)}
+              >
+                <Text style={styles.buttonText}>Recargar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDelete(item.id)}
+              >
+                <Text style={styles.buttonText}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      );
+    }
+    
     return null;
   };
 
@@ -1329,17 +1509,35 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
     <View style={styles.container}>
       <View style={styles.customHeader}>
         <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
-        <Text style={styles.headerTitle}>Usuarios</Text>
+        <Text style={styles.headerTitle}>
+          {userRole === 'listero' ? 'Clientes' : 'Usuarios'}
+        </Text>
       </View>
 
       <View style={styles.content}>
-  <CustomButton title={userRole === 'collector' ? 'Crear Listero' : 'Crear Usuario'} onPress={() => { clearForm(); if (userRole==='collector'){ setRole('listero'); setSelectedCollector(currentUserId);} setModalVisible(true); }} />
+  <CustomButton 
+    title={userRole === 'collector' ? 'Crear Listero' : (userRole === 'listero' ? 'Crear Cliente' : 'Crear Usuario')} 
+    onPress={() => { 
+      clearForm(); 
+      if (userRole==='collector'){ 
+        setRole('listero'); 
+        setSelectedCollector(currentUserId);
+      } else if (userRole === 'listero') {
+        setRole('client');
+      }
+      setModalVisible(true); 
+    }} 
+  />
 
         {userRole === 'collector' && hierarchicalUsers.length === 0 && (
           <Text style={styles.emptyListText}>No tienes listeros asignados todavía.</Text>
         )}
         
-        {/* Solo mostrar Collectors y Listeros */}
+        {userRole === 'listero' && hierarchicalUsers.length === 0 && (
+          <Text style={styles.emptyListText}>No tienes clientes todavía.</Text>
+        )}
+        
+        {/* Mostrar usuarios según rol */}
         <FlatList
           data={hierarchicalUsers}
           keyExtractor={(item) => `${item.id}-${item.type}`}
@@ -1349,7 +1547,12 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
 
         <Modal visible={modalVisible} animationType="slide">
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{isEditing ? (userRole==='collector' ? 'Editar Listero' : 'Editar Usuario') : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')}</Text>
+            <Text style={styles.modalTitle}>
+              {isEditing 
+                ? (userRole==='collector' ? 'Editar Listero' : (userRole === 'listero' ? 'Editar Cliente' : 'Editar Usuario'))
+                : (userRole==='collector' ? 'Crear Listero' : (userRole === 'listero' ? 'Crear Cliente' : 'Crear Usuario'))
+              }
+            </Text>
 
             <ScrollView 
               style={styles.modalScrollView}
@@ -1390,7 +1593,19 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                 </View>
               )}
 
-              {userRole !== 'collector' && (
+              {/* Campo de balance inicial para clientes (listero creando cliente) */}
+              {userRole === 'listero' && !isEditing && (
+                <TextInput
+                  placeholder="Balance inicial (ej: 100.00)"
+                  keyboardType="decimal-pad"
+                  value={balanceAmount}
+                  onChangeText={setBalanceAmount}
+                  style={styles.input}
+                  placeholderTextColor="#95a5a6"
+                />
+              )}
+
+              {userRole !== 'collector' && userRole !== 'listero' && (
                 <>
                   <DropdownPicker
                     label="Rol"
@@ -1485,7 +1700,13 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                 </TouchableOpacity>
               )}
 
-              <CustomButton title={isEditing ? 'Guardar Cambios' : (userRole==='collector' ? 'Crear Listero' : 'Crear Usuario')} onPress={handleCreateOrUpdate} />
+              <CustomButton 
+                title={isEditing 
+                  ? 'Guardar Cambios' 
+                  : (userRole==='collector' ? 'Crear Listero' : (userRole === 'listero' ? 'Crear Cliente' : 'Crear Usuario'))
+                } 
+                onPress={handleCreateOrUpdate} 
+              />
               <CustomButton title="Cancelar" color="#666" onPress={() => setModalVisible(false)} />
             </ScrollView>
           </View>
@@ -1616,6 +1837,47 @@ const CreateUserScreen = ({ navigation, onModeVisibilityChange }) => {
                   }} 
                 />
               </View>
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Modal para recargar balance (solo listero) */}
+        <Modal visible={balanceModalVisible} animationType="fade">
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Recargar Balance</Text>
+            <ScrollView 
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+            >
+              <Text style={{ marginBottom: 8, fontSize: 16 }}>Cliente: {balanceTargetClient?.username}</Text>
+              <Text style={{ marginBottom: 16, fontSize: 14, color: '#27ae60', fontWeight: 'bold' }}>
+                Balance actual: ${parseFloat(balanceTargetClient?.balance || 0).toFixed(2)}
+              </Text>
+              
+              <TextInput
+                placeholder="Cantidad a recargar (ej: 50.00)"
+                keyboardType="decimal-pad"
+                value={balanceAmount}
+                onChangeText={setBalanceAmount}
+                style={styles.input}
+                placeholderTextColor="#95a5a6"
+              />
+              
+              <CustomButton 
+                title={isAddingBalance ? 'Recargando...' : 'Recargar Balance'} 
+                disabled={isAddingBalance}
+                onPress={handleRechargeBalance} 
+              />
+              <CustomButton 
+                title="Cancelar" 
+                color="#666" 
+                onPress={() => {
+                  setBalanceModalVisible(false);
+                  setBalanceAmount('');
+                }} 
+              />
             </ScrollView>
           </View>
         </Modal>
@@ -1840,6 +2102,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  rechargeButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+    backgroundColor: '#3498db',
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   buttonText: { 
     color: '#fff', 
     fontWeight: 'bold',
@@ -2046,6 +2317,26 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderLeftWidth: 4,
     borderLeftColor: '#f39c12',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  clientCard: {
+    backgroundColor: '#f0f8ff',
+    padding: Platform.OS === 'android' ? 16 : 15,
+    marginBottom: 10,
+    marginHorizontal: Platform.OS === 'android' ? 2 : 0,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#5dade2',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
