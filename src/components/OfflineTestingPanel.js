@@ -348,8 +348,8 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
    */
   const testCreateOfflinePlay = async () => {
     try {
-      // Obtener usuario actual
-      const { data: { user } } = await authService.supabase.auth.getUser();
+      // Obtener usuario actual desde supabase directamente
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         Alert.alert('Error', 'No hay usuario autenticado');
         return;
@@ -388,11 +388,9 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
         },
       };
 
-      // Guardar jugada offline
-      const useOfflinePlay = require('../hooks/useOfflinePlaySubmission').default;
-      const { savePlayOffline } = useOfflinePlay();
-      
-      const result = await savePlayOffline(playData);
+      // Guardar jugada offline directamente usando el servicio
+      // NO usar el hook aquí porque no estamos en el contexto de React
+      const result = await OfflineStorage.saveOfflinePlay(playData);
 
       if (result.success) {
         Alert.alert(
@@ -443,31 +441,39 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
         return;
       }
 
-      const [result] = await db.executeSql(
-        'SELECT * FROM offline_plays ORDER BY created_at DESC'
-      );
+      db.transaction((tx) => {
+        tx.executeSql(
+          'SELECT * FROM offline_plays ORDER BY created_at DESC',
+          [],
+          (tx, results) => {
+            if (results.rows.length === 0) {
+              Alert.alert('📭 Sin Jugadas Pendientes', 'No hay jugadas offline guardadas.');
+              return;
+            }
 
-      if (result.rows.length === 0) {
-        Alert.alert('📭 Sin Jugadas Pendientes', 'No hay jugadas offline guardadas.');
-        return;
-      }
+            let message = `Total: ${results.rows.length} jugada(s)\n\n`;
+            
+            for (let i = 0; i < Math.min(results.rows.length, 5); i++) {
+              const play = results.rows.item(i);
+              message += `#${play.id} - ${play.nota || 'Sin nota'}\n`;
+              message += `Números: ${play.numeros}\n`;
+              message += `Monto: RD$${play.monto_total}\n`;
+              message += `Status: ${play.status}\n`;
+              message += `Fecha: ${new Date(play.created_at).toLocaleString()}\n\n`;
+            }
 
-      let message = `Total: ${result.rows.length} jugada(s)\n\n`;
-      
-      for (let i = 0; i < Math.min(result.rows.length, 5); i++) {
-        const play = result.rows.item(i);
-        message += `#${play.id} - ${play.nota}\n`;
-        message += `Números: ${play.numeros}\n`;
-        message += `Monto: RD$${play.monto_total}\n`;
-        message += `Status: ${play.status}\n`;
-        message += `Fecha: ${play.created_at}\n\n`;
-      }
+            if (results.rows.length > 5) {
+              message += `... y ${results.rows.length - 5} más`;
+            }
 
-      if (result.rows.length > 5) {
-        message += `... y ${result.rows.length - 5} más`;
-      }
-
-      Alert.alert('📋 Jugadas Pendientes Offline', message);
+            Alert.alert('📋 Jugadas Pendientes Offline', message);
+          },
+          (tx, error) => {
+            console.error('[testViewPendingPlays] Error SQL:', error);
+            Alert.alert('Error', `Error al consultar: ${error.message}`);
+          }
+        );
+      });
     } catch (error) {
       Alert.alert('Error', error.message);
     }
@@ -484,30 +490,52 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
         return;
       }
 
-      // Contar primero
-      const [countResult] = await db.executeSql('SELECT COUNT(*) as total FROM offline_plays');
-      const total = countResult.rows.item(0).total;
+      // Contar primero usando transacción
+      db.transaction((tx) => {
+        tx.executeSql(
+          'SELECT COUNT(*) as total FROM offline_plays',
+          [],
+          (tx, countResult) => {
+            const total = countResult.rows.item(0).total;
 
-      if (total === 0) {
-        Alert.alert('Info', 'No hay jugadas offline para limpiar');
-        return;
-      }
+            if (total === 0) {
+              Alert.alert('Info', 'No hay jugadas offline para limpiar');
+              return;
+            }
 
-      Alert.alert(
-        '⚠️ Confirmar',
-        `¿Eliminar ${total} jugada(s) pendiente(s)?\n\n⚠️ Esta acción no se puede deshacer.`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Eliminar',
-            style: 'destructive',
-            onPress: async () => {
-              await db.executeSql('DELETE FROM offline_plays');
-              Alert.alert('✅ Limpiado', `${total} jugada(s) eliminada(s)`);
-            },
+            Alert.alert(
+              '⚠️ Confirmar',
+              `¿Eliminar ${total} jugada(s) pendiente(s)?\n\n⚠️ Esta acción no se puede deshacer.`,
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Eliminar',
+                  style: 'destructive',
+                  onPress: () => {
+                    db.transaction((deleteTx) => {
+                      deleteTx.executeSql(
+                        'DELETE FROM offline_plays',
+                        [],
+                        () => {
+                          Alert.alert('✅ Limpiado', `${total} jugada(s) eliminada(s)`);
+                        },
+                        (tx, error) => {
+                          console.error('[testClearPendingPlays] Error al eliminar:', error);
+                          Alert.alert('Error', `No se pudo eliminar: ${error.message}`);
+                        }
+                      );
+                    });
+                  },
+                },
+              ]
+            );
           },
-        ]
-      );
+          (tx, error) => {
+            console.error('[testClearPendingPlays] Error al contar:', error);
+            Alert.alert('Error', `Error al contar jugadas: ${error.message}`);
+          }
+        );
+      });
     } catch (error) {
       Alert.alert('Error', error.message);
     }
