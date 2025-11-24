@@ -125,7 +125,13 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
   // Hooks para enviar jugadas (online y offline)
   const { submitPlayWithConfirmation } = usePlaySubmission();
   const { savePlayOffline } = useOfflinePlaySubmission();
-  const { isOnline } = useOffline();
+  let isOnline = true;
+  try {
+    const offlineContext = useOffline();
+    isOnline = offlineContext.isOnline;
+  } catch (error) {
+    console.log('[TextMode] OfflineContext no disponible, usando modo online por defecto');
+  }
 
   // Cargar contexto de usuario (bankId)
   useEffect(()=>{

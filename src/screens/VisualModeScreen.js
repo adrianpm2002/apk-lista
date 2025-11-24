@@ -121,8 +121,15 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const [inputInstanceKey, setInputInstanceKey] = useState(0);
 
   // Hooks para enviar jugadas (online y offline)
+  // Usar de forma segura para web (que no tiene SQLite)
   const { savePlayOffline } = useOfflinePlaySubmission();
-  const { isOnline } = useOffline();
+  let isOnline = true;
+  try {
+    const offlineContext = useOffline();
+    isOnline = offlineContext.isOnline;
+  } catch (error) {
+    console.log('[VisualMode] OfflineContext no disponible, usando modo online por defecto');
+  }
 
   const PLAY_TYPE_LABELS = { fijo:translatePlayTypeLabel('fijo'), corrido:translatePlayTypeLabel('corrido'), posicion:translatePlayTypeLabel('posicion'), parle:translatePlayTypeLabel('parle'), centena:translatePlayTypeLabel('centena'), tripleta:translatePlayTypeLabel('tripleta') };
 

@@ -194,7 +194,13 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
 
   // Hooks para enviar jugadas (online y offline)
   const { savePlayOffline } = useOfflinePlaySubmission();
-  const { isOnline } = useOffline();
+  let isOnline = true;
+  try {
+    const offlineContext = useOffline();
+    isOnline = offlineContext.isOnline;
+  } catch (error) {
+    console.log('[VaultMode] OfflineContext no disponible, usando modo online por defecto');
+  }
   
   // Cargar userId
   React.useEffect(() => {
