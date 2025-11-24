@@ -52,7 +52,23 @@ export const useOfflinePlaySubmission = () => {
       const numerosArray = playData.numeros.split(',').filter(n => n.trim());
       const montoTotal = montoUnitario * numerosArray.length;
 
-      // Preparar datos para SQLite
+      // Obtener información del horario desde el caché para obtener id_loteria
+      const cachedSchedules = await OfflineStorage.getSchedules(null);
+      const scheduleData = cachedSchedules.find(s => s.id === playData.id_horario);
+      
+      if (!scheduleData) {
+        throw new Error('Horario no encontrado en caché. Sincroniza el caché primero.');
+      }
+
+      // Obtener información de la lotería desde el caché
+      const cachedLotteries = await OfflineStorage.getLotteries(null);
+      const lotteryData = cachedLotteries.find(l => l.id === scheduleData.id_loteria);
+      
+      if (!lotteryData) {
+        throw new Error('Lotería no encontrada en caché. Sincroniza el caché primero.');
+      }
+
+      // Preparar datos para SQLite con información completa de lotería y horario
       const offlinePlay = {
         user_id: playData.user_id,
         id_horario: playData.id_horario,
@@ -60,16 +76,22 @@ export const useOfflinePlaySubmission = () => {
         monto_unitario: montoUnitario,
         monto_total: montoTotal,
         jugada: playData.numeros.trim(), // Repetir numeros en jugada
-        nota: playData.nota || `${playData.nombres?.loteria || 'Lotería'} - ${playData.nombres?.horario || 'Horario'}`,
+        nota: playData.nota || `${lotteryData.nombre} - ${scheduleData.nombre}`,
         comando: playData.comando || null,
         id_cliente: playData.id_cliente || null,
-        nombre_loteria: playData.nombres?.loteria || 'Desconocida',
-        nombre_horario: playData.nombres?.horario || 'Desconocido',
+        nombre_loteria: lotteryData.nombre,
+        nombre_horario: scheduleData.nombre,
         status: 'pending', // pending, sending, success, failed
         sync_attempts: 0,
         last_error: null,
         created_at: new Date().toISOString(),
       };
+
+      console.log('[OfflinePlay] Datos completos con info del caché:', {
+        loteria: lotteryData.nombre,
+        horario: scheduleData.nombre,
+        id_loteria: scheduleData.id_loteria
+      });
 
       // Guardar en SQLite
       const result = await OfflineStorage.saveOfflinePlay(offlinePlay);
