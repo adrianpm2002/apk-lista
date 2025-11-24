@@ -622,42 +622,50 @@ export const setLastCacheUpdate = async (type, timestamp) => {
  */
 export const saveOfflinePlay = async (playData) => {
   try {
-    console.log('[OfflineStorage] Guardando jugada offline...');
+    console.log('[OfflineStorage] Guardando jugada offline...', playData);
     const db = await getDatabase();
     if (!db) {
       console.error('[OfflineStorage] Base de datos no disponible');
       return { success: false, error: 'Base de datos no disponible' };
     }
 
-    const [result] = await db.executeSql(
-      `INSERT INTO offline_plays (
-        id_listero, id_horario, jugada, numeros, 
-        monto_unitario, monto_total, nota, comando, id_cliente,
-        created_at, created_from, status, last_error, sync_attempts, last_sync_attempt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        playData.user_id,
-        playData.id_horario,
-        `${playData.tipo}:${playData.numeros}`, // jugada en formato "quiniela:12,34"
-        playData.numeros,
-        playData.monto_total, // Por ahora usar monto_total como unitario
-        playData.monto_total,
-        `${playData.nombre_loteria} - ${playData.nombre_horario}`, // nota
-        null, // comando
-        null, // id_cliente
-        playData.created_at,
-        'offline', // created_from
-        playData.status,
-        playData.last_error,
-        playData.sync_attempts,
-        null, // last_sync_attempt
-      ]
-    );
-
-    const playId = result.insertId;
-    console.log(`[OfflineStorage] ✅ Jugada offline guardada con ID: ${playId}`);
-
-    return { success: true, id: playId };
+    return new Promise((resolve, reject) => {
+      db.transaction((tx) => {
+        tx.executeSql(
+          `INSERT INTO offline_plays (
+            id_listero, id_horario, jugada, numeros, 
+            monto_unitario, monto_total, nota, comando, id_cliente,
+            created_at, created_from, status, last_error, sync_attempts, last_sync_attempt
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            playData.user_id,
+            playData.id_horario,
+            playData.jugada || playData.numeros, // usar jugada si existe, sino numeros
+            playData.numeros,
+            playData.monto_unitario,
+            playData.monto_total,
+            playData.nota || `${playData.nombre_loteria} - ${playData.nombre_horario}`,
+            playData.comando || null,
+            playData.id_cliente || null,
+            playData.created_at || new Date().toISOString(),
+            'offline', // created_from
+            playData.status || 'pending',
+            playData.last_error || null,
+            playData.sync_attempts || 0,
+            null, // last_sync_attempt
+          ],
+          (tx, result) => {
+            const playId = result.insertId;
+            console.log(`[OfflineStorage] ✅ Jugada offline guardada con ID: ${playId}`);
+            resolve({ success: true, id: playId });
+          },
+          (tx, error) => {
+            console.error('[OfflineStorage] Error SQL guardando jugada:', error);
+            reject(new Error(error.message));
+          }
+        );
+      });
+    });
   } catch (error) {
     console.error('[OfflineStorage] Error guardando jugada offline:', error);
     return { success: false, error: error.message };

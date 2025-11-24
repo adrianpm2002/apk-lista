@@ -37,12 +37,24 @@ const OfflineIndicator = ({ onPress, isDarkMode = false }) => {
           return;
         }
 
-        const [result] = await db.executeSql(
-          "SELECT COUNT(*) as count FROM offline_plays WHERE status = 'pending'"
-        );
-        
-        const count = result.rows.item(0).count;
-        setPendingCount(count);
+        db.transaction((tx) => {
+          tx.executeSql(
+            "SELECT COUNT(*) as count FROM offline_plays WHERE status = 'pending'",
+            [],
+            (tx, results) => {
+              if (results.rows.length > 0) {
+                const count = results.rows.item(0).count;
+                setPendingCount(count);
+              } else {
+                setPendingCount(0);
+              }
+            },
+            (tx, error) => {
+              console.error('[OfflineIndicator] Error SQL:', error);
+              setPendingCount(0);
+            }
+          );
+        });
       } catch (error) {
         console.error('[OfflineIndicator] Error obteniendo jugadas pendientes:', error);
         setPendingCount(0);
