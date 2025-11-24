@@ -14,6 +14,9 @@ import ListButton from '../components/ListButton';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
 import FeedbackBanner from '../components/FeedbackBanner';
+import useOfflinePlaySubmission from '../hooks/useOfflinePlaySubmission';
+import { useOffline } from '../contexts/OfflineContext';
+import * as OfflineStorage from '../services/offlineStorageService';
 
 const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -188,6 +191,10 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   const [insertFeedback, setInsertFeedback] = useState(null);
   const [limitViolations, setLimitViolations] = useState([]);
   const [userId, setUserId] = useState(null);
+
+  // Hooks para enviar jugadas (online y offline)
+  const { savePlayOffline } = useOfflinePlaySubmission();
+  const { isOnline } = useOffline();
   
   // Cargar userId
   React.useEffect(() => {
@@ -512,7 +519,82 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     
     // Inserción usando batch (más eficiente)
     setIsInserting(true);
-    
+
+    // MODO OFFLINE: Guardar en SQLite
+    if (!isOnline) {
+      let successCount = 0;
+      let failCount = 0;
+
+      try {
+        for (const payload of payloads) {
+          try {
+            // Obtener nombres de lotería y horario desde caché local
+            const lotteryId = selectedLotteries.find(lv => selectedSchedules[lv] === payload.id_horario);
+            const lotteryData = lotteries.find(l => l.value === lotteryId);
+            const lotteryName = lotteryData?.label || 'Lotería';
+
+            const cachedSchedules = await OfflineStorage.getSchedules(lotteryId);
+            const scheduleData = cachedSchedules.find(s => s.id === payload.id_horario);
+            const scheduleName = scheduleData?.nombre || 'Horario';
+
+            const result = await savePlayOffline({
+              user_id: userId,
+              id_horario: payload.id_horario,
+              numeros: payload.numeros,
+              monto_unitario: payload.monto_unitario,
+              nota: payload.nota,
+              comando: null,
+              nombres: {
+                loteria: lotteryName,
+                horario: scheduleName
+              }
+            });
+
+            if (result.success) successCount++;
+            else failCount++;
+          } catch (error) {
+            console.error('[VaultMode] Error guardando jugada offline:', error);
+            failCount++;
+          }
+        }
+      } catch (error) {
+        console.error('[VaultMode] Error general guardando jugadas offline:', error);
+      }
+
+      setInsertFeedback({
+        type: successCount > 0 ? 'success' : 'error',
+        message: successCount > 0 
+          ? `${successCount} jugada(s) guardada(s) en cola offline.` 
+          : 'Error guardando jugadas offline.'
+      });
+
+      if (successCount > 0) {
+        Alert.alert(
+          'Modo Offline',
+          `${successCount} jugada(s) guardada(s) en cola offline.\n\nSe enviarán automáticamente cuando haya conexión.`,
+          [{ text: 'OK' }]
+        );
+        // Limpiar pantalla
+        setJugadasFijosYCorridos([]);
+        setJugadasParles([]);
+        setJugadasCentenas([]);
+        setNote('');
+        setNumero('');
+        setFijo('');
+        setCorrido('');
+        setParleInput('');
+        setPrecioParle('');
+        setCentenaNumero('');
+        setCentenaPrecio('');
+        setJugadasConError(new Set());
+        setShowFieldErrors(false);
+      }
+
+      setIsInserting(false);
+      return;
+    }
+
+    // MODO ONLINE: Inserción batch en Supabase (comportamiento original)
     try {
         // Intentar batch insert primero
         const { data: insertedData, error: batchError } = await supabase

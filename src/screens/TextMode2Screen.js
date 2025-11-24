@@ -32,6 +32,9 @@ import FeedbackBanner from '../components/FeedbackBanner';
 import { generateTextModeCopyFromInstructions, generateTextModeCopyFromOriginalCommand, generateTextModeCopyFromOriginalCommandMultiple } from '../utils/copyUtils';
 import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
+import useOfflinePlaySubmission from '../hooks/useOfflinePlaySubmission';
+import { useOffline } from '../contexts/OfflineContext';
+import * as OfflineStorage from '../services/offlineStorageService';
 import { supabase } from '../supabaseClient';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
@@ -116,8 +119,10 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
   const feedbackTimerRef = useRef(null);
   const [editingMultiError, setEditingMultiError] = useState(false);
 
-  // Hook para enviar jugadas al almacenamiento
+  // Hooks para enviar jugadas (online y offline)
   const { submitPlayWithConfirmation } = usePlaySubmission();
+  const { savePlayOffline } = useOfflinePlaySubmission();
+  const { isOnline } = useOffline();
 
   // Cargar contexto de usuario (bankId)
   useEffect(()=>{
@@ -562,8 +567,70 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
       if(!parsedInstructions.length){ setPlaysError(true); return; }
 
       try {
-        // Preparar payloads para batch insert
         const { data: { user } } = await supabase.auth.getUser();
+
+        // MODO OFFLINE: Guardar en SQLite
+        if (!isOnline) {
+          let successCount = 0;
+          let failCount = 0;
+
+          for (const lottery of selectedLotteries) {
+            for (const instr of parsedInstructions) {
+              try {
+                // Obtener nombres de lotería y horario desde caché local
+                const cachedLotteries = await OfflineStorage.getLotteries(null);
+                const lotteryData = cachedLotteries.find(l => l.id === lottery);
+                const lotteryName = lotteryData?.nombre || 'Lotería';
+
+                const scheduleId = selectedSchedules[lottery];
+                const cachedSchedules = await OfflineStorage.getSchedules(lottery);
+                const scheduleData = cachedSchedules.find(s => s.id === scheduleId);
+                const scheduleName = scheduleData?.nombre || 'Horario';
+
+                const result = await savePlayOffline({
+                  user_id: user?.id,
+                  id_horario: scheduleId,
+                  numeros: instr.numbers.join(','),
+                  monto_unitario: instr.amountEach,
+                  nota: note.trim(),
+                  comando: plays.trim(),
+                  nombres: {
+                    loteria: lotteryName,
+                    horario: scheduleName
+                  }
+                });
+
+                if (result.success) successCount++;
+                else failCount++;
+              } catch (error) {
+                console.error('[TextMode2] Error guardando jugada offline:', error);
+                failCount++;
+              }
+            }
+          }
+
+          setInsertFeedback({ 
+            success: successCount, 
+            fail: failCount, 
+            duplicates: [], 
+            edit: false 
+          });
+
+          if (successCount > 0) {
+            Alert.alert(
+              'Modo Offline',
+              `${successCount} jugada(s) guardada(s) en cola offline.\n\nSe enviarán automáticamente cuando haya conexión.`,
+              [{ text: 'OK' }]
+            );
+            setPlays('');
+            setCalculatedAmount(0);
+            setTotal(0);
+            setParsedInstructions([]);
+          }
+          return;
+        }
+
+        // MODO ONLINE: Inserción batch en Supabase (comportamiento original)
         const payloads = [];
         
         for (const lottery of selectedLotteries) {

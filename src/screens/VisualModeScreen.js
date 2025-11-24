@@ -27,6 +27,9 @@ import { SideBar, SideBarToggle } from '../components/SideBar';
 import { t, translatePlayTypeLabel } from '../utils/i18n';
 import { applyPlayTypeSelection } from '../utils/playTypeCombinations';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
+import useOfflinePlaySubmission from '../hooks/useOfflinePlaySubmission';
+import { useOffline } from '../contexts/OfflineContext';
+import * as OfflineStorage from '../services/offlineStorageService';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { generateVisualModeCopyText } from '../utils/copyUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
@@ -116,6 +119,10 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const editBannerOpacity = useRef(new Animated.Value(0)).current;
   // Forzar remount del PlaysInputField para limpiar internamente
   const [inputInstanceKey, setInputInstanceKey] = useState(0);
+
+  // Hooks para enviar jugadas (online y offline)
+  const { savePlayOffline } = useOfflinePlaySubmission();
+  const { isOnline } = useOffline();
 
   const PLAY_TYPE_LABELS = { fijo:translatePlayTypeLabel('fijo'), corrido:translatePlayTypeLabel('corrido'), posicion:translatePlayTypeLabel('posicion'), parle:translatePlayTypeLabel('parle'), centena:translatePlayTypeLabel('centena'), tripleta:translatePlayTypeLabel('tripleta') };
 
@@ -647,13 +654,69 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       }
       // 7. Insertar usando batch (más eficiente)
       setIsInserting(true);
-      
+
+      // Si la app está en modo offline manual o sin conexión, guardar localmente
+      if (!isOnline) {
+        let successCount = 0;
+        let failCount = 0;
+        try {
+          // Guardar siguiendo la misma lógica de payloads (reconstruir por lotería y tipo)
+          for (const lv of selectedLotteries) {
+            const id_horario = selectedSchedules[lv];
+            const lotteryLabel = getLotteryLabel(lv) || 'Lotería';
+            for (const pt of selectedPlayTypes) {
+              const raw = amounts[pt] || '0';
+              let unit = parseFloat(raw.toString().replace(/[^0-9.]/g,'')) || 0;
+              let rowTotal;
+              if (pt === 'parle' && isLocked) {
+                rowTotal = unit;
+                if (numsCount>0) unit = parseFloat((rowTotal / numsCount).toFixed(2)) || 0;
+              } else {
+                rowTotal = unit * numsCount;
+              }
+              const numerosForThisPlay = (pt === 'fijo' && hasCentenaFijoCombo) ? numbersFormattedFijo : numbersFormatted;
+              const scheduleLabel = getScheduleLabel(lv, id_horario) || 'Horario';
+
+              try {
+                const res = await savePlayOffline({
+                  user_id: user?.id || userId,
+                  id_horario,
+                  numeros: numerosForThisPlay,
+                  monto_unitario: unit,
+                  nota: note?.trim() || null,
+                  comando: plays.trim(),
+                  nombres: { loteria: lotteryLabel, horario: scheduleLabel }
+                });
+                if (res && res.success) successCount++; else failCount++;
+              } catch(e){
+                console.error('[VisualMode] Error guardando jugada offline', e);
+                failCount++;
+              }
+            }
+          }
+        } catch(e){
+          console.error('[VisualMode] Error guardando jugadas offline batch', e);
+        }
+
+        setInsertFeedback({ success: successCount, fail: failCount, duplicates: [], edit: false });
+        if (successCount > 0) {
+          Alert.alert('Modo Offline', `${successCount} jugada(s) guardada(s) en cola offline.\n\nSe enviarán automáticamente cuando haya conexión.`, [{ text: 'OK' }]);
+          // Limpiar estado
+          setPlays('');
+          setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
+          setTotal(0);
+          setShowFieldErrors(false);
+        }
+        setIsInserting(false);
+        return;
+      }
+
       try {
         const { data: insertedData, error: batchError } = await supabase
           .from('jugada')
           .insert(payloads)
           .select('id');
-        
+
         if (batchError) {
           // Manejar error del batch directamente (sin fallback secuencial)
           console.error('Batch insert failed:', batchError);
