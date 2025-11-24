@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { useConnection } from '../hooks/useConnection';
+import { useOffline } from '../contexts/OfflineContext';
 import * as OfflineStorage from '../services/offlineStorageService';
 import { authService } from '../services/authService';
 
@@ -19,6 +20,7 @@ import { authService } from '../services/authService';
 const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const { isOnline, isChecking } = useConnection();
+  const { isOfflineModeEnabled, toggleOfflineMode, isOnline: contextIsOnline } = useOffline();
 
   // No mostrar en web a menos que se permita explícitamente
   if (Platform.OS === 'web' && !allowWeb) {
@@ -399,6 +401,105 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   };
 
   /**
+   * FASE 6.2: Activar/Desactivar Modo Offline Manual
+   */
+  const testToggleOfflineMode = async () => {
+    try {
+      await toggleOfflineMode();
+      const newState = !isOfflineModeEnabled;
+      Alert.alert(
+        newState ? '🔴 Modo Offline Activado' : '🟢 Modo Online Activado',
+        newState 
+          ? 'Todas las jugadas se guardarán localmente en SQLite hasta que desactives este modo.'
+          : 'Las jugadas se enviarán normalmente a Supabase cuando haya conexión.'
+      );
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  /**
+   * FASE 6.2: Ver todas las jugadas pendientes offline
+   */
+  const testViewPendingPlays = async () => {
+    try {
+      const db = await OfflineStorage.getDatabase();
+      if (!db) {
+        Alert.alert('Error', 'No se pudo abrir la base de datos');
+        return;
+      }
+
+      const [result] = await db.executeSql(
+        'SELECT * FROM offline_plays ORDER BY created_at DESC'
+      );
+
+      if (result.rows.length === 0) {
+        Alert.alert('📭 Sin Jugadas Pendientes', 'No hay jugadas offline guardadas.');
+        return;
+      }
+
+      let message = `Total: ${result.rows.length} jugada(s)\n\n`;
+      
+      for (let i = 0; i < Math.min(result.rows.length, 5); i++) {
+        const play = result.rows.item(i);
+        message += `#${play.id} - ${play.nota}\n`;
+        message += `Números: ${play.numeros}\n`;
+        message += `Monto: RD$${play.monto_total}\n`;
+        message += `Status: ${play.status}\n`;
+        message += `Fecha: ${play.created_at}\n\n`;
+      }
+
+      if (result.rows.length > 5) {
+        message += `... y ${result.rows.length - 5} más`;
+      }
+
+      Alert.alert('📋 Jugadas Pendientes Offline', message);
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  /**
+   * FASE 6.2: Limpiar todas las jugadas offline
+   */
+  const testClearPendingPlays = async () => {
+    try {
+      const db = await OfflineStorage.getDatabase();
+      if (!db) {
+        Alert.alert('Error', 'No se pudo abrir la base de datos');
+        return;
+      }
+
+      // Contar primero
+      const [countResult] = await db.executeSql('SELECT COUNT(*) as total FROM offline_plays');
+      const total = countResult.rows.item(0).total;
+
+      if (total === 0) {
+        Alert.alert('Info', 'No hay jugadas offline para limpiar');
+        return;
+      }
+
+      Alert.alert(
+        '⚠️ Confirmar',
+        `¿Eliminar ${total} jugada(s) pendiente(s)?\n\n⚠️ Esta acción no se puede deshacer.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Eliminar',
+            style: 'destructive',
+            onPress: async () => {
+              await db.executeSql('DELETE FROM offline_plays');
+              Alert.alert('✅ Limpiado', `${total} jugada(s) eliminada(s)`);
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  /**
    * FASE 5: Test de sincronización de caché
    */
   const testSyncCache = async () => {
@@ -627,18 +728,49 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
             >
               {/* FASE 6: Jugadas Offline */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🎮 FASE 6: Jugadas Offline (Paso 6.1)</Text>
+                <Text style={styles.sectionTitle}>🎮 FASE 6: Jugadas Offline (Pasos 6.1 + 6.2)</Text>
                 
+                {/* Estado actual */}
+                <View style={[styles.statusBadge, contextIsOnline ? styles.statusOnline : styles.statusOffline]}>
+                  <Text style={styles.statusText}>
+                    {contextIsOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}
+                    {isOfflineModeEnabled && ' (Modo Manual)'}
+                  </Text>
+                </View>
+
                 <TestButton 
-                  title="🧪 Crear Jugada Offline de Prueba"
+                  title={isOfflineModeEnabled ? "🟢 Desactivar Modo Offline" : "🔴 Activar Modo Offline"}
+                  onPress={testToggleOfflineMode}
+                />
+                
+                <Text style={styles.helperText}>
+                  💡 Activa el modo offline para simular estar sin conexión
+                </Text>
+
+                <TestButton 
+                  title="🧪 Crear Jugada Offline de Prueba (Hook)"
                   onPress={testCreateOfflinePlay}
                 />
                 
                 <Text style={styles.helperText}>
-                  💡 Crea una jugada de prueba: 4 números (12,34,56,78) × RD$10 = RD$40
+                  💡 Crea jugada con hook: 4 números (12,34,56,78) × RD$10 = RD$40
                 </Text>
+
+                <TestButton 
+                  title="📋 Ver Jugadas Pendientes Offline"
+                  onPress={testViewPendingPlays}
+                />
+
+                <TestButton 
+                  title="🗑️ Limpiar Jugadas Offline"
+                  onPress={testClearPendingPlays}
+                />
+                
                 <Text style={styles.helperText}>
                   ⚠️ Requiere caché sincronizado (FASE 5)
+                </Text>
+                <Text style={styles.helperText}>
+                  🎯 Para probar Paso 6.2: Activa modo offline → Ve a pantalla de jugadas → Crea jugada → Verifica que se guardó
                 </Text>
               </View>
 
@@ -939,6 +1071,29 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     fontStyle: 'italic',
     lineHeight: 16,
+  },
+  // Badge de estado online/offline
+  statusBadge: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  statusOnline: {
+    backgroundColor: '#d4edda',
+    borderWidth: 1,
+    borderColor: '#28a745',
+  },
+  statusOffline: {
+    backgroundColor: '#f8d7da',
+    borderWidth: 1,
+    borderColor: '#dc3545',
+  },
+  statusText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2c3e50',
   },
 });
 
