@@ -38,6 +38,8 @@ import * as OfflineStorage from '../services/offlineStorageService';
 import { supabase } from '../supabaseClient';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
+import OfflineIndicator from '../components/OfflineIndicator';
+import OfflineTestingPanel from '../components/OfflineTestingPanel';
 
 const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes}) => {
   // Estados para los campos
@@ -61,6 +63,7 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
   const [showFieldErrors, setShowFieldErrors] = useState(false);
   const [showInsertButton, setShowInsertButton] = useState(false); // Controla visibilidad del botón insertar
   const [duplicateLines, setDuplicateLines] = useState([]); // Líneas con duplicados para resaltar en amarillo
+  const [testingPanelVisible, setTestingPanelVisible] = useState(false);
   
   // Estados para modo Santiago
   const [modoSantiago, setModoSantiago] = useState(false);
@@ -748,6 +751,10 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
             />
           </View>
           <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
+            <OfflineIndicator 
+              onPress={() => setTestingPanelVisible(true)}
+              isDarkMode={isDarkMode}
+            />
             <PricingInfoButton />
             {/* OCULTO PARA BUILD - NotificationsButton */}
             {/* <NotificationsButton /> */}
@@ -1021,6 +1028,14 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         role="listero"
       />
   {/* CapacityModal ahora gestionado por BatteryButton (🔋) */}
+      
+      {testingPanelVisible && (
+        <OfflineTestingPanel 
+          inline={false}
+          allowWeb={true}
+          onClose={() => setTestingPanelVisible(false)}
+        />
+      )}
     </View>
   );
 };

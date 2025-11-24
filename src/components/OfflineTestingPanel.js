@@ -17,7 +17,7 @@ import { authService } from '../services/authService';
 /**
  * Panel de Testing para funcionalidades offline
  */
-const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
+const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const { isOnline, isChecking } = useConnection();
   
@@ -47,6 +47,7 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
 
   const handleClosePanel = () => {
     setModalVisible(false);
+    if (onClose) onClose();
   };
 
   // ============================================
