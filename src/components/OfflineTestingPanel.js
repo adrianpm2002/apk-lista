@@ -20,7 +20,20 @@ import { authService } from '../services/authService';
 const OfflineTestingPanel = ({ inline = false, allowWeb = false }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const { isOnline, isChecking } = useConnection();
-  const { isOfflineModeEnabled, toggleOfflineMode, isOnline: contextIsOnline } = useOffline();
+  
+  // Usar useOffline de forma segura (puede no estar disponible en LoginScreen)
+  let offlineContext = null;
+  try {
+    offlineContext = useOffline();
+  } catch (error) {
+    console.log('[OfflineTestingPanel] OfflineContext no disponible (probablemente en LoginScreen)');
+  }
+  
+  const isOfflineModeEnabled = offlineContext?.isOfflineModeEnabled || false;
+  const toggleOfflineMode = offlineContext?.toggleOfflineMode || (() => {
+    Alert.alert('Error', 'Contexto offline no disponible. Inicia sesión primero.');
+  });
+  const contextIsOnline = offlineContext?.isOnline ?? true;
 
   // No mostrar en web a menos que se permita explícitamente
   if (Platform.OS === 'web' && !allowWeb) {
