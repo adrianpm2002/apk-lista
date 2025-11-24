@@ -374,39 +374,61 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
       const loteria = lotteries[0];
       const horario = schedules[0];
 
-      // Datos de prueba
+      // Calcular monto total
+      const numeros = '12,34,56,78';
+      const numerosArray = numeros.split(',');
+      const montoUnitario = 10;
+      const montoTotal = montoUnitario * numerosArray.length; // 10 * 4 = 40
+
+      // Datos de prueba completos
       const playData = {
         user_id: user.id,
         id_horario: horario.id,
-        numeros: '12,34,56,78', // 4 números de prueba
-        monto_unitario: 10, // RD$10 por número
+        jugada: numeros,
+        numeros: numeros,
+        monto_unitario: montoUnitario,
+        monto_total: montoTotal,
         nota: 'Jugada de prueba offline',
         comando: null,
         id_cliente: null,
-        nombres: {
-          loteria: loteria.nombre,
-          horario: horario.nombre,
-        },
+        nombre_loteria: loteria.nombre,
+        nombre_horario: horario.nombre,
+        status: 'pending',
+        sync_attempts: 0,
+        last_error: null,
+        created_at: new Date().toISOString(),
       };
 
       // Guardar jugada offline directamente usando el servicio
       // NO usar el hook aquí porque no estamos en el contexto de React
       const result = await OfflineStorage.saveOfflinePlay(playData);
 
+      // Validación defensiva
+      if (!result) {
+        Alert.alert('Error', '❌ El servicio no devolvió ningún resultado');
+        return;
+      }
+
       if (result.success) {
+        // Validación: asegurarse de que el ID existe
+        if (!result.id) {
+          Alert.alert('Advertencia', '✅ Jugada guardada pero sin ID retornado');
+          return;
+        }
+
         Alert.alert(
           '✅ Jugada Guardada Offline',
-          `ID: ${result.data.id}\n` +
-          `Números: ${result.data.numeros}\n` +
-          `Cantidad: 4 números\n` +
-          `Monto unitario: RD$${result.data.monto_unitario}\n` +
-          `Monto total: RD$${result.data.monto_total}\n\n` +
-          `Lotería: ${result.data.nombre_loteria}\n` +
-          `Horario: ${result.data.nombre_horario}\n\n` +
-          `Status: ${result.data.status}`
+          `ID: ${result.id}\n` +
+          `Números: ${playData.numeros}\n` +
+          `Cantidad: ${numerosArray.length} números\n` +
+          `Monto unitario: RD$${playData.monto_unitario}\n` +
+          `Monto total: RD$${playData.monto_total}\n\n` +
+          `Lotería: ${playData.nombre_loteria}\n` +
+          `Horario: ${playData.nombre_horario}\n\n` +
+          `Status: ${playData.status}`
         );
       } else {
-        Alert.alert('Error', `❌ ${result.error}`);
+        Alert.alert('Error', `❌ ${result.error || 'Error desconocido'}`);
       }
     } catch (error) {
       Alert.alert('Error', error.message);

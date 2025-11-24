@@ -629,42 +629,68 @@ export const saveOfflinePlay = async (playData) => {
       return { success: false, error: 'Base de datos no disponible' };
     }
 
+    // Validar datos requeridos
+    if (!playData.user_id) {
+      console.error('[OfflineStorage] user_id es requerido');
+      return { success: false, error: 'user_id es requerido' };
+    }
+    if (!playData.id_horario) {
+      console.error('[OfflineStorage] id_horario es requerido');
+      return { success: false, error: 'id_horario es requerido' };
+    }
+    if (!playData.numeros && !playData.jugada) {
+      console.error('[OfflineStorage] numeros o jugada son requeridos');
+      return { success: false, error: 'numeros o jugada son requeridos' };
+    }
+
     return new Promise((resolve, reject) => {
-      db.transaction((tx) => {
-        tx.executeSql(
-          `INSERT INTO offline_plays (
-            id_listero, id_horario, jugada, numeros, 
-            monto_unitario, monto_total, nota, comando, id_cliente,
-            created_at, created_from, status, last_error, sync_attempts, last_sync_attempt
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            playData.user_id,
-            playData.id_horario,
-            playData.jugada || playData.numeros, // usar jugada si existe, sino numeros
-            playData.numeros,
-            playData.monto_unitario,
-            playData.monto_total,
-            playData.nota || `${playData.nombre_loteria} - ${playData.nombre_horario}`,
-            playData.comando || null,
-            playData.id_cliente || null,
-            playData.created_at || new Date().toISOString(),
-            'offline', // created_from
-            playData.status || 'pending',
-            playData.last_error || null,
-            playData.sync_attempts || 0,
-            null, // last_sync_attempt
-          ],
-          (tx, result) => {
-            const playId = result.insertId;
-            console.log(`[OfflineStorage] ✅ Jugada offline guardada con ID: ${playId}`);
-            resolve({ success: true, id: playId });
-          },
-          (tx, error) => {
-            console.error('[OfflineStorage] Error SQL guardando jugada:', error);
-            reject(new Error(error.message));
-          }
-        );
-      });
+      db.transaction(
+        (tx) => {
+          tx.executeSql(
+            `INSERT INTO offline_plays (
+              id_listero, id_horario, jugada, numeros, 
+              monto_unitario, monto_total, nota, comando, id_cliente,
+              created_at, created_from, status, last_error, sync_attempts, last_sync_attempt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              playData.user_id,
+              playData.id_horario,
+              playData.jugada || playData.numeros, // usar jugada si existe, sino numeros
+              playData.numeros,
+              playData.monto_unitario,
+              playData.monto_total,
+              playData.nota || `${playData.nombre_loteria || 'Lotería'} - ${playData.nombre_horario || 'Horario'}`,
+              playData.comando || null,
+              playData.id_cliente || null,
+              playData.created_at || new Date().toISOString(),
+              'offline', // created_from
+              playData.status || 'pending',
+              playData.last_error || null,
+              playData.sync_attempts || 0,
+              null, // last_sync_attempt
+            ],
+            (tx, result) => {
+              const playId = result.insertId;
+              console.log(`[OfflineStorage] ✅ Jugada offline guardada con ID: ${playId}`);
+              resolve({ success: true, id: playId });
+            },
+            (tx, error) => {
+              console.error('[OfflineStorage] Error SQL guardando jugada:', error);
+              // Cambiar reject por resolve para mantener consistencia
+              resolve({ success: false, error: error.message });
+            }
+          );
+        },
+        (error) => {
+          // Error en la transacción completa
+          console.error('[OfflineStorage] Error en transacción:', error);
+          resolve({ success: false, error: error.message });
+        },
+        () => {
+          // Success callback de la transacción
+          console.log('[OfflineStorage] Transacción completada');
+        }
+      );
     });
   } catch (error) {
     console.error('[OfflineStorage] Error guardando jugada offline:', error);
