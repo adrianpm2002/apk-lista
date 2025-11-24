@@ -13,6 +13,7 @@ import { useConnection } from '../hooks/useConnection';
 import { useOffline } from '../contexts/OfflineContext';
 import * as OfflineStorage from '../services/offlineStorageService';
 import { authService } from '../services/authService';
+import { supabase } from '../supabaseClient';
 
 /**
  * Panel de Testing para funcionalidades offline
