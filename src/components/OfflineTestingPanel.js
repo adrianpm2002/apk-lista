@@ -532,6 +532,90 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
   };
 
   /**
+   * FASE 6: Sincronizar jugadas offline con Supabase
+   */
+  const testSyncPlaysToSupabase = async () => {
+    try {
+      // Obtener jugadas pendientes
+      const plays = await OfflineStorage.getPendingPlays();
+      
+      if (!plays || plays.length === 0) {
+        Alert.alert('Info', 'No hay jugadas pendientes para sincronizar');
+        return;
+      }
+
+      Alert.alert(
+        '🔄 Sincronizar Jugadas',
+        `Se encontraron ${plays.length} jugada(s) pendiente(s).\n\n¿Deseas sincronizarlas con el servidor?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Sincronizar',
+            onPress: async () => {
+              try {
+                let successful = 0;
+                let failed = 0;
+                const errors = [];
+
+                for (const play of plays) {
+                  try {
+                    // Insertar en Supabase
+                    const { data, error } = await supabase
+                      .from('jugada')
+                      .insert({
+                        id_listero: play.id_listero,
+                        id_horario: play.id_horario,
+                        jugada: play.jugada,
+                        numeros: play.numeros,
+                        monto_unitario: play.monto_unitario,
+                        monto_total: play.monto_total,
+                        nota: play.nota,
+                        comando: play.comando,
+                        id_cliente: play.id_cliente,
+                        created_at: play.created_at,
+                      });
+
+                    if (error) {
+                      console.error(`[Sync] Error en jugada ${play.id}:`, error);
+                      failed++;
+                      errors.push(`Jugada ${play.id}: ${error.message}`);
+                    } else {
+                      successful++;
+                      console.log(`[Sync] ✅ Jugada ${play.id} sincronizada`);
+                      
+                      // Marcar como sincronizada en SQLite (opcional)
+                      // Puedes implementar una función updatePlayStatus si quieres
+                    }
+                  } catch (err) {
+                    console.error(`[Sync] Exception en jugada ${play.id}:`, err);
+                    failed++;
+                    errors.push(`Jugada ${play.id}: ${err.message}`);
+                  }
+                }
+
+                const message = 
+                  `✅ Sincronización completada\n\n` +
+                  `Total procesadas: ${plays.length}\n` +
+                  `Exitosas: ${successful}\n` +
+                  `Fallidas: ${failed}` +
+                  (errors.length > 0 ? `\n\nErrores:\n${errors.slice(0, 3).join('\n')}` : '');
+
+                Alert.alert('Sincronización', message);
+              } catch (error) {
+                console.error('[testSyncPlaysToSupabase] Error:', error);
+                Alert.alert('Error', `No se pudo sincronizar: ${error.message}`);
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('[testSyncPlaysToSupabase] Error:', error);
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  /**
    * FASE 5: Test de sincronización de caché
    */
   const testSyncCache = async () => {
@@ -760,33 +844,17 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
             >
               {/* FASE 6: Jugadas Offline */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🎮 FASE 6: Jugadas Offline (Pasos 6.1 + 6.2)</Text>
-                
-                {/* Estado actual */}
-                <View style={[styles.statusBadge, contextIsOnline ? styles.statusOnline : styles.statusOffline]}>
-                  <Text style={styles.statusText}>
-                    {contextIsOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}
-                    {isOfflineModeEnabled && ' (Modo Manual)'}
-                  </Text>
-                </View>
+                <Text style={styles.sectionTitle}>🎮 FASE 6: Jugadas Offline</Text>
 
                 <TestButton 
                   title={isOfflineModeEnabled ? "🟢 Desactivar Modo Offline" : "🔴 Activar Modo Offline"}
                   onPress={testToggleOfflineMode}
                 />
-                
-                <Text style={styles.helperText}>
-                  💡 Activa el modo offline para simular estar sin conexión
-                </Text>
 
                 <TestButton 
-                  title="🧪 Crear Jugada Offline de Prueba (Hook)"
+                  title="🧪 Crear Jugada Offline de Prueba"
                   onPress={testCreateOfflinePlay}
                 />
-                
-                <Text style={styles.helperText}>
-                  💡 Crea jugada con hook: 4 números (12,34,56,78) × RD$10 = RD$40
-                </Text>
 
                 <TestButton 
                   title="📋 Ver Jugadas Pendientes Offline"
@@ -797,16 +865,14 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
                   title="🗑️ Limpiar Jugadas Offline"
                   onPress={testClearPendingPlays}
                 />
-                
-                <Text style={styles.helperText}>
-                  ⚠️ Requiere caché sincronizado (FASE 5)
-                </Text>
-                <Text style={styles.helperText}>
-                  🎯 Para probar Paso 6.2: Activa modo offline → Ve a pantalla de jugadas → Crea jugada → Verifica que se guardó
-                </Text>
+
+                <TestButton 
+                  title="🔄 Sincronizar Jugadas con Servidor"
+                  onPress={testSyncPlaysToSupabase}
+                />
               </View>
 
-              {/* FASE 5: Caché de Loterías y Horarios - MOVIDO AL INICIO */}
+              {/* FASE 5: Caché */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>🎰 FASE 5: Caché Offline</Text>
                 
@@ -814,93 +880,15 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
                   title="🔄 Sincronizar Caché (Loterías + Horarios)"
                   onPress={testSyncCache}
                 />
-                
-                <TestButton 
-                  title="👁️ Ver Loterías Cacheadas"
-                  onPress={testViewCachedLotteries}
-                />
-                
-                <TestButton 
-                  title="⏰ Ver Horarios Cacheados"
-                  onPress={testViewCachedSchedules}
-                />
-                
-                <TestButton 
-                  title="🔍 Ver Datos RAW (Debug)"
-                  onPress={testViewRawCacheData}
-                />
-              </View>
-
-              {/* FASE 4: Login Offline */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>📱 FASE 4: Login Offline</Text>
-                
-                <TestButton 
-                  title="📋 Ver Logs del Sistema"
-                  onPress={testViewLogs}
-                />
-                
-                <TestButton 
-                  title="✅ Ver Credenciales Guardadas"
-                  onPress={testCheckStoredCredentials}
-                />
-                
-                <TestButton 
-                  title="⏰ Validar Sesión Offline"
-                  onPress={testValidateOfflineSession}
-                />
-                
-                <TestButton 
-                  title="📅 Ver Último Login"
-                  onPress={testViewLastLogin}
-                />
-                
-                <TestButton 
-                  title="🔐 Probar Encriptación"
-                  onPress={testEncryption}
-                />
-                
-                <TestButton 
-                  title="⏳ Forzar Sesión Expirada"
-                  onPress={testForceExpireSession}
-                  danger
-                />
-                
-                <TestButton 
-                  title="🗑️ Eliminar Credenciales"
-                  onPress={testClearCredentials}
-                  danger
-                />
               </View>
 
               {/* Base de Datos */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🗄️ Base de Datos SQLite</Text>
+                <Text style={styles.sectionTitle}>🗄️ Base de Datos</Text>
                 
                 <TestButton 
                   title="📊 Ver Info de BD"
                   onPress={testDatabaseInfo}
-                />
-                
-                <TestButton 
-                  title="🧪 Insertar Credenciales de Prueba"
-                  onPress={testInsertFakeCredentials}
-                />
-              </View>
-
-              {/* Logs */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>📋 Logs del Sistema</Text>
-                
-                <TestButton 
-                  title="👁️ Ver Últimos Logs"
-                  onPress={testViewLogs}
-                />
-                
-                <TestButton 
-                  title="🗑️ Limpiar Logs"
-                  onPress={testClearLogs}
-                  danger
                 />
               </View>
 
