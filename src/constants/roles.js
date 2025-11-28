@@ -3,7 +3,8 @@
 export const USER_ROLES = {
   ADMIN: 'admin',
   COLLECTOR: 'collector', 
-  LISTERO: 'listero'
+  LISTERO: 'listero',
+  CLIENT: 'client'
 };
 
 export const PERMISSIONS = {

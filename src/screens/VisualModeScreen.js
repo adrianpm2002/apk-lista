@@ -129,7 +129,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         const { data: { user } } = await supabase.auth.getUser();
         if(!user) return;
     setUserId(user.id);
-        const { data: profile } = await supabase.from('profiles').select('role,id_banco,username').eq('id', user.id).single();
+        const { data: profile } = await supabase.from('profiles').select('role,id_banco,username,balance').eq('id', user.id).single();
         if(!profile) return;
         setUserProfile(profile); // Guardar el perfil completo para tener acceso al username
         const bId = profile.role === 'admin' ? user.id : profile.id_banco;
@@ -642,7 +642,24 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   setInsertFeedback({ success:0, fail:payloads.length, duplicates:[], blocked:true });
         return; // aborta inserción
       }
-      // 7. Insertar usando batch (más eficiente)
+      // 7. Validar balance para rol client
+      let totalSubmissionAmount = payloads.reduce((sum, p) => sum + (Number(p.monto_total) || 0), 0);
+      if ((userProfile?.role || '').toLowerCase() === 'client') {
+        // Obtener balance actualizado del perfil
+        const { data: freshProfile } = await supabase
+          .from('profiles')
+          .select('balance')
+          .eq('id', user?.id)
+          .maybeSingle();
+        const currentBalance = Number((freshProfile?.balance ?? userProfile?.balance) || 0);
+        const remaining = currentBalance - totalSubmissionAmount;
+        if (remaining < 0) {
+          Alert.alert('Balance insuficiente', `Tu balance actual es $${currentBalance.toFixed(2)} y el total de la jugada es $${totalSubmissionAmount.toFixed(2)}. Recarga tu balance para continuar.`);
+          return;
+        }
+      }
+
+      // 8. Insertar usando batch (más eficiente)
       setIsInserting(true);
       
       try {
@@ -692,6 +709,28 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           setTotal(0);
           setShowFieldErrors(false);
           setInsertFeedback({ success: successes.length, fail: 0, duplicates: [] });
+
+          // 9. Si es client, descontar el balance tras inserción exitosa
+          if ((userProfile?.role || '').toLowerCase() === 'client') {
+            try {
+              const { data: freshProfile2 } = await supabase
+                .from('profiles')
+                .select('balance')
+                .eq('id', user?.id)
+                .maybeSingle();
+              const currentBalance2 = Number((freshProfile2?.balance ?? userProfile?.balance) || 0);
+              const newBalance = currentBalance2 - totalSubmissionAmount;
+              await supabase
+                .from('profiles')
+                .update({ balance: newBalance })
+                .eq('id', user?.id);
+              // Actualizar en memoria
+              setUserProfile(prev => ({ ...prev, balance: newBalance }));
+            } catch (balErr) {
+              // Log silencioso; no interrumpir flujo si ya se insertó
+              console.warn('No se pudo actualizar el balance del cliente:', balErr);
+            }
+          }
         }
       } catch(err){
         console.error('Error general insertando jugadas', err);
@@ -931,6 +970,12 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
               visibleModes={visibleModes || { visual: true, text: true }}
             />
           </View>
+          {userProfile?.role === 'client' && (
+            <View style={styles.balanceBadge}>
+              <Text style={styles.balanceLabel}>Balance:</Text>
+              <Text style={styles.balanceValue}>${parseFloat(userProfile?.balance || 0).toFixed(2)}</Text>
+            </View>
+          )}
           <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
             <PricingInfoButton />
             {/* OCULTO PARA BUILD - NotificationsButton */}
@@ -1249,6 +1294,28 @@ const styles = StyleSheet.create({
   modeSelectorWrapper: {
   marginLeft: 6,
   flexShrink: 1,
+  },
+  balanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECF9F1',
+    borderColor: '#27AE60',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginLeft: 8,
+  },
+  balanceLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginRight: 4,
+  },
+  balanceValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#27AE60',
   },
   
   content: {

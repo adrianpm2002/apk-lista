@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { secureStorage } from '../utils/storage';
 import {
   View,
   Text,
@@ -30,6 +31,18 @@ const MainAppScreen = ({ navigation, route }) => {
   useEffect(() => {
     (async () => {
       try {
+        // Si el usuario es de tipo cliente (client), forzar solo modo visual
+        const sessionData = await secureStorage.getUserSession();
+        const role = sessionData?.role;
+        if (role === 'client') {
+          const clientVisible = { visual: true, text: false, text2: false, vault: false };
+          setVisibleModes(clientVisible);
+          setCurrentMode('Visual');
+          // Persistimos esta configuración para evitar cambios posteriores
+          await AsyncStorage.setItem('visibleModes', JSON.stringify(clientVisible));
+          return; // evitar que se mezcle con configuraciones previas
+        }
+
         const raw = await AsyncStorage.getItem('visibleModes');
         if (raw) {
           const parsed = JSON.parse(raw);
