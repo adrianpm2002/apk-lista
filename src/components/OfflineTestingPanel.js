@@ -458,46 +458,32 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
    */
   const testViewPendingPlays = async () => {
     try {
-      const db = await OfflineStorage.getDatabase();
-      if (!db) {
-        Alert.alert('Error', 'No se pudo abrir la base de datos');
+      const plays = await OfflineStorage.getPendingPlays();
+      
+      if (!plays || plays.length === 0) {
+        Alert.alert('📭 Sin Jugadas Pendientes', 'No hay jugadas offline guardadas.');
         return;
       }
 
-      db.transaction((tx) => {
-        tx.executeSql(
-          'SELECT * FROM offline_plays ORDER BY created_at DESC',
-          [],
-          (tx, results) => {
-            if (results.rows.length === 0) {
-              Alert.alert('📭 Sin Jugadas Pendientes', 'No hay jugadas offline guardadas.');
-              return;
-            }
+      let message = `Total: ${plays.length} jugada(s)\n\n`;
+      
+      for (let i = 0; i < Math.min(plays.length, 5); i++) {
+        const play = plays[i];
+        const numeros = Array.isArray(play.numeros) ? play.numeros.join(', ') : play.numeros;
+        message += `#${play.id} - ${play.nota || 'Sin nota'}\n`;
+        message += `Números: ${numeros}\n`;
+        message += `Monto: RD$${play.monto_total}\n`;
+        message += `Status: ${play.status}\n`;
+        message += `Fecha: ${new Date(play.created_at).toLocaleString()}\n\n`;
+      }
 
-            let message = `Total: ${results.rows.length} jugada(s)\n\n`;
-            
-            for (let i = 0; i < Math.min(results.rows.length, 5); i++) {
-              const play = results.rows.item(i);
-              message += `#${play.id} - ${play.nota || 'Sin nota'}\n`;
-              message += `Números: ${play.numeros}\n`;
-              message += `Monto: RD$${play.monto_total}\n`;
-              message += `Status: ${play.status}\n`;
-              message += `Fecha: ${new Date(play.created_at).toLocaleString()}\n\n`;
-            }
+      if (plays.length > 5) {
+        message += `... y ${plays.length - 5} más`;
+      }
 
-            if (results.rows.length > 5) {
-              message += `... y ${results.rows.length - 5} más`;
-            }
-
-            Alert.alert('📋 Jugadas Pendientes Offline', message);
-          },
-          (tx, error) => {
-            console.error('[testViewPendingPlays] Error SQL:', error);
-            Alert.alert('Error', `Error al consultar: ${error.message}`);
-          }
-        );
-      });
+      Alert.alert('📋 Jugadas Pendientes Offline', message);
     } catch (error) {
+      console.error('[testViewPendingPlays] Error:', error);
       Alert.alert('Error', error.message);
     }
   };
@@ -507,59 +493,40 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
    */
   const testClearPendingPlays = async () => {
     try {
-      const db = await OfflineStorage.getDatabase();
-      if (!db) {
-        Alert.alert('Error', 'No se pudo abrir la base de datos');
+      // Primero contar cuántas jugadas hay
+      const plays = await OfflineStorage.getPendingPlays();
+      
+      if (!plays || plays.length === 0) {
+        Alert.alert('Info', 'No hay jugadas offline para limpiar');
         return;
       }
 
-      // Contar primero usando transacción
-      db.transaction((tx) => {
-        tx.executeSql(
-          'SELECT COUNT(*) as total FROM offline_plays',
-          [],
-          (tx, countResult) => {
-            const total = countResult.rows.item(0).total;
-
-            if (total === 0) {
-              Alert.alert('Info', 'No hay jugadas offline para limpiar');
-              return;
-            }
-
-            Alert.alert(
-              '⚠️ Confirmar',
-              `¿Eliminar ${total} jugada(s) pendiente(s)?\n\n⚠️ Esta acción no se puede deshacer.`,
-              [
-                { text: 'Cancelar', style: 'cancel' },
-                {
-                  text: 'Eliminar',
-                  style: 'destructive',
-                  onPress: () => {
-                    db.transaction((deleteTx) => {
-                      deleteTx.executeSql(
-                        'DELETE FROM offline_plays',
-                        [],
-                        () => {
-                          Alert.alert('✅ Limpiado', `${total} jugada(s) eliminada(s)`);
-                        },
-                        (tx, error) => {
-                          console.error('[testClearPendingPlays] Error al eliminar:', error);
-                          Alert.alert('Error', `No se pudo eliminar: ${error.message}`);
-                        }
-                      );
-                    });
-                  },
-                },
-              ]
-            );
+      Alert.alert(
+        '⚠️ Confirmar',
+        `¿Eliminar ${plays.length} jugada(s) pendiente(s)?\n\n⚠️ Esta acción no se puede deshacer.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Eliminar',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const result = await OfflineStorage.clearAllOfflinePlays();
+                if (result) {
+                  Alert.alert('✅ Limpiado', `${plays.length} jugada(s) eliminada(s)`);
+                } else {
+                  Alert.alert('Error', 'No se pudieron eliminar las jugadas');
+                }
+              } catch (error) {
+                console.error('[testClearPendingPlays] Error al eliminar:', error);
+                Alert.alert('Error', `No se pudo eliminar: ${error.message}`);
+              }
+            },
           },
-          (tx, error) => {
-            console.error('[testClearPendingPlays] Error al contar:', error);
-            Alert.alert('Error', `Error al contar jugadas: ${error.message}`);
-          }
-        );
-      });
+        ]
+      );
     } catch (error) {
+      console.error('[testClearPendingPlays] Error:', error);
       Alert.alert('Error', error.message);
     }
   };
