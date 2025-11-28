@@ -379,26 +379,38 @@ export const savePlayOffline = async (playData) => {
 
 export const getPendingPlays = async () => {
   try {
+    console.log('[OfflineStorage] 📋 getPendingPlays: Iniciando...');
     const db = await getDatabase();
-    if (!db) return [];
+    if (!db) {
+      console.error('[OfflineStorage] ❌ Base de datos no disponible');
+      return [];
+    }
 
+    console.log('[OfflineStorage] 🔍 Ejecutando SELECT * FROM offline_plays...');
     const [result] = await db.executeSql(
-      `SELECT * FROM offline_plays ORDER BY created_at ASC`
+      `SELECT * FROM offline_plays ORDER BY created_at DESC`
     );
+
+    console.log(`[OfflineStorage] 📊 Filas encontradas: ${result.rows.length}`);
 
     const plays = [];
     for (let i = 0; i < result.rows.length; i++) {
       const row = result.rows.item(i);
+      console.log(`[OfflineStorage] 📝 Fila ${i + 1}:`, row);
+      
+      // El campo numeros ya es string, no necesita JSON.parse
       plays.push({
         ...row,
-        numeros: JSON.parse(row.numeros),
-        created_at: new Date(row.created_at),
+        numeros: row.numeros, // Ya es string "12,34,56,78"
+        created_at: row.created_at, // Mantener como string o convertir
       });
     }
 
+    console.log(`[OfflineStorage] ✅ Total jugadas retornadas: ${plays.length}`);
     return plays;
   } catch (error) {
-    console.error('[OfflineStorage] Error getting pending plays:', error);
+    console.error('[OfflineStorage] ❌ Error getting pending plays:', error);
+    console.error('[OfflineStorage] Error stack:', error.stack);
     return [];
   }
 };
