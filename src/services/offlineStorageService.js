@@ -1104,6 +1104,144 @@ export const getDatabaseInfo = async () => {
   }
 };
 
+// =================================================================
+// JUGADAS OFFLINE - GESTIÓN AVANZADA (FASE 7)
+// =================================================================
+
+/**
+ * Obtener TODAS las jugadas offline (pending, success, failed)
+ * Para la pantalla de registro
+ */
+export const getAllOfflinePlays = async () => {
+  try {
+    console.log('[OfflineStorage] Obteniendo todas las jugadas offline...');
+    const db = await getDatabase();
+    if (!db) {
+      console.error('[OfflineStorage] Base de datos no disponible');
+      return [];
+    }
+
+    const [result] = await db.executeSql(
+      `SELECT * FROM offline_plays ORDER BY created_at DESC`
+    );
+
+    const plays = [];
+    for (let i = 0; i < result.rows.length; i++) {
+      plays.push(result.rows.item(i));
+    }
+
+    console.log(`[OfflineStorage] ${plays.length} jugadas encontradas`);
+    return plays;
+  } catch (error) {
+    console.error('[OfflineStorage] Error obteniendo todas las jugadas:', error);
+    return [];
+  }
+};
+
+/**
+ * Eliminar una jugada offline por ID
+ * @param {number} playId - ID de la jugada a eliminar
+ */
+export const deleteOfflinePlay = async (playId) => {
+  try {
+    console.log(`[OfflineStorage] Eliminando jugada ${playId}...`);
+    const db = await getDatabase();
+    if (!db) {
+      throw new Error('Base de datos no disponible');
+    }
+
+    await db.executeSql(
+      `DELETE FROM offline_plays WHERE id = ?`,
+      [playId]
+    );
+
+    console.log(`[OfflineStorage] ✅ Jugada ${playId} eliminada`);
+    await addLog('INFO', 'Jugada eliminada', { playId });
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error eliminando jugada:', error);
+    throw error;
+  }
+};
+
+/**
+ * Limpiar todas las jugadas exitosas (status='success')
+ */
+export const clearSuccessfulPlays = async () => {
+  try {
+    console.log('[OfflineStorage] Limpiando jugadas exitosas...');
+    const db = await getDatabase();
+    if (!db) {
+      throw new Error('Base de datos no disponible');
+    }
+
+    const [result] = await db.executeSql(
+      `DELETE FROM offline_plays WHERE status = 'success'`
+    );
+
+    const deletedCount = result.rowsAffected || 0;
+    console.log(`[OfflineStorage] ✅ ${deletedCount} jugadas exitosas eliminadas`);
+    await addLog('INFO', 'Jugadas exitosas limpiadas', { count: deletedCount });
+    return deletedCount;
+  } catch (error) {
+    console.error('[OfflineStorage] Error limpiando exitosas:', error);
+    throw error;
+  }
+};
+
+/**
+ * Actualizar estado de una jugada
+ * @param {number} playId - ID de la jugada
+ * @param {string} status - Nuevo estado (pending, sending, success, failed)
+ * @param {string} error - Mensaje de error (opcional)
+ */
+export const updatePlayStatus = async (playId, status, error = null) => {
+  try {
+    const db = await getDatabase();
+    if (!db) {
+      throw new Error('Base de datos no disponible');
+    }
+
+    await db.executeSql(
+      `UPDATE offline_plays 
+       SET status = ?, last_error = ?, last_sync_attempt = ? 
+       WHERE id = ?`,
+      [status, error, new Date().toISOString(), playId]
+    );
+
+    console.log(`[OfflineStorage] Estado actualizado: jugada ${playId} -> ${status}`);
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error actualizando estado:', error);
+    throw error;
+  }
+};
+
+/**
+ * Incrementar contador de intentos de sincronización
+ * @param {number} playId - ID de la jugada
+ */
+export const incrementSyncAttempts = async (playId) => {
+  try {
+    const db = await getDatabase();
+    if (!db) {
+      throw new Error('Base de datos no disponible');
+    }
+
+    await db.executeSql(
+      `UPDATE offline_plays 
+       SET sync_attempts = sync_attempts + 1 
+       WHERE id = ?`,
+      [playId]
+    );
+
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error incrementando intentos:', error);
+    throw error;
+  }
+};
+
 export default {
   initOfflineDB,
   addLog,
@@ -1134,7 +1272,13 @@ export default {
   getSchedules,
   getLastCacheUpdate,
   setLastCacheUpdate,
-  // Jugadas offline - FASE 6 (placeholder)
+  // Jugadas offline - FASE 6
   savePlayOffline,
   getPendingPlays,
+  // Gestión avanzada - FASE 7
+  getAllOfflinePlays,
+  deleteOfflinePlay,
+  clearSuccessfulPlays,
+  updatePlayStatus,
+  incrementSyncAttempts,
 };

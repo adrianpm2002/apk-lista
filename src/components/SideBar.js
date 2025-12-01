@@ -19,10 +19,14 @@ import { authService } from '../services/authService';
 import ChangePasswordModal from './ChangePasswordModal';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { getAccessibilityProps } from '../utils/accessibilityUtils';
+import { useOffline } from '../contexts/OfflineContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
+  // Offline context para badge de pendientes
+  const { pendingPlays } = useOffline();
+  const pendingCount = pendingPlays?.filter(p => p.status === 'pending').length || 0;
 
   const sidebarWidth = screenWidth * 0.75;
   // Inicializar slideAnim con validación
@@ -86,6 +90,7 @@ const roleOptionsMap = {
   ],
   listero: [
   { id: 'play', icon: '🎮', title: 'Inicio' },
+  { id: 'offlineRegistry', icon: '📱', title: 'Registro Offline', badge: true },
   { id: 'statistics', icon: '📈', title: 'Estadísticas' },
   { id: 'insertResults', icon: '🎯', title: 'Resultados' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
@@ -176,6 +181,10 @@ const configOptions = role ? roleOptionsMap[role] : null;
     case 'jugadas':
       handleClose();
       navigation.navigate('Jugadas');
+      break;
+    case 'offlineRegistry':
+      handleClose();
+      navigation.navigate('OfflinePlayRegistry');
       break;
     case 'lotteryLimits':
       handleClose();
@@ -916,6 +925,11 @@ const configOptions = role ? roleOptionsMap[role] : null;
                         <Text style={styles.optionTitle}>
                           {option.title}
                         </Text>
+                        {option.badge && pendingCount > 0 && (
+                          <View style={styles.badge}>
+                            <Text style={styles.badgeText}>{pendingCount}</Text>
+                          </View>
+                        )}
                       </View>
                       <Text style={styles.arrowIcon}>▶</Text>
                     </Pressable>
@@ -1539,7 +1553,22 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
 
-
+  // Badge para jugadas pendientes
+  badge: {
+    backgroundColor: '#2196F3',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
 
   // Pressed states
   buttonPressed: {

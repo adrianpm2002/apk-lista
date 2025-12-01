@@ -1,0 +1,703 @@
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, Alert, ScrollView } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import * as OfflineStorage from '../services/offlineStorageService';
+import { useOffline } from '../contexts/OfflineContext';
+
+/**
+ * Pantalla para visualizar y gestionar jugadas offline pendientes
+ * FASE 7: Registro de Jugadas Offline
+ */
+
+const getPlayTypeLabel = (playType) => ({
+  fijo: 'Fijo',
+  corrido: 'Corrido',
+  posicion: 'Posición',
+  parle: 'Parle',
+  centena: 'Centena',
+  tripleta: 'Tripleta'
+}[playType] || playType || 'N/A');
+
+const getStatusInfo = (status) => {
+  switch (status) {
+    case 'pending':
+      return { label: 'Pendiente', color: '#FF9800', icon: '⏳' };
+    case 'sending':
+      return { label: 'Enviando', color: '#2196F3', icon: '📤' };
+    case 'success':
+      return { label: 'Exitosa', color: '#4CAF50', icon: '✓' };
+    case 'failed':
+      return { label: 'Fallida', color: '#F44336', icon: '✗' };
+    default:
+      return { label: status, color: '#757575', icon: '?' };
+  }
+};
+
+const OfflinePlayRegistryScreen = ({ navigation }) => {
+  const { loadPendingPlays } = useOffline();
+  
+  const [plays, setPlays] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  /**
+   * Cargar jugadas offline desde SQLite
+   */
+  const loadPlays = async () => {
+    try {
+      setIsLoading(true);
+      const allPlays = await OfflineStorage.getAllOfflinePlays();
+      setPlays(allPlays || []);
+    } catch (error) {
+      console.error('[OfflineRegistry] Error cargando jugadas:', error);
+      Alert.alert('Error', 'No se pudieron cargar las jugadas offline');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  /**
+   * Recargar al enfocar la pantalla
+   */
+  useFocusEffect(
+    useCallback(() => {
+      loadPlays();
+    }, [])
+  );
+
+  /**
+   * Pull to refresh
+   */
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    loadPlays();
+  };
+
+  /**
+   * Calcular estadísticas
+   */
+  const getStats = () => {
+    const pending = plays.filter(p => p.status === 'pending').length;
+    const success = plays.filter(p => p.status === 'success').length;
+    const failed = plays.filter(p => p.status === 'failed').length;
+    const totalAmount = plays.reduce((sum, p) => sum + (parseFloat(p.monto_total) || 0), 0);
+
+    return { pending, success, failed, total: plays.length, totalAmount };
+  };
+
+  /**
+   * Eliminar una jugada
+   */
+  const handleDelete = async (playId) => {
+    Alert.alert(
+      'Confirmar eliminación',
+      '¿Estás seguro de eliminar esta jugada?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await OfflineStorage.deleteOfflinePlay(playId);
+              await loadPlays();
+              await loadPendingPlays(); // Actualizar context
+              Alert.alert('Éxito', 'Jugada eliminada');
+            } catch (error) {
+              console.error('[OfflineRegistry] Error eliminando:', error);
+              Alert.alert('Error', 'No se pudo eliminar la jugada');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  /**
+   * Eliminar jugadas exitosas
+   */
+  const handleClearSuccessful = async () => {
+    const successCount = plays.filter(p => p.status === 'success').length;
+    
+    if (successCount === 0) {
+      Alert.alert('Info', 'No hay jugadas exitosas para limpiar');
+      return;
+    }
+
+    Alert.alert(
+      'Limpiar exitosas',
+      `¿Eliminar ${successCount} jugada(s) exitosa(s)?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await OfflineStorage.clearSuccessfulPlays();
+              await loadPlays();
+              await loadPendingPlays();
+              Alert.alert('Éxito', `${successCount} jugada(s) eliminada(s)`);
+            } catch (error) {
+              console.error('[OfflineRegistry] Error limpiando exitosas:', error);
+              Alert.alert('Error', 'No se pudieron eliminar las jugadas');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  /**
+   * Eliminar jugadas seleccionadas
+   */
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+
+    Alert.alert(
+      'Confirmar eliminación',
+      `¿Eliminar ${selectedIds.size} jugada(s) seleccionada(s)?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              for (const id of selectedIds) {
+                await OfflineStorage.deleteOfflinePlay(id);
+              }
+              setSelectedIds(new Set());
+              setSelectionMode(false);
+              await loadPlays();
+              await loadPendingPlays();
+              Alert.alert('Éxito', `${selectedIds.size} jugada(s) eliminada(s)`);
+            } catch (error) {
+              console.error('[OfflineRegistry] Error eliminando seleccionadas:', error);
+              Alert.alert('Error', 'No se pudieron eliminar las jugadas');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  /**
+   * Toggle selección de una jugada
+   */
+  const toggleSelection = (id) => {
+    const newSelection = new Set(selectedIds);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedIds(newSelection);
+  };
+
+  /**
+   * Toggle modo selección
+   */
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    setSelectedIds(new Set());
+  };
+
+  /**
+   * Renderizar item de jugada
+   */
+  const renderPlayItem = ({ item }) => {
+    const statusInfo = getStatusInfo(item.status);
+    const isExpanded = expandedId === item.id;
+    const isSelected = selectedIds.has(item.id);
+
+    const handlePress = () => {
+      if (selectionMode) {
+        toggleSelection(item.id);
+      } else {
+        setExpandedId(isExpanded ? null : item.id);
+      }
+    };
+
+    const handleLongPress = () => {
+      if (!selectionMode) {
+        setSelectionMode(true);
+        toggleSelection(item.id);
+      }
+    };
+
+    return (
+      <Pressable
+        onPress={handlePress}
+        onLongPress={handleLongPress}
+        style={[
+          styles.playCard,
+          isSelected && styles.playCardSelected
+        ]}
+      >
+        {/* Header */}
+        <View style={styles.playHeader}>
+          <View style={styles.playHeaderLeft}>
+            <Text style={[styles.statusIcon, { color: statusInfo.color }]}>
+              {statusInfo.icon}
+            </Text>
+            <View style={styles.playHeaderInfo}>
+              <Text style={styles.playNumbers} numberOfLines={1}>
+                {item.numeros || 'Sin números'}
+              </Text>
+              <Text style={styles.playMeta}>
+                {getPlayTypeLabel(item.tipo_jugada)} • ${parseFloat(item.monto_unitario || 0).toFixed(2)}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.playHeaderRight}>
+            <Text style={[styles.statusLabel, { color: statusInfo.color }]}>
+              {statusInfo.label}
+            </Text>
+            <Text style={styles.playTotal}>
+              ${parseFloat(item.monto_total || 0).toFixed(2)}
+            </Text>
+          </View>
+        </View>
+
+        {/* Info adicional */}
+        <View style={styles.playInfo}>
+          <Text style={styles.playInfoText} numberOfLines={1}>
+            📍 {item.nota || 'Sin nota'}
+          </Text>
+          <Text style={styles.playInfoText}>
+            🕐 {new Date(item.created_at).toLocaleString('es-DO')}
+          </Text>
+        </View>
+
+        {/* Detalle expandido */}
+        {isExpanded && (
+          <View style={styles.playExpanded}>
+            <View style={styles.playExpandedRow}>
+              <Text style={styles.playExpandedLabel}>Números:</Text>
+              <Text style={styles.playExpandedValue}>{item.numeros}</Text>
+            </View>
+            <View style={styles.playExpandedRow}>
+              <Text style={styles.playExpandedLabel}>Jugada:</Text>
+              <Text style={styles.playExpandedValue}>{item.jugada || 'N/A'}</Text>
+            </View>
+            <View style={styles.playExpandedRow}>
+              <Text style={styles.playExpandedLabel}>Comando:</Text>
+              <Text style={styles.playExpandedValue}>{item.comando || 'N/A'}</Text>
+            </View>
+            {item.last_error && (
+              <View style={styles.playExpandedRow}>
+                <Text style={[styles.playExpandedLabel, styles.errorLabel]}>Error:</Text>
+                <Text style={[styles.playExpandedValue, styles.errorValue]}>
+                  {item.last_error}
+                </Text>
+              </View>
+            )}
+            <View style={styles.playExpandedRow}>
+              <Text style={styles.playExpandedLabel}>Intentos:</Text>
+              <Text style={styles.playExpandedValue}>{item.sync_attempts || 0}</Text>
+            </View>
+
+            {/* Botones de acción */}
+            <View style={styles.playActions}>
+              {item.status === 'pending' && (
+                <>
+                  <Pressable
+                    style={[styles.actionButton, styles.actionButtonPrimary]}
+                    onPress={() => {
+                      // TODO: Implementar en FASE 8
+                      Alert.alert('Próximamente', 'Función de envío individual en FASE 8');
+                    }}
+                  >
+                    <Text style={styles.actionButtonText}>📤 Enviar</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.actionButton, styles.actionButtonDanger]}
+                    onPress={() => handleDelete(item.id)}
+                  >
+                    <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
+                  </Pressable>
+                </>
+              )}
+              {item.status === 'failed' && (
+                <>
+                  <Pressable
+                    style={[styles.actionButton, styles.actionButtonWarning]}
+                    onPress={() => {
+                      // TODO: Implementar en FASE 8
+                      Alert.alert('Próximamente', 'Función de reintento en FASE 8');
+                    }}
+                  >
+                    <Text style={styles.actionButtonText}>🔄 Reintentar</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.actionButton, styles.actionButtonDanger]}
+                    onPress={() => handleDelete(item.id)}
+                  >
+                    <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
+                  </Pressable>
+                </>
+              )}
+              {item.status === 'success' && (
+                <Pressable
+                  style={[styles.actionButton, styles.actionButtonDanger]}
+                  onPress={() => handleDelete(item.id)}
+                >
+                  <Text style={styles.actionButtonText}>🗑️ Eliminar</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Checkbox en modo selección */}
+        {selectionMode && (
+          <View style={styles.checkbox}>
+            {isSelected && <Text style={styles.checkmark}>✓</Text>}
+          </View>
+        )}
+      </Pressable>
+    );
+  };
+
+  const stats = getStats();
+
+  return (
+    <View style={styles.container}>
+      {/* Header con estadísticas */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Registro Offline</Text>
+        <View style={styles.statsContainer}>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>{stats.pending}</Text>
+            <Text style={styles.statLabel}>Pendientes</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={[styles.statValue, { color: '#4CAF50' }]}>{stats.success}</Text>
+            <Text style={styles.statLabel}>Exitosas</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={[styles.statValue, { color: '#F44336' }]}>{stats.failed}</Text>
+            <Text style={styles.statLabel}>Fallidas</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>${stats.totalAmount.toFixed(2)}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Botones de acción */}
+      <View style={styles.actionBar}>
+        {selectionMode ? (
+          <>
+            <Pressable
+              style={[styles.topButton, styles.topButtonSecondary]}
+              onPress={toggleSelectionMode}
+            >
+              <Text style={styles.topButtonText}>Cancelar</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.topButton, styles.topButtonDanger]}
+              onPress={handleDeleteSelected}
+              disabled={selectedIds.size === 0}
+            >
+              <Text style={styles.topButtonText}>
+                Eliminar ({selectedIds.size})
+              </Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Pressable
+              style={[styles.topButton, styles.topButtonPrimary]}
+              onPress={() => {
+                // TODO: Implementar en FASE 8
+                Alert.alert('Próximamente', 'Función de sincronización en FASE 8');
+              }}
+              disabled={stats.pending === 0}
+            >
+              <Text style={styles.topButtonText}>📤 Enviar Todo ({stats.pending})</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.topButton, styles.topButtonSecondary]}
+              onPress={handleClearSuccessful}
+              disabled={stats.success === 0}
+            >
+              <Text style={styles.topButtonText}>🧹 Limpiar Exitosas</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.topButton, styles.topButtonSecondary]}
+              onPress={toggleSelectionMode}
+              disabled={plays.length === 0}
+            >
+              <Text style={styles.topButtonText}>☑️ Seleccionar</Text>
+            </Pressable>
+          </>
+        )}
+      </View>
+
+      {/* Lista de jugadas */}
+      {isLoading && plays.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Cargando jugadas...</Text>
+        </View>
+      ) : plays.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyIcon}>📭</Text>
+          <Text style={styles.emptyText}>No hay jugadas offline</Text>
+          <Text style={styles.emptySubtext}>
+            Las jugadas creadas sin conexión aparecerán aquí
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={plays}
+          renderItem={renderPlayItem}
+          keyExtractor={item => item.id.toString()}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={['#2196F3']}
+            />
+          }
+          contentContainerStyle={styles.listContent}
+        />
+      )}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
+  header: {
+    backgroundColor: '#FFF',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#212121',
+    marginBottom: 12,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statBox: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2196F3',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#757575',
+    marginTop: 4,
+  },
+  actionBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF',
+    padding: 12,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  topButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topButtonPrimary: {
+    backgroundColor: '#2196F3',
+  },
+  topButtonSecondary: {
+    backgroundColor: '#757575',
+  },
+  topButtonDanger: {
+    backgroundColor: '#F44336',
+  },
+  topButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  listContent: {
+    padding: 12,
+  },
+  playCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    position: 'relative',
+  },
+  playCardSelected: {
+    borderColor: '#2196F3',
+    borderWidth: 2,
+    backgroundColor: '#E3F2FD',
+  },
+  playHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  playHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  statusIcon: {
+    fontSize: 24,
+    marginRight: 8,
+  },
+  playHeaderInfo: {
+    flex: 1,
+  },
+  playNumbers: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#212121',
+  },
+  playMeta: {
+    fontSize: 12,
+    color: '#757575',
+    marginTop: 2,
+  },
+  playHeaderRight: {
+    alignItems: 'flex-end',
+    marginLeft: 8,
+  },
+  statusLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  playTotal: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#212121',
+  },
+  playInfo: {
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    paddingTop: 8,
+  },
+  playInfoText: {
+    fontSize: 12,
+    color: '#757575',
+    marginBottom: 4,
+  },
+  playExpanded: {
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    marginTop: 8,
+    paddingTop: 8,
+  },
+  playExpandedRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  playExpandedLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#424242',
+    width: 80,
+  },
+  playExpandedValue: {
+    fontSize: 12,
+    color: '#757575',
+    flex: 1,
+  },
+  errorLabel: {
+    color: '#F44336',
+  },
+  errorValue: {
+    color: '#F44336',
+  },
+  playActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  actionButtonPrimary: {
+    backgroundColor: '#2196F3',
+  },
+  actionButtonWarning: {
+    backgroundColor: '#FF9800',
+  },
+  actionButtonDanger: {
+    backgroundColor: '#F44336',
+  },
+  actionButtonText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  checkbox: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#2196F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF',
+  },
+  checkmark: {
+    color: '#2196F3',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#424242',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#757575',
+    textAlign: 'center',
+  },
+});
+
+export default OfflinePlayRegistryScreen;
