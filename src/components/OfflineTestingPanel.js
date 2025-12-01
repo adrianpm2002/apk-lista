@@ -386,6 +386,7 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
         id_horario: horario.id,
         jugada: numeros,
         numeros: numeros,
+        tipo_jugada: 'fijo', // Tipo de jugada para pruebas
         monto_unitario: montoUnitario,
         monto_total: montoTotal,
         nota: 'Jugada de prueba offline',
@@ -565,7 +566,7 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
                       .insert({
                         id_listero: play.id_listero,
                         id_horario: play.id_horario,
-                        jugada: play.jugada,
+                        jugada: play.tipo_jugada || play.jugada,
                         numeros: play.numeros,
                         monto_unitario: play.monto_unitario,
                         monto_total: play.monto_total,

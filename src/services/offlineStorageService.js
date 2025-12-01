@@ -9,7 +9,7 @@ if (Platform.OS !== 'web') {
 }
 
 const DB_NAME = 'offline.db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance = null;
 
@@ -96,6 +96,14 @@ const runMigrations = async (db, fromVersion, toVersion) => {
     // Migración v1: Crear todas las tablas
     await createInitialSchema(db);
   }
+
+  if (fromVersion < 2 && toVersion >= 2) {
+    // Migración v2: Agregar columna tipo_jugada a offline_plays
+    console.log('[OfflineStorage] Migrating to v2: Adding tipo_jugada column');
+    await db.executeSql(`
+      ALTER TABLE offline_plays ADD COLUMN tipo_jugada TEXT;
+    `);
+  }
 };
 
 /**
@@ -112,6 +120,7 @@ const createInitialSchema = async (db) => {
       id_horario TEXT NOT NULL,
       jugada TEXT NOT NULL,
       numeros TEXT NOT NULL,
+      tipo_jugada TEXT,
       monto_unitario REAL NOT NULL,
       monto_total REAL,
       nota TEXT,
@@ -660,15 +669,16 @@ export const saveOfflinePlay = async (playData) => {
         (tx) => {
           tx.executeSql(
             `INSERT INTO offline_plays (
-              id_listero, id_horario, jugada, numeros, 
+              id_listero, id_horario, jugada, numeros, tipo_jugada,
               monto_unitario, monto_total, nota, comando, id_cliente,
               created_at, created_from, status, last_error, sync_attempts, last_sync_attempt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               playData.user_id,
               playData.id_horario,
               playData.jugada || playData.numeros, // usar jugada si existe, sino numeros
               playData.numeros,
+              playData.tipo_jugada || null,
               playData.monto_unitario,
               playData.monto_total,
               playData.nota || `${playData.nombre_loteria || 'Lotería'} - ${playData.nombre_horario || 'Horario'}`,

@@ -600,6 +600,7 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
                   user_id: user?.id,
                   id_horario: scheduleId,
                   numeros: instr.numbers.join(','),
+                  tipo_jugada: instr.playType,
                   monto_unitario: instr.amountEach,
                   nota: note.trim(),
                   comando: plays.trim(),

@@ -15,6 +15,7 @@ export const useOfflinePlaySubmission = () => {
    * @param {string} playData.user_id - ID del usuario (listero)
    * @param {string} playData.id_horario - ID del horario
    * @param {string} playData.numeros - Números separados por coma
+   * @param {string} playData.tipo_jugada - Tipo de jugada (fijo, corrido, parle, centena, tripleta)
    * @param {number} playData.monto_unitario - Monto por cada número
    * @param {string} playData.nota - Nota opcional
    * @param {string} playData.comando - Comando opcional
@@ -73,9 +74,10 @@ export const useOfflinePlaySubmission = () => {
         user_id: playData.user_id,
         id_horario: playData.id_horario,
         numeros: playData.numeros.trim(),
+        tipo_jugada: playData.tipo_jugada || null,
         monto_unitario: montoUnitario,
         monto_total: montoTotal,
-        jugada: playData.numeros.trim(), // Repetir numeros en jugada
+        jugada: playData.tipo_jugada || playData.numeros.trim(), // Usar tipo_jugada, sino numeros
         nota: playData.nota || `${lotteryData.nombre} - ${scheduleData.nombre}`,
         comando: playData.comando || null,
         id_cliente: playData.id_cliente || null,

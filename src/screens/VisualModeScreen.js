@@ -691,6 +691,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
                   user_id: user?.id || userId,
                   id_horario,
                   numeros: numerosForThisPlay,
+                  tipo_jugada: pt,
                   monto_unitario: unit,
                   nota: note?.trim() || null,
                   comando: plays.trim(),
