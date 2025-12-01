@@ -19,14 +19,15 @@ import { authService } from '../services/authService';
 import ChangePasswordModal from './ChangePasswordModal';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { getAccessibilityProps } from '../utils/accessibilityUtils';
-import { useOffline } from '../contexts/OfflineContext';
+import { useOfflineSafe } from '../contexts/OfflineContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
-  // Offline context para badge de pendientes
-  const { pendingPlays } = useOffline();
-  const pendingCount = pendingPlays?.filter(p => p.status === 'pending').length || 0;
+  // Offline context para badge de pendientes (seguro - puede ser null)
+  const offlineContext = useOfflineSafe();
+  const pendingPlays = offlineContext?.pendingPlays || [];
+  const pendingCount = pendingPlays.filter(p => p.status === 'pending').length;
 
   const sidebarWidth = screenWidth * 0.75;
   // Inicializar slideAnim con validación

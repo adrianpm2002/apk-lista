@@ -226,4 +226,13 @@ export const useOffline = () => {
   return context;
 };
 
+/**
+ * Hook seguro que no lanza error si no está dentro del provider
+ * Útil para componentes que pueden existir sin OfflineContext
+ */
+export const useOfflineSafe = () => {
+  const context = useContext(OfflineContext);
+  return context || null;
+};
+
 export default OfflineContext;
