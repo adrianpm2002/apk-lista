@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, Alert, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as OfflineStorage from '../services/offlineStorageService';
-import { useOffline } from '../contexts/OfflineContext';
+import { useOfflineSafe } from '../contexts/OfflineContext';
 
 /**
  * Pantalla para visualizar y gestionar jugadas offline pendientes
@@ -34,7 +34,8 @@ const getStatusInfo = (status) => {
 };
 
 const OfflinePlayRegistryScreen = ({ navigation }) => {
-  const { loadPendingPlays } = useOffline();
+  const offlineContext = useOfflineSafe();
+  const loadPendingPlays = offlineContext?.loadPendingPlays || (() => {});
   
   const [plays, setPlays] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
