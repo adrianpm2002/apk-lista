@@ -361,12 +361,26 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
       const schedules = await OfflineStorage.getSchedules(null);
 
       if (!lotteries || lotteries.length === 0) {
-        Alert.alert('Error', 'No hay loterías en caché.\n\nPrimero sincroniza el caché (FASE 5)');
+        Alert.alert(
+          'Caché vacío',
+          'No hay loterías en caché.\n\n¿Deseas sincronizar el caché ahora?',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Sincronizar', onPress: testSyncCache }
+          ]
+        );
         return;
       }
 
       if (!schedules || schedules.length === 0) {
-        Alert.alert('Error', 'No hay horarios en caché.\n\nPrimero sincroniza el caché (FASE 5)');
+        Alert.alert(
+          'Caché vacío',
+          'No hay horarios en caché.\n\n¿Deseas sincronizar el caché ahora?',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Sincronizar', onPress: testSyncCache }
+          ]
+        );
         return;
       }
 
