@@ -284,7 +284,17 @@ export const syncOfflineCache = async () => {
 
     // 4. Guardar loterías en SQLite
     if (lotteries && lotteries.length > 0) {
-      await OfflineStorage.saveLotteries(lotteries);
+      const savedLotteries = await OfflineStorage.saveLotteries(lotteries);
+      if (!savedLotteries) {
+        console.error('[BackgroundTask] ❌ No se pudieron guardar loterías (probablemente en Web - SQLite no disponible)');
+        await OfflineStorage.addLog('ERROR', 'Cache sync failed - cannot save lotteries', { 
+          reason: 'SQLite not available (probably on web platform)' 
+        });
+        return { 
+          success: false, 
+          error: 'SQLite no disponible. Modo offline solo funciona en móvil (Android/iOS)' 
+        };
+      }
       await OfflineStorage.setLastCacheUpdate('lotteries', Date.now());
       console.log('[BackgroundTask] ✅ Loterías guardadas en caché');
     }
@@ -315,7 +325,17 @@ export const syncOfflineCache = async () => {
 
     // 7. Guardar horarios en SQLite
     if (schedules && schedules.length > 0) {
-      await OfflineStorage.saveSchedules(schedules);
+      const savedSchedules = await OfflineStorage.saveSchedules(schedules);
+      if (!savedSchedules) {
+        console.error('[BackgroundTask] ❌ No se pudieron guardar horarios (probablemente en Web - SQLite no disponible)');
+        await OfflineStorage.addLog('ERROR', 'Cache sync failed - cannot save schedules', { 
+          reason: 'SQLite not available (probably on web platform)' 
+        });
+        return { 
+          success: false, 
+          error: 'SQLite no disponible. Modo offline solo funciona en móvil (Android/iOS)' 
+        };
+      }
       await OfflineStorage.setLastCacheUpdate('schedules', Date.now());
       console.log('[BackgroundTask] ✅ Horarios guardados en caché');
     }

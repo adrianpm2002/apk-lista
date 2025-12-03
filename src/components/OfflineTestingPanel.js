@@ -836,6 +836,19 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
               </Pressable>
             </View>
 
+            {/* Advertencia para Web */}
+            {Platform.OS === 'web' && (
+              <View style={styles.warningBanner}>
+                <Text style={styles.warningIcon}>⚠️</Text>
+                <View style={styles.warningTextContainer}>
+                  <Text style={styles.warningTitle}>Plataforma Web Detectada</Text>
+                  <Text style={styles.warningText}>
+                    SQLite no está disponible en Web. El modo offline solo funciona en dispositivos móviles (Android/iOS).
+                  </Text>
+                </View>
+              </View>
+            )}
+
             {/* Estado de conexión */}
             <View style={styles.statusSection}>
               <Text style={styles.sectionTitle}>Estado de Conexión</Text>
@@ -1107,6 +1120,37 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     lineHeight: 16,
   },
+  // Badge de advertencia Web
+  warningBanner: {
+    backgroundColor: '#fff3cd',
+    borderWidth: 1,
+    borderColor: '#ffc107',
+    borderRadius: 8,
+    padding: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  warningIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  warningTextContainer: {
+    flex: 1,
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#856404',
+    marginBottom: 4,
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#856404',
+    lineHeight: 18,
+  },
+
   // Badge de estado online/offline
   statusBadge: {
     paddingVertical: 8,
