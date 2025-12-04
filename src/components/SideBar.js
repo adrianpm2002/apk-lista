@@ -902,6 +902,14 @@ const configOptions = role ? roleOptionsMap[role] : null;
               </Pressable>
             </View>
 
+            {/* FASE 11: Indicador de modo offline */}
+            {offlineContext && !offlineContext.isOnline && (
+              <View style={styles.offlineIndicator}>
+                <Text style={styles.offlineIcon}>📴</Text>
+                <Text style={styles.offlineText}>Modo Offline</Text>
+              </View>
+            )}
+
             {/* Divider */}
             <View style={styles.divider} />
 
@@ -1569,6 +1577,28 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+
+  // FASE 11: Indicador de modo offline
+  offlineIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FF9800',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  offlineIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  offlineText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFF',
   },
 
   // Pressed states

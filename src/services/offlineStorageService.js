@@ -2,14 +2,22 @@ import { Platform } from 'react-native';
 
 // Solo importar SQLite en móvil
 let SQLite = null;
+let sqliteLoadError = null;
+
 if (Platform.OS !== 'web') {
-  SQLite = require('react-native-sqlite-storage');
-  SQLite.DEBUG(true);
-  SQLite.enablePromise(true);
+  try {
+    SQLite = require('react-native-sqlite-storage');
+    SQLite.DEBUG(true);
+    SQLite.enablePromise(true);
+    console.log('[OfflineStorage] ✅ SQLite module loaded successfully');
+  } catch (error) {
+    sqliteLoadError = error;
+    console.error('[OfflineStorage] ❌ Error loading SQLite module:', error);
+  }
 }
 
 const DB_NAME = 'offline.db';
-const DB_VERSION = 2;
+const DB_VERSION = 1; // Versión 1 incluye tipo_jugada desde el inicio
 
 let dbInstance = null;
 
@@ -21,8 +29,18 @@ let dbInstance = null;
  * Obtiene o crea instancia de base de datos offline
  */
 const getDatabase = async () => {
-  if (Platform.OS === 'web' || !SQLite) {
-    console.log('[OfflineStorage] ⚠️ SQLite not available on web platform - Offline mode disabled');
+  // Verificar plataforma
+  if (Platform.OS === 'web') {
+    console.log('[OfflineStorage] ⚠️ Platform is Web - SQLite not available');
+    return null;
+  }
+
+  // Verificar si SQLite se cargó correctamente
+  if (!SQLite) {
+    console.error('[OfflineStorage] ❌ SQLite module not loaded');
+    if (sqliteLoadError) {
+      console.error('[OfflineStorage] Load error:', sqliteLoadError.message);
+    }
     return null;
   }
 
@@ -31,19 +49,32 @@ const getDatabase = async () => {
   }
 
   try {
+    console.log('[OfflineStorage] Opening database...');
     const db = await SQLite.openDatabase({
       name: DB_NAME,
       location: 'default',
     });
+    console.log('[OfflineStorage] ✅ Database opened');
 
+    console.log('[OfflineStorage] Initializing tables...');
     await initializeTables(db);
+    console.log('[OfflineStorage] ✅ Tables initialized');
     
     dbInstance = db;
-    console.log('[OfflineStorage] Database initialized successfully');
+    console.log('[OfflineStorage] ✅ Database ready');
     return db;
   } catch (error) {
-    console.error('[OfflineStorage] Error opening database:', error);
-    throw error;
+    console.error('[OfflineStorage] ❌ Error in getDatabase:', error);
+    console.error('[OfflineStorage] Error type:', error.constructor.name);
+    console.error('[OfflineStorage] Error message:', error.message);
+    console.error('[OfflineStorage] Error stack:', error.stack);
+    console.error('[OfflineStorage] Platform:', Platform.OS);
+    
+    // Limpiar instancia en caso de error
+    dbInstance = null;
+    
+    // No hacer throw para que el sistema pueda continuar
+    return null;
   }
 };
 
@@ -52,6 +83,7 @@ const getDatabase = async () => {
  */
 const initializeTables = async (db) => {
   try {
+    console.log('[OfflineStorage] Creating metadata table...');
     // Tabla de metadata para versiones
     await db.executeSql(`
       CREATE TABLE IF NOT EXISTS db_metadata (
@@ -59,7 +91,9 @@ const initializeTables = async (db) => {
         value TEXT
       )
     `);
+    console.log('[OfflineStorage] ✅ Metadata table ready');
 
+    console.log('[OfflineStorage] Reading current version...');
     // Obtener versión actual
     const [metaResult] = await db.executeSql(
       "SELECT value FROM db_metadata WHERE key = 'version'"
@@ -69,19 +103,28 @@ const initializeTables = async (db) => {
       ? parseInt(metaResult.rows.item(0).value) 
       : 0;
 
+    console.log(`[OfflineStorage] Current DB version: ${currentVersion}, Target: ${DB_VERSION}`);
+
     if (currentVersion < DB_VERSION) {
+      console.log('[OfflineStorage] Running migrations...');
       await runMigrations(db, currentVersion, DB_VERSION);
       
+      console.log('[OfflineStorage] Updating version metadata...');
       await db.executeSql(
         "INSERT OR REPLACE INTO db_metadata (key, value) VALUES ('version', ?)",
         [DB_VERSION.toString()]
       );
+      console.log('[OfflineStorage] ✅ Version updated');
+    } else {
+      console.log('[OfflineStorage] Database is up to date');
     }
 
-    console.log('[OfflineStorage] Tables initialized successfully');
+    console.log('[OfflineStorage] ✅ Tables initialized successfully');
     return true;
   } catch (error) {
-    console.error('[OfflineStorage] Error initializing tables:', error);
+    console.error('[OfflineStorage] ❌ Error initializing tables:', error);
+    console.error('[OfflineStorage] Error message:', error.message);
+    console.error('[OfflineStorage] Error stack:', error.stack);
     throw error;
   }
 };
@@ -93,17 +136,12 @@ const runMigrations = async (db, fromVersion, toVersion) => {
   console.log(`[OfflineStorage] Running migrations from v${fromVersion} to v${toVersion}`);
 
   if (fromVersion < 1 && toVersion >= 1) {
-    // Migración v1: Crear todas las tablas
+    // Migración v1: Crear todas las tablas (incluyendo tipo_jugada desde el inicio)
     await createInitialSchema(db);
   }
 
-  if (fromVersion < 2 && toVersion >= 2) {
-    // Migración v2: Agregar columna tipo_jugada a offline_plays
-    console.log('[OfflineStorage] Migrating to v2: Adding tipo_jugada column');
-    await db.executeSql(`
-      ALTER TABLE offline_plays ADD COLUMN tipo_jugada TEXT;
-    `);
-  }
+  // Nota: La migración v2 se eliminó porque el campo tipo_jugada ya está en el esquema inicial
+  // Para usuarios que instalaron v1 sin tipo_jugada, deben desinstalar y reinstalar la app
 };
 
 /**
@@ -112,6 +150,7 @@ const runMigrations = async (db, fromVersion, toVersion) => {
 const createInitialSchema = async (db) => {
   console.log('[OfflineStorage] Creating initial schema...');
 
+  console.log('[OfflineStorage] Creating offline_plays table...');
   // Tabla de jugadas offline
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_plays (
@@ -134,7 +173,9 @@ const createInitialSchema = async (db) => {
       last_sync_attempt TEXT
     )
   `);
+  console.log('[OfflineStorage] ✅ offline_plays table created');
 
+  console.log('[OfflineStorage] Creating offline_lotteries table...');
   // Tabla de loterías cacheadas
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_lotteries (
@@ -146,7 +187,9 @@ const createInitialSchema = async (db) => {
       updated_at TEXT
     )
   `);
+  console.log('[OfflineStorage] ✅ offline_lotteries table created');
 
+  console.log('[OfflineStorage] Creating offline_schedules table...');
   // Tabla de horarios cacheados
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_schedules (
@@ -159,7 +202,9 @@ const createInitialSchema = async (db) => {
       updated_at TEXT
     )
   `);
+  console.log('[OfflineStorage] ✅ offline_schedules table created');
 
+  console.log('[OfflineStorage] Creating offline_credentials table...');
   // Tabla de credenciales encriptadas
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_credentials (
@@ -172,7 +217,9 @@ const createInitialSchema = async (db) => {
       session_expires TEXT NOT NULL
     )
   `);
+  console.log('[OfflineStorage] ✅ offline_credentials table created');
 
+  console.log('[OfflineStorage] Creating offline_config table...');
   // Tabla de configuración
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_config (
@@ -180,7 +227,9 @@ const createInitialSchema = async (db) => {
       value TEXT NOT NULL
     )
   `);
+  console.log('[OfflineStorage] ✅ offline_config table created');
 
+  console.log('[OfflineStorage] Creating offline_logs table...');
   // Tabla de logs para debugging
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_logs (
@@ -191,7 +240,9 @@ const createInitialSchema = async (db) => {
       timestamp TEXT NOT NULL
     )
   `);
+  console.log('[OfflineStorage] ✅ offline_logs table created');
 
+  console.log('[OfflineStorage] Creating offline_stats_cache table...');
   // Tabla de caché de estadísticas
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_stats_cache (
@@ -201,7 +252,9 @@ const createInitialSchema = async (db) => {
       last_sync TEXT NOT NULL
     )
   `);
+  console.log('[OfflineStorage] ✅ offline_stats_cache table created');
 
+  console.log('[OfflineStorage] Creating indexes...');
   // Crear índices para optimizar consultas
   await db.executeSql(`
     CREATE INDEX IF NOT EXISTS idx_plays_status ON offline_plays(status)
@@ -218,8 +271,9 @@ const createInitialSchema = async (db) => {
   await db.executeSql(`
     CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON offline_logs(timestamp DESC)
   `);
+  console.log('[OfflineStorage] ✅ Indexes created');
 
-  console.log('[OfflineStorage] Initial schema created successfully');
+  console.log('[OfflineStorage] ✅ Initial schema created successfully');
 };
 
 // ========================================
@@ -435,22 +489,34 @@ export const getPendingPlays = async () => {
  */
 export const saveLotteries = async (lotteries) => {
   try {
+    console.log('[OfflineStorage] saveLotteries called');
+    console.log('[OfflineStorage] Platform.OS:', Platform.OS);
+    
     if (!Array.isArray(lotteries) || lotteries.length === 0) {
-      console.log('[OfflineStorage] saveLotteries: Array vacío');
+      console.log('[OfflineStorage] saveLotteries: Array vacío o inválido');
       return false;
     }
 
     console.log(`[OfflineStorage] Guardando ${lotteries.length} loterías en caché...`);
+    console.log('[OfflineStorage] Llamando a getDatabase()...');
+    
     const db = await getDatabase();
+    
     if (!db) {
-      console.error('[OfflineStorage] Base de datos no disponible');
+      console.error('[OfflineStorage] ❌ getDatabase() retornó null');
+      console.error('[OfflineStorage] Platform.OS:', Platform.OS);
+      console.error('[OfflineStorage] SQLite disponible:', !!SQLite);
+      if (sqliteLoadError) {
+        console.error('[OfflineStorage] SQLite load error:', sqliteLoadError.message);
+      }
       return false;
     }
+
+    console.log('[OfflineStorage] ✅ Base de datos obtenida correctamente');
 
     // Guardar todas las loterías secuencialmente
     for (const lottery of lotteries) {
       console.log(`[OfflineStorage] Guardando lotería: ${lottery.nombre} (${lottery.id})`);
-      console.log(`[OfflineStorage] Datos completos:`, JSON.stringify(lottery));
       
       await db.executeSql(
         `INSERT OR REPLACE INTO offline_lotteries 
@@ -471,8 +537,14 @@ export const saveLotteries = async (lotteries) => {
     await addLog('INFO', 'Loterías guardadas en caché', { count: lotteries.length });
     return true;
   } catch (error) {
-    console.error('[OfflineStorage] Error guardando loterías:', error);
-    await addLog('ERROR', 'Error guardando loterías', { error: error.message });
+    console.error('[OfflineStorage] ❌ Error guardando loterías:', error);
+    console.error('[OfflineStorage] Error message:', error.message);
+    console.error('[OfflineStorage] Error stack:', error.stack);
+    await addLog('ERROR', 'Error guardando loterías', { 
+      error: error.message,
+      stack: error.stack,
+      platform: Platform.OS 
+    });
     return false;
   }
 };
@@ -1242,6 +1314,131 @@ export const incrementSyncAttempts = async (playId) => {
   }
 };
 
+/**
+ * Diagnóstico de SQLite - Retorna información sobre el estado del módulo
+ */
+export const getDiagnostics = () => {
+  return {
+    platform: Platform.OS,
+    sqliteLoaded: !!SQLite,
+    sqliteLoadError: sqliteLoadError ? {
+      message: sqliteLoadError.message,
+      name: sqliteLoadError.name,
+    } : null,
+    dbInstanceExists: !!dbInstance,
+  };
+};
+
+// ========================================
+// FASE 12: OPTIMIZACIONES
+// ========================================
+
+/**
+ * FASE 12.3: Recuperar jugadas interrumpidas
+ * 
+ * Al abrir la app, busca jugadas en status='sending' y las cambia a 'pending'
+ * Esto ocurre cuando la app se cierra durante una sincronización
+ */
+export const recoverInterruptedPlays = async () => {
+  try {
+    console.log('[OfflineStorage] 🔄 Verificando jugadas interrumpidas...');
+    
+    const db = await getDatabase();
+    if (!db) {
+      console.log('[OfflineStorage] ⚠️ Base de datos no disponible');
+      return 0;
+    }
+
+    // Contar jugadas en estado 'sending'
+    const [countResult] = await db.executeSql(
+      `SELECT COUNT(*) as total FROM offline_plays WHERE status = 'sending'`
+    );
+    
+    const total = countResult.rows.item(0).total;
+    
+    if (total === 0) {
+      console.log('[OfflineStorage] ✅ No hay jugadas interrumpidas');
+      return 0;
+    }
+
+    console.log('[OfflineStorage] ⚠️ Encontradas', total, 'jugadas interrumpidas');
+
+    // Cambiar estado de 'sending' a 'pending'
+    await db.executeSql(
+      `UPDATE offline_plays 
+       SET status = 'pending' 
+       WHERE status = 'sending'`
+    );
+
+    console.log('[OfflineStorage] ✅ Recuperadas', total, 'jugadas interrumpidas');
+    await addLog('INFO', 'Recovered interrupted plays', { count: total });
+
+    return total;
+  } catch (error) {
+    console.error('[OfflineStorage] ❌ Error recuperando jugadas interrumpidas:', error);
+    return 0;
+  }
+};
+
+/**
+ * FASE 12.1: Guardar múltiples jugadas en una transacción
+ * 
+ * Envuelve operaciones múltiples en una transacción con rollback automático
+ */
+export const saveMultiplePlaysTransaction = async (playsArray) => {
+  try {
+    console.log('[OfflineStorage] 💾 Guardando', playsArray.length, 'jugadas en transacción...');
+    
+    const db = await getDatabase();
+    if (!db) {
+      throw new Error('Base de datos no disponible');
+    }
+
+    return new Promise((resolve, reject) => {
+      db.transaction(
+        (tx) => {
+          // Ejecutar INSERT para cada jugada
+          playsArray.forEach((playData) => {
+            tx.executeSql(
+              `INSERT INTO offline_plays (
+                user_id, id_banco, id_loteria, id_horario,
+                numeros, tipo_jugada, monto_individual, monto_total,
+                play_data, status, created_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                playData.user_id,
+                playData.id_banco,
+                playData.id_loteria,
+                playData.id_horario,
+                JSON.stringify(playData.numeros),
+                playData.tipo_jugada,
+                playData.monto_individual,
+                playData.monto_total,
+                JSON.stringify(playData),
+                'pending',
+                new Date().toISOString(),
+              ]
+            );
+          });
+        },
+        // Error callback - se ejecuta el rollback automático
+        (error) => {
+          console.error('[OfflineStorage] ❌ Error en transacción:', error);
+          reject(error);
+        },
+        // Success callback - commit automático
+        () => {
+          console.log('[OfflineStorage] ✅ Transacción completada exitosamente');
+          resolve(playsArray.length);
+        }
+      );
+    });
+  } catch (error) {
+    console.error('[OfflineStorage] ❌ Error en saveMultiplePlaysTransaction:', error);
+    throw error;
+  }
+};
+
 export default {
   initOfflineDB,
   addLog,
@@ -1281,4 +1478,9 @@ export default {
   clearSuccessfulPlays,
   updatePlayStatus,
   incrementSyncAttempts,
+  // FASE 12: Optimizaciones
+  recoverInterruptedPlays,
+  saveMultiplePlaysTransaction,
+  // Diagnóstico
+  getDiagnostics,
 };

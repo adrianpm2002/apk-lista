@@ -14,7 +14,7 @@ const OfflineContext = createContext(null);
 const OFFLINE_MODE_KEY = '@offline_mode_enabled';
 const SESSION_DURATION_HOURS = 24;
 
-export const OfflineProvider = ({ children }) => {
+export const OfflineProvider = ({ children, onSessionExpired = null }) => {
   // Estado de conexión real (NetInfo)
   const { isOnline: isConnected, isChecking } = useConnection();
   
@@ -57,7 +57,8 @@ export const OfflineProvider = ({ children }) => {
   }, [isOnline, isSyncing]);
 
   /**
-   * Verificar validez de sesión offline cada hora
+   * FASE 12.2: Verificar validez de sesión offline cada hora
+   * Si la sesión expiró (>24h), se debe cerrar automáticamente
    */
   useEffect(() => {
     const checkSessionValidity = async () => {
@@ -65,9 +66,12 @@ export const OfflineProvider = ({ children }) => {
       if (!isOnline) {
         const isValid = await validateOfflineSession();
         if (!isValid) {
-          console.log('[OfflineContext] Sesión offline expirada (>24h)');
-          // Aquí podrías forzar logout o mostrar alerta
-          // Por ahora solo loguear
+          console.log('[OfflineContext] ⚠️ Sesión offline expirada (>24h)');
+          // FASE 12.2: Trigger para cerrar sesión
+          // El componente padre (App.js o AuthContext) debe escuchar este evento
+          if (onSessionExpired) {
+            onSessionExpired();
+          }
         }
       }
     };

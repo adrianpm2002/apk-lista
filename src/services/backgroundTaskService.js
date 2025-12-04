@@ -286,13 +286,17 @@ export const syncOfflineCache = async () => {
     if (lotteries && lotteries.length > 0) {
       const savedLotteries = await OfflineStorage.saveLotteries(lotteries);
       if (!savedLotteries) {
-        console.error('[BackgroundTask] ❌ No se pudieron guardar loterías (probablemente en Web - SQLite no disponible)');
+        console.error('[BackgroundTask] ❌ No se pudieron guardar loterías');
+        console.error('[BackgroundTask] Platform.OS:', require('react-native').Platform.OS);
+        
         await OfflineStorage.addLog('ERROR', 'Cache sync failed - cannot save lotteries', { 
-          reason: 'SQLite not available (probably on web platform)' 
+          reason: 'Database error',
+          platform: require('react-native').Platform.OS
         });
+        
         return { 
           success: false, 
-          error: 'SQLite no disponible. Modo offline solo funciona en móvil (Android/iOS)' 
+          error: `Error al guardar loterías en SQLite. Plataforma: ${require('react-native').Platform.OS}. Verifica que la base de datos esté correctamente inicializada.` 
         };
       }
       await OfflineStorage.setLastCacheUpdate('lotteries', Date.now());
@@ -327,13 +331,17 @@ export const syncOfflineCache = async () => {
     if (schedules && schedules.length > 0) {
       const savedSchedules = await OfflineStorage.saveSchedules(schedules);
       if (!savedSchedules) {
-        console.error('[BackgroundTask] ❌ No se pudieron guardar horarios (probablemente en Web - SQLite no disponible)');
+        console.error('[BackgroundTask] ❌ No se pudieron guardar horarios');
+        console.error('[BackgroundTask] Platform.OS:', require('react-native').Platform.OS);
+        
         await OfflineStorage.addLog('ERROR', 'Cache sync failed - cannot save schedules', { 
-          reason: 'SQLite not available (probably on web platform)' 
+          reason: 'Database error',
+          platform: require('react-native').Platform.OS
         });
+        
         return { 
           success: false, 
-          error: 'SQLite no disponible. Modo offline solo funciona en móvil (Android/iOS)' 
+          error: `Error al guardar horarios en SQLite. Plataforma: ${require('react-native').Platform.OS}. Verifica que la base de datos esté correctamente inicializada.` 
         };
       }
       await OfflineStorage.setLastCacheUpdate('schedules', Date.now());

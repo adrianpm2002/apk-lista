@@ -214,6 +214,28 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
     );
   };
 
+  const testSQLiteDiagnostics = async () => {
+    try {
+      const diagnostics = await OfflineStorage.getDiagnostics();
+      
+      const status = diagnostics.sqliteLoaded ? '✅ CARGADO' : '❌ NO CARGADO';
+      const errorInfo = diagnostics.sqliteLoadError 
+        ? `\n\nError al cargar:\n${diagnostics.sqliteLoadError.name}: ${diagnostics.sqliteLoadError.message}`
+        : '';
+      
+      Alert.alert(
+        '🔍 Diagnóstico SQLite',
+        `Plataforma: ${diagnostics.platform}\n` +
+        `SQLite: ${status}\n` +
+        `DB Instance: ${diagnostics.dbInstanceExists ? '✅ Existe' : '❌ No existe'}` +
+        errorInfo,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert('Error', `No se pudo obtener diagnóstico: ${error.message}`);
+    }
+  };
+
   const testDatabaseInfo = async () => {
     try {
       const info = await OfflineStorage.getDatabaseInfo();
@@ -917,6 +939,11 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
                 <TestButton 
                   title="📊 Ver Info de BD"
                   onPress={testDatabaseInfo}
+                />
+                
+                <TestButton 
+                  title="🔍 Diagnóstico SQLite"
+                  onPress={testSQLiteDiagnostics}
                 />
               </View>
 

@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, Alert, ScrollView, Modal, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as OfflineStorage from '../services/offlineStorageService';
 import { useOfflineSafe } from '../contexts/OfflineContext';
+import * as SyncService from '../services/syncService';
 
 /**
  * Pantalla para visualizar y gestionar jugadas offline pendientes
@@ -43,6 +44,12 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
   const [expandedId, setExpandedId] = useState(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  
+  // Estados para sincronización
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
+  const [syncResults, setSyncResults] = useState([]);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
   /**
    * Cargar jugadas offline desde SQLite
@@ -151,6 +158,133 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
         }
       ]
     );
+  };
+
+  /**
+   * FASE 8.5: Sincronizar todas las jugadas pendientes
+   */
+  const handleSyncAll = async () => {
+    const pendingPlays = plays.filter(p => p.status === 'pending');
+    
+    if (pendingPlays.length === 0) {
+      Alert.alert('Info', 'No hay jugadas pendientes para sincronizar');
+      return;
+    }
+
+    const totalAmount = pendingPlays.reduce((sum, p) => sum + (parseFloat(p.monto_total) || 0), 0);
+
+    Alert.alert(
+      '🔄 Sincronizar jugadas',
+      `${pendingPlays.length} jugada(s) pendiente(s)\nTotal: RD$${totalAmount.toFixed(2)}\n\n¿Enviar al servidor?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sincronizar',
+          onPress: () => startSyncProcess()
+        }
+      ]
+    );
+  };
+
+  /**
+   * FASE 8.6: Proceso de sincronización con modal de progreso
+   */
+  const startSyncProcess = async () => {
+    try {
+      setIsSyncing(true);
+      setShowSyncModal(true);
+      setSyncResults([]);
+      setSyncProgress({ current: 0, total: 0 });
+
+      // Callback de progreso
+      const onProgress = (current, total, currentPlay) => {
+        setSyncProgress({ current, total });
+        setSyncResults(prev => [...prev, {
+          id: currentPlay.id,
+          numeros: currentPlay.numeros,
+          status: 'processing',
+          monto: currentPlay.monto_total
+        }]);
+      };
+
+      // Ejecutar sincronización (sin cancelación)
+      const result = await SyncService.syncAllPlays(onProgress, null);
+
+      // Actualizar resultados finales
+      const finalResults = await OfflineStorage.getAllOfflinePlays();
+      setSyncResults(finalResults.map(p => ({
+        id: p.id,
+        numeros: p.numeros,
+        status: p.status,
+        monto: p.monto_total,
+        error: p.last_error
+      })));
+
+      // Recargar jugadas
+      await loadPlays();
+      await loadPendingPlays();
+
+      // FASE 8.7: Notificación post-sync
+      setIsSyncing(false);
+      
+      if (result.failedCount > 0) {
+        Alert.alert(
+          'Sincronización completada',
+          `✅ ${result.successCount} exitosa(s)\n❌ ${result.failedCount} fallida(s)\n\nRevisa las jugadas fallidas para ver los errores.`
+        );
+      } else {
+        Alert.alert('✅ Éxito', `${result.successCount} jugada(s) sincronizada(s) correctamente`);
+      }
+
+    } catch (error) {
+      console.error('[OfflineRegistry] Error en sincronización:', error);
+      Alert.alert('Error', 'Ocurrió un error durante la sincronización');
+      setIsSyncing(false);
+    } finally {
+      setShowSyncModal(false);
+    }
+  };
+
+  /**
+   * FASE 8.8: Sincronizar una jugada individual
+   */
+  const handleSyncSingle = async (playId) => {
+    try {
+      const result = await SyncService.syncSinglePlay(playId);
+      
+      await loadPlays();
+      await loadPendingPlays();
+
+      if (result.success) {
+        Alert.alert('✅ Éxito', 'Jugada sincronizada correctamente');
+      } else {
+        Alert.alert('❌ Error', result.error || 'No se pudo sincronizar la jugada');
+      }
+    } catch (error) {
+      console.error('[OfflineRegistry] Error sincronizando:', error);
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  /**
+   * FASE 8.9: Reintentar jugada fallida
+   */
+  const handleRetry = async (playId) => {
+    try {
+      const result = await SyncService.retryFailedPlay(playId);
+      
+      await loadPlays();
+      await loadPendingPlays();
+
+      if (result.success) {
+        Alert.alert('✅ Éxito', 'Jugada sincronizada correctamente');
+      } else {
+        Alert.alert('❌ Error', result.error || 'No se pudo sincronizar la jugada');
+      }
+    } catch (error) {
+      console.error('[OfflineRegistry] Error reintentando:', error);
+      Alert.alert('Error', error.message);
+    }
   };
 
   /**
@@ -309,12 +443,10 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
                 <>
                   <Pressable
                     style={[styles.actionButton, styles.actionButtonPrimary]}
-                    onPress={() => {
-                      // TODO: Implementar en FASE 8
-                      Alert.alert('Próximamente', 'Función de envío individual en FASE 8');
-                    }}
+                    onPress={() => handleSyncSingle(item.id)}
+                    disabled={isSyncing}
                   >
-                    <Text style={styles.actionButtonText}>📤 Enviar</Text>
+                    <Text style={styles.actionButtonText}>📤 Enviar ahora</Text>
                   </Pressable>
                   <Pressable
                     style={[styles.actionButton, styles.actionButtonDanger]}
@@ -328,10 +460,8 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
                 <>
                   <Pressable
                     style={[styles.actionButton, styles.actionButtonWarning]}
-                    onPress={() => {
-                      // TODO: Implementar en FASE 8
-                      Alert.alert('Próximamente', 'Función de reintento en FASE 8');
-                    }}
+                    onPress={() => handleRetry(item.id)}
+                    disabled={isSyncing}
                   >
                     <Text style={styles.actionButtonText}>🔄 Reintentar</Text>
                   </Pressable>
@@ -371,7 +501,16 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
     <View style={styles.container}>
       {/* Header con estadísticas */}
       <View style={styles.header}>
-        <Text style={styles.title}>Registro Offline</Text>
+        <View style={styles.headerTop}>
+          <Pressable 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>← Atrás</Text>
+          </Pressable>
+          <Text style={styles.title}>Registro Offline</Text>
+          <View style={styles.backButtonPlaceholder} />
+        </View>
         <View style={styles.statsContainer}>
           <View style={styles.statBox}>
             <Text style={styles.statValue}>{stats.pending}</Text>
@@ -416,13 +555,12 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
           <>
             <Pressable
               style={[styles.topButton, styles.topButtonPrimary]}
-              onPress={() => {
-                // TODO: Implementar en FASE 8
-                Alert.alert('Próximamente', 'Función de sincronización en FASE 8');
-              }}
-              disabled={stats.pending === 0}
+              onPress={handleSyncAll}
+              disabled={stats.pending === 0 || isSyncing}
             >
-              <Text style={styles.topButtonText}>📤 Enviar Todo ({stats.pending})</Text>
+              <Text style={styles.topButtonText}>
+                {isSyncing ? '⏳ Sincronizando...' : `📤 Enviar Todo (${stats.pending})`}
+              </Text>
             </Pressable>
             <Pressable
               style={[styles.topButton, styles.topButtonSecondary]}
@@ -470,6 +608,82 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
           contentContainerStyle={styles.listContent}
         />
       )}
+
+      {/* FASE 8.6: Modal de progreso de sincronización */}
+      <Modal
+        visible={showSyncModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          // No permitir cerrar mientras está sincronizando
+          if (!isSyncing) {
+            setShowSyncModal(false);
+          }
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Sincronizando jugadas</Text>
+            
+            {/* Barra de progreso */}
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View 
+                  style={[
+                    styles.progressFill, 
+                    { width: `${(syncProgress.current / syncProgress.total) * 100}%` }
+                  ]} 
+                />
+              </View>
+              <Text style={styles.progressText}>
+                {syncProgress.current} / {syncProgress.total}
+              </Text>
+              {isSyncing && (
+                <Text style={styles.progressNote}>
+                  ⏳ Procesando... No cierres esta pantalla
+                </Text>
+              )}
+            </View>
+
+            {/* Lista de resultados en tiempo real */}
+            <ScrollView style={styles.syncResultsList}>
+              {syncResults.map((result, index) => {
+                const resultStatus = getStatusInfo(result.status);
+                return (
+                  <View key={result.id || index} style={styles.syncResultItem}>
+                    <Text style={[styles.syncResultIcon, { color: resultStatus.color }]}>
+                      {resultStatus.icon}
+                    </Text>
+                    <View style={styles.syncResultInfo}>
+                      <Text style={styles.syncResultNumbers}>{result.numeros}</Text>
+                      {result.error && (
+                        <Text style={styles.syncResultError} numberOfLines={1}>
+                          {result.error}
+                        </Text>
+                      )}
+                    </View>
+                    <Text style={styles.syncResultAmount}>
+                      ${parseFloat(result.monto || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            {/* Botón de cerrar (solo cuando termina) */}
+            {!isSyncing && (
+              <View style={styles.modalActions}>
+                <Pressable
+                  style={[styles.modalButton, styles.modalButtonPrimary]}
+                  onPress={() => setShowSyncModal(false)}
+                >
+                  <Text style={styles.modalButtonText}>Cerrar</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -485,11 +699,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  backButton: {
+    padding: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#2196F3',
+    fontWeight: '600',
+  },
+  backButtonPlaceholder: {
+    width: 60, // Para centrar el título
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#212121',
-    marginBottom: 12,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -698,6 +928,112 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#757575',
     textAlign: 'center',
+  },
+  // Estilos del modal de sincronización
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#212121',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  progressContainer: {
+    marginBottom: 20,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#2196F3',
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 14,
+    color: '#757575',
+    textAlign: 'center',
+  },
+  progressNote: {
+    fontSize: 12,
+    color: '#FF9800',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  syncResultsList: {
+    maxHeight: 300,
+    marginBottom: 20,
+  },
+  syncResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  syncResultIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  syncResultInfo: {
+    flex: 1,
+  },
+  syncResultNumbers: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#212121',
+  },
+  syncResultError: {
+    fontSize: 12,
+    color: '#F44336',
+    marginTop: 2,
+  },
+  syncResultAmount: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#212121',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#2196F3',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#F44336',
+  },
+  modalButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
