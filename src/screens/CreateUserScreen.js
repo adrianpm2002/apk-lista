@@ -2118,6 +2118,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // scheduleButton: usar resetButton morado para contraste
   buttonText: { 
     color: '#fff', 
     fontWeight: 'bold',

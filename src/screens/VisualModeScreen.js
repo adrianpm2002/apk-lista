@@ -29,7 +29,8 @@ import { applyPlayTypeSelection } from '../utils/playTypeCombinations';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { generateVisualModeCopyText } from '../utils/copyUtils';
-import { validateScheduleById } from '../utils/scheduleValidator';
+import { validateScheduleById, isClientScheduleOpen } from '../utils/scheduleValidator';
+import { fetchClientsForListero, fetchClientById, computeEffectiveLotteries, computeEffectiveSchedules } from '../services/clientService';
 
 const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onModeVisibilityChange, visibleModes }) => {
   
@@ -97,6 +98,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const [bankId, setBankId] = useState(null);
   const [userId, setUserId] = useState(null);
   const [userProfile, setUserProfile] = useState(null); // Para el nombre de usuario al copiar
+  const [clients, setClients] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(null); // id_cliente
   const [isInserting, setIsInserting] = useState(false);
   const [playTypes, setPlayTypes] = useState([]); // jugadas activas dinámicas (todas las jugadas disponibles)
   const [filteredPlayTypes, setFilteredPlayTypes] = useState([]); // jugadas filtradas según loterías seleccionadas
@@ -134,6 +137,11 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         setUserProfile(profile); // Guardar el perfil completo para tener acceso al username
         const bId = profile.role === 'admin' ? user.id : profile.id_banco;
         setBankId(bId);
+        // Si es listero, cargar sus clientes
+        if (profile.role === 'listero') {
+          const list = await fetchClientsForListero(user.id);
+          setClients(list);
+        }
       } catch(e) { /* silencioso */ }
     };
     loadContext();
@@ -145,7 +153,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     const loadData = async () => {
       try {
         const { data: lots } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
-        setLotteries((lots||[]).map(l=>({ label:l.nombre, value:l.id })));
+        const baseLots = (lots||[]).map(l=>({ label:l.nombre, value:l.id }));
+        setLotteries(baseLots);
         
         // Cargar configuración de modo Santiago del banco
         const { data: bankProfile } = await supabase
@@ -282,7 +291,14 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             const labelConHoras = horaInicio && horaFin ? `${r.nombre} (${horaInicio} - ${horaFin})` : r.nombre;
             grouped[key].push({ label: labelConHoras, value: r.id });
           });
-        setScheduleOptionsMap(grouped);
+        // Si hay cliente seleccionado, aplicar filtro por cliente
+        if (selectedClient) {
+          const clienteRow = await fetchClientById(selectedClient);
+          const effGrouped = computeEffectiveSchedules(grouped, clienteRow);
+          setScheduleOptionsMap(effGrouped);
+        } else {
+          setScheduleOptionsMap(grouped);
+        }
         setSelectedSchedules(prev => {
           const next = { ...prev };
           Object.keys(next).forEach(lv => { if(!grouped[lv] || !grouped[lv].some(o=>o.value===next[lv])) delete next[lv]; });
@@ -293,7 +309,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     };
     loadAllSchedules();
     return ()=> { cancelled = true; };
-  },[bankId, lotteries]);
+  },[bankId, lotteries, selectedClient]);
 
   // (playTypes ahora proviene dinámicamente de la BD: estado playTypes)
 
@@ -358,10 +374,22 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     
     if (selectedScheduleId) {
       const isOpen = await validateScheduleById(selectedScheduleId);
-      if (!isOpen) {
+      // Si hay cliente, además validar sub-ventana
+      let clientWindowOk = true;
+      if (selectedClient) {
+        // Buscar meta del horario seleccionado para extraer window del cliente
+        const opts = scheduleOptionsMap[selectedLottery] || [];
+        const opt = opts.find(o => o.value === selectedScheduleId);
+        const clientWindow = opt?.meta?.clientWindow || null;
+        // Necesitamos también hora_inicio/hora_fin; ya están filtrados por apertura, pero validamos otra vez por seguridad
+        const horaInicio = opt?.meta?.hora_inicio;
+        const horaFin = opt?.meta?.hora_fin;
+        clientWindowOk = isClientScheduleOpen(horaInicio, horaFin, clientWindow);
+      }
+      if (!isOpen || !clientWindowOk) {
         Alert.alert(
           'Horario Cerrado', 
-          'El horario seleccionado ya está cerrado. Por favor, selecciona un horario abierto para enviar jugadas.',
+          'El horario seleccionado no está disponible (cerrado o fuera de la ventana del cliente). Por favor, selecciona un horario válido para enviar jugadas.',
           [{ text: 'OK' }]
         );
         return;

@@ -44,3 +44,14 @@ export const validateScheduleById = async (scheduleId) => {
     return false;
   }
 };
+
+// Validación combinada para cliente: verifica horario base y ventana personalizada del cliente (si existe)
+export const isClientScheduleOpen = (startTime, endTime, clientWindow) => {
+  const baseOpen = isScheduleOpen(startTime, endTime);
+  if (!baseOpen) return false;
+  if (!clientWindow || !clientWindow.start || !clientWindow.end) return baseOpen;
+  // Comparación HH:MM (24h)
+  const now = new Date();
+  const hm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  return hm >= clientWindow.start && hm < clientWindow.end;
+};

@@ -88,6 +88,7 @@ const roleOptionsMap = {
   { id: 'statistics', icon: '📈', title: 'Estadísticas' },
   { id: 'insertResults', icon: '🎯', title: 'Resultados' },
   { id: 'createUser', icon: '👥', title: 'Clientes' },
+  { id: 'clientSchedules', icon: '🕒', title: 'Horarios Clientes' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   client: [
@@ -168,6 +169,10 @@ const configOptions = role ? roleOptionsMap[role] : null;
     case 'createUser':
       handleClose();
       navigation.navigate('CreateUser');
+      break;
+    case 'clientSchedules':
+      handleClose();
+      navigation.navigate('ManageClientAvailability');
       break;
     case 'insertResults':
       handleClose();
