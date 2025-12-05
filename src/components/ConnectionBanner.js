@@ -159,7 +159,7 @@ const ConnectionBanner = () => {
 const styles = StyleSheet.create({
   banner: {
     position: 'absolute',
-    top: 0,
+    top: 40, // Mover hacia abajo para evitar barra de notificaciones
     left: 0,
     right: 0,
     zIndex: 9999,
