@@ -15,6 +15,7 @@ import StatisticsScreen from '../screens/StatisticsScreen';
 import SavedPlaysScreen from '../screens/SavedPlaysScreen';
 import BankCapacityScreen from '../screens/BankCapacityScreen';
 import ManageClientAvailabilityScreen from '../screens/ManageClientAvailabilityScreen';
+import ListerClientLimitsScreen from '../screens/ListerClientLimitsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -152,6 +153,15 @@ const AppNavigator = () => (
     <Stack.Screen 
       name="ManageClientAvailability" 
       component={ManageClientAvailabilityScreen} 
+      options={{
+        headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
+      }}
+    />
+
+    <Stack.Screen 
+      name="ListerClientLimits" 
+      component={ListerClientLimitsScreen} 
       options={{
         headerShown: false,
         gestureEnabled: Platform.OS === 'ios',

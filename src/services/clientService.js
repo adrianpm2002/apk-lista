@@ -5,7 +5,7 @@ export const fetchClientsForListero = async (listeroId) => {
   if (!listeroId) return [];
   const { data, error } = await supabase
     .from('cliente')
-    .select('id_cliente, id_listero, loterias_disponibles, horarios_disponibles, activo')
+    .select('id_cliente, id_listero, loterias_disponibles, horarios_disponibles, limites_por_loteria, activo')
     .eq('id_listero', listeroId)
     .order('created_at', { ascending: false });
   if (error) {
@@ -142,7 +142,7 @@ export const fetchClientById = async (idCliente) => {
   if (!idCliente) return null;
   const { data, error } = await supabase
     .from('cliente')
-    .select('id_cliente, id_listero, loterias_disponibles, horarios_disponibles, activo')
+    .select('id_cliente, id_listero, loterias_disponibles, horarios_disponibles, limites_por_loteria, activo')
     .eq('id_cliente', idCliente)
     .maybeSingle();
   if (error) {
@@ -150,4 +150,61 @@ export const fetchClientById = async (idCliente) => {
     return null;
   }
   return data || null;
+};
+
+// -----------------------------
+// Límites por lotería (listero -> cliente)
+// -----------------------------
+
+export const fetchBankLotteryLimits = async (lotteryIds) => {
+  if (!Array.isArray(lotteryIds) || lotteryIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from('limite_loteria')
+    .select('id_loteria, limites')
+    .in('id_loteria', lotteryIds);
+  if (error) {
+    console.error('[clientService] Error fetchBankLotteryLimits:', error);
+    return {};
+  }
+  const map = {};
+  (data || []).forEach(row => {
+    map[row.id_loteria] = row.limites || {};
+  });
+  return map;
+};
+
+export const fetchActiveJugadasByBank = async (bankId) => {
+  if (!bankId) return {};
+  const { data, error } = await supabase
+    .from('jugadas_activas')
+    .select('jugadas')
+    .eq('id_banco', bankId)
+    .maybeSingle();
+  if (error) {
+    console.error('[clientService] Error fetchActiveJugadasByBank:', error);
+    return {};
+  }
+  return data?.jugadas || {};
+};
+
+export const saveClientLimits = async (idCliente, limitsMap) => {
+  // limitsMap: { [loteriaId]: { jugada: number } }
+  if (!idCliente) throw new Error('idCliente requerido');
+  const { error } = await supabase
+    .from('cliente')
+    .update({ limites_por_loteria: limitsMap || null })
+    .eq('id_cliente', idCliente);
+  if (error) throw error;
+  return true;
+};
+
+export const bulkSaveClientLimitsForListero = async (listeroId, limitsMap) => {
+  // Aplica a todos los clientes del listero
+  if (!listeroId) throw new Error('listeroId requerido');
+  const { error } = await supabase
+    .from('cliente')
+    .update({ limites_por_loteria: limitsMap || null })
+    .eq('id_listero', listeroId);
+  if (error) throw error;
+  return true;
 };
