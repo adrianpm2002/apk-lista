@@ -558,13 +558,17 @@ export const saveOfflinePlay = async (playData) => {
           );
         },
         (error) => {
-          // Error en la transacción completaresolve({ success: false, error: error.message });
+          // Error en la transacción completa
+          resolve({ success: false, error: error.message });
         },
         () => {
-          // Success callback de la transacción}
+          // Success callback de la transacción
+          resolve({ success: true });
+        }
       );
     });
-  } catch (error) {return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 };
 

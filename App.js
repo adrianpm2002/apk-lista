@@ -58,12 +58,17 @@ function AppContent() {
 
     initDB();
 
-    // Inicializar monitor de conexiónconst unsubscribe = ConnectionService.initConnectionMonitor();// FASE 10: Inicializar servicio de cambio de díaDayChangeService.initDayChangeService();
+    // Inicializar monitor de conexión
+    const unsubscribe = ConnectionService.initConnectionMonitor();
+    
+    // FASE 10: Inicializar servicio de cambio de día
+    DayChangeService.initDayChangeService();
     
     // FASE 10: Verificar cambio de día al iniciar
     DayChangeService.checkAndCleanIfDayChanged();
 
-    // FASE 12.3: Recuperar jugadas interrumpidasOfflineStorage.recoverInterruptedPlays().then(count => {
+    // FASE 12.3: Recuperar jugadas interrumpidas
+    OfflineStorage.recoverInterruptedPlays().then(count => {
       if (count > 0) {}
     }).catch(error => {});
 
@@ -74,7 +79,8 @@ function AppContent() {
     // Cleanup
     return () => {
       if (unsubscribe) {
-        unsubscribe();}
+        unsubscribe();
+      }
     };
   }, []);
 
@@ -82,10 +88,12 @@ function AppContent() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       // Cuando la app pasa de background/inactive a active (foreground)
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {DayChangeService.checkAndCleanIfDayChanged();
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        DayChangeService.checkAndCleanIfDayChanged();
       }
       
-      appState.current = nextAppState;});
+      appState.current = nextAppState;
+    });
 
     return () => {
       subscription.remove();
