@@ -99,7 +99,15 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           .order('nombre');
         if (cancelled) return;
         const now = new Date();
-        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        // Obtener hora en zona horaria de La Habana, Cuba (America/Havana)
+        const havanaTime = now.toLocaleString('en-US', { 
+          timeZone: 'America/Havana',
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        const [nowHour, nowMinute] = havanaTime.split(':').map(n => parseInt(n, 10));
+        const nowMinutes = nowHour * 60 + nowMinute;
         const isOpen = (hi, hf) => {
           if (!hi || !hf) return false;
           const [shi, smi] = hi.split(':');

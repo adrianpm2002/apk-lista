@@ -218,15 +218,23 @@ const validateScheduleTime = (schedule, playCreatedAt) => {
     if (!schedule || !schedule.hora_inicio || !schedule.hora_fin) {return null;
     }
 
-    // Obtener hora de la jugada (hora local del dispositivo cuando se creó)
+    // Obtener hora de la jugada en zona horaria de La Habana, Cuba (America/Havana)
     const playDate = new Date(playCreatedAt);
     
     // Validar que la fecha sea válida
     if (isNaN(playDate.getTime())) {return null; // Permitir envío si la fecha es inválida
     }
 
-    const playHour = playDate.getHours();
-    const playMinute = playDate.getMinutes();
+    // Convertir a hora de La Habana usando toLocaleString
+    const havanaTime = playDate.toLocaleString('en-US', { 
+      timeZone: 'America/Havana',
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    // Parsear la hora de La Habana (formato "HH:MM")
+    const [playHour, playMinute] = havanaTime.split(':').map(n => parseInt(n, 10));
     const playTime = playHour * 60 + playMinute; // minutos desde medianoche// Parsear hora_inicio y hora_fin del horario
     // Formato esperado: "HH:MM" o "HH:MM:SS"
     const startParts = schedule.hora_inicio.split(':').map(n => parseInt(n, 10));
