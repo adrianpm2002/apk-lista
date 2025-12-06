@@ -27,23 +27,15 @@ const ConnectionBanner = () => {
   // Detectar cambios de conexión
   useEffect(() => {
     // Ignorar si no hay context
-    if (!offlineContext) return;
-
-    console.log('[ConnectionBanner] Estado:', { isOnline, bannerType, pendingCount: pendingPlays.length });
-
-    // PASO 9.1: Banner offline al perder conexión
+    if (!offlineContext) return;// PASO 9.1: Banner offline al perder conexión
     if (!isOnline) {
       // Solo mostrar si no estamos ya mostrando el banner offline
-      if (bannerType !== 'offline') {
-        console.log('[ConnectionBanner] 📴 Mostrando banner offline');
-        setBannerType('offline');
+      if (bannerType !== 'offline') {setBannerType('offline');
         setShowBanner(true);
         showBannerWithAnimation();
         
         // Auto-dismiss después de 3 segundos
-        const timer = setTimeout(() => {
-          console.log('[ConnectionBanner] Auto-dismiss banner offline');
-          hideBannerWithAnimation();
+        const timer = setTimeout(() => {hideBannerWithAnimation();
         }, 3000);
 
         return () => clearTimeout(timer);
@@ -53,17 +45,13 @@ const ConnectionBanner = () => {
     // PASO 9.2: Banner online al recuperar conexión
     if (isOnline) {
       // Solo mostrar banner de recuperación si hay jugadas pendientes
-      if (pendingPlays.length > 0 && bannerType !== 'online') {
-        console.log('[ConnectionBanner] ✅ Mostrando banner online con', pendingPlays.length, 'pendientes');
-        setBannerType('online');
+      if (pendingPlays.length > 0 && bannerType !== 'online') {setBannerType('online');
         setPendingCount(pendingPlays.length);
         setShowBanner(true);
         showBannerWithAnimation();
       } 
       // Si no hay pendientes, ocultar cualquier banner
-      else if (pendingPlays.length === 0 && showBanner) {
-        console.log('[ConnectionBanner] Sin pendientes, ocultando banner');
-        hideBannerWithAnimation();
+      else if (pendingPlays.length === 0 && showBanner) {hideBannerWithAnimation();
       }
     }
 

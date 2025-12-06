@@ -42,9 +42,7 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
         if (value !== null) {
           setIsOfflineModeEnabled(JSON.parse(value));
         }
-      } catch (error) {
-        console.error('[OfflineContext] Error loading offline mode:', error);
-      }
+      } catch (error) {}
     };
     loadOfflineMode();
   }, []);
@@ -65,9 +63,7 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
       // Solo verificar si estamos offline
       if (!isOnline) {
         const isValid = await validateOfflineSession();
-        if (!isValid) {
-          console.log('[OfflineContext] ⚠️ Sesión offline expirada (>24h)');
-          // FASE 12.2: Trigger para cerrar sesión
+        if (!isValid) {// FASE 12.2: Trigger para cerrar sesión
           // El componente padre (App.js o AuthContext) debe escuchar este evento
           if (onSessionExpired) {
             onSessionExpired();
@@ -92,9 +88,7 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
     try {
       const plays = await OfflineStorage.getPendingPlays();
       setPendingPlays(plays || []);
-    } catch (error) {
-      console.error('[OfflineContext] Error loading pending plays:', error);
-      setPendingPlays([]);
+    } catch (error) {setPendingPlays([]);
     }
   };
 
@@ -107,13 +101,8 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
       setIsOfflineModeEnabled(newValue);
       await AsyncStorage.setItem(OFFLINE_MODE_KEY, JSON.stringify(newValue));
       
-      // Log para debug
-      console.log('[OfflineContext] Modo offline manual:', newValue ? 'ACTIVADO' : 'DESACTIVADO');
-      
-      return newValue;
-    } catch (error) {
-      console.error('[OfflineContext] Error toggling offline mode:', error);
-      return isOfflineModeEnabled;
+      // Log para debugreturn newValue;
+    } catch (error) {return isOfflineModeEnabled;
     }
   };
 
@@ -135,9 +124,7 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
       const hoursSinceLogin = (now - lastLogin) / (1000 * 60 * 60);
 
       return hoursSinceLogin < SESSION_DURATION_HOURS;
-    } catch (error) {
-      console.error('[OfflineContext] Error validating session:', error);
-      return false;
+    } catch (error) {return false;
     }
   };
 
@@ -157,9 +144,7 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
       }
 
       return false;
-    } catch (error) {
-      console.error('[OfflineContext] Error checking day change:', error);
-      return false;
+    } catch (error) {return false;
     }
   };
 
@@ -169,11 +154,7 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
   const clearAllPlays = async () => {
     try {
       await OfflineStorage.clearAllOfflinePlays();
-      await loadPendingPlays();
-      console.log('[OfflineContext] Todas las jugadas limpiadas');
-    } catch (error) {
-      console.error('[OfflineContext] Error clearing plays:', error);
-    }
+      await loadPendingPlays();} catch (error) {}
   };
 
   /**

@@ -8,12 +8,8 @@ if (Platform.OS !== 'web') {
   try {
     SQLite = require('react-native-sqlite-storage');
     SQLite.DEBUG(true);
-    SQLite.enablePromise(true);
-    console.log('[OfflineStorage] ✅ SQLite module loaded successfully');
-  } catch (error) {
-    sqliteLoadError = error;
-    console.error('[OfflineStorage] ❌ Error loading SQLite module:', error);
-  }
+    SQLite.enablePromise(true);} catch (error) {
+    sqliteLoadError = error;}
 }
 
 const DB_NAME = 'offline.db';
@@ -30,17 +26,11 @@ let dbInstance = null;
  */
 const getDatabase = async () => {
   // Verificar plataforma
-  if (Platform.OS === 'web') {
-    console.log('[OfflineStorage] ⚠️ Platform is Web - SQLite not available');
-    return null;
+  if (Platform.OS === 'web') {return null;
   }
 
   // Verificar si SQLite se cargó correctamente
-  if (!SQLite) {
-    console.error('[OfflineStorage] ❌ SQLite module not loaded');
-    if (sqliteLoadError) {
-      console.error('[OfflineStorage] Load error:', sqliteLoadError.message);
-    }
+  if (!SQLite) {if (sqliteLoadError) {}
     return null;
   }
 
@@ -48,29 +38,11 @@ const getDatabase = async () => {
     return dbInstance;
   }
 
-  try {
-    console.log('[OfflineStorage] Opening database...');
-    const db = await SQLite.openDatabase({
+  try {const db = await SQLite.openDatabase({
       name: DB_NAME,
       location: 'default',
-    });
-    console.log('[OfflineStorage] ✅ Database opened');
-
-    console.log('[OfflineStorage] Initializing tables...');
-    await initializeTables(db);
-    console.log('[OfflineStorage] ✅ Tables initialized');
-    
-    dbInstance = db;
-    console.log('[OfflineStorage] ✅ Database ready');
-    return db;
-  } catch (error) {
-    console.error('[OfflineStorage] ❌ Error in getDatabase:', error);
-    console.error('[OfflineStorage] Error type:', error.constructor.name);
-    console.error('[OfflineStorage] Error message:', error.message);
-    console.error('[OfflineStorage] Error stack:', error.stack);
-    console.error('[OfflineStorage] Platform:', Platform.OS);
-    
-    // Limpiar instancia en caso de error
+    });await initializeTables(db);dbInstance = db;return db;
+  } catch (error) {// Limpiar instancia en caso de error
     dbInstance = null;
     
     // No hacer throw para que el sistema pueda continuar
@@ -82,60 +54,31 @@ const getDatabase = async () => {
  * Inicializar todas las tablas necesarias
  */
 const initializeTables = async (db) => {
-  try {
-    console.log('[OfflineStorage] Creating metadata table...');
-    // Tabla de metadata para versiones
+  try {// Tabla de metadata para versiones
     await db.executeSql(`
       CREATE TABLE IF NOT EXISTS db_metadata (
         key TEXT PRIMARY KEY,
         value TEXT
       )
-    `);
-    console.log('[OfflineStorage] ✅ Metadata table ready');
-
-    console.log('[OfflineStorage] Reading current version...');
-    // Obtener versión actual
+    `);// Obtener versión actual
     const [metaResult] = await db.executeSql(
       "SELECT value FROM db_metadata WHERE key = 'version'"
     );
 
     const currentVersion = metaResult.rows.length > 0 
       ? parseInt(metaResult.rows.item(0).value) 
-      : 0;
-
-    console.log(`[OfflineStorage] Current DB version: ${currentVersion}, Target: ${DB_VERSION}`);
-
-    if (currentVersion < DB_VERSION) {
-      console.log('[OfflineStorage] Running migrations...');
-      await runMigrations(db, currentVersion, DB_VERSION);
-      
-      console.log('[OfflineStorage] Updating version metadata...');
-      await db.executeSql(
+      : 0;if (currentVersion < DB_VERSION) {await runMigrations(db, currentVersion, DB_VERSION);await db.executeSql(
         "INSERT OR REPLACE INTO db_metadata (key, value) VALUES ('version', ?)",
         [DB_VERSION.toString()]
-      );
-      console.log('[OfflineStorage] ✅ Version updated');
-    } else {
-      console.log('[OfflineStorage] Database is up to date');
-    }
-
-    console.log('[OfflineStorage] ✅ Tables initialized successfully');
-    return true;
-  } catch (error) {
-    console.error('[OfflineStorage] ❌ Error initializing tables:', error);
-    console.error('[OfflineStorage] Error message:', error.message);
-    console.error('[OfflineStorage] Error stack:', error.stack);
-    throw error;
+      );} else {}return true;
+  } catch (error) {throw error;
   }
 };
 
 /**
  * Ejecutar migraciones de base de datos
  */
-const runMigrations = async (db, fromVersion, toVersion) => {
-  console.log(`[OfflineStorage] Running migrations from v${fromVersion} to v${toVersion}`);
-
-  if (fromVersion < 1 && toVersion >= 1) {
+const runMigrations = async (db, fromVersion, toVersion) => {if (fromVersion < 1 && toVersion >= 1) {
     // Migración v1: Crear todas las tablas (incluyendo tipo_jugada desde el inicio)
     await createInitialSchema(db);
   }
@@ -147,11 +90,7 @@ const runMigrations = async (db, fromVersion, toVersion) => {
 /**
  * Crear esquema inicial de la base de datos
  */
-const createInitialSchema = async (db) => {
-  console.log('[OfflineStorage] Creating initial schema...');
-
-  console.log('[OfflineStorage] Creating offline_plays table...');
-  // Tabla de jugadas offline
+const createInitialSchema = async (db) => {// Tabla de jugadas offline
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_plays (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -172,11 +111,7 @@ const createInitialSchema = async (db) => {
       sync_attempts INTEGER DEFAULT 0,
       last_sync_attempt TEXT
     )
-  `);
-  console.log('[OfflineStorage] ✅ offline_plays table created');
-
-  console.log('[OfflineStorage] Creating offline_lotteries table...');
-  // Tabla de loterías cacheadas
+  `);// Tabla de loterías cacheadas
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_lotteries (
       id TEXT PRIMARY KEY,
@@ -186,11 +121,7 @@ const createInitialSchema = async (db) => {
       cached_at TEXT,
       updated_at TEXT
     )
-  `);
-  console.log('[OfflineStorage] ✅ offline_lotteries table created');
-
-  console.log('[OfflineStorage] Creating offline_schedules table...');
-  // Tabla de horarios cacheados
+  `);// Tabla de horarios cacheados
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_schedules (
       id TEXT PRIMARY KEY,
@@ -201,11 +132,7 @@ const createInitialSchema = async (db) => {
       cached_at TEXT,
       updated_at TEXT
     )
-  `);
-  console.log('[OfflineStorage] ✅ offline_schedules table created');
-
-  console.log('[OfflineStorage] Creating offline_credentials table...');
-  // Tabla de credenciales encriptadas
+  `);// Tabla de credenciales encriptadas
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_credentials (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -216,21 +143,13 @@ const createInitialSchema = async (db) => {
       last_login TEXT NOT NULL,
       session_expires TEXT NOT NULL
     )
-  `);
-  console.log('[OfflineStorage] ✅ offline_credentials table created');
-
-  console.log('[OfflineStorage] Creating offline_config table...');
-  // Tabla de configuración
+  `);// Tabla de configuración
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_config (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     )
-  `);
-  console.log('[OfflineStorage] ✅ offline_config table created');
-
-  console.log('[OfflineStorage] Creating offline_logs table...');
-  // Tabla de logs para debugging
+  `);// Tabla de logs para debugging
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -239,11 +158,7 @@ const createInitialSchema = async (db) => {
       data TEXT,
       timestamp TEXT NOT NULL
     )
-  `);
-  console.log('[OfflineStorage] ✅ offline_logs table created');
-
-  console.log('[OfflineStorage] Creating offline_stats_cache table...');
-  // Tabla de caché de estadísticas
+  `);// Tabla de caché de estadísticas
   await db.executeSql(`
     CREATE TABLE IF NOT EXISTS offline_stats_cache (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -251,11 +166,7 @@ const createInitialSchema = async (db) => {
       data TEXT NOT NULL,
       last_sync TEXT NOT NULL
     )
-  `);
-  console.log('[OfflineStorage] ✅ offline_stats_cache table created');
-
-  console.log('[OfflineStorage] Creating indexes...');
-  // Crear índices para optimizar consultas
+  `);// Crear índices para optimizar consultas
   await db.executeSql(`
     CREATE INDEX IF NOT EXISTS idx_plays_status ON offline_plays(status)
   `);
@@ -270,11 +181,7 @@ const createInitialSchema = async (db) => {
 
   await db.executeSql(`
     CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON offline_logs(timestamp DESC)
-  `);
-  console.log('[OfflineStorage] ✅ Indexes created');
-
-  console.log('[OfflineStorage] ✅ Initial schema created successfully');
-};
+  `);};
 
 // ========================================
 // FUNCIONES DE LOGS
@@ -294,12 +201,7 @@ export const addLog = async (level, message, data = null) => {
     await db.executeSql(
       `INSERT INTO offline_logs (level, message, data, timestamp) VALUES (?, ?, ?, ?)`,
       [level, message, dataStr, timestamp]
-    );
-
-    console.log(`[OfflineStorage][${level}] ${message}`, data || '');
-  } catch (error) {
-    console.error('[OfflineStorage] Error adding log:', error);
-  }
+    );} catch (error) {}
 };
 
 /**
@@ -325,9 +227,7 @@ export const getLogs = async (limit = 100, offset = 0) => {
     }
 
     return logs;
-  } catch (error) {
-    console.error('[OfflineStorage] Error getting logs:', error);
-    return [];
+  } catch (error) {return [];
   }
 };
 
@@ -339,11 +239,7 @@ export const clearLogs = async () => {
     const db = await getDatabase();
     if (!db) return;
 
-    await db.executeSql(`DELETE FROM offline_logs`);
-    console.log('[OfflineStorage] Logs cleared');
-  } catch (error) {
-    console.error('[OfflineStorage] Error clearing logs:', error);
-  }
+    await db.executeSql(`DELETE FROM offline_logs`);} catch (error) {}
 };
 
 // ========================================
@@ -373,9 +269,7 @@ export const insertTestRecord = async () => {
     await addLog('INFO', 'Test record inserted', testData);
 
     return { success: true, data: testData };
-  } catch (error) {
-    console.error('[OfflineStorage] Error inserting test record:', error);
-    return { success: false, error: error.message };
+  } catch (error) {return { success: false, error: error.message };
   }
 };
 
@@ -401,9 +295,7 @@ export const readTestRecords = async () => {
     await addLog('INFO', 'Test records read', { count: records.length });
 
     return { success: true, data: records };
-  } catch (error) {
-    console.error('[OfflineStorage] Error reading test records:', error);
-    return { success: false, error: error.message };
+  } catch (error) {return { success: false, error: error.message };
   }
 };
 
@@ -411,22 +303,13 @@ export const readTestRecords = async () => {
  * Inicializar base de datos (llamar al inicio de la app)
  */
 export const initOfflineDB = async () => {
-  try {
-    console.log('[OfflineStorage] 🔄 Attempting to initialize offline database...');
-    const db = await getDatabase();
+  try {const db = await getDatabase();
     
-    if (!db) {
-      console.log('[OfflineStorage] ⚠️ Database initialization skipped (not available on this platform)');
-      return false;
+    if (!db) {return false;
     }
     
-    await addLog('INFO', 'Offline database initialized');
-    console.log('[OfflineStorage] ✅ Database initialized successfully');
-    console.log('[OfflineStorage] ✅ Tables initialized successfully');
-    return true;
-  } catch (error) {
-    console.error('[OfflineStorage] ❌ Error initializing offline DB:', error);
-    return false;
+    await addLog('INFO', 'Offline database initialized');return true;
+  } catch (error) {return false;
   }
 };
 
@@ -441,40 +324,20 @@ export const savePlayOffline = async (playData) => {
 };
 
 export const getPendingPlays = async () => {
-  try {
-    console.log('[OfflineStorage] 📋 getPendingPlays: Iniciando...');
-    const db = await getDatabase();
-    if (!db) {
-      console.error('[OfflineStorage] ❌ Base de datos no disponible');
-      return [];
-    }
-
-    console.log('[OfflineStorage] 🔍 Ejecutando SELECT * FROM offline_plays...');
-    const [result] = await db.executeSql(
+  try {const db = await getDatabase();
+    if (!db) {return [];
+    }const [result] = await db.executeSql(
       `SELECT * FROM offline_plays ORDER BY created_at DESC`
-    );
-
-    console.log(`[OfflineStorage] 📊 Filas encontradas: ${result.rows.length}`);
-
-    const plays = [];
+    );const plays = [];
     for (let i = 0; i < result.rows.length; i++) {
-      const row = result.rows.item(i);
-      console.log(`[OfflineStorage] 📝 Fila ${i + 1}:`, row);
-      
-      // El campo numeros ya es string, no necesita JSON.parse
+      const row = result.rows.item(i);// El campo numeros ya es string, no necesita JSON.parse
       plays.push({
         ...row,
         numeros: row.numeros, // Ya es string "12,34,56,78"
         created_at: row.created_at, // Mantener como string o convertir
       });
-    }
-
-    console.log(`[OfflineStorage] ✅ Total jugadas retornadas: ${plays.length}`);
-    return plays;
-  } catch (error) {
-    console.error('[OfflineStorage] ❌ Error getting pending plays:', error);
-    console.error('[OfflineStorage] Error stack:', error.stack);
-    return [];
+    }return plays;
+  } catch (error) {return [];
   }
 };
 
@@ -488,37 +351,13 @@ export const getPendingPlays = async () => {
  * @returns {Promise<boolean>} true si se guardó correctamente
  */
 export const saveLotteries = async (lotteries) => {
-  try {
-    console.log('[OfflineStorage] saveLotteries called');
-    console.log('[OfflineStorage] Platform.OS:', Platform.OS);
+  try {if (!Array.isArray(lotteries) || lotteries.length === 0) {return false;
+    }const db = await getDatabase();
     
-    if (!Array.isArray(lotteries) || lotteries.length === 0) {
-      console.log('[OfflineStorage] saveLotteries: Array vacío o inválido');
+    if (!db) {if (sqliteLoadError) {}
       return false;
-    }
-
-    console.log(`[OfflineStorage] Guardando ${lotteries.length} loterías en caché...`);
-    console.log('[OfflineStorage] Llamando a getDatabase()...');
-    
-    const db = await getDatabase();
-    
-    if (!db) {
-      console.error('[OfflineStorage] ❌ getDatabase() retornó null');
-      console.error('[OfflineStorage] Platform.OS:', Platform.OS);
-      console.error('[OfflineStorage] SQLite disponible:', !!SQLite);
-      if (sqliteLoadError) {
-        console.error('[OfflineStorage] SQLite load error:', sqliteLoadError.message);
-      }
-      return false;
-    }
-
-    console.log('[OfflineStorage] ✅ Base de datos obtenida correctamente');
-
-    // Guardar todas las loterías secuencialmente
-    for (const lottery of lotteries) {
-      console.log(`[OfflineStorage] Guardando lotería: ${lottery.nombre} (${lottery.id})`);
-      
-      await db.executeSql(
+    }// Guardar todas las loterías secuencialmente
+    for (const lottery of lotteries) {await db.executeSql(
         `INSERT OR REPLACE INTO offline_lotteries 
          (id, nombre, creada_en, id_banco, cached_at, updated_at) 
          VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
@@ -528,19 +367,9 @@ export const saveLotteries = async (lotteries) => {
           lottery.creada_en,
           lottery.id_banco
         ]
-      );
-      
-      console.log(`[OfflineStorage] ✅ Lotería guardada: ${lottery.nombre}`);
-    }
-
-    console.log(`[OfflineStorage] ✅ ${lotteries.length} loterías guardadas en caché`);
-    await addLog('INFO', 'Loterías guardadas en caché', { count: lotteries.length });
+      );}await addLog('INFO', 'Loterías guardadas en caché', { count: lotteries.length });
     return true;
-  } catch (error) {
-    console.error('[OfflineStorage] ❌ Error guardando loterías:', error);
-    console.error('[OfflineStorage] Error message:', error.message);
-    console.error('[OfflineStorage] Error stack:', error.stack);
-    await addLog('ERROR', 'Error guardando loterías', { 
+  } catch (error) {await addLog('ERROR', 'Error guardando loterías', { 
       error: error.message,
       stack: error.stack,
       platform: Platform.OS 
@@ -555,12 +384,8 @@ export const saveLotteries = async (lotteries) => {
  * @returns {Promise<Array>} Array de loterías
  */
 export const getLotteries = async (id_banco) => {
-  try {
-    console.log(`[OfflineStorage] Obteniendo loterías del caché para banco: ${id_banco}`);
-    const db = await getDatabase();
-    if (!db) {
-      console.error('[OfflineStorage] Base de datos no disponible');
-      return [];
+  try {const db = await getDatabase();
+    if (!db) {return [];
     }
 
     const query = id_banco
@@ -573,13 +398,8 @@ export const getLotteries = async (id_banco) => {
     const lotteries = [];
     for (let i = 0; i < result.rows.length; i++) {
       lotteries.push(result.rows.item(i));
-    }
-
-    console.log(`[OfflineStorage] ✅ ${lotteries.length} loterías encontradas en caché`);
-    return lotteries;
-  } catch (error) {
-    console.error('[OfflineStorage] Error obteniendo loterías:', error);
-    await addLog('ERROR', 'Error obteniendo loterías del caché', { error: error.message });
+    }return lotteries;
+  } catch (error) {await addLog('ERROR', 'Error obteniendo loterías del caché', { error: error.message });
     return [];
   }
 };
@@ -595,23 +415,13 @@ export const getLotteries = async (id_banco) => {
  */
 export const saveSchedules = async (schedules) => {
   try {
-    if (!Array.isArray(schedules) || schedules.length === 0) {
-      console.log('[OfflineStorage] saveSchedules: Array vacío');
-      return false;
-    }
-
-    console.log(`[OfflineStorage] Guardando ${schedules.length} horarios en caché...`);
-    const db = await getDatabase();
-    if (!db) {
-      console.error('[OfflineStorage] Base de datos no disponible');
-      return false;
+    if (!Array.isArray(schedules) || schedules.length === 0) {return false;
+    }const db = await getDatabase();
+    if (!db) {return false;
     }
 
     // Guardar todos los horarios secuencialmente
-    for (const schedule of schedules) {
-      console.log(`[OfflineStorage] Guardando horario: ${schedule.nombre} (${schedule.id})`);
-      
-      await db.executeSql(
+    for (const schedule of schedules) {await db.executeSql(
         `INSERT OR REPLACE INTO offline_schedules 
          (id, nombre, hora_inicio, hora_fin, id_loteria, cached_at, updated_at) 
          VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
@@ -622,17 +432,9 @@ export const saveSchedules = async (schedules) => {
           schedule.hora_fin,
           schedule.id_loteria
         ]
-      );
-      
-      console.log(`[OfflineStorage] ✅ Horario guardado: ${schedule.nombre}`);
-    }
-
-    console.log(`[OfflineStorage] ✅ ${schedules.length} horarios guardados en caché`);
-    await addLog('INFO', 'Horarios guardados en caché', { count: schedules.length });
+      );}await addLog('INFO', 'Horarios guardados en caché', { count: schedules.length });
     return true;
-  } catch (error) {
-    console.error('[OfflineStorage] Error guardando horarios:', error);
-    await addLog('ERROR', 'Error guardando horarios', { error: error.message });
+  } catch (error) {await addLog('ERROR', 'Error guardando horarios', { error: error.message });
     return false;
   }
 };
@@ -643,12 +445,8 @@ export const saveSchedules = async (schedules) => {
  * @returns {Promise<Array>} Array de horarios
  */
 export const getSchedules = async (id_loteria) => {
-  try {
-    console.log(`[OfflineStorage] Obteniendo horarios del caché para lotería: ${id_loteria}`);
-    const db = await getDatabase();
-    if (!db) {
-      console.error('[OfflineStorage] Base de datos no disponible');
-      return [];
+  try {const db = await getDatabase();
+    if (!db) {return [];
     }
 
     const query = id_loteria
@@ -661,13 +459,8 @@ export const getSchedules = async (id_loteria) => {
     const schedules = [];
     for (let i = 0; i < result.rows.length; i++) {
       schedules.push(result.rows.item(i));
-    }
-
-    console.log(`[OfflineStorage] ✅ ${schedules.length} horarios encontrados en caché`);
-    return schedules;
-  } catch (error) {
-    console.error('[OfflineStorage] Error obteniendo horarios:', error);
-    await addLog('ERROR', 'Error obteniendo horarios del caché', { error: error.message });
+    }return schedules;
+  } catch (error) {await addLog('ERROR', 'Error obteniendo horarios del caché', { error: error.message });
     return [];
   }
 };
@@ -681,9 +474,7 @@ export const getLastCacheUpdate = async (type) => {
   try {
     const value = await getConfig(`cache_update_${type}`);
     return value ? parseInt(value) : null;
-  } catch (error) {
-    console.error(`[OfflineStorage] Error obteniendo cache_update_${type}:`, error);
-    return null;
+  } catch (error) {return null;
   }
 };
 
@@ -695,12 +486,8 @@ export const getLastCacheUpdate = async (type) => {
  */
 export const setLastCacheUpdate = async (type, timestamp) => {
   try {
-    await setConfig(`cache_update_${type}`, timestamp.toString());
-    console.log(`[OfflineStorage] ✅ Timestamp de ${type} actualizado:`, new Date(timestamp).toISOString());
-    return true;
-  } catch (error) {
-    console.error(`[OfflineStorage] Error guardando cache_update_${type}:`, error);
-    return false;
+    await setConfig(`cache_update_${type}`, timestamp.toString());return true;
+  } catch (error) {return false;
   }
 };
 
@@ -714,26 +501,16 @@ export const setLastCacheUpdate = async (type, timestamp) => {
  * @returns {Promise<Object>} { success, id?, error? }
  */
 export const saveOfflinePlay = async (playData) => {
-  try {
-    console.log('[OfflineStorage] Guardando jugada offline...', playData);
-    const db = await getDatabase();
-    if (!db) {
-      console.error('[OfflineStorage] Base de datos no disponible');
-      return { success: false, error: 'Base de datos no disponible' };
+  try {const db = await getDatabase();
+    if (!db) {return { success: false, error: 'Base de datos no disponible' };
     }
 
     // Validar datos requeridos
-    if (!playData.user_id) {
-      console.error('[OfflineStorage] user_id es requerido');
-      return { success: false, error: 'user_id es requerido' };
+    if (!playData.user_id) {return { success: false, error: 'user_id es requerido' };
     }
-    if (!playData.id_horario) {
-      console.error('[OfflineStorage] id_horario es requerido');
-      return { success: false, error: 'id_horario es requerido' };
+    if (!playData.id_horario) {return { success: false, error: 'id_horario es requerido' };
     }
-    if (!playData.numeros && !playData.jugada) {
-      console.error('[OfflineStorage] numeros o jugada son requeridos');
-      return { success: false, error: 'numeros o jugada son requeridos' };
+    if (!playData.numeros && !playData.jugada) {return { success: false, error: 'numeros o jugada son requeridos' };
     }
 
     return new Promise((resolve, reject) => {
@@ -764,31 +541,21 @@ export const saveOfflinePlay = async (playData) => {
               null, // last_sync_attempt
             ],
             (tx, result) => {
-              const playId = result.insertId;
-              console.log(`[OfflineStorage] ✅ Jugada offline guardada con ID: ${playId}`);
-              resolve({ success: true, id: playId });
+              const playId = result.insertId;resolve({ success: true, id: playId });
             },
-            (tx, error) => {
-              console.error('[OfflineStorage] Error SQL guardando jugada:', error);
-              // Cambiar reject por resolve para mantener consistencia
+            (tx, error) => {// Cambiar reject por resolve para mantener consistencia
               resolve({ success: false, error: error.message });
             }
           );
         },
         (error) => {
-          // Error en la transacción completa
-          console.error('[OfflineStorage] Error en transacción:', error);
-          resolve({ success: false, error: error.message });
+          // Error en la transacción completaresolve({ success: false, error: error.message });
         },
         () => {
-          // Success callback de la transacción
-          console.log('[OfflineStorage] Transacción completada');
-        }
+          // Success callback de la transacción}
       );
     });
-  } catch (error) {
-    console.error('[OfflineStorage] Error guardando jugada offline:', error);
-    return { success: false, error: error.message };
+  } catch (error) {return { success: false, error: error.message };
   }
 };
 
@@ -822,9 +589,7 @@ export const saveCredentials = async (credentials) => {
 
     await addLog('INFO', 'Credentials saved', { user_id, role });
     return true;
-  } catch (error) {
-    console.error('[OfflineStorage] Error saving credentials:', error);
-    await addLog('ERROR', 'Failed to save credentials', { error: error.message });
+  } catch (error) {await addLog('ERROR', 'Failed to save credentials', { error: error.message });
     return false;
   }
 };
@@ -861,9 +626,7 @@ export const getCredentials = async (user_id = null) => {
       try {
         const encryptedData = JSON.parse(row.encrypted_data);
         username = encryptedData.username;
-      } catch (e) {
-        console.warn('[OfflineStorage] Could not parse encrypted_data for username');
-      }
+      } catch (e) {}
       
       return {
         user_id: row.user_id,
@@ -877,9 +640,7 @@ export const getCredentials = async (user_id = null) => {
     }
 
     return null;
-  } catch (error) {
-    console.error('[OfflineStorage] Error getting credentials:', error);
-    await addLog('ERROR', 'Failed to get credentials', { user_id, error: error.message });
+  } catch (error) {await addLog('ERROR', 'Failed to get credentials', { user_id, error: error.message });
     return null;
   }
 };
@@ -891,31 +652,18 @@ export const getCredentials = async (user_id = null) => {
  * @returns {Promise<Object|null>} Credenciales del usuario o null
  */
 export const getCredentialsByUsername = async (username) => {
-  try {
-    console.log('[OfflineStorage] Buscando credenciales para username:', username);
-    const db = await getDatabase();
-    if (!db) {
-      console.error('[OfflineStorage] Base de datos no disponible');
-      return null;
+  try {const db = await getDatabase();
+    if (!db) {return null;
     }
 
     // Obtener todas las credenciales (normalmente solo hay 1)
     const [result] = await db.executeSql(
       'SELECT * FROM offline_credentials ORDER BY id DESC LIMIT 10'
-    );
-
-    console.log('[OfflineStorage] Credenciales encontradas en BD:', result.rows.length);
-
-    // Buscar la que coincida con el username
+    );// Buscar la que coincida con el username
     for (let i = 0; i < result.rows.length; i++) {
       const row = result.rows.item(i);
       try {
-        const encryptedData = JSON.parse(row.encrypted_data);
-        console.log('[OfflineStorage] Verificando username:', encryptedData.username);
-        
-        if (encryptedData.username === username) {
-          console.log('[OfflineStorage] ✅ Credenciales encontradas para', username);
-          return {
+        const encryptedData = JSON.parse(row.encrypted_data);if (encryptedData.username === username) {return {
             user_id: row.user_id,
             encrypted_data: row.encrypted_data,
             username: encryptedData.username,
@@ -925,16 +673,9 @@ export const getCredentialsByUsername = async (username) => {
             session_expires: row.session_expires,
           };
         }
-      } catch (e) {
-        console.warn('[OfflineStorage] Error parseando encrypted_data:', e.message);
-      }
-    }
-
-    console.log('[OfflineStorage] ❌ No se encontraron credenciales para', username);
-    return null;
-  } catch (error) {
-    console.error('[OfflineStorage] Error buscando credenciales por username:', error);
-    await addLog('ERROR', 'Failed to get credentials by username', { username, error: error.message });
+      } catch (e) {}
+    }return null;
+  } catch (error) {await addLog('ERROR', 'Failed to get credentials by username', { username, error: error.message });
     return null;
   }
 };
@@ -955,9 +696,7 @@ export const deleteCredentials = async (user_id) => {
 
     await addLog('INFO', 'Credentials deleted', { user_id });
     return true;
-  } catch (error) {
-    console.error('[OfflineStorage] Error deleting credentials:', error);
-    return false;
+  } catch (error) {return false;
   }
 };
 
@@ -966,22 +705,13 @@ export const deleteCredentials = async (user_id) => {
  * @returns {Promise<boolean>} true si se eliminaron correctamente
  */
 export const deleteAllCredentials = async () => {
-  try {
-    console.log('[OfflineStorage] Eliminando TODAS las credenciales offline...');
-    const db = await getDatabase();
-    if (!db) {
-      console.error('[OfflineStorage] Base de datos no disponible');
-      return false;
+  try {const db = await getDatabase();
+    if (!db) {return false;
     }
 
-    await db.executeSql('DELETE FROM offline_credentials');
-    console.log('[OfflineStorage] ✅ Todas las credenciales eliminadas');
-
-    await addLog('INFO', 'All credentials deleted', {});
+    await db.executeSql('DELETE FROM offline_credentials');await addLog('INFO', 'All credentials deleted', {});
     return true;
-  } catch (error) {
-    console.error('[OfflineStorage] Error deleting all credentials:', error);
-    return false;
+  } catch (error) {return false;
   }
 };
 
@@ -999,9 +729,7 @@ export const hasStoredCredentials = async () => {
     );
 
     return result.rows.item(0).count > 0;
-  } catch (error) {
-    console.error('[OfflineStorage] Error checking credentials:', error);
-    return false;
+  } catch (error) {return false;
   }
 };
 
@@ -1012,9 +740,7 @@ export const getLastLoginTimestamp = async () => {
   try {
     const value = await getConfig('last_login_timestamp');
     return value ? parseInt(value) : null;
-  } catch (error) {
-    console.error('[OfflineStorage] Error getting last login timestamp:', error);
-    return null;
+  } catch (error) {return null;
   }
 };
 
@@ -1025,9 +751,7 @@ export const setLastLoginTimestamp = async (timestamp) => {
   try {
     await setConfig('last_login_timestamp', timestamp.toString());
     return true;
-  } catch (error) {
-    console.error('[OfflineStorage] Error setting last login timestamp:', error);
-    return false;
+  } catch (error) {return false;
   }
 };
 
@@ -1056,9 +780,7 @@ export const clearAllOfflinePlays = async () => {
     await db.executeSql('DELETE FROM offline_plays');
     await addLog('INFO', 'All offline plays cleared');
     return true;
-  } catch (error) {
-    console.error('[OfflineStorage] Error clearing offline plays:', error);
-    return false;
+  } catch (error) {return false;
   }
 };
 
@@ -1077,9 +799,7 @@ export const getConfig = async (key) => {
       return result.rows.item(0).value;
     }
     return null;
-  } catch (error) {
-    console.error('[OfflineStorage] Error getting config:', error);
-    return null;
+  } catch (error) {return null;
   }
 };
 
@@ -1094,9 +814,7 @@ export const setConfig = async (key, value) => {
     );
 
     return true;
-  } catch (error) {
-    console.error('[OfflineStorage] Error setting config:', error);
-    return false;
+  } catch (error) {return false;
   }
 };
 
@@ -1112,11 +830,7 @@ export const updateSessionExpiry = async (newExpiry) => {
     await db.executeSql(
       'UPDATE offline_credentials SET session_expires = ? WHERE id = (SELECT MAX(id) FROM offline_credentials)',
       [newExpiry.toString()]
-    );
-    console.log('[OfflineStorage] Session expiry updated to:', new Date(newExpiry).toLocaleString());
-  } catch (error) {
-    console.error('[OfflineStorage] Error updating session expiry:', error);
-    throw error;
+    );} catch (error) {throw error;
   }
 };
 
@@ -1170,9 +884,7 @@ export const getDatabaseInfo = async () => {
     info.schedules = schedulesResult.rows.item(0).count;
 
     return info;
-  } catch (error) {
-    console.error('[OfflineStorage] Error getting database info:', error);
-    throw error;
+  } catch (error) {throw error;
   }
 };
 
@@ -1185,12 +897,8 @@ export const getDatabaseInfo = async () => {
  * Para la pantalla de registro
  */
 export const getAllOfflinePlays = async () => {
-  try {
-    console.log('[OfflineStorage] Obteniendo todas las jugadas offline...');
-    const db = await getDatabase();
-    if (!db) {
-      console.error('[OfflineStorage] Base de datos no disponible');
-      return [];
+  try {const db = await getDatabase();
+    if (!db) {return [];
     }
 
     const [result] = await db.executeSql(
@@ -1200,13 +908,8 @@ export const getAllOfflinePlays = async () => {
     const plays = [];
     for (let i = 0; i < result.rows.length; i++) {
       plays.push(result.rows.item(i));
-    }
-
-    console.log(`[OfflineStorage] ${plays.length} jugadas encontradas`);
-    return plays;
-  } catch (error) {
-    console.error('[OfflineStorage] Error obteniendo todas las jugadas:', error);
-    return [];
+    }return plays;
+  } catch (error) {return [];
   }
 };
 
@@ -1215,9 +918,7 @@ export const getAllOfflinePlays = async () => {
  * @param {number} playId - ID de la jugada a eliminar
  */
 export const deleteOfflinePlay = async (playId) => {
-  try {
-    console.log(`[OfflineStorage] Eliminando jugada ${playId}...`);
-    const db = await getDatabase();
+  try {const db = await getDatabase();
     if (!db) {
       throw new Error('Base de datos no disponible');
     }
@@ -1225,14 +926,9 @@ export const deleteOfflinePlay = async (playId) => {
     await db.executeSql(
       `DELETE FROM offline_plays WHERE id = ?`,
       [playId]
-    );
-
-    console.log(`[OfflineStorage] ✅ Jugada ${playId} eliminada`);
-    await addLog('INFO', 'Jugada eliminada', { playId });
+    );await addLog('INFO', 'Jugada eliminada', { playId });
     return true;
-  } catch (error) {
-    console.error('[OfflineStorage] Error eliminando jugada:', error);
-    throw error;
+  } catch (error) {throw error;
   }
 };
 
@@ -1240,9 +936,7 @@ export const deleteOfflinePlay = async (playId) => {
  * Limpiar todas las jugadas exitosas (status='success')
  */
 export const clearSuccessfulPlays = async () => {
-  try {
-    console.log('[OfflineStorage] Limpiando jugadas exitosas...');
-    const db = await getDatabase();
+  try {const db = await getDatabase();
     if (!db) {
       throw new Error('Base de datos no disponible');
     }
@@ -1251,13 +945,9 @@ export const clearSuccessfulPlays = async () => {
       `DELETE FROM offline_plays WHERE status = 'success'`
     );
 
-    const deletedCount = result.rowsAffected || 0;
-    console.log(`[OfflineStorage] ✅ ${deletedCount} jugadas exitosas eliminadas`);
-    await addLog('INFO', 'Jugadas exitosas limpiadas', { count: deletedCount });
+    const deletedCount = result.rowsAffected || 0;await addLog('INFO', 'Jugadas exitosas limpiadas', { count: deletedCount });
     return deletedCount;
-  } catch (error) {
-    console.error('[OfflineStorage] Error limpiando exitosas:', error);
-    throw error;
+  } catch (error) {throw error;
   }
 };
 
@@ -1279,13 +969,8 @@ export const updatePlayStatus = async (playId, status, error = null) => {
        SET status = ?, last_error = ?, last_sync_attempt = ? 
        WHERE id = ?`,
       [status, error, new Date().toISOString(), playId]
-    );
-
-    console.log(`[OfflineStorage] Estado actualizado: jugada ${playId} -> ${status}`);
-    return true;
-  } catch (error) {
-    console.error('[OfflineStorage] Error actualizando estado:', error);
-    throw error;
+    );return true;
+  } catch (error) {throw error;
   }
 };
 
@@ -1308,9 +993,7 @@ export const incrementSyncAttempts = async (playId) => {
     );
 
     return true;
-  } catch (error) {
-    console.error('[OfflineStorage] Error incrementando intentos:', error);
-    throw error;
+  } catch (error) {throw error;
   }
 };
 
@@ -1340,13 +1023,8 @@ export const getDiagnostics = () => {
  * Esto ocurre cuando la app se cierra durante una sincronización
  */
 export const recoverInterruptedPlays = async () => {
-  try {
-    console.log('[OfflineStorage] 🔄 Verificando jugadas interrumpidas...');
-    
-    const db = await getDatabase();
-    if (!db) {
-      console.log('[OfflineStorage] ⚠️ Base de datos no disponible');
-      return 0;
+  try {const db = await getDatabase();
+    if (!db) {return 0;
     }
 
     // Contar jugadas en estado 'sending'
@@ -1356,27 +1034,16 @@ export const recoverInterruptedPlays = async () => {
     
     const total = countResult.rows.item(0).total;
     
-    if (total === 0) {
-      console.log('[OfflineStorage] ✅ No hay jugadas interrumpidas');
-      return 0;
-    }
-
-    console.log('[OfflineStorage] ⚠️ Encontradas', total, 'jugadas interrumpidas');
-
-    // Cambiar estado de 'sending' a 'pending'
+    if (total === 0) {return 0;
+    }// Cambiar estado de 'sending' a 'pending'
     await db.executeSql(
       `UPDATE offline_plays 
        SET status = 'pending' 
        WHERE status = 'sending'`
-    );
-
-    console.log('[OfflineStorage] ✅ Recuperadas', total, 'jugadas interrumpidas');
-    await addLog('INFO', 'Recovered interrupted plays', { count: total });
+    );await addLog('INFO', 'Recovered interrupted plays', { count: total });
 
     return total;
-  } catch (error) {
-    console.error('[OfflineStorage] ❌ Error recuperando jugadas interrumpidas:', error);
-    return 0;
+  } catch (error) {return 0;
   }
 };
 
@@ -1386,10 +1053,7 @@ export const recoverInterruptedPlays = async () => {
  * Envuelve operaciones múltiples en una transacción con rollback automático
  */
 export const saveMultiplePlaysTransaction = async (playsArray) => {
-  try {
-    console.log('[OfflineStorage] 💾 Guardando', playsArray.length, 'jugadas en transacción...');
-    
-    const db = await getDatabase();
+  try {const db = await getDatabase();
     if (!db) {
       throw new Error('Base de datos no disponible');
     }
@@ -1422,20 +1086,14 @@ export const saveMultiplePlaysTransaction = async (playsArray) => {
           });
         },
         // Error callback - se ejecuta el rollback automático
-        (error) => {
-          console.error('[OfflineStorage] ❌ Error en transacción:', error);
-          reject(error);
+        (error) => {reject(error);
         },
         // Success callback - commit automático
-        () => {
-          console.log('[OfflineStorage] ✅ Transacción completada exitosamente');
-          resolve(playsArray.length);
+        () => {resolve(playsArray.length);
         }
       );
     });
-  } catch (error) {
-    console.error('[OfflineStorage] ❌ Error en saveMultiplePlaysTransaction:', error);
-    throw error;
+  } catch (error) {throw error;
   }
 };
 

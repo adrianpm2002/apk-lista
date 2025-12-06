@@ -58,9 +58,7 @@ const notifyListeners = (isOnline, wasOnline) => {
   connectionListeners.forEach(listener => {
     try {
       listener(isOnline, wasOnline);
-    } catch (error) {
-      console.error('[ConnectionService] Error en listener:', error);
-    }
+    } catch (error) {}
   });
 };
 
@@ -76,9 +74,7 @@ export const checkConnection = async () => {
   // No log por defecto para evitar saturación de consola en dev
 
     return isOnline;
-  } catch (error) {
-    console.error('[ConnectionService] Error checking connection:', error);
-    // En caso de error, asumir que no hay conexión
+  } catch (error) {// En caso de error, asumir que no hay conexión
     return false;
   }
 };

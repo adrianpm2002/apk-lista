@@ -36,9 +36,7 @@ function AppContent() {
           if (profile) {
             setUserRole(profile.role);
           }
-        } catch (error) {
-          console.error('[App] Error fetching user role:', error);
-        }
+        } catch (error) {}
       } else {
         setUserRole(null);
       }
@@ -52,43 +50,22 @@ function AppContent() {
 
   useEffect(() => {
     // Inicializar base de datos offline
-    const initDB = async () => {
-      console.log('[App] 🔄 Starting offline database initialization...');
-      try {
+    const initDB = async () => {try {
         const initResult = await OfflineStorage.initOfflineDB();
-        if (initResult) {
-          console.log('[App] ✅ Offline database initialized successfully');
-        } else {
-          console.log('[App] ⚠️ Offline database not initialized (platform not supported or error)');
-        }
-      } catch (error) {
-        console.error('[App] ❌ Error initializing offline database:', error);
-      }
+        if (initResult) {} else {}
+      } catch (error) {}
     };
 
     initDB();
 
-    // Inicializar monitor de conexión
-    console.log('[App] 🔄 Starting connection monitor...');
-    const unsubscribe = ConnectionService.initConnectionMonitor();
-    console.log('[App] ✅ Connection monitor initialized');
-
-    // FASE 10: Inicializar servicio de cambio de día
-    console.log('[App] 🔄 Initializing day change service...');
-    DayChangeService.initDayChangeService();
+    // Inicializar monitor de conexiónconst unsubscribe = ConnectionService.initConnectionMonitor();// FASE 10: Inicializar servicio de cambio de díaDayChangeService.initDayChangeService();
     
     // FASE 10: Verificar cambio de día al iniciar
     DayChangeService.checkAndCleanIfDayChanged();
 
-    // FASE 12.3: Recuperar jugadas interrumpidas
-    console.log('[App] 🔄 Recovering interrupted plays...');
-    OfflineStorage.recoverInterruptedPlays().then(count => {
-      if (count > 0) {
-        console.log('[App] ✅ Recovered', count, 'interrupted plays');
-      }
-    }).catch(error => {
-      console.error('[App] ❌ Error recovering interrupted plays:', error);
-    });
+    // FASE 12.3: Recuperar jugadas interrumpidasOfflineStorage.recoverInterruptedPlays().then(count => {
+      if (count > 0) {}
+    }).catch(error => {});
 
     if (Platform.OS === 'android') {
       // Configurando app para Android con soporte de segundo plano
@@ -97,9 +74,7 @@ function AppContent() {
     // Cleanup
     return () => {
       if (unsubscribe) {
-        unsubscribe();
-        console.log('[App] 🔌 Connection monitor unsubscribed');
-      }
+        unsubscribe();}
     };
   }, []);
 
@@ -107,14 +82,10 @@ function AppContent() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       // Cuando la app pasa de background/inactive a active (foreground)
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('[App] 📱 App volvió al foreground, verificando cambio de día...');
-        DayChangeService.checkAndCleanIfDayChanged();
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {DayChangeService.checkAndCleanIfDayChanged();
       }
       
-      appState.current = nextAppState;
-      console.log('[App] AppState:', nextAppState);
-    });
+      appState.current = nextAppState;});
 
     return () => {
       subscription.remove();

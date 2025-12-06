@@ -18,25 +18,16 @@ import * as OfflineStorage from './offlineStorageService';
  * @returns {Promise<Object>} { success, successCount, failedCount, errors }
  */
 export const syncAllPlays = async (onProgress = null, shouldCancel = null) => {
-  try {
-    console.log('[SyncService] Iniciando sincronización de jugadas...');
-    
-    // 1. Obtener jugadas pendientes
+  try {// 1. Obtener jugadas pendientes
     const pendingPlays = await OfflineStorage.getPendingPlays();
     
-    if (!pendingPlays || pendingPlays.length === 0) {
-      console.log('[SyncService] No hay jugadas pendientes');
-      return {
+    if (!pendingPlays || pendingPlays.length === 0) {return {
         success: true,
         successCount: 0,
         failedCount: 0,
         errors: [],
       };
-    }
-
-    console.log(`[SyncService] ${pendingPlays.length} jugadas pendientes encontradas`);
-
-    // 2. Obtener caché de horarios para validación
+    }// 2. Obtener caché de horarios para validación
     const cachedSchedules = await OfflineStorage.getSchedules(null);
     const scheduleMap = new Map();
     cachedSchedules.forEach(s => scheduleMap.set(s.id, s));
@@ -50,9 +41,7 @@ export const syncAllPlays = async (onProgress = null, shouldCancel = null) => {
       const play = pendingPlays[i];
       
       // Verificar si se canceló la sincronización
-      if (shouldCancel && shouldCancel()) {
-        console.log('[SyncService] Sincronización cancelada por el usuario');
-        break;
+      if (shouldCancel && shouldCancel()) {break;
       }
 
       // Notificar progreso
@@ -71,9 +60,7 @@ export const syncAllPlays = async (onProgress = null, shouldCancel = null) => {
         const schedule = scheduleMap.get(play.id_horario);
         if (schedule) {
           const validationError = validateScheduleTime(schedule, play.created_at);
-          if (validationError) {
-            console.log(`[SyncService] ❌ Jugada ${play.id} - ${validationError}`);
-            await OfflineStorage.updatePlayStatus(play.id, 'failed', validationError);
+          if (validationError) {await OfflineStorage.updatePlayStatus(play.id, 'failed', validationError);
             await OfflineStorage.incrementSyncAttempts(play.id);
             failedCount++;
             errors.push({ playId: play.id, error: validationError });
@@ -84,30 +71,20 @@ export const syncAllPlays = async (onProgress = null, shouldCancel = null) => {
         // Enviar a Supabase
         const result = await sendPlayToSupabase(play);
 
-        if (result.success) {
-          console.log(`[SyncService] ✅ Jugada ${play.id} sincronizada`);
-          await OfflineStorage.updatePlayStatus(play.id, 'success', null);
+        if (result.success) {await OfflineStorage.updatePlayStatus(play.id, 'success', null);
           successCount++;
-        } else {
-          console.log(`[SyncService] ❌ Jugada ${play.id} - ${result.error}`);
-          await OfflineStorage.updatePlayStatus(play.id, 'failed', result.error);
+        } else {await OfflineStorage.updatePlayStatus(play.id, 'failed', result.error);
           await OfflineStorage.incrementSyncAttempts(play.id);
           failedCount++;
           errors.push({ playId: play.id, error: result.error });
         }
 
-      } catch (error) {
-        console.error(`[SyncService] Error procesando jugada ${play.id}:`, error);
-        await OfflineStorage.updatePlayStatus(play.id, 'failed', error.message);
+      } catch (error) {await OfflineStorage.updatePlayStatus(play.id, 'failed', error.message);
         await OfflineStorage.incrementSyncAttempts(play.id);
         failedCount++;
         errors.push({ playId: play.id, error: error.message });
       }
-    }
-
-    console.log(`[SyncService] ✅ Sincronización completada - ${successCount} exitosas, ${failedCount} fallidas`);
-
-    // Log de operación
+    }// Log de operación
     await OfflineStorage.addLog('INFO', 'Sync completed', {
       total: pendingPlays.length,
       success: successCount,
@@ -121,9 +98,7 @@ export const syncAllPlays = async (onProgress = null, shouldCancel = null) => {
       errors,
     };
 
-  } catch (error) {
-    console.error('[SyncService] Error en sincronización:', error);
-    await OfflineStorage.addLog('ERROR', 'Sync failed', { error: error.message });
+  } catch (error) {await OfflineStorage.addLog('ERROR', 'Sync failed', { error: error.message });
     return {
       success: false,
       successCount: 0,
@@ -139,10 +114,7 @@ export const syncAllPlays = async (onProgress = null, shouldCancel = null) => {
  * @returns {Promise<Object>} { success, error? }
  */
 export const syncSinglePlay = async (playId) => {
-  try {
-    console.log(`[SyncService] Sincronizando jugada ${playId}...`);
-
-    // Obtener jugada
+  try {// Obtener jugada
     const allPlays = await OfflineStorage.getAllOfflinePlays();
     const play = allPlays.find(p => p.id === playId);
 
@@ -170,19 +142,13 @@ export const syncSinglePlay = async (playId) => {
     const result = await sendPlayToSupabase(play);
 
     if (result.success) {
-      await OfflineStorage.updatePlayStatus(playId, 'success', null);
-      console.log(`[SyncService] ✅ Jugada ${playId} sincronizada`);
-      return { success: true };
+      await OfflineStorage.updatePlayStatus(playId, 'success', null);return { success: true };
     } else {
       await OfflineStorage.updatePlayStatus(playId, 'failed', result.error);
-      await OfflineStorage.incrementSyncAttempts(playId);
-      console.log(`[SyncService] ❌ Jugada ${playId} falló: ${result.error}`);
-      return { success: false, error: result.error };
+      await OfflineStorage.incrementSyncAttempts(playId);return { success: false, error: result.error };
     }
 
-  } catch (error) {
-    console.error(`[SyncService] Error sincronizando jugada ${playId}:`, error);
-    await OfflineStorage.updatePlayStatus(playId, 'failed', error.message);
+  } catch (error) {await OfflineStorage.updatePlayStatus(playId, 'failed', error.message);
     await OfflineStorage.incrementSyncAttempts(playId);
     return { success: false, error: error.message };
   }
@@ -193,10 +159,7 @@ export const syncSinglePlay = async (playId) => {
  * @param {number} playId - ID de la jugada
  * @returns {Promise<Object>} { success, error? }
  */
-export const retryFailedPlay = async (playId) => {
-  console.log(`[SyncService] Reintentando jugada ${playId}...`);
-  
-  // Cambiar status a pending antes de sincronizar
+export const retryFailedPlay = async (playId) => {// Cambiar status a pending antes de sincronizar
   await OfflineStorage.updatePlayStatus(playId, 'pending', null);
   
   // Sincronizar
@@ -222,20 +185,13 @@ const sendPlayToSupabase = async (play) => {
       comando: play.comando || null,
       id_cliente: play.id_cliente || null,
       created_at: play.created_at,
-    };
-
-    console.log('[SyncService] Enviando a Supabase:', payload);
-
-    // Insertar en Supabase
+    };// Insertar en Supabase
     const { data, error } = await supabase
       .from('jugada')
       .insert(payload)
       .select();
 
-    if (error) {
-      console.error('[SyncService] Error de Supabase:', error);
-      
-      // Parsear errores específicos
+    if (error) {// Parsear errores específicos
       let errorMessage = error.message;
       
       if (error.message.includes('límite') || error.message.includes('limit')) {
@@ -245,14 +201,9 @@ const sendPlayToSupabase = async (play) => {
       }
       
       return { success: false, error: errorMessage };
-    }
+    }return { success: true, data };
 
-    console.log('[SyncService] ✅ Jugada insertada en Supabase:', data);
-    return { success: true, data };
-
-  } catch (error) {
-    console.error('[SyncService] Exception al enviar:', error);
-    return { success: false, error: error.message };
+  } catch (error) {return { success: false, error: error.message };
   }
 };
 
@@ -263,33 +214,20 @@ const sendPlayToSupabase = async (play) => {
  * @returns {string|null} - Mensaje de error o null si es válido
  */
 const validateScheduleTime = (schedule, playCreatedAt) => {
-  try {
-    console.log('[SyncService] Validando horario...');
-    console.log('[SyncService] Schedule:', JSON.stringify(schedule));
-    console.log('[SyncService] Play created_at:', playCreatedAt);
-
-    // Validar que existan los campos necesarios
-    if (!schedule || !schedule.hora_inicio || !schedule.hora_fin) {
-      console.log('[SyncService] ⚠️ Horario sin datos de hora, se permite envío');
-      return null;
+  try {// Validar que existan los campos necesarios
+    if (!schedule || !schedule.hora_inicio || !schedule.hora_fin) {return null;
     }
 
     // Obtener hora de la jugada (hora local del dispositivo cuando se creó)
     const playDate = new Date(playCreatedAt);
     
     // Validar que la fecha sea válida
-    if (isNaN(playDate.getTime())) {
-      console.error('[SyncService] ⚠️ Fecha inválida:', playCreatedAt);
-      return null; // Permitir envío si la fecha es inválida
+    if (isNaN(playDate.getTime())) {return null; // Permitir envío si la fecha es inválida
     }
 
     const playHour = playDate.getHours();
     const playMinute = playDate.getMinutes();
-    const playTime = playHour * 60 + playMinute; // minutos desde medianoche
-
-    console.log('[SyncService] Play time:', `${playHour}:${playMinute} (${playTime} mins)`);
-
-    // Parsear hora_inicio y hora_fin del horario
+    const playTime = playHour * 60 + playMinute; // minutos desde medianoche// Parsear hora_inicio y hora_fin del horario
     // Formato esperado: "HH:MM" o "HH:MM:SS"
     const startParts = schedule.hora_inicio.split(':').map(n => parseInt(n, 10));
     const endParts = schedule.hora_fin.split(':').map(n => parseInt(n, 10));
@@ -300,29 +238,15 @@ const validateScheduleTime = (schedule, playCreatedAt) => {
     const endMinute = endParts[1] || 0;
 
     // Validar que los valores sean números válidos
-    if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
-      console.error('[SyncService] ⚠️ Horarios inválidos:', schedule.hora_inicio, schedule.hora_fin);
-      return null; // Permitir envío si los horarios son inválidos
+    if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {return null; // Permitir envío si los horarios son inválidos
     }
     
     const startTime = startHour * 60 + startMinute;
-    const endTime = endHour * 60 + endMinute;
-
-    console.log('[SyncService] Schedule range:', `${startHour}:${startMinute} (${startTime} mins) - ${endHour}:${endMinute} (${endTime} mins)`);
-
-    // Validar si está dentro del rango
+    const endTime = endHour * 60 + endMinute;// Validar si está dentro del rango
     if (playTime < startTime || playTime > endTime) {
-      const errorMsg = `Horario cerrado. Jugada creada a las ${playHour.toString().padStart(2, '0')}:${playMinute.toString().padStart(2, '0')}, pero el horario "${schedule.nombre}" es de ${schedule.hora_inicio} a ${schedule.hora_fin}`;
-      console.log('[SyncService] ❌ Validación falló:', errorMsg);
-      return errorMsg;
-    }
-
-    console.log('[SyncService] ✅ Horario válido');
-    return null; // Válido
-  } catch (error) {
-    console.error('[SyncService] ❌ Exception en validación de horario:', error);
-    console.error('[SyncService] Stack:', error.stack);
-    // En caso de error en la validación, BLOQUEAR el envío por seguridad
+      const errorMsg = `Horario cerrado. Jugada creada a las ${playHour.toString().padStart(2, '0')}:${playMinute.toString().padStart(2, '0')}, pero el horario "${schedule.nombre}" es de ${schedule.hora_inicio} a ${schedule.hora_fin}`;return errorMsg;
+    }return null; // Válido
+  } catch (error) {// En caso de error en la validación, BLOQUEAR el envío por seguridad
     return 'Error al validar horario. Contacta soporte.';
   }
 };
