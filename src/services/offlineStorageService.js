@@ -13,7 +13,7 @@ if (Platform.OS !== 'web') {
 }
 
 const DB_NAME = 'offline.db';
-const DB_VERSION = 1; // Versión 1 incluye tipo_jugada desde el inicio
+const DB_VERSION = 2; // Versión 2 agrega is_active_session
 
 let dbInstance = null;
 
@@ -83,8 +83,16 @@ const runMigrations = async (db, fromVersion, toVersion) => {if (fromVersion < 1
     await createInitialSchema(db);
   }
 
-  // Nota: La migración v2 se eliminó porque el campo tipo_jugada ya está en el esquema inicial
-  // Para usuarios que instalaron v1 sin tipo_jugada, deben desinstalar y reinstalar la app
+  if (fromVersion < 2 && toVersion >= 2) {
+    // Migración v2: Agregar campo is_active_session
+    try {
+      await db.executeSql(`
+        ALTER TABLE offline_credentials ADD COLUMN is_active_session INTEGER DEFAULT 1
+      `);
+    } catch (error) {
+      // Si la columna ya existe, ignorar el error
+    }
+  }
 };
 
 /**
@@ -141,7 +149,8 @@ const createInitialSchema = async (db) => {// Tabla de jugadas offline
       role TEXT NOT NULL,
       id_banco TEXT,
       last_login TEXT NOT NULL,
-      session_expires TEXT NOT NULL
+      session_expires TEXT NOT NULL,
+      is_active_session INTEGER DEFAULT 1
     )
   `);// Tabla de configuración
   await db.executeSql(`
@@ -582,8 +591,8 @@ export const saveCredentials = async (credentials) => {
 
     await db.executeSql(
       `INSERT OR REPLACE INTO offline_credentials 
-       (user_id, encrypted_data, role, id_banco, last_login, session_expires) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
+       (user_id, encrypted_data, role, id_banco, last_login, session_expires, is_active_session) 
+       VALUES (?, ?, ?, ?, ?, ?, 1)`,
       [user_id, encrypted_data, role, id_banco || null, last_login, session_expires]
     );
 
@@ -730,6 +739,78 @@ export const hasStoredCredentials = async () => {
 
     return result.rows.item(0).count > 0;
   } catch (error) {return false;
+  }
+};
+
+/**
+ * Establecer sesión activa de un usuario
+ * @param {string} user_id - ID del usuario
+ * @param {boolean} isActive - true para activar, false para desactivar
+ */
+export const setActiveSession = async (user_id, isActive) => {
+  try {
+    const db = await getDatabase();
+    if (!db) return false;
+
+    await db.executeSql(
+      `UPDATE offline_credentials SET is_active_session = ? WHERE user_id = ?`,
+      [isActive ? 1 : 0, user_id]
+    );
+
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+/**
+ * Obtener sesión activa (si existe y no ha expirado)
+ * @returns {Promise<Object|null>} Credenciales de sesión activa o null
+ */
+export const getActiveOfflineSession = async () => {
+  try {
+    const db = await getDatabase();
+    if (!db) return null;
+
+    const [result] = await db.executeSql(
+      `SELECT * FROM offline_credentials WHERE is_active_session = 1 ORDER BY last_login DESC LIMIT 1`
+    );
+
+    if (result.rows.length > 0) {
+      const row = result.rows.item(0);
+      
+      // Verificar si la sesión ha expirado
+      const expiresAt = new Date(row.session_expires);
+      const now = new Date();
+      
+      if (now > expiresAt) {
+        // Sesión expirada
+        await setActiveSession(row.user_id, false);
+        return null;
+      }
+
+      // Parsear encrypted_data para obtener username
+      let username = null;
+      try {
+        const encryptedData = JSON.parse(row.encrypted_data);
+        username = encryptedData.username;
+      } catch (e) {}
+      
+      return {
+        user_id: row.user_id,
+        encrypted_data: row.encrypted_data,
+        username: username,
+        role: row.role,
+        id_banco: row.id_banco,
+        last_login: row.last_login,
+        session_expires: row.session_expires,
+        is_active_session: row.is_active_session
+      };
+    }
+
+    return null;
+  } catch (error) {
+    return null;
   }
 };
 
@@ -1120,6 +1201,8 @@ export default {
   updateSessionExpiry,
   getDatabaseInfo,
   getCredentialsByUsername,
+  setActiveSession,
+  getActiveOfflineSession,
   // Loterías y Horarios - FASE 5
   saveLotteries,
   getLotteries,

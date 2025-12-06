@@ -261,12 +261,19 @@ class AuthService {
         
         // Solo si clearPersistentPreference = true, borrar credenciales offline
         const OfflineStorage = require('./offlineStorageService');
-        await OfflineStorage.deleteAllCredentials();
+        await OfflineStorage.default.deleteAllCredentials();
         console.log('[AuthService] ✅ Credenciales offline eliminadas (preferencia deshabilitada)');
       } else {
         await secureStorage.clearStoredCredentials();
         console.log('[AuthService] Credenciales AsyncStorage limpiadas');
-        console.log('[AuthService] ℹ️ Credenciales offline preservadas para próximo login');
+        
+        // Opción B: Mantener credenciales offline pero marcar sesión como inactiva
+        const OfflineStorage = require('./offlineStorageService');
+        const credentials = await OfflineStorage.default.getCredentials();
+        if (credentials?.user_id) {
+          await OfflineStorage.default.setActiveSession(credentials.user_id, false);
+          console.log('[AuthService] ℹ️ Credenciales offline preservadas, sesión marcada como inactiva');
+        }
       }
 
     } catch (error) {
@@ -458,8 +465,10 @@ class AuthService {
 
       console.log('[AuthService] ✅ Contraseña correcta');
 
-      // Login exitoso
+      // Login exitoso - Activar sesión
       console.log('[AuthService] ✅ Offline login successful');
+      await OfflineStorage.default.setActiveSession(matchedCredentials.user_id, true);
+      console.log('[AuthService] ✅ Sesión marcada como activa');
 
       return {
         success: true,
@@ -522,19 +531,54 @@ class AuthService {
    */
   async logoutOffline(clearCredentials = false) {
     try {
+      const OfflineStorage = require('./offlineStorageService');
+      
       if (clearCredentials) {
-        const OfflineStorage = require('./offlineStorageService');
         // Eliminar todas las credenciales
-        const db = await OfflineStorage.default.getDatabase?.();
-        if (db) {
-          await db.executeSql('DELETE FROM offline_credentials');
+        await OfflineStorage.default.deleteAllCredentials();
+      } else {
+        // Opción B: Mantener credenciales pero marcar sesión como inactiva
+        const credentials = await OfflineStorage.default.getCredentials();
+        if (credentials?.user_id) {
+          await OfflineStorage.default.setActiveSession(credentials.user_id, false);
         }
-        console.log('[AuthService] Offline credentials cleared');
       }
+      
       return true;
     } catch (error) {
-      console.error('[AuthService] Error during offline logout:', error);
       return false;
+    }
+  }
+
+  /**
+   * Intentar auto-login offline si hay sesión activa
+   * @returns {Promise<Object|null>} Datos del usuario o null
+   */
+  async tryAutoLoginOffline() {
+    try {
+      const OfflineStorage = require('./offlineStorageService');
+      
+      // Verificar si hay una sesión activa
+      const activeSession = await OfflineStorage.default.getActiveOfflineSession();
+      
+      if (!activeSession) {
+        return null;
+      }
+
+      // Desencriptar credenciales y obtener perfil
+      const encryptedData = JSON.parse(activeSession.encrypted_data);
+      const username = encryptedData.username;
+      
+      if (!username) {
+        return null;
+      }
+
+      // Intentar login offline (esto valida las credenciales)
+      const result = await this.loginOffline(username, encryptedData.password);
+      
+      return result;
+    } catch (error) {
+      return null;
     }
   }
 }

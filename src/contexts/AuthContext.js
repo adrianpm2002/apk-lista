@@ -54,18 +54,26 @@ export const AuthProvider = ({ children }) => {
       try {
         setLoading(true);
         
-        // Intentar restaurar sesión si está habilitada
+        // Intentar restaurar sesión online si está habilitada
         const restoredSession = await authService.restoreSessionIfNeeded();
         
         if (restoredSession && restoredSession.session) {
           setSession(restoredSession.session);
           setUser(restoredSession.session.user);
         } else {
-          // Verificar si hay sesión activa
+          // Verificar si hay sesión online activa
           const currentSession = await authService.getCurrentSession();
           if (currentSession) {
             setSession(currentSession);
             setUser(currentSession.user);
+          } else {
+            // Si no hay sesión online, intentar auto-login offline
+            const offlineUser = await authService.tryAutoLoginOffline();
+            if (offlineUser) {
+              // Establecer usuario offline
+              setUser(offlineUser);
+              setSession(null); // No hay sesión de Supabase en modo offline
+            }
           }
         }
       } catch (error) {
