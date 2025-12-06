@@ -471,7 +471,15 @@ const SavedPlaysScreen = ({ navigation, route }) => {
                 const [shf,smf] = hf.split(':');
                 const start = parseInt(shi,10)*60 + parseInt(smi||'0',10);
                 const end = parseInt(shf,10)*60 + parseInt(smf||'0',10);
-                const current = now.getHours()*60 + now.getMinutes();
+                // Obtener hora en zona horaria de La Habana, Cuba
+                const havanaTime = now.toLocaleString('en-US', { 
+                  timeZone: 'America/Havana',
+                  hour12: false,
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                const [nowHour, nowMinute] = havanaTime.split(':').map(n => parseInt(n, 10));
+                const current = nowHour * 60 + nowMinute;
                 if(start === end) return true;
                 if(end > start) return current >= start && current < end;
                 return current >= start || current < end;
@@ -499,7 +507,15 @@ const SavedPlaysScreen = ({ navigation, route }) => {
     if(selectedIds.size===0) return;
     // Validar que todas las seleccionadas estén en horarios abiertos
     const now = new Date();
-    const nowMin = now.getHours()*60 + now.getMinutes();
+    // Obtener hora en zona horaria de La Habana, Cuba
+    const havanaTime = now.toLocaleString('en-US', { 
+      timeZone: 'America/Havana',
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const [nowHour, nowMinute] = havanaTime.split(':').map(n => parseInt(n, 10));
+    const nowMin = nowHour * 60 + nowMinute;
     const isOpen = (hi,hf) => {
       if(!hi || !hf) return true;
       const [shi,smi] = hi.split(':');
