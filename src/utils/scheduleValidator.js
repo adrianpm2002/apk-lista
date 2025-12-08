@@ -33,20 +33,37 @@ export const isScheduleOpen = (startTime, endTime) => {
 // Función para validar si un horario específico (por ID) está abierto
 export const validateScheduleById = async (scheduleId) => {
   try {
-    const { supabase } = await import('../supabaseClient');
+    // Intentar primero desde Supabase (online)
+    try {
+      const { supabase } = await import('../supabaseClient');
+      
+      const { data: schedule, error } = await supabase
+        .from('horario')
+        .select('hora_inicio, hora_fin')
+        .eq('id', scheduleId)
+        .single();
+      
+      if (!error && schedule) {
+        return isScheduleOpen(schedule.hora_inicio, schedule.hora_fin);
+      }
+    } catch (onlineError) {
+      // Si falla online, intentar desde caché offline
+    }
+
+    // Fallback: Buscar en caché offline
+    const OfflineStorage = await import('../services/offlineStorageService');
+    const cachedSchedules = await OfflineStorage.default.getSchedules(null);
     
-    const { data: schedule, error } = await supabase
-      .from('horario')
-      .select('hora_inicio, hora_fin')
-      .eq('id', scheduleId)
-      .single();
-    
-    if (error || !schedule) {
-      console.error('Error obteniendo horario:', error);
-      return false; // Por seguridad, si no se puede obtener el horario, considerarlo cerrado
+    if (cachedSchedules && cachedSchedules.length > 0) {
+      const schedule = cachedSchedules.find(s => s.id === scheduleId);
+      
+      if (schedule && schedule.hora_inicio && schedule.hora_fin) {
+        return isScheduleOpen(schedule.hora_inicio, schedule.hora_fin);
+      }
     }
     
-    return isScheduleOpen(schedule.hora_inicio, schedule.hora_fin);
+    // Si no se encuentra ni online ni offline, considerarlo cerrado por seguridad
+    return false;
   } catch (error) {
     console.error('Error validando horario:', error);
     return false;

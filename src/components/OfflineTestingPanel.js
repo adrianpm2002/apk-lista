@@ -371,9 +371,8 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
    */
   const testCreateOfflinePlay = async () => {
     try {
-      // Obtener usuario actual desde supabase directamente
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      // Obtener usuario desde el contexto (funciona online y offline)
+      if (!profile || !profile.userId) {
         Alert.alert('Error', 'No hay usuario autenticado');
         return;
       }
@@ -418,7 +417,7 @@ const OfflineTestingPanel = ({ inline = false, allowWeb = false, onClose }) => {
 
       // Datos de prueba completos
       const playData = {
-        user_id: user.id,
+        user_id: profile.userId,
         id_horario: horario.id,
         jugada: numeros,
         numeros: numeros,
