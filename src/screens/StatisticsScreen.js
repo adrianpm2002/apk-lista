@@ -438,72 +438,162 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
 
   // ===== Export helpers (Web) =====
   const groupDetailsForExport = () => {
-    // Validar que tableData sea un array
-    if (!tableData || !Array.isArray(tableData)) {
+    // 🎯 Obtener los datos exactamente como se muestran en la vista de detalles
+    let allPlays = [];
+    
+    if (userRole === 'listero') {
+      // Para listero, desagrupar raw_plays de cada colector
+      if (tableData && tableData.plays && Array.isArray(tableData.plays)) {
+        tableData.plays.forEach(collector => {
+          if (collector.raw_plays && Array.isArray(collector.raw_plays)) {
+            allPlays = allPlays.concat(collector.raw_plays);
+          }
+        });
+      }
+    } else if (userRole === 'colector' || userRole === 'collector') {
+      // Para colector, desagrupar raw_plays de cada colector
+      if (tableData && Array.isArray(tableData.plays)) {
+        tableData.plays.forEach(collector => {
+          if (collector.raw_plays && Array.isArray(collector.raw_plays)) {
+            allPlays = allPlays.concat(collector.raw_plays);
+          }
+        });
+      }
+    } else if (userRole === 'admin') {
+      // Para admin, desagrupar raw_plays de cada listero
+      if (tableData && Array.isArray(tableData.plays)) {
+        tableData.plays.forEach(listero => {
+          if (listero.raw_plays && Array.isArray(listero.raw_plays)) {
+            allPlays = allPlays.concat(listero.raw_plays);
+          }
+        });
+      }
+    }
+    
+    if (allPlays.length === 0) {
       return [];
     }
     
-    if (tableData.length === 0) {
+    // 🎯 APLICAR LOS MISMOS FILTROS QUE EN LA VISTA DE DETALLES
+    const filteredPlays = allPlays.filter(r => {
+      if (!r.fecha_jugada) return false;
+      
+      // Filtro de lotería (solo para listero)
+      if (userRole === 'listero' && selectedLotteryDetails !== 'all') {
+        const playLottery = r.loteria || r.nombre_loteria || 'Lotería';
+        if (playLottery !== selectedLotteryDetails) return false;
+      }
+      
+      // Filtro de lotería para collector/admin
+      if ((userRole === 'colector' || userRole === 'collector' || userRole === 'admin') && selectedLotteryCollector !== 'all') {
+        const playLottery = r.loteria || r.nombre_loteria || 'Lotería';
+        if (playLottery !== selectedLotteryCollector) return false;
+      }
+      
+      // Filtro de período de fechas
+      if (currentStartDate && currentEndDate) {
+        const playDate = new Date(r.fecha_jugada);
+        if (isNaN(playDate.getTime())) return false;
+        
+        const playDateOnly = new Date(playDate.getFullYear(), playDate.getMonth(), playDate.getDate());
+        const startDateOnly = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth(), currentStartDate.getDate());
+        const endDateOnly = new Date(currentEndDate.getFullYear(), currentEndDate.getMonth(), currentEndDate.getDate());
+        
+        if (playDateOnly < startDateOnly || playDateOnly > endDateOnly) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+    
+    if (filteredPlays.length === 0) {
       return [];
     }
     
-    // Reutilizar misma agrupación base que en pantalla
-    const dayKeyOf = (ts)=>{ 
-      const d=new Date(ts); 
-      if (isNaN(d.getTime())) return 0; // Manejar fecha inválida
+    // 🎯 Usar la misma agrupación que en la vista de detalles
+    const dayKeyOf = (ts) => { 
+      const d = new Date(ts); 
+      if (isNaN(d.getTime())) return 0;
       d.setHours(0,0,0,0); 
       return d.getTime(); 
     };
-    const dayLabelOf = (ts)=>{ 
-      const d=new Date(ts); 
-      if (isNaN(d.getTime())) return 'Fecha inválida'; // Manejar fecha inválida
+    
+    const dayLabelOf = (ts) => { 
+      const d = new Date(ts); 
+      if (isNaN(d.getTime())) return 'Fecha inválida';
       return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }); 
     };
-    const timeStr = (ts)=> {
+    
+    const timeStr = (ts) => {
       const d = new Date(ts);
-      if (isNaN(d.getTime())) return 'Hora inválida'; // Manejar fecha inválida
-      return d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit', hour12: true});
+      if (isNaN(d.getTime())) return 'Hora inválida';
+      return d.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit', hour12: true});
     };
-    const inferCollected = (row)=>{
-      const mt = row.monto_total;
-      if(mt!=null && mt!==undefined) return Number(mt)||0;
-      const count = String(row.numeros || row.numeros_jugados || '').split(',').map(s=>s.trim()).filter(Boolean).length;
-      return (Number(row.monto_unitario)||0)*count;
-    };
+    
     const map = new Map();
     
-
-    
-    // Filtrar registros con fechas válidas antes de procesarlos
-    const validRecords = tableData.filter(r => r.created_at);
-    
-    for(const r of validRecords){
-      const dayKey = dayKeyOf(r.created_at);
-      const dayLabel = dayLabelOf(r.created_at);
-      const lot = r.lottery_name || 'Lotería';
-      const sch = r.schedule_name || 'Horario';
-      const key = `${dayKey}|${lot}|${sch}`;
-      if(!map.has(key)) map.set(key, { key, dayKey, dayLabel, lottery: lot, schedule: sch, plays: [], totalRecogido:0, totalPagado:0, resultado: r.resultado || null });
-      const g = map.get(key);
-      const collected = inferCollected(r);
-      g.totalRecogido += collected;
-      g.totalPagado += Number(r.pago_calculado||0);
-      if (!g.resultado && r.resultado) g.resultado = r.resultado;
-      g.plays.push({
+    // Agrupar por fecha + lotería + horario + resultado (igual que en la vista)
+    for(const r of filteredPlays) {
+      const dayKey = dayKeyOf(r.fecha_jugada);
+      const dayLabel = dayLabelOf(r.fecha_jugada);
+      const lottery = r.loteria || r.nombre_loteria || 'Lotería';
+      const schedule = r.horario || r.nombre_horario || 'Horario';
+      const resultado = r.resultado || null;
+      
+      const key = `${dayKey}|${lottery}|${schedule}|${resultado || 'sin_resultado'}`;
+      
+      if(!map.has(key)) {
+        map.set(key, { 
+          key, 
+          dayKey, 
+          dayLabel, 
+          lottery, 
+          schedule, 
+          resultado,
+          plays: [], 
+          totalGananciaListero: 0,
+          totalRecogido: 0,
+          totalLimpio: 0,
+          totalBalance: 0,
+          totalPagado: 0
+        });
+      }
+      
+      const group = map.get(key);
+      
+      // Acumular totales (igual que en la vista)
+      const bruto = Number(r.monto_total || 0);
+      const ganancia = Number(r.ganancia_listero || 0);
+      group.totalGananciaListero += ganancia;
+      group.totalRecogido += bruto;
+      group.totalLimpio += (bruto - ganancia);
+      group.totalBalance += Number(r.balance_listero || 0);
+      group.totalPagado += Number(r.monto_a_pagar || 0);
+      
+      // Agregar jugada individual
+      group.plays.push({
         ts: (() => {
-          const d = new Date(r.created_at);
+          const d = new Date(r.fecha_jugada);
           return isNaN(d.getTime()) ? 0 : d.getTime();
         })(),
-        time: timeStr(r.created_at),
-        nota: r.nota,
-        jugada: r.jugada,
-        numeros: r.numeros || r.numeros_jugados,
-        total: collected,
-        pagado: Number(r.pago_calculado||0),
+        time: timeStr(r.fecha_jugada),
+        nota: r.nota || '',
+        jugada: r.tipo_jugada || '',
+        numeros: r.numeros || r.numeros_jugados || '',
+        bruto: Number(r.monto_total || 0),
+        ganancia: Number(r.ganancia_listero || 0),
+        pagado: Number(r.monto_a_pagar || 0),
+        balance: Number(r.balance_listero || 0)
       });
     }
-    const groups = Array.from(map.values()).sort((a,b)=> (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
-    groups.forEach(g=> g.plays.sort((a,b)=> b.ts - a.ts));
+    
+    const groups = Array.from(map.values())
+      .sort((a,b) => (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
+    
+    groups.forEach(g => {
+      g.plays.sort((a,b) => b.ts - a.ts);
+    });
     
     return groups;
   };
@@ -512,33 +602,200 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     try{
       const groups = groupDetailsForExport();
       
+      if (groups.length === 0) {
+        Alert.alert('Sin Datos', 'No hay jugadas para exportar con los filtros actuales.');
+        return false;
+      }
+      
       const style = `
         <style>
-          body{ font-family: Arial, sans-serif; }
-          h2{ margin: 6px 0; font-size:14px; }
-          table{ width:100%; border-collapse: collapse; margin-bottom: 12px; }
-          th, td{ border:1px solid #ccc; padding:6px; font-size: 11px; text-align:left; }
-          thead{ background:#f3f3f3; }
-          .meta{ color:#333; margin-bottom:4px; }
+          body{ 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            color: #333;
+          }
+          h2{ 
+            margin: 0 0 16px 0; 
+            font-size: 18px; 
+            color: #1976D2;
+            border-bottom: 2px solid #1976D2;
+            padding-bottom: 8px;
+          }
+          h3{
+            margin: 0;
+            font-size: 13px;
+          }
+          table{ 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          }
+          th, td{ 
+            border: 1px solid #ddd; 
+            padding: 8px; 
+            font-size: 11px; 
+            text-align: left; 
+          }
+          thead{ 
+            background: #1976D2;
+            color: white;
+            font-weight: bold;
+          }
+          tbody tr:nth-child(even) {
+            background: #f9f9f9;
+          }
+          tbody tr:hover {
+            background: #f0f0f0;
+          }
+          .meta{ 
+            color: #555; 
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #e3f2fd;
+            border-left: 4px solid #1976D2;
+            font-size: 12px;
+          }
+          @media print {
+            body { margin: 10px; }
+            h2 { page-break-before: avoid; }
+            table { page-break-inside: avoid; }
+          }
         </style>`;
+      // Calcular totales generales (igual que en la vista)
+      let totalRecogidoGeneral = 0;
+      let totalLimpioGeneral = 0;
+      let totalGananciaGeneral = 0;
+      let totalPagadoGeneral = 0;
+      let totalBalanceGeneral = 0;
+      let totalJugadas = 0;
+      
+      groups.forEach(g => {
+        totalRecogidoGeneral += g.totalRecogido || 0;
+        totalLimpioGeneral += g.totalLimpio || 0;
+        totalGananciaGeneral += g.totalGananciaListero || 0;
+        totalPagadoGeneral += g.totalPagado || 0;
+        totalBalanceGeneral += g.totalBalance || 0;
+        totalJugadas += g.plays.length || 0;
+      });
+      
+      // 🎯 Generar secciones con grupo principal + jugadas individuales
       const sections = groups.map(g=>{
-        const header = `<div class="meta"><strong>${g.dayLabel}</strong> · ${g.lottery} · ${g.schedule} · Resultado: ${g.resultado || 'no disponible'}</div>`;
+        const balance = g.totalBalance || 0;
+        
+        // Fila principal del grupo (como se ve en la tabla de detalles)
+        const groupHeader = `
+          <div class="group-header">
+            <h3 style="margin:0 0 8px 0; color:#1976D2; font-size:14px;">
+              📅 ${g.dayLabel} · ${g.lottery} · ${g.schedule}
+            </h3>
+            <div style="background:#e3f2fd; padding:10px; border-radius:4px; margin-bottom:12px;">
+              <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; font-size:11px;">
+                <div><strong>Resultado:</strong> ${g.resultado || 'N/A'}</div>
+                <div><strong>Jugadas:</strong> ${g.plays.length}</div>
+                <div><strong>${getSantiagoHeader('Bruto')}:</strong> ${formatSantiagoMoney(g.totalRecogido)}</div>
+                <div><strong>${getSantiagoHeader('Limpio')}:</strong> ${formatSantiagoMoney(g.totalLimpio)}</div>
+                <div><strong>${getSantiagoHeader('Ganancia')}:</strong> ${formatSantiagoMoney(g.totalGananciaListero)}</div>
+                <div><strong>Premio:</strong> ${formatMoney(g.totalPagado)}</div>
+                <div style="grid-column: span 2;"><strong>${getSantiagoHeader('Balance')}:</strong> 
+                  <span style="color:${balance >= 0 ? '#2E7D32' : '#D32F2F'}; font-weight:bold;">
+                    ${formatSantiagoMoney(balance)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        // Tabla con todas las jugadas individuales (expandidas)
         const rows = g.plays.map(p=> `<tr>
             <td>${p.time}</td>
-            <td>${(p.nota||'')}</td>
+            <td>${(p.nota||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
             <td>${(p.jugada||'')}</td>
-            <td>${(p.numeros || p.numeros_jugados || '').replace(/</g,'&lt;')}</td>
+            <td>${(p.numeros||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
             <td>${formatSantiagoMoney(p.bruto)}</td>
-            <td>${p.pagado>0? formatMoney(p.pagado) : 'Sin premio'}</td>
+            <td>${formatSantiagoMoney(p.ganancia)}</td>
+            <td>${p.pagado > 0 ? formatMoney(p.pagado) : '-'}</td>
+            <td style="color:${p.balance >= 0 ? '#2E7D32' : '#D32F2F'}; font-weight:bold;">
+              ${formatSantiagoMoney(p.balance)}
+            </td>
           </tr>`).join('');
-        return `${header}
+        
+        return `${groupHeader}
           <table>
-            <thead><tr><th>Hora</th><th>Nota</th><th>Jugada</th><th>Números</th><th>Total</th><th>Pagado</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Nota</th>
+                <th>Tipo</th>
+                <th>Números</th>
+                <th>${getSantiagoHeader('Bruto')}</th>
+                <th>${getSantiagoHeader('Ganancia')}</th>
+                <th>Premio</th>
+                <th>${getSantiagoHeader('Balance')}</th>
+              </tr>
+            </thead>
             <tbody>${rows}</tbody>
           </table>`;
       }).join('');
+      
+      const resumenHTML = `
+        <div style="background:#f0f0f0; padding:16px; margin-bottom:20px; border-radius:8px; border-left:4px solid #1976D2;">
+          <h3 style="margin:0 0 12px 0; font-size:15px; color:#1976D2;">📊 Resumen General</h3>
+          <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; font-size:11px;">
+            <div><strong>${getSantiagoHeader('Total Recogido (Bruto)')}:</strong> ${formatSantiagoMoney(totalRecogidoGeneral)}</div>
+            <div><strong>${getSantiagoHeader('Total Limpio')}:</strong> ${formatSantiagoMoney(totalLimpioGeneral)}</div>
+            <div><strong>${getSantiagoHeader('Total Ganancia')}:</strong> ${formatSantiagoMoney(totalGananciaGeneral)}</div>
+            <div><strong>Total Premios:</strong> ${formatMoney(totalPagadoGeneral)}</div>
+            <div style="grid-column: span 2;">
+              <strong>${getSantiagoHeader('Balance Total')}:</strong> 
+              <span style="color:${totalBalanceGeneral >= 0 ? '#2E7D32' : '#D32F2F'}; font-weight:bold; font-size:13px;">
+                ${formatSantiagoMoney(totalBalanceGeneral)}
+              </span>
+            </div>
+            <div><strong>Total de Jugadas:</strong> ${totalJugadas}</div>
+            <div><strong>Total de Grupos:</strong> ${groups.length}</div>
+            <div style="grid-column: span 2;">
+              <strong>Fecha de Exportación:</strong> ${new Date().toLocaleString('es-ES', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Información de filtros aplicados
+      const filtrosHTML = `
+        <div style="background:#fff3cd; padding:12px; margin-bottom:16px; border-radius:4px; border-left:4px solid #ffc107;">
+          <h4 style="margin:0 0 8px 0; font-size:12px; color:#856404;">🔍 Filtros Aplicados</h4>
+          <div style="font-size:10px; color:#856404;">
+            ${userRole === 'listero' && selectedLotteryDetails !== 'all' ? 
+              `<div><strong>Lotería:</strong> ${selectedLotteryDetails}</div>` : 
+              (userRole !== 'listero' && selectedLotteryCollector !== 'all' ? 
+                `<div><strong>Lotería:</strong> ${selectedLotteryCollector}</div>` : 
+                '<div><strong>Lotería:</strong> Todas</div>'
+              )
+            }
+            ${currentStartDate && currentEndDate ? 
+              `<div><strong>Período:</strong> ${currentStartDate.toLocaleDateString('es-ES')} - ${currentEndDate.toLocaleDateString('es-ES')}</div>` : 
+              `<div><strong>Período:</strong> ${selectedPeriod === 'today' ? 'Hoy' : 
+                selectedPeriod === 'week' ? 'Esta Semana' : 
+                selectedPeriod === 'month' ? 'Este Mes' : 
+                selectedPeriod === 'custom' ? 'Personalizado' : 'Todos'}</div>`
+            }
+            ${modoSantiago ? `<div><strong>Modo Santiago:</strong> Activo (${porcentajeSantiago}%)</div>` : ''}
+          </div>
+        </div>
+      `;
+      
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>${style}</head><body>
-        <h2>Detalles de Jugadas</h2>
+        <h2>Detalles de Jugadas - ${userRole === 'listero' ? 'Listero' : userRole === 'colector' || userRole === 'collector' ? 'Colector' : 'Admin'}</h2>
+        ${filtrosHTML}
+        ${resumenHTML}
         ${sections}
       </body></html>`;
       
@@ -589,14 +846,13 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           </Text>
         </TouchableOpacity>
         
-        {/* TEMPORALMENTE OCULTO - Exportar PDF 
+        {/* Botón de Exportar PDF */}
         <TouchableOpacity
           style={styles.exportButton}
           onPress={() => setShowExportModal(true)}
         >
           <Text style={styles.exportButtonText}>📤 Exportar</Text>
         </TouchableOpacity>
-        */}
       </View>
     </View>
   );

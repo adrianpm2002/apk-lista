@@ -140,8 +140,126 @@ export const useOfflinePlaySubmission = () => {
     }
   };
 
+  /**
+   * Guardar múltiples jugadas offline en batch (más eficiente)
+   * @param {Array<Object>} playsDataArray - Array de datos de jugadas
+   * @returns {Promise<Object>} { success, insertedCount, failedCount, errors? }
+   */
+  const saveBatchPlaysOffline = async (playsDataArray) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log('[OfflinePlay] Guardando jugadas en batch offline...', playsDataArray.length);
+
+      if (!Array.isArray(playsDataArray) || playsDataArray.length === 0) {
+        throw new Error('Array de jugadas vacío o inválido');
+      }
+
+      // Procesar todas las jugadas para agregar información completa
+      const processedPlays = await Promise.all(
+        playsDataArray.map(async (playData) => {
+          // Validaciones básicas
+          if (!playData.user_id || !playData.id_horario || !playData.numeros || playData.numeros.trim() === '') {
+            throw new Error('Datos incompletos en una de las jugadas');
+          }
+
+          const montoUnitario = parseFloat(playData.monto_unitario) || 0;
+          if (montoUnitario <= 0) {
+            throw new Error('Monto unitario debe ser mayor a 0');
+          }
+
+          // Calcular monto total (monto_unitario * cantidad de números)
+          const numerosArray = playData.numeros.split(',').filter(n => n.trim());
+          const montoTotal = montoUnitario * numerosArray.length;
+
+          // Obtener información del horario desde el caché
+          const cachedSchedules = await OfflineStorage.getSchedules(null);
+          const scheduleData = cachedSchedules.find(s => s.id === playData.id_horario);
+          
+          if (!scheduleData) {
+            throw new Error('Horario no encontrado en caché. Sincroniza el caché primero.');
+          }
+
+          // Obtener información de la lotería desde el caché
+          const cachedLotteries = await OfflineStorage.getLotteries(null);
+          const lotteryData = cachedLotteries.find(l => l.id === scheduleData.id_loteria);
+          
+          if (!lotteryData) {
+            throw new Error('Lotería no encontrada en caché. Sincroniza el caché primero.');
+          }
+
+          return {
+            user_id: playData.user_id,
+            id_horario: playData.id_horario,
+            numeros: playData.numeros.trim(),
+            tipo_jugada: playData.tipo_jugada || null,
+            monto_unitario: montoUnitario,
+            monto_total: montoTotal,
+            jugada: playData.tipo_jugada || playData.numeros.trim(),
+            nota: playData.nota || `${lotteryData.nombre} - ${scheduleData.nombre}`,
+            comando: playData.comando || null,
+            id_cliente: playData.id_cliente || null,
+            nombre_loteria: lotteryData.nombre,
+            nombre_horario: scheduleData.nombre,
+            status: 'pending',
+            sync_attempts: 0,
+            last_error: null,
+            created_at: new Date().toISOString(),
+          };
+        })
+      );
+
+      console.log('[OfflinePlay] Procesadas jugadas con info del caché:', processedPlays.length);
+
+      // Guardar todas las jugadas en batch usando la transacción de SQLite
+      const result = await OfflineStorage.saveBatchOfflinePlays(processedPlays);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Error guardando jugadas offline en batch');
+      }
+
+      console.log('[OfflinePlay] ✅ Jugadas guardadas en batch offline:', {
+        insertedCount: result.insertedCount,
+        failedCount: result.failedCount,
+      });
+
+      // Log de operación
+      await OfflineStorage.addLog('INFO', 'Jugadas guardadas offline en batch', {
+        total: playsDataArray.length,
+        inserted: result.insertedCount,
+        failed: result.failedCount,
+      });
+
+      setLoading(false);
+      return {
+        success: true,
+        insertedCount: result.insertedCount,
+        failedCount: result.failedCount,
+        errors: result.errors,
+      };
+    } catch (err) {
+      console.error('[OfflinePlay] Error guardando jugadas en batch offline:', err);
+      setError(err.message);
+      setLoading(false);
+
+      await OfflineStorage.addLog('ERROR', 'Error guardando jugadas en batch offline', {
+        error: err.message,
+        count: playsDataArray.length,
+      });
+
+      return {
+        success: false,
+        insertedCount: 0,
+        failedCount: playsDataArray.length,
+        error: err.message,
+      };
+    }
+  };
+
   return {
     savePlayOffline,
+    saveBatchPlaysOffline,
     loading,
     error,
   };

@@ -124,7 +124,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
 
   // Hooks para enviar jugadas (online y offline)
   // Usar de forma segura para web (que no tiene SQLite)
-  const { savePlayOffline } = useOfflinePlaySubmission();
+  const { savePlayOffline, saveBatchPlaysOffline } = useOfflinePlaySubmission();
   let isOnline = true;
   try {
     const offlineContext = useOffline();
@@ -672,15 +672,18 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       // 7. Insertar usando batch (más eficiente)
       setIsInserting(true);
 
-      // Si la app está en modo offline manual o sin conexión, guardar localmente
+      // Si la app está en modo offline manual o sin conexión, guardar localmente usando BATCH INSERT
       if (!isOnline) {
         let successCount = 0;
         let failCount = 0;
+        
         try {
-          // Guardar siguiendo la misma lógica de payloads (reconstruir por lotería y tipo)
+          // Preparar todos los payloads para batch insert
+          const batchPayloads = [];
+          
           for (const lv of selectedLotteries) {
             const id_horario = selectedSchedules[lv];
-            const lotteryLabel = getLotteryLabel(lv) || 'Lotería';
+            
             for (const pt of selectedPlayTypes) {
               const raw = amounts[pt] || '0';
               let unit = parseFloat(raw.toString().replace(/[^0-9.]/g,'')) || 0;
@@ -692,28 +695,28 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
                 rowTotal = unit * numsCount;
               }
               const numerosForThisPlay = (pt === 'fijo' && hasCentenaFijoCombo) ? numbersFormattedFijo : numbersFormatted;
-              const scheduleLabel = getScheduleLabel(lv, id_horario) || 'Horario';
 
-              try {
-                const res = await savePlayOffline({
-                  user_id: user?.id || userId,
-                  id_horario,
-                  numeros: numerosForThisPlay,
-                  tipo_jugada: pt,
-                  monto_unitario: unit,
-                  nota: note?.trim() || null,
-                  comando: plays.trim(),
-                  nombres: { loteria: lotteryLabel, horario: scheduleLabel }
-                });
-                if (res && res.success) successCount++; else failCount++;
-              } catch(e){
-                console.error('[VisualMode] Error guardando jugada offline', e);
-                failCount++;
-              }
+              batchPayloads.push({
+                user_id: user?.id || userId,
+                id_horario,
+                numeros: numerosForThisPlay,
+                tipo_jugada: pt,
+                monto_unitario: unit,
+                nota: note?.trim() || null,
+                comando: plays.trim(),
+              });
             }
           }
+
+          console.log('[VisualMode] Insertando batch de jugadas offline:', batchPayloads.length);
+
+          // ✅ INSERCIÓN BATCH REAL - Una sola transacción SQLite
+          const result = await saveBatchPlaysOffline(batchPayloads);
+          successCount = result.insertedCount || 0;
+          failCount = result.failedCount || 0;
         } catch(e){
           console.error('[VisualMode] Error guardando jugadas offline batch', e);
+          failCount = selectedLotteries.length * selectedPlayTypes.length;
         }
 
         setInsertFeedback({ success: successCount, fail: failCount, duplicates: [], edit: false });

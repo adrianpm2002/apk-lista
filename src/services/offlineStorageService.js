@@ -572,6 +572,102 @@ export const saveOfflinePlay = async (playData) => {
   }
 };
 
+/**
+ * Guardar múltiples jugadas offline en batch (más eficiente)
+ * @param {Array<Object>} playsData - Array de objetos con datos de jugadas
+ * @returns {Promise<Object>} { success, insertedCount, failedCount, errors? }
+ */
+export const saveBatchOfflinePlays = async (playsData) => {
+  try {
+    const db = await getDatabase();
+    if (!db) {
+      return { success: false, insertedCount: 0, failedCount: playsData.length, error: 'Base de datos no disponible' };
+    }
+
+    if (!Array.isArray(playsData) || playsData.length === 0) {
+      return { success: false, insertedCount: 0, failedCount: 0, error: 'Array de jugadas vacío o inválido' };
+    }
+
+    let insertedCount = 0;
+    let failedCount = 0;
+    const errors = [];
+
+    return new Promise((resolve) => {
+      db.transaction(
+        (tx) => {
+          playsData.forEach((playData, index) => {
+            // Validar datos requeridos
+            if (!playData.user_id || !playData.id_horario || (!playData.numeros && !playData.jugada)) {
+              failedCount++;
+              errors.push({ index, error: 'Datos incompletos' });
+              return;
+            }
+
+            tx.executeSql(
+              `INSERT INTO offline_plays (
+                id_listero, id_horario, jugada, numeros, tipo_jugada,
+                monto_unitario, monto_total, nota, comando, id_cliente,
+                created_at, created_from, status, last_error, sync_attempts, last_sync_attempt
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                playData.user_id,
+                playData.id_horario,
+                playData.jugada || playData.numeros,
+                playData.numeros,
+                playData.tipo_jugada || null,
+                playData.monto_unitario,
+                playData.monto_total,
+                playData.nota || `${playData.nombre_loteria || 'Lotería'} - ${playData.nombre_horario || 'Horario'}`,
+                playData.comando || null,
+                playData.id_cliente || null,
+                playData.created_at || new Date().toISOString(),
+                'offline',
+                playData.status || 'pending',
+                playData.last_error || null,
+                playData.sync_attempts || 0,
+                null,
+              ],
+              (tx, result) => {
+                insertedCount++;
+              },
+              (tx, error) => {
+                failedCount++;
+                errors.push({ index, error: error.message });
+              }
+            );
+          });
+        },
+        (error) => {
+          // Error en la transacción completa
+          resolve({ 
+            success: false, 
+            insertedCount, 
+            failedCount: playsData.length - insertedCount,
+            error: error.message,
+            errors 
+          });
+        },
+        () => {
+          // Success callback - transacción completada
+          resolve({ 
+            success: insertedCount > 0, 
+            insertedCount, 
+            failedCount,
+            errors: errors.length > 0 ? errors : undefined
+          });
+        }
+      );
+    });
+  } catch (error) {
+    return { 
+      success: false, 
+      insertedCount: 0, 
+      failedCount: playsData.length,
+      error: error.message 
+    };
+  }
+};
+
 // =================================================================
 // CREDENCIALES - FASE 4
 // =================================================================

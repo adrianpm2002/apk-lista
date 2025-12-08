@@ -204,7 +204,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   const [userId, setUserId] = useState(null);
 
   // Hooks para enviar jugadas (online y offline)
-  const { savePlayOffline } = useOfflinePlaySubmission();
+  const { savePlayOffline, saveBatchPlaysOffline } = useOfflinePlaySubmission();
   let isOnline = true;
   try {
     const offlineContext = useOffline();
@@ -437,39 +437,86 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       return;
     }
 
-    // Preparar payloads para inserción
+    // Preparar payloads para inserción AGRUPANDO por tipo de jugada y monto unitario
     const payloads = [];
     
     selectedLotteries.forEach(lv => {
       const id_horario = selectedSchedules[lv];
       
-      // Agregar jugadas de fijos y corridos
+      // AGRUPAR FIJOS con el mismo monto unitario
+      const fijosPorMonto = {};
       jugadasFijosYCorridos.forEach(jugada => {
         if (jugada.fijo && parseFloat(jugada.fijo) > 0) {
-          payloads.push({
-            id_listero: userId,
-            id_horario,
-            jugada: 'fijo',
-            numeros: jugada.numero,
-            nota: note?.trim() || null,
-            monto_unitario: parseFloat(jugada.fijo),
-            monto_total: parseFloat(jugada.fijo)
-          });
-        }
-        if (jugada.corrido && parseFloat(jugada.corrido) > 0) {
-          payloads.push({
-            id_listero: userId,
-            id_horario,
-            jugada: 'corrido',
-            numeros: jugada.numero,
-            nota: note?.trim() || null,
-            monto_unitario: parseFloat(jugada.corrido),
-            monto_total: parseFloat(jugada.corrido)
-          });
+          const monto = parseFloat(jugada.fijo);
+          if (!fijosPorMonto[monto]) {
+            fijosPorMonto[monto] = [];
+          }
+          fijosPorMonto[monto].push(jugada.numero);
         }
       });
       
-      // Agregar jugadas de parles
+      // Crear payloads agrupados para fijos
+      Object.entries(fijosPorMonto).forEach(([monto, numeros]) => {
+        payloads.push({
+          id_listero: userId,
+          id_horario,
+          jugada: 'fijo',
+          numeros: numeros.join(','),
+          nota: note?.trim() || null,
+          monto_unitario: parseFloat(monto),
+          monto_total: parseFloat(monto) * numeros.length
+        });
+      });
+      
+      // AGRUPAR CORRIDOS con el mismo monto unitario
+      const corridosPorMonto = {};
+      jugadasFijosYCorridos.forEach(jugada => {
+        if (jugada.corrido && parseFloat(jugada.corrido) > 0) {
+          const monto = parseFloat(jugada.corrido);
+          if (!corridosPorMonto[monto]) {
+            corridosPorMonto[monto] = [];
+          }
+          corridosPorMonto[monto].push(jugada.numero);
+        }
+      });
+      
+      // Crear payloads agrupados para corridos
+      Object.entries(corridosPorMonto).forEach(([monto, numeros]) => {
+        payloads.push({
+          id_listero: userId,
+          id_horario,
+          jugada: 'corrido',
+          numeros: numeros.join(','),
+          nota: note?.trim() || null,
+          monto_unitario: parseFloat(monto),
+          monto_total: parseFloat(monto) * numeros.length
+        });
+      });
+      
+      // AGRUPAR CENTENAS con el mismo monto unitario
+      const centenasPorMonto = {};
+      jugadasCentenas.forEach(jugada => {
+        const monto = parseFloat(jugada.precio);
+        if (!centenasPorMonto[monto]) {
+          centenasPorMonto[monto] = [];
+        }
+        centenasPorMonto[monto].push(jugada.numero);
+      });
+      
+      // Crear payloads agrupados para centenas
+      Object.entries(centenasPorMonto).forEach(([monto, numeros]) => {
+        payloads.push({
+          id_listero: userId,
+          id_horario,
+          jugada: 'centena',
+          numeros: numeros.join(','),
+          nota: note?.trim() || null,
+          monto_unitario: parseFloat(monto),
+          monto_total: parseFloat(monto) * numeros.length
+        });
+      });
+      
+      // Los PARLES ya vienen con su propio precio individual y total
       jugadasParles.forEach(jugada => {
         payloads.push({
           id_listero: userId,
@@ -479,19 +526,6 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           nota: note?.trim() || null,
           monto_unitario: jugada.precioIndividual,
           monto_total: jugada.precioTotal
-        });
-      });
-      
-      // Agregar jugadas de centenas
-      jugadasCentenas.forEach(jugada => {
-        payloads.push({
-          id_listero: userId,
-          id_horario,
-          jugada: 'centena',
-          numeros: jugada.numero,
-          nota: note?.trim() || null,
-          monto_unitario: parseFloat(jugada.precio),
-          monto_total: parseFloat(jugada.precio)
         });
       });
     });
@@ -537,74 +571,65 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     // Inserción usando batch (más eficiente)
     setIsInserting(true);
 
-    // MODO OFFLINE: Guardar en SQLite
+    // MODO OFFLINE: Guardar en SQLite usando BATCH INSERT REAL (sin loop)
     if (!isOnline) {
-      let successCount = 0;
-      let failCount = 0;
-
       try {
-        for (const payload of payloads) {
-          try {
-            // Obtener nombres de lotería y horario desde caché local
-            const lotteryId = selectedLotteries.find(lv => selectedSchedules[lv] === payload.id_horario);
-            const lotteryData = lotteries.find(l => l.value === lotteryId);
-            const lotteryName = lotteryData?.label || 'Lotería';
+        // Preparar todos los datos necesarios para batch insert
+        const batchPayloads = payloads.map((payload) => {
+          return {
+            user_id: userId,
+            id_horario: payload.id_horario,
+            numeros: payload.numeros,
+            tipo_jugada: payload.jugada,
+            monto_unitario: payload.monto_unitario,
+            monto_total: payload.monto_total,
+            nota: payload.nota,
+            comando: null,
+          };
+        });
 
-            const cachedSchedules = await OfflineStorage.getSchedules(lotteryId);
-            const scheduleData = cachedSchedules.find(s => s.id === payload.id_horario);
-            const scheduleName = scheduleData?.nombre || 'Horario';
+        console.log('[VaultMode] Insertando batch de jugadas offline:', batchPayloads.length);
 
-            const result = await savePlayOffline({
-              user_id: userId,
-              id_horario: payload.id_horario,
-              numeros: payload.numeros,
-              monto_unitario: payload.monto_unitario,
-              nota: payload.nota,
-              comando: null,
-              nombres: {
-                loteria: lotteryName,
-                horario: scheduleName
-              }
-            });
+        // ✅ INSERCIÓN BATCH REAL - Una sola transacción SQLite para todas las jugadas
+        const result = await saveBatchPlaysOffline(batchPayloads);
 
-            if (result.success) successCount++;
-            else failCount++;
-          } catch (error) {
-            console.error('[VaultMode] Error guardando jugada offline:', error);
-            failCount++;
-          }
+        const successCount = result.insertedCount || 0;
+        const failCount = result.failedCount || 0;
+
+        setInsertFeedback({
+          type: successCount > 0 ? 'success' : 'error',
+          message: successCount > 0 
+            ? `${successCount} jugada(s) agrupada(s) guardada(s) en cola offline.` 
+            : 'Error guardando jugadas offline.'
+        });
+
+        if (successCount > 0) {
+          Alert.alert(
+            'Modo Offline',
+            `${successCount} jugada(s) agrupada(s) guardada(s) en cola offline.\n\nSe enviarán automáticamente cuando haya conexión.`,
+            [{ text: 'OK' }]
+          );
+          // Limpiar pantalla
+          setJugadasFijosYCorridos([]);
+          setJugadasParles([]);
+          setJugadasCentenas([]);
+          setNote('');
+          setNumero('');
+          setFijo('');
+          setCorrido('');
+          setParleInput('');
+          setPrecioParle('');
+          setCentenaNumero('');
+          setCentenaPrecio('');
+          setJugadasConError(new Set());
+          setShowFieldErrors(false);
         }
       } catch (error) {
-        console.error('[VaultMode] Error general guardando jugadas offline:', error);
-      }
-
-      setInsertFeedback({
-        type: successCount > 0 ? 'success' : 'error',
-        message: successCount > 0 
-          ? `${successCount} jugada(s) guardada(s) en cola offline.` 
-          : 'Error guardando jugadas offline.'
-      });
-
-      if (successCount > 0) {
-        Alert.alert(
-          'Modo Offline',
-          `${successCount} jugada(s) guardada(s) en cola offline.\n\nSe enviarán automáticamente cuando haya conexión.`,
-          [{ text: 'OK' }]
-        );
-        // Limpiar pantalla
-        setJugadasFijosYCorridos([]);
-        setJugadasParles([]);
-        setJugadasCentenas([]);
-        setNote('');
-        setNumero('');
-        setFijo('');
-        setCorrido('');
-        setParleInput('');
-        setPrecioParle('');
-        setCentenaNumero('');
-        setCentenaPrecio('');
-        setJugadasConError(new Set());
-        setShowFieldErrors(false);
+        console.error('[VaultMode] Error guardando jugadas offline:', error);
+        setInsertFeedback({
+          type: 'error',
+          message: 'Error guardando jugadas offline.'
+        });
       }
 
       setIsInserting(false);
