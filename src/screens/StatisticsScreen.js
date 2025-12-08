@@ -635,7 +635,48 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             border: 1px solid #ddd; 
             padding: 8px; 
             font-size: 11px; 
-            text-align: left; 
+            text-align: left;
+            vertical-align: top;
+          }
+          th {
+            white-space: nowrap;
+          }
+          td {
+            max-width: 200px;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            min-height: 30px;
+          }
+          /* Columna de números con salto de línea */
+          td:nth-child(4) {
+            max-width: 150px;
+            white-space: normal;
+            line-height: 1.4;
+          }
+          /* Columnas de montos más estrechas */
+          td:nth-child(5),
+          td:nth-child(6),
+          td:nth-child(7),
+          td:nth-child(8) {
+            max-width: 90px;
+            white-space: nowrap;
+          }
+          /* Columna de hora */
+          td:nth-child(1) {
+            max-width: 70px;
+            white-space: nowrap;
+          }
+          /* Columna de nota */
+          td:nth-child(2) {
+            max-width: 120px;
+            white-space: normal;
+            line-height: 1.3;
+          }
+          /* Columna de tipo */
+          td:nth-child(3) {
+            max-width: 80px;
+            white-space: nowrap;
           }
           thead{ 
             background: #1976D2;
@@ -648,6 +689,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           tbody tr:hover {
             background: #f0f0f0;
           }
+          tbody tr {
+            min-height: 35px;
+          }
           .meta{ 
             color: #555; 
             margin-bottom: 8px;
@@ -656,10 +700,66 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             border-left: 4px solid #1976D2;
             font-size: 12px;
           }
+          .group-header {
+            page-break-inside: avoid;
+            margin-bottom: 12px;
+          }
+          .summary-box {
+            background: #f0f0f0;
+            padding: 16px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #1976D2;
+            page-break-inside: avoid;
+          }
+          .filter-box {
+            background: #fff3cd;
+            padding: 12px;
+            margin-bottom: 16px;
+            border-radius: 4px;
+            border-left: 4px solid #ffc107;
+            page-break-inside: avoid;
+          }
+          .info-grid {
+            overflow: hidden;
+          }
+          .info-row {
+            margin-bottom: 4px;
+            overflow: hidden;
+          }
+          .info-row strong {
+            display: inline-block;
+            min-width: 120px;
+          }
           @media print {
-            body { margin: 10px; }
-            h2 { page-break-before: avoid; }
-            table { page-break-inside: avoid; }
+            body { 
+              margin: 10px; 
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            h2 { 
+              page-break-before: avoid;
+              color: #1976D2 !important;
+            }
+            table { 
+              page-break-inside: avoid;
+              box-shadow: none;
+            }
+            thead {
+              background: #1976D2 !important;
+              color: white !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            tbody tr:nth-child(even) {
+              background: #f9f9f9 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .summary-box, .filter-box, .group-header {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
           }
         </style>`;
       // Calcular totales generales (igual que en la vista)
@@ -679,6 +779,26 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         totalJugadas += g.plays.length || 0;
       });
       
+      // 🎯 Función helper para formatear números con saltos de línea
+      const formatNumerosWithBreaks = (numeros, maxPerLine = 10) => {
+        if (!numeros) return '';
+        
+        const nums = numeros.split(',').map(n => n.trim()).filter(Boolean);
+        if (nums.length === 0) return '';
+        
+        // Si hay pocos números, devolverlos tal cual
+        if (nums.length <= maxPerLine) {
+          return nums.join(', ');
+        }
+        
+        // Si hay muchos números, agregar saltos de línea cada maxPerLine
+        const lines = [];
+        for (let i = 0; i < nums.length; i += maxPerLine) {
+          lines.push(nums.slice(i, i + maxPerLine).join(', '));
+        }
+        return lines.join('<br/>');
+      };
+      
       // 🎯 Generar secciones con grupo principal + jugadas individuales
       const sections = groups.map(g=>{
         const balance = g.totalBalance || 0;
@@ -689,37 +809,51 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             <h3 style="margin:0 0 8px 0; color:#1976D2; font-size:14px;">
               📅 ${g.dayLabel} · ${g.lottery} · ${g.schedule}
             </h3>
-            <div style="background:#e3f2fd; padding:10px; border-radius:4px; margin-bottom:12px;">
-              <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; font-size:11px;">
-                <div><strong>Resultado:</strong> ${g.resultado || 'N/A'}</div>
-                <div><strong>Jugadas:</strong> ${g.plays.length}</div>
-                <div><strong>${getSantiagoHeader('Bruto')}:</strong> ${formatSantiagoMoney(g.totalRecogido)}</div>
-                <div><strong>${getSantiagoHeader('Limpio')}:</strong> ${formatSantiagoMoney(g.totalLimpio)}</div>
-                <div><strong>${getSantiagoHeader('Ganancia')}:</strong> ${formatSantiagoMoney(g.totalGananciaListero)}</div>
-                <div><strong>Premio:</strong> ${formatMoney(g.totalPagado)}</div>
-                <div style="grid-column: span 2;"><strong>${getSantiagoHeader('Balance')}:</strong> 
-                  <span style="color:${balance >= 0 ? '#2E7D32' : '#D32F2F'}; font-weight:bold;">
-                    ${formatSantiagoMoney(balance)}
-                  </span>
-                </div>
-              </div>
+            <div style="background:#e3f2fd; padding:10px; border-radius:4px; margin-bottom:12px; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+              <table style="width:100%; border:none; font-size:11px; margin:0;">
+                <tr>
+                  <td style="border:none; padding:2px; width:50%;"><strong>Resultado:</strong> ${g.resultado || 'N/A'}</td>
+                  <td style="border:none; padding:2px; width:50%;"><strong>Jugadas:</strong> ${g.plays.length}</td>
+                </tr>
+                <tr>
+                  <td style="border:none; padding:2px;"><strong>${getSantiagoHeader('Bruto')}:</strong> ${formatSantiagoMoney(g.totalRecogido)}</td>
+                  <td style="border:none; padding:2px;"><strong>${getSantiagoHeader('Limpio')}:</strong> ${formatSantiagoMoney(g.totalLimpio)}</td>
+                </tr>
+                <tr>
+                  <td style="border:none; padding:2px;"><strong>${getSantiagoHeader('Ganancia')}:</strong> ${formatSantiagoMoney(g.totalGananciaListero)}</td>
+                  <td style="border:none; padding:2px;"><strong>Premio:</strong> ${formatMoney(g.totalPagado)}</td>
+                </tr>
+                <tr>
+                  <td colspan="2" style="border:none; padding:2px;">
+                    <strong>${getSantiagoHeader('Balance')}:</strong> 
+                    <span style="color:${balance >= 0 ? '#2E7D32' : '#D32F2F'}; font-weight:bold;">
+                      ${formatSantiagoMoney(balance)}
+                    </span>
+                  </td>
+                </tr>
+              </table>
             </div>
           </div>
         `;
         
         // Tabla con todas las jugadas individuales (expandidas)
-        const rows = g.plays.map(p=> `<tr>
+        const rows = g.plays.map(p=> {
+          const numerosFormatted = formatNumerosWithBreaks(p.numeros, 10);
+          const notaEscaped = (p.nota||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          
+          return `<tr>
             <td>${p.time}</td>
-            <td>${(p.nota||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
+            <td>${notaEscaped}</td>
             <td>${(p.jugada||'')}</td>
-            <td>${(p.numeros||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
+            <td>${numerosFormatted}</td>
             <td>${formatSantiagoMoney(p.bruto)}</td>
             <td>${formatSantiagoMoney(p.ganancia)}</td>
             <td>${p.pagado > 0 ? formatMoney(p.pagado) : '-'}</td>
             <td style="color:${p.balance >= 0 ? '#2E7D32' : '#D32F2F'}; font-weight:bold;">
               ${formatSantiagoMoney(p.balance)}
             </td>
-          </tr>`).join('');
+          </tr>`;
+        }).join('');
         
         return `${groupHeader}
           <table>
@@ -740,31 +874,41 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       }).join('');
       
       const resumenHTML = `
-        <div style="background:#f0f0f0; padding:16px; margin-bottom:20px; border-radius:8px; border-left:4px solid #1976D2;">
+        <div class="summary-box" style="background:#f0f0f0; padding:16px; margin-bottom:20px; border-radius:8px; border-left:4px solid #1976D2; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
           <h3 style="margin:0 0 12px 0; font-size:15px; color:#1976D2;">📊 Resumen General</h3>
-          <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; font-size:11px;">
-            <div><strong>${getSantiagoHeader('Total Recogido (Bruto)')}:</strong> ${formatSantiagoMoney(totalRecogidoGeneral)}</div>
-            <div><strong>${getSantiagoHeader('Total Limpio')}:</strong> ${formatSantiagoMoney(totalLimpioGeneral)}</div>
-            <div><strong>${getSantiagoHeader('Total Ganancia')}:</strong> ${formatSantiagoMoney(totalGananciaGeneral)}</div>
-            <div><strong>Total Premios:</strong> ${formatMoney(totalPagadoGeneral)}</div>
-            <div style="grid-column: span 2;">
-              <strong>${getSantiagoHeader('Balance Total')}:</strong> 
-              <span style="color:${totalBalanceGeneral >= 0 ? '#2E7D32' : '#D32F2F'}; font-weight:bold; font-size:13px;">
-                ${formatSantiagoMoney(totalBalanceGeneral)}
-              </span>
-            </div>
-            <div><strong>Total de Jugadas:</strong> ${totalJugadas}</div>
-            <div><strong>Total de Grupos:</strong> ${groups.length}</div>
-            <div style="grid-column: span 2;">
-              <strong>Fecha de Exportación:</strong> ${new Date().toLocaleString('es-ES', { 
-                day: '2-digit', 
-                month: '2-digit', 
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </div>
-          </div>
+          <table style="width:100%; border:none; font-size:11px; margin:0;">
+            <tr>
+              <td style="border:none; padding:3px; width:50%;"><strong>${getSantiagoHeader('Total Recogido (Bruto)')}:</strong> ${formatSantiagoMoney(totalRecogidoGeneral)}</td>
+              <td style="border:none; padding:3px; width:50%;"><strong>${getSantiagoHeader('Total Limpio')}:</strong> ${formatSantiagoMoney(totalLimpioGeneral)}</td>
+            </tr>
+            <tr>
+              <td style="border:none; padding:3px;"><strong>${getSantiagoHeader('Total Ganancia')}:</strong> ${formatSantiagoMoney(totalGananciaGeneral)}</td>
+              <td style="border:none; padding:3px;"><strong>Total Premios:</strong> ${formatMoney(totalPagadoGeneral)}</td>
+            </tr>
+            <tr>
+              <td colspan="2" style="border:none; padding:3px;">
+                <strong>${getSantiagoHeader('Balance Total')}:</strong> 
+                <span style="color:${totalBalanceGeneral >= 0 ? '#2E7D32' : '#D32F2F'}; font-weight:bold; font-size:13px;">
+                  ${formatSantiagoMoney(totalBalanceGeneral)}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style="border:none; padding:3px;"><strong>Total de Jugadas:</strong> ${totalJugadas}</td>
+              <td style="border:none; padding:3px;"><strong>Total de Grupos:</strong> ${groups.length}</td>
+            </tr>
+            <tr>
+              <td colspan="2" style="border:none; padding:3px;">
+                <strong>Fecha de Exportación:</strong> ${new Date().toLocaleString('es-ES', { 
+                  day: '2-digit', 
+                  month: '2-digit', 
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </td>
+            </tr>
+          </table>
         </div>
       `;
       
