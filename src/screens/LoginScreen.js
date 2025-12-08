@@ -8,6 +8,7 @@ import { createShadowStyle } from '../utils/shadowUtils';
 import { authService } from '../services/authService';
 import * as OfflineStorage from '../services/offlineStorageService';
 import OfflineTestingPanel from '../components/OfflineTestingPanel';
+import { useAuthContext } from '../contexts/AuthContext';
 
 /**
  * Botón de Login Offline
@@ -16,6 +17,7 @@ import OfflineTestingPanel from '../components/OfflineTestingPanel';
 const OfflineLoginButton = ({ username, password, setFieldError, navigation }) => {
   const [hasCredentials, setHasCredentials] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { setOfflineUser } = useAuthContext();
 
   useEffect(() => {
     checkStoredCredentials();
@@ -58,7 +60,10 @@ const OfflineLoginButton = ({ username, password, setFieldError, navigation }) =
         return;
       }
 
-      // Login offline exitoso
+      // Login offline exitoso - Establecer usuario en el contexto
+      const { profile } = result;
+      setOfflineUser(profile);
+      
       Alert.alert(
         'Modo Offline',
         'Sesión iniciada sin conexión. Algunas funciones estarán limitadas.',
@@ -66,7 +71,7 @@ const OfflineLoginButton = ({ username, password, setFieldError, navigation }) =
           {
             text: 'OK',
             onPress: () => {
-              const { profile } = result;
+              // Navegar según el rol
               if (profile.role === 'admin' || profile.role === 'collector') {
                 navigation.navigate('Statistics');
               } else if (profile.role === 'listero') {

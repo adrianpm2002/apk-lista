@@ -68,10 +68,10 @@ export const AuthProvider = ({ children }) => {
             setUser(currentSession.user);
           } else {
             // Si no hay sesión online, intentar auto-login offline
-            const offlineUser = await authService.tryAutoLoginOffline();
-            if (offlineUser) {
-              // Establecer usuario offline
-              setUser(offlineUser);
+            const offlineResult = await authService.tryAutoLoginOffline();
+            if (offlineResult && offlineResult.success && offlineResult.profile) {
+              // Establecer usuario offline (solo el profile)
+              setUser(offlineResult.profile);
               setSession(null); // No hay sesión de Supabase en modo offline
             }
           }
@@ -99,6 +99,14 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  /**
+   * Establecer usuario offline manualmente (para login offline manual)
+   */
+  const setOfflineUser = (profile) => {
+    setUser(profile);
+    setSession(null);
+  };
+
   const value = {
     user,
     session,
@@ -106,6 +114,7 @@ export const AuthProvider = ({ children }) => {
     isInitialized,
     authService,
     sessionMonitor,
+    setOfflineUser, // Exportar para uso en LoginScreen
   };
 
   return (
