@@ -500,13 +500,13 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
   const stats = getStats();
 
   return (
+    <View style={styles.container}>
       {/* Header con estadísticas */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
           <Text style={styles.title}>Registro Offline</Text>
           <View style={styles.backButtonPlaceholder} />
-        </View> style={styles.backButtonPlaceholder} />
         </View>
         <View style={styles.statsContainer}>
           <View style={styles.statBox}>
