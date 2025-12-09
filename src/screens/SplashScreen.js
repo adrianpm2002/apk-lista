@@ -16,7 +16,30 @@ const SplashScreen = ({ navigation }) => {
       try {
         setStatus('Verificando sesión...');
         
-        // Primero verificar si ya hay una sesión activa
+        // FASE 14: PRIMERO verificar sesión offline (rápido, SQLite local)
+        setStatus('Verificando sesión offline...');
+        const offlineResult = await authService.tryAutoLoginOffline();
+        
+        if (offlineResult && offlineResult.success && offlineResult.profile) {
+          const { profile } = offlineResult;
+          setStatus('Sesión offline restaurada...');
+          
+          // Navegar según el rol del usuario
+          setTimeout(() => {
+            if (profile.role === 'admin' || profile.role === 'collector') {
+              navigation.replace('Statistics');
+            } else if (profile.role === 'listero') {
+              navigation.replace('MainApp');
+            } else {
+              console.error('Rol de usuario no reconocido:', profile.role);
+              navigation.replace('Login');
+            }
+          }, 500);
+          return;
+        }
+        
+        // Si no hay sesión offline, intentar sesión online (lento, requiere conexión)
+        setStatus('Verificando sesión online...');
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         
         if (currentSession?.user) {
@@ -37,7 +60,7 @@ const SplashScreen = ({ navigation }) => {
                 console.error('Rol de usuario no reconocido:', userProfile.role);
                 navigation.replace('Login');
               }
-            }, 1000);
+            }, 500);
             return;
           } else {
             setStatus('Usuario inactivo, cerrando sesión...');
@@ -73,34 +96,13 @@ const SplashScreen = ({ navigation }) => {
               console.error('Rol de usuario no reconocido:', profile.role);
               navigation.replace('Login');
             }
-          }, 1000);
+          }, 500);
         } else {
-          // FASE 14: Si no hay sesión online, intentar auto-login offline
-          setStatus('Verificando sesión offline...');
-          const offlineResult = await authService.tryAutoLoginOffline();
-          
-          if (offlineResult && offlineResult.success && offlineResult.profile) {
-            const { profile } = offlineResult;
-            setStatus('Sesión offline restaurada...');
-            
-            // Navegar según el rol del usuario
-            setTimeout(() => {
-              if (profile.role === 'admin' || profile.role === 'collector') {
-                navigation.replace('Statistics');
-              } else if (profile.role === 'listero') {
-                navigation.replace('MainApp');
-              } else {
-                console.error('Rol de usuario no reconocido:', profile.role);
-                navigation.replace('Login');
-              }
-            }, 1000);
-          } else {
-            // No hay sesión para restaurar (ni online ni offline)
-            setStatus('Redirigiendo al login...');
-            setTimeout(() => {
-              navigation.replace('Login');
-            }, 500);
-          }
+          // No hay sesión para restaurar (ni offline ni online)
+          setStatus('Redirigiendo al login...');
+          setTimeout(() => {
+            navigation.replace('Login');
+          }, 300);
         }
       } catch (error) {
         console.error('Error al verificar sesión:', error);
