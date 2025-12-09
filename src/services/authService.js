@@ -558,26 +558,42 @@ class AuthService {
     try {
       const OfflineStorage = require('./offlineStorageService');
       
-      // Verificar si hay una sesión activa
+      // Verificar si hay una sesión activa (ya validada y no expirada)
       const activeSession = await OfflineStorage.default.getActiveOfflineSession();
       
       if (!activeSession) {
+        console.log('[AuthService] No hay sesión activa offline');
         return null;
       }
+
+      console.log('[AuthService] ✅ Sesión activa encontrada para user_id:', activeSession.user_id);
 
       // Desencriptar credenciales y obtener perfil
       const encryptedData = JSON.parse(activeSession.encrypted_data);
       const username = encryptedData.username;
       
       if (!username) {
+        console.log('[AuthService] ❌ No se pudo obtener username de la sesión');
         return null;
       }
 
-      // Intentar login offline (esto valida las credenciales)
-      const result = await this.loginOffline(username, encryptedData.password);
+      // No necesitamos validar la contraseña nuevamente, la sesión activa ya fue validada
+      // Simplemente retornar el perfil desde la sesión activa
+      console.log('[AuthService] ✅ Auto-login offline exitoso para:', username);
       
-      return result;
+      return {
+        success: true,
+        offline: true,
+        profile: {
+          userId: activeSession.user_id,
+          role: activeSession.role,
+          bankId: activeSession.id_banco,
+          username: username,
+          activo: true,
+        }
+      };
     } catch (error) {
+      console.error('[AuthService] Error en tryAutoLoginOffline:', error);
       return null;
     }
   }

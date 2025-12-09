@@ -687,6 +687,7 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
         isVisible={sidebarVisible}
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
+        userRole="listero"
       />
     </View>
   );
@@ -700,6 +701,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FFF',
     padding: 16,
+    paddingTop: 32,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
@@ -707,7 +709,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   sidebarButton: {
     padding: 8,
@@ -726,16 +728,17 @@ const styles = StyleSheet.create({
   },
   statBox: {
     alignItems: 'center',
+    paddingVertical: 4,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#2196F3',
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#757575',
-    marginTop: 4,
+    marginTop: 2,
   },
   actionBar: {
     flexDirection: 'row',

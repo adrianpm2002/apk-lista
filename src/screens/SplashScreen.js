@@ -38,72 +38,104 @@ const SplashScreen = ({ navigation }) => {
           return;
         }
         
-        // Si no hay sesión offline, intentar sesión online (lento, requiere conexión)
-        setStatus('Verificando sesión online...');
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        
-        if (currentSession?.user) {
-          setStatus('Sesión activa encontrada...');
+        // Si no hay sesión offline, intentar sesión online con timeout
+        try {
+          setStatus('Verificando sesión online...');
           
-          // Verificar perfil del usuario activo
-          const userProfile = await authService.getUserProfile(currentSession.user.id);
+          // Crear un timeout de 3 segundos para no esperar indefinidamente sin conexión
+          const sessionPromise = supabase.auth.getSession();
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout')), 3000)
+          );
           
-          if (userProfile && userProfile.activo !== false) {
-            setStatus('Verificando permisos...');
+          const { data: { session: currentSession } } = await Promise.race([
+            sessionPromise,
+            timeoutPromise
+          ]);
+          
+          if (currentSession?.user) {
+            setStatus('Sesión activa encontrada...');
             
+            // Verificar perfil del usuario activo (también con timeout)
+            const profilePromise = authService.getUserProfile(currentSession.user.id);
+            const profileTimeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout')), 3000)
+            );
+            
+            const userProfile = await Promise.race([
+              profilePromise,
+              profileTimeoutPromise
+            ]);
+            
+            if (userProfile && userProfile.activo !== false) {
+              setStatus('Verificando permisos...');
+              
+              setTimeout(() => {
+                if (userProfile.role === 'admin' || userProfile.role === 'collector') {
+                  navigation.replace('Statistics');
+                } else if (userProfile.role === 'listero') {
+                  navigation.replace('MainApp');
+                } else {
+                  console.error('Rol de usuario no reconocido:', userProfile.role);
+                  navigation.replace('Login');
+                }
+              }, 500);
+              return;
+            } else {
+              setStatus('Usuario inactivo, cerrando sesión...');
+              await authService.logout(false);
+            }
+          }
+          
+          // Si no hay sesión activa, intentar restaurar con timeout
+          setStatus('Verificando sesión persistente...');
+          const restorePromise = authService.restoreSessionIfNeeded();
+          const restoreTimeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout')), 3000)
+          );
+          
+          const restoredSession = await Promise.race([
+            restorePromise,
+            restoreTimeoutPromise
+          ]);
+          
+          if (restoredSession && restoredSession.profile) {
+            const { profile } = restoredSession;
+            setStatus('Restaurando sesión...');
+            
+            // Verificar que el usuario siga activo
+            if (profile.activo === false) {
+              setStatus('Cuenta desactivada, redirigiendo...');
+              await authService.logout(false);
+              setTimeout(() => {
+                navigation.replace('Login');
+              }, 1500);
+              return;
+            }
+            
+            // Navegar según el rol del usuario
             setTimeout(() => {
-              if (userProfile.role === 'admin' || userProfile.role === 'collector') {
+              if (profile.role === 'admin' || profile.role === 'collector') {
                 navigation.replace('Statistics');
-              } else if (userProfile.role === 'listero') {
+              } else if (profile.role === 'listero') {
                 navigation.replace('MainApp');
               } else {
-                console.error('Rol de usuario no reconocido:', userProfile.role);
+                console.error('Rol de usuario no reconocido:', profile.role);
                 navigation.replace('Login');
               }
             }, 500);
             return;
-          } else {
-            setStatus('Usuario inactivo, cerrando sesión...');
-            await authService.logout(false);
           }
+        } catch (onlineError) {
+          // Error o timeout en verificación online - ir directamente a login
+          console.log('[SplashScreen] Error/timeout en verificación online:', onlineError.message);
         }
         
-        // Si no hay sesión activa, intentar restaurar la sesión si está habilitada la persistencia
-        setStatus('Verificando sesión persistente...');
-        const restoredSession = await authService.restoreSessionIfNeeded();
-        
-        if (restoredSession && restoredSession.profile) {
-          const { profile } = restoredSession;
-          setStatus('Restaurando sesión...');
-          
-          // Verificar que el usuario siga activo
-          if (profile.activo === false) {
-            setStatus('Cuenta desactivada, redirigiendo...');
-            await authService.logout(false);
-            setTimeout(() => {
-              navigation.replace('Login');
-            }, 1500);
-            return;
-          }
-          
-          // Navegar según el rol del usuario
-          setTimeout(() => {
-            if (profile.role === 'admin' || profile.role === 'collector') {
-              navigation.replace('Statistics');
-            } else if (profile.role === 'listero') {
-              navigation.replace('MainApp');
-            } else {
-              console.error('Rol de usuario no reconocido:', profile.role);
-              navigation.replace('Login');
-            }
-          }, 500);
-        } else {
-          // No hay sesión para restaurar (ni offline ni online)
-          setStatus('Redirigiendo al login...');
-          setTimeout(() => {
-            navigation.replace('Login');
-          }, 300);
-        }
+        // No hay sesión para restaurar (ni offline ni online) o hubo timeout
+        setStatus('Redirigiendo al login...');
+        setTimeout(() => {
+          navigation.replace('Login');
+        }, 300);
       } catch (error) {
         console.error('Error al verificar sesión:', error);
         setStatus('Error al verificar sesión, redirigiendo...');
