@@ -34,6 +34,7 @@ import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import useOfflinePlaySubmission from '../hooks/useOfflinePlaySubmission';
 import { useOffline } from '../contexts/OfflineContext';
+import { useAuthContext } from '../contexts/AuthContext';
 import * as OfflineStorage from '../services/offlineStorageService';
 import { supabase } from '../supabaseClient';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
@@ -133,22 +134,45 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
     console.log('[TextMode2] OfflineContext no disponible, usando modo online por defecto');
   }
 
+  // Obtener user del AuthContext para manejar offline
+  const { user: authUser } = useAuthContext();
+
   // Cargar contexto de usuario (bankId)
   useEffect(()=>{
     const loadContext = async () => {
       try {
+        // Intentar primero con Supabase (online)
         const { data: { user } } = await supabase.auth.getUser();
-        if(!user) return;
-        setUserId(user.id);
-        const { data: profile } = await supabase.from('profiles').select('role,id_banco,username').eq('id', user.id).maybeSingle();
-        if(!profile) return;
-        setUserProfile(profile); // Guardar el perfil completo para tener acceso al username
-        const bId = profile.role === 'admin' ? user.id : profile.id_banco;
-        setBankId(bId);
-      } catch(e){ /* ignore */ }
+        if(user) {
+          setUserId(user.id);
+          const { data: profile } = await supabase.from('profiles').select('role,id_banco,username').eq('id', user.id).maybeSingle();
+          if(profile) {
+            setUserProfile(profile);
+            const bId = profile.role === 'admin' ? user.id : profile.id_banco;
+            setBankId(bId);
+            return;
+          }
+        }
+        
+        // Fallback: Si no hay sesión online, usar AuthContext (offline)
+        if (authUser) {
+          setUserId(authUser.userId);
+          setUserProfile({ role: authUser.role, id_banco: authUser.bankId, username: authUser.username });
+          const bId = authUser.role === 'admin' ? authUser.userId : authUser.bankId;
+          setBankId(bId);
+        }
+      } catch(e){
+        // Si falla online, intentar con AuthContext (offline)
+        if (authUser) {
+          setUserId(authUser.userId);
+          setUserProfile({ role: authUser.role, id_banco: authUser.bankId, username: authUser.username });
+          const bId = authUser.role === 'admin' ? authUser.userId : authUser.bankId;
+          setBankId(bId);
+        }
+      }
     };
     loadContext();
-  },[]);
+  },[authUser]);
 
   // Cargar loterías del banco
   useEffect(()=>{

@@ -16,6 +16,7 @@ import { validateScheduleById } from '../utils/scheduleValidator';
 import FeedbackBanner from '../components/FeedbackBanner';
 import useOfflinePlaySubmission from '../hooks/useOfflinePlaySubmission';
 import { useOffline } from '../contexts/OfflineContext';
+import { useAuthContext } from '../contexts/AuthContext';
 import * as OfflineStorage from '../services/offlineStorageService';
 import OfflineIndicator from '../components/OfflineIndicator';
 import OfflineTestingPanel from '../components/OfflineTestingPanel';
@@ -46,20 +47,39 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
 
 
 
+  // Obtener user del AuthContext para manejar offline
+  const { user: authUser } = useAuthContext();
+
   // Cargar banco (id_banco) y luego loterías
   React.useEffect(() => {
     const loadContext = async () => {
       try {
+        // Intentar primero con Supabase (online)
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).single();
-        if (!profile) return;
-        const bId = profile.role === 'admin' ? user.id : profile.id_banco;
-        setBankId(bId);
-      } catch (e) { /* silencioso */ }
+        if (user) {
+          const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).single();
+          if (profile) {
+            const bId = profile.role === 'admin' ? user.id : profile.id_banco;
+            setBankId(bId);
+            return;
+          }
+        }
+        
+        // Fallback: Si no hay sesión online, usar AuthContext (offline)
+        if (authUser) {
+          const bId = authUser.role === 'admin' ? authUser.userId : authUser.bankId;
+          setBankId(bId);
+        }
+      } catch (e) {
+        // Si falla online, intentar con AuthContext (offline)
+        if (authUser) {
+          const bId = authUser.role === 'admin' ? authUser.userId : authUser.bankId;
+          setBankId(bId);
+        }
+      }
     };
     loadContext();
-  }, []);
+  }, [authUser]);
 
   // Cargar loterías cuando tengamos bankId
   React.useEffect(() => {
