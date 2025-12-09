@@ -7,6 +7,7 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { authService } from '../services/authService';
 import * as OfflineStorage from '../services/offlineStorageService';
+import * as BackgroundTask from '../services/backgroundTaskService';
 import OfflineTestingPanel from '../components/OfflineTestingPanel';
 import { useAuthContext } from '../contexts/AuthContext';
 
@@ -159,8 +160,11 @@ const LoginContent = ({ navigation }) => {
 
       const { profile } = result;
 
-      // Configurar información del usuario en el storage local si es necesario
-      // (Para este ejemplo, navegamos directamente sin precarga)
+      // FASE 14.1: Sincronizar cache offline (loterías y horarios) después del login
+      // Se ejecuta en background sin bloquear la navegación
+      BackgroundTask.syncOfflineCache().catch(err => {
+        console.error('[LoginScreen] Error al sincronizar cache offline:', err);
+      });
       
       // Si es admin o collector, navegar a Statistics
       if (profile.role === 'admin' || profile.role === 'collector') {

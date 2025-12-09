@@ -159,26 +159,38 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
     let cancelled=false;
     const loadLots = async () => {
       try {
-        const { data: lots } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
+        let lots = [];
+        
+        if (isOnline) {
+          // Online: Cargar desde Supabase
+          const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
+          lots = data || [];
+        } else {
+          // Offline: Cargar desde SQLite
+          lots = await OfflineStorage.getLotteries(bankId);
+        }
+        
         if(cancelled) return;
         setLotteries((lots||[]).map(l=> ({ label:l.nombre, value:l.id })));
         
         // Cargar configuración de modo Santiago del banco
-        const { data: bankProfile } = await supabase
-          .from('profiles')
-          .select('modo_santiago, porciento')
-          .eq('id', bankId)
-          .single();
-        
-        if (bankProfile && !cancelled) {
-          setModoSantiago(bankProfile.modo_santiago || false);
-          setPorcentajeSantiago(bankProfile.porciento || 100);
+        if (isOnline && !cancelled) {
+          const { data: bankProfile } = await supabase
+            .from('profiles')
+            .select('modo_santiago, porciento')
+            .eq('id', bankId)
+            .single();
+          
+          if (bankProfile) {
+            setModoSantiago(bankProfile.modo_santiago || false);
+            setPorcentajeSantiago(bankProfile.porciento || 100);
+          }
         }
-      } catch(e){ /* ignore */ }
+      } catch(e){ console.error('[TextMode] Error cargando loterías:', e); }
     };
     loadLots();
     return ()=>{ cancelled=true; };
-  },[bankId]);
+  },[bankId, isOnline]);
 
   // Cargar horarios abiertos para TODAS las loterías del banco (como modo visual) y filtrar abiertas
   useEffect(()=>{
@@ -187,11 +199,22 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
     const loadAllSchedules = async () => {
       try {
         const lotIds = lotteries.map(l=> l.value);
-        const { data: rows } = await supabase
-          .from('horario')
-          .select('id,nombre,id_loteria,hora_inicio,hora_fin')
-          .in('id_loteria', lotIds)
-          .order('nombre');
+        let rows = [];
+        
+        if (isOnline) {
+          // Online: Cargar desde Supabase
+          const { data } = await supabase
+            .from('horario')
+            .select('id,nombre,id_loteria,hora_inicio,hora_fin')
+            .in('id_loteria', lotIds)
+            .order('nombre');
+          rows = data || [];
+        } else {
+          // Offline: Cargar desde SQLite
+          const allSchedules = await OfflineStorage.getSchedules(null);
+          rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
+        }
+        
         if(cancelled) return;
         const now = new Date();
         // Obtener hora en zona horaria de La Habana, Cuba (America/Havana)
@@ -233,7 +256,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
     };
     loadAllSchedules();
     return ()=>{ cancelled=true; };
-  },[bankId, lotteries]);
+  },[bankId, lotteries, isOnline]);
 
   // Auto-ocultar feedback
   useEffect(()=>{

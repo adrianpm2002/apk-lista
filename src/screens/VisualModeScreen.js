@@ -163,19 +163,31 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     if(!bankId) return;
     const loadData = async () => {
       try {
-        const { data: lots } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
+        let lots = [];
+        
+        if (isOnline) {
+          // Online: Cargar desde Supabase
+          const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
+          lots = data || [];
+        } else {
+          // Offline: Cargar desde SQLite
+          lots = await OfflineStorage.getLotteries(bankId);
+        }
+        
         setLotteries((lots||[]).map(l=>({ label:l.nombre, value:l.id })));
         
         // Cargar configuración de modo Santiago del banco
-        const { data: bankProfile } = await supabase
-          .from('profiles')
-          .select('modo_santiago, porciento')
-          .eq('id', bankId)
-          .single();
-        
-        if (bankProfile) {
-          setModoSantiago(bankProfile.modo_santiago || false);
-          setPorcentajeSantiago(bankProfile.porciento || 100);
+        if (isOnline) {
+          const { data: bankProfile } = await supabase
+            .from('profiles')
+            .select('modo_santiago, porciento')
+            .eq('id', bankId)
+            .single();
+          
+          if (bankProfile) {
+            setModoSantiago(bankProfile.modo_santiago || false);
+            setPorcentajeSantiago(bankProfile.porciento || 100);
+          }
         }
         
         const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
@@ -271,11 +283,22 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     const loadAllSchedules = async () => {
       try {
         const lotIds = lotteries.map(l=> l.value); // UUID strings
-        const { data: rows } = await supabase
-          .from('horario')
-          .select('id,nombre,id_loteria,hora_inicio,hora_fin')
-          .in('id_loteria', lotIds)
-          .order('nombre');
+        let rows = [];
+        
+        if (isOnline) {
+          // Online: Cargar desde Supabase
+          const { data } = await supabase
+            .from('horario')
+            .select('id,nombre,id_loteria,hora_inicio,hora_fin')
+            .in('id_loteria', lotIds)
+            .order('nombre');
+          rows = data || [];
+        } else {
+          // Offline: Cargar desde SQLite
+          const allSchedules = await OfflineStorage.getSchedules(null);
+          rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
+        }
+        
         if(cancelled) return;
         const now = new Date();
         // Obtener hora en zona horaria de La Habana, Cuba (America/Havana)
@@ -320,7 +343,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     };
     loadAllSchedules();
     return ()=> { cancelled = true; };
-  },[bankId, lotteries]);
+  },[bankId, lotteries, isOnline]);
 
   // (playTypes ahora proviene dinámicamente de la BD: estado playTypes)
 

@@ -75,11 +75,32 @@ const SplashScreen = ({ navigation }) => {
             }
           }, 1000);
         } else {
-          // No hay sesión para restaurar o no está habilitada la persistencia
-          setStatus('Redirigiendo al login...');
-          setTimeout(() => {
-            navigation.replace('Login');
-          }, 500);
+          // FASE 14: Si no hay sesión online, intentar auto-login offline
+          setStatus('Verificando sesión offline...');
+          const offlineResult = await authService.tryAutoLoginOffline();
+          
+          if (offlineResult && offlineResult.success && offlineResult.profile) {
+            const { profile } = offlineResult;
+            setStatus('Sesión offline restaurada...');
+            
+            // Navegar según el rol del usuario
+            setTimeout(() => {
+              if (profile.role === 'admin' || profile.role === 'collector') {
+                navigation.replace('Statistics');
+              } else if (profile.role === 'listero') {
+                navigation.replace('MainApp');
+              } else {
+                console.error('Rol de usuario no reconocido:', profile.role);
+                navigation.replace('Login');
+              }
+            }, 1000);
+          } else {
+            // No hay sesión para restaurar (ni online ni offline)
+            setStatus('Redirigiendo al login...');
+            setTimeout(() => {
+              navigation.replace('Login');
+            }, 500);
+          }
         }
       } catch (error) {
         console.error('Error al verificar sesión:', error);
