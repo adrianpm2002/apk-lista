@@ -34,7 +34,6 @@ import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils
 import { generateVisualModeCopyText } from '../utils/copyUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
 import { useAuthContext } from '../contexts/AuthContext';
-import OfflineTestingPanel from '../components/OfflineTestingPanel';
 import OfflineIndicator from '../components/OfflineIndicator';
 
 const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onModeVisibilityChange, visibleModes }) => {
@@ -51,7 +50,6 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const [total, setTotal] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [testingPanelVisible, setTestingPanelVisible] = useState(false);
   const [lotteryError, setLotteryError] = useState(false);
   const [lotteryErrorMessage, setLotteryErrorMessage] = useState('');
   const [scheduleError, setScheduleError] = useState(false); // true si falta algún horario
@@ -1066,7 +1064,6 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           </View>
           <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
             <OfflineIndicator 
-              onPress={() => setTestingPanelVisible(true)}
               isDarkMode={isDarkMode}
             />
             <PricingInfoButton />
@@ -1305,9 +1302,6 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           >
             <Text style={styles.copyText}>Copiar</Text>
           </Pressable>
-          
-          {/* Panel de Testing Offline */}
-          <OfflineTestingPanel inline={true} allowWeb={true} />
         </View>
 
         {/* Row 6: Botones de acción */}
@@ -1342,15 +1336,6 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   visibleModes={visibleModes}
         role="listero"
       />
-
-      {/* Modal de Testing Offline */}
-      {testingPanelVisible && (
-        <OfflineTestingPanel 
-          inline={false}
-          allowWeb={true}
-          onClose={() => setTestingPanelVisible(false)}
-        />
-      )}
     </View>
   );
 };

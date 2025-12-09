@@ -687,7 +687,7 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
         isVisible={sidebarVisible}
         onClose={() => setSidebarVisible(false)}
         navigation={navigation}
-        userRole="listero"
+        role="listero"
       />
     </View>
   );
@@ -696,20 +696,32 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#f0f8ff',
   },
   header: {
-    backgroundColor: '#FFF',
-    padding: 16,
-    paddingTop: 32,
+    position: 'absolute',
+    top: 40,
+    left: 0,
+    right: 0,
+    flexDirection: 'column',
+    zIndex: 3000,
+    paddingTop: 12,
+    paddingBottom: 4,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255,255,255,0.96)',
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: '#E2E6EA',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 4,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 4,
   },
   sidebarButton: {
     padding: 8,
@@ -720,30 +732,31 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#212121',
+    color: '#FF9800',
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginTop: -2,
   },
   statBox: {
     alignItems: 'center',
-    paddingVertical: 4,
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#2196F3',
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#757575',
-    marginTop: 2,
+    marginTop: 1,
   },
   actionBar: {
     flexDirection: 'row',
     backgroundColor: '#FFF',
     padding: 12,
+    paddingTop: 135,
     gap: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
@@ -772,6 +785,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 12,
+    paddingTop: 12,
   },
   playCard: {
     backgroundColor: '#FFF',
@@ -915,6 +929,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
+    paddingTop: 200,
   },
   emptyIcon: {
     fontSize: 64,

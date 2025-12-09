@@ -19,12 +19,9 @@ import { useOffline } from '../contexts/OfflineContext';
 import { useAuthContext } from '../contexts/AuthContext';
 import * as OfflineStorage from '../services/offlineStorageService';
 import OfflineIndicator from '../components/OfflineIndicator';
-import OfflineTestingPanel from '../components/OfflineTestingPanel';
 
 const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [testingPanelVisible, setTestingPanelVisible] = useState(false);
-
 
   // Estados para loterías, horarios y nota (con lógica real de VisualModeScreen)
   const [selectedLotteries, setSelectedLotteries] = useState([]); // values de loterías
@@ -767,7 +764,6 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           </View>
           <View style={styles.rightButtonsGroup} pointerEvents="box-none">
             <OfflineIndicator 
-              onPress={() => setTestingPanelVisible(true)}
               isDarkMode={isDarkMode}
             />
             <PricingInfoButton />
@@ -1247,14 +1243,6 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         visibleModes={visibleModes}
         role="listero"
       />
-      
-      {testingPanelVisible && (
-        <OfflineTestingPanel 
-          inline={false}
-          allowWeb={true}
-          onClose={() => setTestingPanelVisible(false)}
-        />
-      )}
     </View>
   );
 };
