@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as OfflineStorage from '../services/offlineStorageService';
 import { useOfflineSafe } from '../contexts/OfflineContext';
 import * as SyncService from '../services/syncService';
+import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 
 /**
  * Pantalla para visualizar y gestionar jugadas offline pendientes
@@ -44,6 +45,7 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
   const [expandedId, setExpandedId] = useState(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [sidebarVisible, setSidebarVisible] = useState(false);
   
   // Estados para sincronización
   const [isSyncing, setIsSyncing] = useState(false);
@@ -498,18 +500,13 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
   const stats = getStats();
 
   return (
-    <View style={styles.container}>
       {/* Header con estadísticas */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Pressable 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.backButtonText}>← Atrás</Text>
-          </Pressable>
+          <SideBarToggle inline onToggle={() => setSidebarVisible(!sidebarVisible)} style={styles.sidebarButton} />
           <Text style={styles.title}>Registro Offline</Text>
           <View style={styles.backButtonPlaceholder} />
+        </View> style={styles.backButtonPlaceholder} />
         </View>
         <View style={styles.statsContainer}>
           <View style={styles.statBox}>
@@ -684,6 +681,13 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Barra lateral */}
+      <SideBarWrapper
+        isVisible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        navigation={navigation}
+      />
     </View>
   );
 };
@@ -705,13 +709,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  backButton: {
+  sidebarButton: {
     padding: 8,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: '#2196F3',
-    fontWeight: '600',
   },
   backButtonPlaceholder: {
     width: 60, // Para centrar el título
