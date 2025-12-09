@@ -1,46 +1,24 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import CapacityModal from './CapacityModal';
-import useCapacityData from '../hooks/useCapacityData';
-import AnimatedModalWrapper from './AnimatedModalWrapper';
+import React from 'react';
+import { Text, Pressable, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
-const BatteryButton = ({ onOptionSelect, selectedLotteries, selectedSchedules, selectedPlayTypes, lotteryOptions, scheduleOptionsMap, getScheduleLabel, playTypeLabels, bankId, onLotteryError, icon='🔋', animationProps }) => {
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const { capacityData, loading, error, refresh } = useCapacityData(bankId, { includeClosed:false, hideZero:true });
+const BatteryButton = ({ icon='🔋' }) => {
+  const navigation = useNavigation();
 
-  const handlePress = async () => {
-    await refresh();
-    setIsModalVisible(true);
+  const handlePress = () => {
+    navigation.navigate('ListerCapacity');
   };
 
-  // Animación ahora delegada a AnimatedModalWrapper
-
-  const handleCloseModal = () => { setIsModalVisible(false); };
-
   return (
-    <View>
-      <Pressable
-        style={({ pressed }) => [
-          styles.button,
-          pressed && styles.buttonPressed
-        ]}
-        onPress={handlePress}
-      >
-        <Text style={styles.icon}>{icon}</Text>
-      </Pressable>
-      <AnimatedModalWrapper visible={isModalVisible} {...animationProps}>
-        <CapacityModal
-          isVisible={isModalVisible}
-          onClose={handleCloseModal}
-          selectedLottery={null}
-          capacityData={capacityData}
-          loading={loading}
-          error={error}
-          getScheduleLabel={getScheduleLabel}
-          playTypeLabels={playTypeLabels}
-        />
-      </AnimatedModalWrapper>
-    </View>
+    <Pressable
+      style={({ pressed }) => [
+        styles.button,
+        pressed && styles.buttonPressed
+      ]}
+      onPress={handlePress}
+    >
+      <Text style={styles.icon}>{icon}</Text>
+    </Pressable>
   );
 };
 
