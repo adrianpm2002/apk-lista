@@ -28,7 +28,7 @@ import { t, translatePlayTypeLabel } from '../utils/i18n';
 import { applyPlayTypeSelection } from '../utils/playTypeCombinations';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import useOfflinePlaySubmission from '../hooks/useOfflinePlaySubmission';
-import { useOffline } from '../contexts/OfflineContext';
+import { useOfflineSafe } from '../contexts/OfflineContext';
 import * as OfflineStorage from '../services/offlineStorageService';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { generateVisualModeCopyText } from '../utils/copyUtils';
@@ -125,7 +125,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const { savePlayOffline, saveBatchPlaysOffline } = useOfflinePlaySubmission();
   
   // Estado de conexión (reactivo desde OfflineContext)
-  const { isOnline } = useOffline();
+  const offlineContext = useOfflineSafe();
+  const isOnline = offlineContext?.isOnline ?? true;
 
   const PLAY_TYPE_LABELS = { fijo:translatePlayTypeLabel('fijo'), corrido:translatePlayTypeLabel('corrido'), parle:translatePlayTypeLabel('parle'), centena:translatePlayTypeLabel('centena'), tripleta:translatePlayTypeLabel('tripleta') };
 

@@ -967,14 +967,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
            userRole === 'admin' ? 'Estadísticas Banco' : 'Estadísticas'}
         </Text>
         
-        {/* � BOTÓN ACTUALIZAR - Pull-to-refresh manual */}
+        {/* 🔄 BOTÓN ACTUALIZAR - Pull-to-refresh manual */}
         <TouchableOpacity
           style={{
             backgroundColor: refreshing ? '#9E9E9E' : '#1976D2',
-            paddingHorizontal: 12,
-            paddingVertical: 8,
+            paddingHorizontal: 8,
+            paddingVertical: 6,
             borderRadius: 6,
-            marginLeft: 8,
+            marginLeft: 4,
             elevation: 3,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 2 },
@@ -985,8 +985,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           onPress={onRefresh}
           disabled={refreshing}
         >
-          <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
-            {refreshing ? '⏳ Actualizando...' : '🔄 Actualizar'}
+          <Text style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}>
+            {refreshing ? '⏳' : '🔄'}
           </Text>
         </TouchableOpacity>
         
@@ -3509,10 +3509,11 @@ const styles = StyleSheet.create({
     borderBottomColor: '#34495e',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginRight: 16,
+    marginRight: 8,
+    flexShrink: 1,
   },
   headerTitleDark: {
     color: '#ecf0f1',
@@ -3524,8 +3525,9 @@ const styles = StyleSheet.create({
   headerControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
     marginLeft: 'auto',
+    flexShrink: 0,
   },
   filterButton: {
     backgroundColor: '#f8f9fa',
@@ -3548,9 +3550,9 @@ const styles = StyleSheet.create({
   },
   exportButton: {
     backgroundColor: '#27AE60',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
   },
   exportButtonDark: {
     backgroundColor: '#229954',
@@ -3558,6 +3560,7 @@ const styles = StyleSheet.create({
   exportButtonText: {
     color: '#fff',
     fontWeight: '500',
+    fontSize: 11,
   },
   tabsContainer: {
     backgroundColor: '#fff',

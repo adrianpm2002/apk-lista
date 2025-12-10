@@ -38,6 +38,8 @@ const ListerCapacityContent = ({ navigation }) => {
   const [playTypeExpanded, setPlayTypeExpanded] = useState(false);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchNumber, setSearchNumber] = useState('');
+  const [boteExpanded, setBoteExpanded] = useState(false);
+  const [boteAmount, setBoteAmount] = useState('');
 
   const formatTime = (timeString) => {
     if (!timeString) return '';
@@ -209,13 +211,28 @@ const ListerCapacityContent = ({ navigation }) => {
       filtered = filtered.filter(item => matchesSearch(item.numero, searchNumber));
     }
     
+    // Filtro de bote: mostrar solo números que superen el monto del bote
+    const boteValue = parseFloat(boteAmount) || 0;
+    if (boteValue > 0) {
+      filtered = filtered.filter(item => (item.used_today_listero || 0) > boteValue);
+    }
+    
     return filtered;
-  }, [capacityData, lotteryFilter, scheduleFilter, playTypeFilter, searchNumber]);
+  }, [capacityData, lotteryFilter, scheduleFilter, playTypeFilter, searchNumber, boteAmount]);
 
   // Calcular el total usado del listero de los datos filtrados
+  // Si hay filtro de bote activo, mostrar suma de excedentes
+  const boteValue = parseFloat(boteAmount) || 0;
   const totalUsed = useMemo(() => {
+    if (boteValue > 0) {
+      // Suma de excedentes (usado - bote)
+      return filteredData.reduce((sum, item) => {
+        const excedente = (item.used_today_listero || 0) - boteValue;
+        return sum + excedente;
+      }, 0);
+    }
     return filteredData.reduce((sum, item) => sum + (item.used_today_listero || 0), 0);
-  }, [filteredData]);
+  }, [filteredData, boteValue]);
 
   const renderCapacityItem = useCallback(({ item }) => {
     const playType = playTypeLabels[item.jugada] || item.jugada?.toUpperCase() || '';
@@ -223,6 +240,12 @@ const ListerCapacityContent = ({ navigation }) => {
       ? Math.min(100, (item.used_today_listero / item.effective_limit_listero) * 100)
       : 0;
     const barColor = getCapacityColor(percentage);
+    
+    // Calcular monto a mostrar: excedente si hay filtro de bote, sino el usado total
+    const currentBoteValue = parseFloat(boteAmount) || 0;
+    const displayAmount = currentBoteValue > 0 
+      ? (item.used_today_listero || 0) - currentBoteValue 
+      : (item.used_today_listero || 0);
     
     return (
       <View style={styles.capacityCard}>
@@ -245,7 +268,9 @@ const ListerCapacityContent = ({ navigation }) => {
         <View style={styles.firstLine}>
           <Text style={styles.numberText}>{item.numero}</Text>
           <Text style={styles.playTypeText}>{playType}</Text>
-          <Text style={styles.amountText}>${(item.used_today_listero || 0).toFixed(2)}</Text>
+          <Text style={[styles.amountText, currentBoteValue > 0 && styles.exceedAmount]}>
+            {currentBoteValue > 0 ? '+' : ''}${displayAmount.toFixed(2)}
+          </Text>
         </View>
 
         <View style={styles.secondLine}>
@@ -263,7 +288,7 @@ const ListerCapacityContent = ({ navigation }) => {
         </View>
       </View>
     );
-  }, [playTypeLabels]);
+  }, [playTypeLabels, boteAmount]);
 
   if (loading) {
     return (
@@ -529,9 +554,51 @@ const ListerCapacityContent = ({ navigation }) => {
             ) : null}
           </View>
 
+          {/* Filtro de Bote */}
+          <View style={styles.filterGroupWrapper}>
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Bote:</Text>
+              <TouchableOpacity
+                style={[styles.sortButton, boteAmount ? styles.sortButtonActive : null]}
+                onPress={() => setBoteExpanded(!boteExpanded)}
+              >
+                <Text style={[styles.sortButtonText, boteAmount ? styles.sortButtonTextActive : null]}>
+                  {boteAmount ? `$${boteAmount}` : 'Monto'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {boteExpanded ? (
+              <View style={styles.expandedOptions}>
+                <View style={styles.searchInputContainer}>
+                  <TextInput
+                    style={styles.searchInput}
+                    value={boteAmount}
+                    onChangeText={(text) => {
+                      const numericText = text.replace(/[^0-9.]/g, '');
+                      setBoteAmount(numericText);
+                    }}
+                    placeholder="Monto"
+                    keyboardType="numeric"
+                  />
+                </View>
+                {boteAmount ? (
+                  <TouchableOpacity
+                    style={styles.sortButton}
+                    onPress={() => {
+                      setBoteAmount('');
+                      setBoteExpanded(false);
+                    }}
+                  >
+                    <Text style={styles.sortButtonText}>Limpiar</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+
           {/* Total Usado */}
           <View style={styles.totalBrutoContainer}>
-            <Text style={styles.totalBrutoLabel}>Total Usado: </Text>
+            <Text style={styles.totalBrutoLabel}>{boteValue > 0 ? 'Total Excedente: ' : 'Total Usado: '}</Text>
             <Text style={styles.totalBrutoValue}>${totalUsed.toFixed(2)}</Text>
           </View>
         </View>
@@ -760,6 +827,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#27AE60',
+  },
+  exceedAmount: {
+    color: '#E74C3C',
   },
   secondLine: {
     flexDirection: 'row',

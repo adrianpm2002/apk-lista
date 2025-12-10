@@ -33,7 +33,7 @@ import { generateTextModeCopyFromInstructions, generateTextModeCopyFromOriginalC
 import { t } from '../utils/i18n';
 import { usePlaySubmission } from '../hooks/usePlaySubmission';
 import useOfflinePlaySubmission from '../hooks/useOfflinePlaySubmission';
-import { useOffline } from '../contexts/OfflineContext';
+import { useOfflineSafe } from '../contexts/OfflineContext';
 import { useAuthContext } from '../contexts/AuthContext';
 import * as OfflineStorage from '../services/offlineStorageService';
 import { supabase } from '../supabaseClient';
@@ -126,7 +126,8 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
   const { savePlayOffline, saveBatchPlaysOffline } = useOfflinePlaySubmission();
   
   // Estado de conexión (reactivo desde OfflineContext)
-  const { isOnline } = useOffline();
+  const offlineContext = useOfflineSafe();
+  const isOnline = offlineContext?.isOnline ?? true;
 
   // Obtener user del AuthContext para manejar offline
   const { user: authUser } = useAuthContext();
@@ -388,6 +389,31 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
     return !hasErrors;
   };
 
+  // Función para detectar líneas duplicadas (ignorando espacios y líneas vacías)
+  const findDuplicateLines = (text) => {
+    const lines = text.split('\n');
+    const normalizedLines = [];
+    const duplicates = [];
+    
+    lines.forEach((line, index) => {
+      const normalized = line.replace(/\s/g, ''); // Quitar todos los espacios
+      if (!normalized) return; // Ignorar líneas vacías
+      
+      const existingIndex = normalizedLines.findIndex(nl => nl.normalized === normalized);
+      if (existingIndex !== -1) {
+        // Es un duplicado
+        if (!duplicates.includes(normalizedLines[existingIndex].original)) {
+          duplicates.push(normalizedLines[existingIndex].original);
+        }
+        duplicates.push(line.trim());
+      } else {
+        normalizedLines.push({ normalized, original: line.trim(), lineNum: index + 1 });
+      }
+    });
+    
+    return [...new Set(duplicates)]; // Eliminar duplicados del array de duplicados
+  };
+
   const handleVerify = async () => {
     setVerifyFeedback(null);
     setShowInsertButton(false); // Ocultar botón al iniciar verificación
@@ -396,6 +422,14 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
     if(!valid){
       setDuplicateLines([]); // Limpiar duplicados cuando hay errores de validación
   setVerifyFeedback({ type:'error', message:t('errors.requiredOrFix') });
+      return;
+    }
+    // Validar líneas duplicadas
+    const duplicateLinesFound = findDuplicateLines(plays);
+    if(duplicateLinesFound.length > 0){
+      setPlaysError(true);
+      setDuplicateLines([]);
+      setVerifyFeedback({ type:'error', message:`Líneas duplicadas detectadas: ${duplicateLinesFound.slice(0,3).join(', ')}${duplicateLinesFound.length > 3 ? '...' : ''}` });
       return;
     }
     if(isEditing && parsedInstructions.length>1){
@@ -594,6 +628,17 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
 
     // Validar campos requeridos
   let hasErrors = !validateForm(false);
+
+    // Validar líneas duplicadas antes de insertar
+    if (!hasErrors) {
+      const duplicateLinesFound = findDuplicateLines(plays);
+      if (duplicateLinesFound.length > 0) {
+        setPlaysError(true);
+        setDuplicateLines([]);
+        setInsertFeedback({ success: 0, fail: 1, blocked: true, message: `Líneas duplicadas: ${duplicateLinesFound.slice(0,3).join(', ')}` });
+        hasErrors = true;
+      }
+    }
 
     // Validación de capacidad (unificada con modo visual) usando uso del día en tabla jugada
     if (!hasErrors) {

@@ -15,7 +15,7 @@ import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils
 import { validateScheduleById } from '../utils/scheduleValidator';
 import FeedbackBanner from '../components/FeedbackBanner';
 import useOfflinePlaySubmission from '../hooks/useOfflinePlaySubmission';
-import { useOffline } from '../contexts/OfflineContext';
+import { useOfflineSafe } from '../contexts/OfflineContext';
 import { useAuthContext } from '../contexts/AuthContext';
 import * as OfflineStorage from '../services/offlineStorageService';
 import OfflineIndicator from '../components/OfflineIndicator';
@@ -46,6 +46,10 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
 
   // Obtener user del AuthContext para manejar offline
   const { user: authUser } = useAuthContext();
+  
+  // Estado de conexión (reactivo desde OfflineContext)
+  const offlineContext = useOfflineSafe();
+  const isOnline = offlineContext?.isOnline ?? true;
 
   // Cargar banco (id_banco) y luego loterías
   React.useEffect(() => {
@@ -245,9 +249,6 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
 
   // Hooks para enviar jugadas (online y offline)
   const { savePlayOffline, saveBatchPlaysOffline } = useOfflinePlaySubmission();
-  
-  // Estado de conexión (reactivo desde OfflineContext)
-  const { isOnline } = useOffline();
   
   // Cargar userId
   React.useEffect(() => {

@@ -36,11 +36,15 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sortBy, setSortBy] = useState('capacity'); // 'capacity' o 'number'
   const [lotteryFilter, setLotteryFilter] = useState(null);
+  const [scheduleFilter, setScheduleFilter] = useState(null);
   const [playTypeFilter, setPlayTypeFilter] = useState(null);
   const [lotteryExpanded, setLotteryExpanded] = useState(false);
+  const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [playTypeExpanded, setPlayTypeExpanded] = useState(false);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchNumber, setSearchNumber] = useState('');
+  const [boteExpanded, setBoteExpanded] = useState(false);
+  const [boteAmount, setBoteAmount] = useState('');
 
   const formatTime = (timeString) => {
     if (!timeString) return '';
@@ -174,6 +178,11 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
     return unique.filter(Boolean).sort();
   }, [capacityData]);
 
+  const scheduleOptions = useMemo(() => {
+    const unique = [...new Set(capacityData.map(item => item.nombre_horario))];
+    return unique.filter(Boolean).sort();
+  }, [capacityData]);
+
   const playTypeOptions = useMemo(() => {
     const unique = [...new Set(capacityData.map(item => item.jugada))];
     return unique.filter(Boolean).sort();
@@ -187,6 +196,10 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
       filtered = filtered.filter(item => item.nombre_loteria === lotteryFilter);
     }
     
+    if (scheduleFilter) {
+      filtered = filtered.filter(item => item.nombre_horario === scheduleFilter);
+    }
+    
     if (playTypeFilter) {
       filtered = filtered.filter(item => item.jugada === playTypeFilter);
     }
@@ -195,23 +208,46 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
       filtered = filtered.filter(item => matchesSearch(item.numero, searchNumber));
     }
     
+    // Filtro de bote: mostrar solo números que superen el monto del bote
+    const boteValue = parseFloat(boteAmount) || 0;
+    if (boteValue > 0) {
+      filtered = filtered.filter(item => (item.used_today_banco || 0) > boteValue);
+    }
+    
     return filtered;
-  }, [capacityData, lotteryFilter, playTypeFilter, searchNumber]);
+  }, [capacityData, lotteryFilter, scheduleFilter, playTypeFilter, searchNumber, boteAmount]);
 
   // Calcular el total bruto de los datos filtrados
+  // Si hay filtro de bote activo, mostrar suma de excedentes
+  const boteValue = parseFloat(boteAmount) || 0;
   const totalBruto = useMemo(() => {
+    if (boteValue > 0) {
+      // Suma de excedentes (usado - bote)
+      return filteredData.reduce((sum, item) => {
+        const excedente = (item.used_today_banco || 0) - boteValue;
+        return sum + excedente;
+      }, 0);
+    }
     return filteredData.reduce((sum, item) => sum + (item.used_today_banco || 0), 0);
-  }, [filteredData]);
+  }, [filteredData, boteValue]);
 
   const renderCapacityItem = useCallback(({ item }) => {
     const playType = playTypeLabels[item.jugada] || item.jugada?.toUpperCase() || '';
+    
+    // Calcular monto a mostrar: excedente si hay filtro de bote, sino el usado total
+    const currentBoteValue = parseFloat(boteAmount) || 0;
+    const displayAmount = currentBoteValue > 0 
+      ? (item.used_today_banco || 0) - currentBoteValue 
+      : (item.used_today_banco || 0);
     
     return (
       <View style={styles.capacityCard}>
         <View style={styles.firstLine}>
           <Text style={styles.numberText}>{item.numero}</Text>
           <Text style={styles.playTypeText}>{playType}</Text>
-          <Text style={styles.amountText}>${(item.used_today_banco || 0).toFixed(2)}</Text>
+          <Text style={[styles.amountText, currentBoteValue > 0 && styles.exceedAmount]}>
+            {currentBoteValue > 0 ? '+' : ''}${displayAmount.toFixed(2)}
+          </Text>
         </View>
 
         <View style={styles.secondLine}>
@@ -223,7 +259,7 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
         </View>
       </View>
     );
-  }, [playTypeLabels]);
+  }, [playTypeLabels, boteAmount]);
 
   if (loading) {
     return (
@@ -352,6 +388,54 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
             </View>
           )}
 
+          {/* Filtro de Horario */}
+          {scheduleOptions.length > 0 && (
+            <View style={styles.filterGroupWrapper}>
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterLabel}>Horario:</Text>
+                <TouchableOpacity
+                  style={[styles.sortButton, styles.sortButtonActive]}
+                  onPress={() => setScheduleExpanded(!scheduleExpanded)}
+                >
+                  <Text style={[styles.sortButtonText, styles.sortButtonTextActive]}>
+                    {scheduleFilter || 'Todos'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {scheduleExpanded && (
+                <View style={styles.expandedOptions}>
+                  {scheduleOptions.map(schedule => (
+                    <TouchableOpacity
+                      key={schedule}
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setScheduleFilter(schedule);
+                        setScheduleExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>
+                        {schedule}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  {scheduleFilter && (
+                    <TouchableOpacity
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setScheduleFilter(null);
+                        setScheduleExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>
+                        Todos
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
           {/* Filtro de Jugada */}
           {playTypeOptions.length > 0 && (
             <View style={styles.filterGroupWrapper}>
@@ -443,9 +527,51 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
             ) : null}
           </View>
 
+          {/* Filtro de Bote */}
+          <View style={styles.filterGroupWrapper}>
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Bote:</Text>
+              <TouchableOpacity
+                style={[styles.sortButton, boteAmount ? styles.sortButtonActive : null]}
+                onPress={() => setBoteExpanded(!boteExpanded)}
+              >
+                <Text style={[styles.sortButtonText, boteAmount ? styles.sortButtonTextActive : null]}>
+                  {boteAmount ? `$${boteAmount}` : 'Monto'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {boteExpanded ? (
+              <View style={styles.expandedOptions}>
+                <View style={styles.searchInputContainer}>
+                  <TextInput
+                    style={styles.searchInput}
+                    value={boteAmount}
+                    onChangeText={(text) => {
+                      const numericText = text.replace(/[^0-9.]/g, '');
+                      setBoteAmount(numericText);
+                    }}
+                    placeholder="Monto"
+                    keyboardType="numeric"
+                  />
+                </View>
+                {boteAmount ? (
+                  <TouchableOpacity
+                    style={styles.sortButton}
+                    onPress={() => {
+                      setBoteAmount('');
+                      setBoteExpanded(false);
+                    }}
+                  >
+                    <Text style={styles.sortButtonText}>Limpiar</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+
           {/* Total Bruto */}
           <View style={styles.totalBrutoContainer}>
-            <Text style={styles.totalBrutoLabel}>Total Bruto: </Text>
+            <Text style={styles.totalBrutoLabel}>{boteValue > 0 ? 'Total Excedente: ' : 'Total Bruto: '}</Text>
             <Text style={styles.totalBrutoValue}>${totalBruto.toFixed(2)}</Text>
           </View>
         </View>
@@ -656,6 +782,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#27AE60',
+  },
+  exceedAmount: {
+    color: '#E74C3C',
   },
   secondLine: {
     flexDirection: 'row',
