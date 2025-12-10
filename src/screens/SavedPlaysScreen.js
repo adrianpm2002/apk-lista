@@ -9,7 +9,7 @@ import { canonicalParle } from '../utils/prizeCalculator';
 const ITEMS_PER_PAGE = 20;
 
 const getPlayTypeLabel = (playType) => ({
-  fijo:'Fijo', corrido:'Corrido', posicion:'Posición', parle:'Parle', centena:'Centena', tripleta:'Tripleta'
+  fijo:'Fijo', corrido:'Corrido', parle:'Parle', centena:'Centena', tripleta:'Tripleta'
 }[playType] || playType);
 
 const SavedPlaysScreen = ({ navigation, route }) => {

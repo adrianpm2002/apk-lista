@@ -31,8 +31,10 @@ const ListerCapacityContent = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('capacity'); // 'capacity' o 'number'
   const [lotteryFilter, setLotteryFilter] = useState(null);
+  const [scheduleFilter, setScheduleFilter] = useState(null);
   const [playTypeFilter, setPlayTypeFilter] = useState(null);
   const [lotteryExpanded, setLotteryExpanded] = useState(false);
+  const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [playTypeExpanded, setPlayTypeExpanded] = useState(false);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchNumber, setSearchNumber] = useState('');
@@ -177,6 +179,11 @@ const ListerCapacityContent = ({ navigation }) => {
     return unique.filter(Boolean).sort();
   }, [capacityData]);
 
+  const scheduleOptions = useMemo(() => {
+    const unique = [...new Set(capacityData.map(item => item.nombre_horario))];
+    return unique.filter(Boolean).sort();
+  }, [capacityData]);
+
   const playTypeOptions = useMemo(() => {
     const unique = [...new Set(capacityData.map(item => item.jugada))];
     return unique.filter(Boolean).sort();
@@ -190,6 +197,10 @@ const ListerCapacityContent = ({ navigation }) => {
       filtered = filtered.filter(item => item.nombre_loteria === lotteryFilter);
     }
     
+    if (scheduleFilter) {
+      filtered = filtered.filter(item => item.nombre_horario === scheduleFilter);
+    }
+    
     if (playTypeFilter) {
       filtered = filtered.filter(item => item.jugada === playTypeFilter);
     }
@@ -199,7 +210,7 @@ const ListerCapacityContent = ({ navigation }) => {
     }
     
     return filtered;
-  }, [capacityData, lotteryFilter, playTypeFilter, searchNumber]);
+  }, [capacityData, lotteryFilter, scheduleFilter, playTypeFilter, searchNumber]);
 
   // Calcular el total usado del listero de los datos filtrados
   const totalUsed = useMemo(() => {
@@ -215,14 +226,20 @@ const ListerCapacityContent = ({ navigation }) => {
     
     return (
       <View style={styles.capacityCard}>
-        {/* Barra de progreso */}
-        <View style={styles.progressBar}>
-          <View 
-            style={[
-              styles.progressFill, 
-              { width: `${percentage}%`, backgroundColor: barColor }
-            ]} 
-          />
+        {/* Porcentaje y barra de progreso en la misma línea */}
+        <View style={styles.progressContainer}>
+          <Text style={[styles.percentageTextTop, { color: barColor }]}>
+            {percentage.toFixed(1)}%
+          </Text>
+          {/* Barra de progreso */}
+          <View style={styles.progressBar}>
+            <View 
+              style={[
+                styles.progressFill, 
+                { width: `${percentage}%`, backgroundColor: barColor }
+              ]} 
+            />
+          </View>
         </View>
 
         <View style={styles.firstLine}>
@@ -242,9 +259,6 @@ const ListerCapacityContent = ({ navigation }) => {
         <View style={styles.thirdLine}>
           <Text style={styles.limitText}>
             Usado: ${(item.used_today_listero || 0).toFixed(2)} / ${(item.effective_limit_listero || 0).toFixed(2)}
-          </Text>
-          <Text style={[styles.percentageText, { color: barColor }]}>
-            {percentage.toFixed(1)}%
           </Text>
         </View>
       </View>
@@ -368,6 +382,54 @@ const ListerCapacityContent = ({ navigation }) => {
                     >
                       <Text style={styles.sortButtonText}>
                         Todas
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Filtro de Horario */}
+          {scheduleOptions.length > 0 && (
+            <View style={styles.filterGroupWrapper}>
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterLabel}>Horario:</Text>
+                <TouchableOpacity
+                  style={[styles.sortButton, styles.sortButtonActive]}
+                  onPress={() => setScheduleExpanded(!scheduleExpanded)}
+                >
+                  <Text style={[styles.sortButtonText, styles.sortButtonTextActive]}>
+                    {scheduleFilter || 'Todos'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {scheduleExpanded && (
+                <View style={styles.expandedOptions}>
+                  {scheduleOptions.map(schedule => (
+                    <TouchableOpacity
+                      key={schedule}
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setScheduleFilter(schedule);
+                        setScheduleExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>
+                        {schedule}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  {scheduleFilter && (
+                    <TouchableOpacity
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setScheduleFilter(null);
+                        setScheduleExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>
+                        Todos
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -655,12 +717,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E9ECEF',
   },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  percentageTextTop: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    minWidth: 40,
+  },
   progressBar: {
+    flex: 1,
     height: 6,
     backgroundColor: '#E9ECEF',
     borderRadius: 3,
     overflow: 'hidden',
-    marginBottom: 8,
   },
   progressFill: {
     height: '100%',
@@ -716,10 +789,6 @@ const styles = StyleSheet.create({
   limitText: {
     fontSize: 11,
     color: '#7F8C8D',
-  },
-  percentageText: {
-    fontSize: 12,
-    fontWeight: 'bold',
   },
 });
 

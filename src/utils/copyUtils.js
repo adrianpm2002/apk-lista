@@ -84,10 +84,6 @@ export const generateCopyText = async (formData, currentUserProfile = null, note
         // Números de 6 dígitos (combinaciones de 3 números de 2 dígitos)
         const matches = plays.match(/\b\d{6}\b/g) || [];
         numbersForType = [...new Set(matches)];
-      } else if (playType === 'posicion') {
-        // Posición también usa números de 2 dígitos
-        const matches = plays.match(/\b\d{2}\b/g) || [];
-        numbersForType = [...new Set(matches)];
       }
       
       if (numbersForType.length === 0) {
@@ -154,17 +150,6 @@ export const generateCopyText = async (formData, currentUserProfile = null, note
       }
     }
     
-    // Para posición: línea separada con números de 2 dígitos
-    const posicionAmount = parseFloat((amounts.posicion || '0').toString().replace(/[^0-9.]/g, '')) || 0;
-    if (posicionAmount > 0 && !fijoAmount && !corridoAmount) {
-      // Solo mostrar posición si no hay fijo/corrido (para evitar duplicados)
-      const twoDigitMatches = plays.match(/\b\d{2}\b/g) || [];
-      const uniqueTwoDigit = [...new Set(twoDigitMatches)];
-      if (uniqueTwoDigit.length > 0) {
-        copyText += `${uniqueTwoDigit.join(' ')}-${posicionAmount}\n`;
-      }
-    }
-    
     copyText += `\nTotal: ${totalPerLottery}`;
     
     // Si hay múltiples loterías, agregar Total General (pegado sin línea en blanco)
@@ -186,7 +171,6 @@ const capitalizePlayType = (playType) => {
   const playTypeMap = {
     'fijo': 'Fijo',
     'corrido': 'Corrido',
-    'posicion': 'Posición',
     'centena': 'Centena',
     'parle': 'Parlé',
     'tripleta': 'Tripleta'

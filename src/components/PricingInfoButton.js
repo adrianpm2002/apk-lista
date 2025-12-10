@@ -242,7 +242,7 @@ const PricingInfoButton = () => {
     }
     
     // Orden canónico para los tipos de jugada
-    const ORDER = ['fijo','corrido','posicion','parle','centena','tripleta'];
+    const ORDER = ['fijo','corrido','parle','centena','tripleta'];
     
     return (
       <View>
@@ -314,7 +314,7 @@ const PricingInfoButton = () => {
                 <View key={lotteryId} style={styles.lotteryLimitSection}>
                   <Text style={styles.lotteryLimitName}>{lot.nombre}</Text>
                   <View style={styles.limitsGrid}>
-                    {['fijo','corrido','posicion','parle','centena','tripleta'].filter(k=> lotteryLimitsForThis[k] !== undefined).map(k => (
+                    {['fijo','corrido','parle','centena','tripleta'].filter(k=> lotteryLimitsForThis[k] !== undefined).map(k => (
                       <View key={k} style={styles.lotteryLimitCard}>
                         <Text style={styles.lotteryLimitPlay}>{k.toUpperCase()}</Text>
                         <Text style={styles.lotteryLimitValue}>{lotteryLimitsForThis[k]}</Text>
@@ -346,7 +346,7 @@ const PricingInfoButton = () => {
                   const lotteryName = lotteryInfo?.nombre || `Lotería ${lotteryId}`;
                   
                   // Filtrar y ordenar límites según el orden estándar
-                  const orderedLimits = ['fijo','corrido','posicion','parle','centena','tripleta']
+                  const orderedLimits = ['fijo','corrido','parle','centena','tripleta']
                     .filter(k => lotteryLimits[k] !== undefined);
                   
                   if (orderedLimits.length > 0) {
@@ -373,7 +373,7 @@ const PricingInfoButton = () => {
                 <View>
                   <Text style={styles.lotteryLimitName}>Límites Globales (Formato Anterior)</Text>
                   <View style={styles.limitsGrid}>
-                    {['fijo','corrido','posicion','parle','centena','tripleta'].filter(k=> limits[k] !== undefined).map(k => (
+                    {['fijo','corrido','parle','centena','tripleta'].filter(k=> limits[k] !== undefined).map(k => (
                       <View key={k} style={styles.limitCard}>
                         <Text style={styles.limitPlay}>{k.toUpperCase()}</Text>
                         <Text style={styles.limitValue}>{limits[k]}</Text>
@@ -396,7 +396,7 @@ const PricingInfoButton = () => {
                 <Text style={styles.noLimits}>No hay números limitados.</Text>
               )}
               {numberLimits.length>0 && (
-                ['fijo','corrido','posicion','parle','centena','tripleta'].map(j => {
+                ['fijo','corrido','parle','centena','tripleta'].map(j => {
                   const jugadaRows = numberLimits.filter(r => r.jugada === j);
                   if(!jugadaRows.length) return null;
                   // Agrupar por lotería
@@ -440,7 +440,7 @@ const PricingInfoButton = () => {
                 <Text style={styles.noLimits}>No hay números limitados.</Text>
               )}
               {limitedNumbers.length>0 && (
-                ['fijo','corrido','posicion','parle','centena','tripleta'].map(j => {
+                ['fijo','corrido','parle','centena','tripleta'].map(j => {
                   const jugadaRows = limitedNumbers.filter(r => r.jugada === j);
                   if(!jugadaRows.length) return null;
                   const lotGroups = jugadaRows.reduce((acc,r)=>{

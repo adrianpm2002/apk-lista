@@ -71,7 +71,6 @@ export const usePlaySubmission = () => {
         switch (playTypeValue) {
           case 'fijo':
           case 'corrido':
-          case 'posicion':
             return 2;
           case 'parle':
             return 4;

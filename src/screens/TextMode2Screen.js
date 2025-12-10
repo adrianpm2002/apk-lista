@@ -124,13 +124,9 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
   // Hooks para enviar jugadas (online y offline)
   const { submitPlayWithConfirmation } = usePlaySubmission();
   const { savePlayOffline, saveBatchPlaysOffline } = useOfflinePlaySubmission();
-  let isOnline = true;
-  try {
-    const offlineContext = useOffline();
-    isOnline = offlineContext.isOnline;
-  } catch (error) {
-    console.log('[TextMode2] OfflineContext no disponible, usando modo online por defecto');
-  }
+  
+  // Estado de conexión (reactivo desde OfflineContext)
+  const { isOnline } = useOffline();
 
   // Obtener user del AuthContext para manejar offline
   const { user: authUser } = useAuthContext();

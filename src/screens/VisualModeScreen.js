@@ -45,7 +45,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const [scheduleOptionsMap, setScheduleOptionsMap] = useState({}); // { lotteryValue: [{label,value}] }
   const [selectedPlayTypes, setSelectedPlayTypes] = useState([]); // multi jugadas activas
   const [plays, setPlays] = useState('');
-  const [amounts, setAmounts] = useState({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
+  const [amounts, setAmounts] = useState({ fijo:'', corrido:'', centena:'', parle:'', tripleta:'' });
   const [note, setNote] = useState('');
   const [total, setTotal] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
@@ -123,15 +123,11 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   // Hooks para enviar jugadas (online y offline)
   // Usar de forma segura para web (que no tiene SQLite)
   const { savePlayOffline, saveBatchPlaysOffline } = useOfflinePlaySubmission();
-  let isOnline = true;
-  try {
-    const offlineContext = useOffline();
-    isOnline = offlineContext.isOnline;
-  } catch (error) {
-    console.log('[VisualMode] OfflineContext no disponible, usando modo online por defecto');
-  }
+  
+  // Estado de conexión (reactivo desde OfflineContext)
+  const { isOnline } = useOffline();
 
-  const PLAY_TYPE_LABELS = { fijo:translatePlayTypeLabel('fijo'), corrido:translatePlayTypeLabel('corrido'), posicion:translatePlayTypeLabel('posicion'), parle:translatePlayTypeLabel('parle'), centena:translatePlayTypeLabel('centena'), tripleta:translatePlayTypeLabel('tripleta') };
+  const PLAY_TYPE_LABELS = { fijo:translatePlayTypeLabel('fijo'), corrido:translatePlayTypeLabel('corrido'), parle:translatePlayTypeLabel('parle'), centena:translatePlayTypeLabel('centena'), tripleta:translatePlayTypeLabel('tripleta') };
 
   // Función que faltaba y causaba que no aparecieran las jugadas (se usaba más abajo)
   const getPlayTypeLabel = (key) => PLAY_TYPE_LABELS[key] || key;
@@ -211,8 +207,21 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           }
         }
         
-        const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
-        const jugadas = jugRow?.jugadas || {};
+        // Cargar jugadas activas (online o offline)
+        let jugadas = {};
+        if (isOnline) {
+          const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
+          jugadas = jugRow?.jugadas || {};
+        } else {
+          // Offline: usar jugadas activas por defecto (todas habilitadas)
+          jugadas = {
+            fijo: true,
+            corrido: true,
+            parle: true,
+            centena: true,
+            tripleta: true
+          };
+        }
         
         // Almacenar todas las jugadas por lotería para filtrado posterior
         setAllJugadas(jugadas);
@@ -232,7 +241,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         
         // Si no hay jugadas configuradas, usar todas como activas (fallback)
         if (allActivePlayTypes.size === 0) {
-          ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'].forEach(j => 
+          ['fijo', 'corrido', 'parle', 'centena', 'tripleta'].forEach(j => 
             allActivePlayTypes.add(j)
           );
         }
@@ -243,7 +252,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           value: k 
         }));
         
-        const order = ['fijo','corrido','posicion','parle','centena','tripleta'];
+        const order = ['fijo','corrido','parle','centena','tripleta'];
         const ordered = order
           .filter(k => enabled.some(e => e.value === k))
           .map(k => enabled.find(e => e.value === k));
@@ -253,7 +262,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       } catch(e){ /* ignore */ }
     };
     loadData();
-  },[bankId]);
+  },[bankId, isOnline]);
 
   // Filtrar jugadas activas basándose en las loterías seleccionadas
   useEffect(() => {
@@ -571,8 +580,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     if (!hasErrors) {
       const nums = plays.split(/[\s,;,]+/).map(n=>n.trim()).filter(Boolean);
       
-      // Validar fijo, corrido, posicion: cada número debe tener exactamente 2 dígitos
-      if (selectedPlayTypes.some(pt => ['fijo', 'corrido', 'posicion'].includes(pt))) {
+      // Validar fijo, corrido: cada número debe tener exactamente 2 dígitos
+      if (selectedPlayTypes.some(pt => ['fijo', 'corrido'].includes(pt))) {
         const invalid = nums.some(n => n.replace(/[^0-9]/g,'').length !== 2);
         if (invalid || nums.length===0) {
           setPlaysError(true);
@@ -768,7 +777,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           Alert.alert('Modo Offline', `${successCount} jugada(s) guardada(s) en cola offline.\n\nSe enviarán automáticamente cuando haya conexión.`, [{ text: 'OK' }]);
           // Limpiar estado
           setPlays('');
-          setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
+          setAmounts({ fijo:'', corrido:'', centena:'', parle:'', tripleta:'' });
           setTotal(0);
           setShowFieldErrors(false);
         }
@@ -819,7 +828,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           // Batch insert exitoso
           const successes = insertedData || [];
           setPlays('');
-          setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
+          setAmounts({ fijo:'', corrido:'', centena:'', parle:'', tripleta:'' });
           setTotal(0);
           setShowFieldErrors(false);
           setInsertFeedback({ success: successes.length, fail: 0, duplicates: [] });
@@ -840,7 +849,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   setSelectedSchedules({});
   setSelectedPlayTypes([]);
     setPlays('');
-  setAmounts({ fijo:'', corrido:'', centena:'', posicion:'', parle:'', tripleta:'' });
+  setAmounts({ fijo:'', corrido:'', centena:'', parle:'', tripleta:'' });
     setNote('');
     setTotal(0);
   setShowFieldErrors(false);
@@ -949,7 +958,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       let expectedLen = null;
       if(comboCF) expectedLen = 3; else {
         switch(primary){
-          case 'fijo': case 'corrido': case 'posicion': expectedLen=2; break;
+          case 'fijo': case 'corrido': expectedLen=2; break;
           case 'parle': expectedLen=4; break;
           case 'centena': expectedLen=3; break;
           case 'tripleta': expectedLen=6; break;
@@ -1022,8 +1031,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     if (comboCF) expectedLen = 3; else {
       switch (primary) {
         case 'fijo':
-        case 'corrido':
-        case 'posicion': expectedLen = 2; break;
+        case 'corrido': expectedLen = 2; break;
         case 'parle': expectedLen = 4; break;
         case 'centena': expectedLen = 3; break;
         case 'tripleta': expectedLen = 6; break;

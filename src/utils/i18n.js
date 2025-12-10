@@ -23,4 +23,4 @@ const dictionaries = { es:{
 	'edit.modeHint':'Editing… Modify and press Insert to update.','edit.modeHintError':'Editing: only ONE instruction allowed. Adjust text.'
 } };
 export const t = (k,f)=>{ const d=dictionaries[currentLocale]||{}; return d[k]||f||k; };
-export const translatePlayTypeLabel = (value)=>{ const map={ fijo:{es:'Fijo',en:'Fixed'}, corrido:{es:'Corrido',en:'Runner'}, posicion:{es:'Posición',en:'Position'}, parle:{es:'Parle',en:'Parlay'}, centena:{es:'Centena',en:'Hundred'}, tripleta:{es:'Tripleta',en:'Triplet'} }; return map[value]?.[currentLocale]||value; };
+export const translatePlayTypeLabel = (value)=>{ const map={ fijo:{es:'Fijo',en:'Fixed'}, corrido:{es:'Corrido',en:'Runner'}, parle:{es:'Parle',en:'Parlay'}, centena:{es:'Centena',en:'Hundred'}, tripleta:{es:'Tripleta',en:'Triplet'} }; return map[value]?.[currentLocale]||value; };

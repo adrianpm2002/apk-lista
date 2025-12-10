@@ -14,7 +14,6 @@ import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 const getPlayTypeLabel = (playType) => ({
   fijo: 'Fijo',
   corrido: 'Corrido',
-  posicion: 'Posición',
   parle: 'Parle',
   centena: 'Centena',
   tripleta: 'Tripleta'

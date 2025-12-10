@@ -90,7 +90,6 @@ export const checkInstructionsLimits = (instructions, horarios, limitCtx) => {
         
       case 'fijo':
       case 'corrido':
-      case 'posicion':
         return digits.padStart(2, '0');
         
       default:
