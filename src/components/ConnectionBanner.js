@@ -137,7 +137,14 @@ const ConnectionBanner = () => {
                 <Text style={styles.dismissButtonText}>✕</Text>
               </Pressable>
             </>
-          ) : null}
+          ) : (
+            <Pressable 
+              style={styles.dismissButton}
+              onPress={handleDismiss}
+            >
+              <Text style={styles.dismissButtonText}>✕</Text>
+            </Pressable>
+          )}
         </View>
       </View>
     </Animated.View>
