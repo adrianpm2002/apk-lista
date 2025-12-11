@@ -250,9 +250,17 @@ class AuthService {
     try {
       console.log('[AuthService] Iniciando logout...');
       
-      // Cerrar sesión en Supabase
-      await supabase.auth.signOut();
-      console.log('[AuthService] Sesión Supabase cerrada');
+      // Cerrar sesión en Supabase con timeout para evitar bloqueo offline
+      try {
+        const signOutPromise = supabase.auth.signOut();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 3000)
+        );
+        await Promise.race([signOutPromise, timeoutPromise]);
+        console.log('[AuthService] Sesión Supabase cerrada');
+      } catch (signOutError) {
+        console.log('[AuthService] No se pudo cerrar sesión en Supabase (probablemente offline), continuando...');
+      }
       
       // Limpiar credenciales de AsyncStorage (online)
       if (clearPersistentPreference) {
