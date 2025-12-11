@@ -931,11 +931,11 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
           label={t('common.numbers')}
           value={plays}
           onChangeText={(txt)=> { 
-            // Limpiar líneas en blanco múltiples
+            // Eliminar TODAS las líneas en blanco entre comandos
             // Primero eliminar líneas que solo contengan espacios
-            let processedText = txt.replace(/\n\s+\n/g, '\n\n');
-            // Luego prevenir más de una línea en blanco consecutiva
-            processedText = processedText.replace(/\n\n\n+/g, '\n\n');
+            let processedText = txt.replace(/\n\s+\n/g, '\n');
+            // Luego eliminar cualquier línea en blanco (múltiples saltos de línea)
+            processedText = processedText.replace(/\n\n+/g, '\n');
             
             setPlays(processedText); 
             setShowInsertButton(false); // Ocultar botón cuando se cambia el texto

@@ -936,11 +936,11 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
               return line;
             }).join('\n');
             
-            // Limpiar líneas en blanco múltiples
+            // Eliminar TODAS las líneas en blanco entre comandos
             // Primero eliminar líneas que solo contengan espacios
-            processedText = processedText.replace(/\n\s+\n/g, '\n\n');
-            // Luego prevenir más de una línea en blanco consecutiva
-            processedText = processedText.replace(/\n\n\n+/g, '\n\n');
+            processedText = processedText.replace(/\n\s+\n/g, '\n');
+            // Luego eliminar cualquier línea en blanco (múltiples saltos de línea)
+            processedText = processedText.replace(/\n\n+/g, '\n');
             
             setPlays(processedText); 
             setShowInsertButton(false); // Ocultar botón cuando se cambia el texto
