@@ -178,10 +178,15 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
     const loadLots = async () => {
       try {
         // SIEMPRE cargar desde cache primero
+        console.log('[TextMode] Cargando loterías desde cache, bankId:', bankId, 'isOnline:', isOnline);
         let lots = await OfflineStorage.getLotteries(bankId);
+        console.log('[TextMode] Loterías desde cache:', lots?.length || 0);
         if (cancelled) return;
         if (lots && lots.length > 0) {
           setLotteries(lots.map(l=> ({ label:l.nombre, value:l.id })));
+          console.log('[TextMode] ✅ Loterías cargadas desde cache');
+        } else {
+          console.log('[TextMode] ⚠️ No hay loterías en cache');
         }
         
         // Si está online, actualizar desde Supabase
