@@ -931,7 +931,10 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
           label={t('common.numbers')}
           value={plays}
           onChangeText={(txt)=> { 
-            setPlays(txt); 
+            // Eliminar líneas en blanco consecutivas
+            const processedText = txt.replace(/\n\s*\n\s*\n/g, '\n\n');
+            
+            setPlays(processedText); 
             setShowInsertButton(false); // Ocultar botón cuando se cambia el texto
             setDuplicateLines([]); // Limpiar duplicados cuando se cambia el texto
             if(showFieldErrors){ /* no quitar bordes aún */ }

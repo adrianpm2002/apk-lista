@@ -922,7 +922,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
           value={plays}
           onChangeText={(txt)=> { 
             // Procesar texto para eliminar letras antes del guión en cada línea
-            const processedText = txt.split('\n').map(line => {
+            let processedText = txt.split('\n').map(line => {
               // Buscar guión en la línea
               const dashIndex = line.indexOf('-');
               if (dashIndex > 0) {
@@ -935,6 +935,9 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
               }
               return line;
             }).join('\n');
+            
+            // Eliminar líneas en blanco consecutivas
+            processedText = processedText.replace(/\n\s*\n\s*\n/g, '\n\n');
             
             setPlays(processedText); 
             setShowInsertButton(false); // Ocultar botón cuando se cambia el texto
