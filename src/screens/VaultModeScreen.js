@@ -91,7 +91,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         
         if (isOnline) {
           // Online: Cargar desde Supabase
-          const { data } = await supabase.from('loteria').select('id,nombre,created_at').eq('id_banco', bankId).order('nombre');
+          const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
           lots = data || [];
           // Cachear para uso offline (no bloquear si falla)
           if (lots.length > 0) {
@@ -195,7 +195,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           Object.keys(next).forEach(lv => { if (!grouped[lv] || !grouped[lv].some(o => o.value === next[lv])) delete next[lv]; });
           return next;
         });
-      } catch (e) { console.error('[VaultMode] Error cargando horarios:', e); }
+      } catch (e) { /* ignore */ }
     };
     loadAllSchedules();
     return () => { cancelled = true; };

@@ -144,17 +144,13 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const loadContext = async () => {
       try {
         // Intentar primero con Supabase (online)
-        console.log('[VisualMode] loadContext - Intentando cargar usuario de Supabase...');
         const { data: { user } } = await supabase.auth.getUser();
-        console.log('[VisualMode] loadContext - User de Supabase:', user?.id || 'null');
         if(user) {
           setUserId(user.id);
-          const { data: profile, error: profileError } = await supabase.from('profiles').select('role,id_banco,username').eq('id', user.id).single();
-          console.log('[VisualMode] loadContext - Profile:', profile, 'Error:', profileError);
+          const { data: profile } = await supabase.from('profiles').select('role,id_banco,username').eq('id', user.id).single();
           if(profile) {
             setUserProfile(profile);
             const bId = profile.role === 'admin' ? user.id : profile.id_banco;
-            console.log('[VisualMode] loadContext - bankId calculado:', bId);
             setBankId(bId);
             return;
           }
@@ -182,23 +178,14 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
 
   // Cargar loterías y jugadas activas cuando tengamos bankId
   useEffect(()=>{
-    if(!bankId) {
-      console.log('[VisualMode] No hay bankId, no se cargan datos. isOnline:', isOnline);
-      return;
-    }
-    console.log('[VisualMode] Cargando datos... bankId:', bankId, 'isOnline:', isOnline);
+    if(!bankId) return;
     const loadData = async () => {
       try {
         let lots = [];
         
         if (isOnline) {
           // Online: Cargar desde Supabase
-          console.log('[VisualMode] Consultando loterías desde Supabase para bankId:', bankId);
-          const { data, error } = await supabase.from('loteria').select('id,nombre,created_at').eq('id_banco', bankId).order('nombre');
-          console.log('[VisualMode] Respuesta loterías - data:', data?.length || 0, 'error:', error);
-          if (error) {
-            console.error('[VisualMode] Error cargando loterías de Supabase:', error);
-          }
+          const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
           lots = data || [];
           // Cachear para uso offline (no bloquear si falla)
           if (lots.length > 0) {
@@ -283,9 +270,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         
         setPlayTypes(ordered);
         setFilteredPlayTypes(ordered); // Inicialmente mostrar todas
-      } catch(e){ 
-        console.error('[VisualMode] Error en loadData:', e); 
-      }
+      } catch(e){ /* ignore */ }
     };
     loadData();
   },[bankId, isOnline]);

@@ -182,7 +182,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         
         if (isOnline) {
           // Online: Cargar desde Supabase
-          const { data } = await supabase.from('loteria').select('id,nombre,created_at').eq('id_banco', bankId).order('nombre');
+          const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
           lots = data || [];
           // Cachear para uso offline (no bloquear si falla)
           if (lots.length > 0) {
