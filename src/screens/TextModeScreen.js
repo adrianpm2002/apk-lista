@@ -41,7 +41,6 @@ import * as OfflineStorage from '../services/offlineStorageService';
 import { supabase } from '../supabaseClient';
 import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
-import OfflineIndicator from '../components/OfflineIndicator';
 
 const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   // Estados para los campos
@@ -841,9 +840,6 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
               />
           </View>
           <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
-            <OfflineIndicator 
-              isDarkMode={isDarkMode}
-            />
             <PricingInfoButton />
             {/* OCULTO PARA BUILD - NotificationsButton */}
             {/* <NotificationsButton /> */}

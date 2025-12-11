@@ -18,7 +18,6 @@ import useOfflinePlaySubmission from '../hooks/useOfflinePlaySubmission';
 import { useOfflineSafe } from '../contexts/OfflineContext';
 import { useAuthContext } from '../contexts/AuthContext';
 import * as OfflineStorage from '../services/offlineStorageService';
-import OfflineIndicator from '../components/OfflineIndicator';
 
 const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, onToggleDarkMode, onModeVisibilityChange, visibleModes }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -779,9 +778,6 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
             />
           </View>
           <View style={styles.rightButtonsGroup} pointerEvents="box-none">
-            <OfflineIndicator 
-              isDarkMode={isDarkMode}
-            />
             <PricingInfoButton />
             {/* <NotificationsButton /> */}
           </View>

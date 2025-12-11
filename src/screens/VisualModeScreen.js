@@ -34,7 +34,6 @@ import { fetchLimitsContext, checkInstructionsLimits } from '../utils/limitUtils
 import { generateVisualModeCopyText } from '../utils/copyUtils';
 import { validateScheduleById } from '../utils/scheduleValidator';
 import { useAuthContext } from '../contexts/AuthContext';
-import OfflineIndicator from '../components/OfflineIndicator';
 
 const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMode, onModeVisibilityChange, visibleModes }) => {
   const { user } = useAuthContext();
@@ -1093,9 +1092,6 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             />
           </View>
           <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
-            <OfflineIndicator 
-              isDarkMode={isDarkMode}
-            />
             <PricingInfoButton />
             {/* OCULTO PARA BUILD - NotificationsButton */}
             {/* <NotificationsButton /> */}

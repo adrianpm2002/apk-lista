@@ -850,9 +850,6 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
             />
           </View>
           <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
-            <OfflineIndicator 
-              isDarkMode={isDarkMode}
-            />
             <PricingInfoButton />
             {/* OCULTO PARA BUILD - NotificationsButton */}
             {/* <NotificationsButton /> */}
