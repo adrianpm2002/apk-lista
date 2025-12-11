@@ -184,9 +184,13 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
           // Online: Cargar desde Supabase
           const { data } = await supabase.from('loteria').select('id,nombre,created_at').eq('id_banco', bankId).order('nombre');
           lots = data || [];
-          // Cachear para uso offline
+          // Cachear para uso offline (no bloquear si falla)
           if (lots.length > 0) {
-            await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
+            try {
+              await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
+            } catch (cacheError) {
+              console.log('[TextMode] No se pudo cachear loterías:', cacheError);
+            }
           }
         } else {
           // Offline: Cargar desde SQLite
@@ -232,9 +236,13 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
             .in('id_loteria', lotIds)
             .order('nombre');
           rows = data || [];
-          // Cachear para uso offline
+          // Cachear para uso offline (no bloquear si falla)
           if (rows.length > 0) {
-            await OfflineStorage.saveSchedules(rows);
+            try {
+              await OfflineStorage.saveSchedules(rows);
+            } catch (cacheError) {
+              console.log('[TextMode] No se pudo cachear horarios:', cacheError);
+            }
           }
         } else {
           // Offline: Cargar desde SQLite

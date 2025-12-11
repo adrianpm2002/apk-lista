@@ -187,9 +187,13 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           // Online: Cargar desde Supabase
           const { data } = await supabase.from('loteria').select('id,nombre,created_at').eq('id_banco', bankId).order('nombre');
           lots = data || [];
-          // Cachear para uso offline
+          // Cachear para uso offline (no bloquear si falla)
           if (lots.length > 0) {
-            await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
+            try {
+              await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
+            } catch (cacheError) {
+              console.log('[VisualMode] No se pudo cachear loterías:', cacheError);
+            }
           }
         } else {
           // Offline: Cargar desde SQLite
@@ -217,9 +221,13 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         if (isOnline) {
           const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
           jugadas = jugRow?.jugadas || {};
-          // Cachear para uso offline
+          // Cachear para uso offline (no bloquear si falla)
           if (Object.keys(jugadas).length > 0) {
-            await OfflineStorage.saveJugadasActivas(bankId, jugadas);
+            try {
+              await OfflineStorage.saveJugadasActivas(bankId, jugadas);
+            } catch (cacheError) {
+              console.log('[VisualMode] No se pudo cachear jugadas activas:', cacheError);
+            }
           }
         } else {
           // Offline: Cargar desde SQLite
@@ -319,9 +327,13 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             .in('id_loteria', lotIds)
             .order('nombre');
           rows = data || [];
-          // Cachear para uso offline
+          // Cachear para uso offline (no bloquear si falla)
           if (rows.length > 0) {
-            await OfflineStorage.saveSchedules(rows);
+            try {
+              await OfflineStorage.saveSchedules(rows);
+            } catch (cacheError) {
+              console.log('[VisualMode] No se pudo cachear horarios:', cacheError);
+            }
           }
         } else {
           // Offline: Cargar desde SQLite

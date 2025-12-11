@@ -19,7 +19,8 @@ export const initConnectionMonitor = () => {
   // Suscribirse a cambios de estado de red con throttling agresivo
   const unsubscribe = NetInfo.addEventListener(state => {
     const wasOnline = currentConnectionState?.isConnected;
-    const isOnline = state.isConnected && state.isInternetReachable;
+    // isInternetReachable puede ser null en web, tratarlo como true si isConnected es true
+    const isOnline = state.isConnected && (state.isInternetReachable !== false);
     
     currentConnectionState = {
       isConnected: state.isConnected,
@@ -68,13 +69,22 @@ const notifyListeners = (isOnline, wasOnline) => {
  */
 export const checkConnection = async () => {
   try {
+    // En web, usar navigator.onLine como fallback más confiable
+    if (Platform.OS === 'web') {
+      return navigator.onLine;
+    }
+    
     const state = await NetInfo.fetch();
-    const isOnline = state.isConnected && state.isInternetReachable;
+    // isInternetReachable puede ser null en algunas plataformas, tratarlo como true si isConnected es true
+    const isOnline = state.isConnected && (state.isInternetReachable !== false);
     
   // No log por defecto para evitar saturación de consola en dev
 
     return isOnline;
-  } catch (error) {// En caso de error, asumir que no hay conexión
+  } catch (error) {// En caso de error, asumir que hay conexión en web, sin conexión en móvil
+    if (Platform.OS === 'web') {
+      return navigator.onLine;
+    }
     return false;
   }
 };
@@ -100,7 +110,12 @@ export const subscribeToConnection = (callback) => {
  */
 export const getConnectionState = () => {
   if (!currentConnectionState) {
+    // En web, usar navigator.onLine como fallback
+    if (Platform.OS === 'web') {
+      return navigator.onLine;
+    }
     return null;
   }
-  return currentConnectionState.isConnected && currentConnectionState.isInternetReachable;
+  // isInternetReachable puede ser null, tratarlo como true si isConnected es true
+  return currentConnectionState.isConnected && (currentConnectionState.isInternetReachable !== false);
 };
