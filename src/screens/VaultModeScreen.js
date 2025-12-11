@@ -86,8 +86,6 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     if (!bankId) return;
     const loadData = async () => {
       try {
-        let lots = [];
-        
         // SIEMPRE cargar desde cache primero
         let lots = await OfflineStorage.getLotteries(bankId);
         if (lots && lots.length > 0) {
@@ -133,7 +131,6 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     const loadAllSchedules = async () => {
       try {
         const lotIds = lotteries.map(l => l.value);
-        let rows = [];
         
         // SIEMPRE cargar desde cache primero
         const allSchedules = await OfflineStorage.getSchedules(null);
