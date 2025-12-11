@@ -344,6 +344,19 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
   };
 
   /**
+   * Seleccionar o deseleccionar todas las jugadas
+   */
+  const handleSelectAll = () => {
+    if (selectedIds.size === plays.length) {
+      // Si todas están seleccionadas, deseleccionar todas
+      setSelectedIds(new Set());
+    } else {
+      // Seleccionar todas
+      setSelectedIds(new Set(plays.map(p => p.id)));
+    }
+  };
+
+  /**
    * Renderizar item de jugada
    */
   const renderPlayItem = ({ item }) => {
@@ -532,6 +545,15 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
               onPress={toggleSelectionMode}
             >
               <Text style={styles.topButtonText}>Cancelar</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.topButton, styles.topButtonPrimary]}
+              onPress={handleSelectAll}
+              disabled={plays.length === 0}
+            >
+              <Text style={styles.topButtonText}>
+                {selectedIds.size === plays.length ? '☐ Deseleccionar' : '☑ Seleccionar Todo'}
+              </Text>
             </Pressable>
             <Pressable
               style={[styles.topButton, styles.topButtonDanger]}
