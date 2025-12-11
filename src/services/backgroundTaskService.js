@@ -223,15 +223,12 @@ export const processPendingPlaysManually = async () => {
  */
 export const syncOfflineCache = async () => {
   try {
-    console.log('[BackgroundTask] Iniciando sincronización de caché offline...');
-    
     // Importar servicios necesarios
     const OfflineStorage = require('./offlineStorageService');
     
-    // 1. Obtener usuario actual
+    // 1. Verificar que hay usuario autenticado
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.log('[BackgroundTask] No hay usuario autenticado, omitiendo sync');
       return { success: false, error: 'No autenticado' };
     }
 
