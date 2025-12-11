@@ -931,8 +931,9 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
           label={t('common.numbers')}
           value={plays}
           onChangeText={(txt)=> { 
-            // Eliminar líneas en blanco consecutivas
-            const processedText = txt.replace(/\n\s*\n\s*\n/g, '\n\n');
+            // Prevenir más de una línea en blanco consecutiva
+            // Reemplaza 2 o más líneas vacías por solo 1 línea vacía
+            const processedText = txt.replace(/(\n\s*){3,}/g, '\n\n');
             
             setPlays(processedText); 
             setShowInsertButton(false); // Ocultar botón cuando se cambia el texto
