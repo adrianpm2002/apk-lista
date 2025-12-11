@@ -64,10 +64,23 @@ export const useAuth = () => {
             
             const profile = await authService.getUserProfile(currentSession.user.id);
             setUserProfile(profile);
+          } else {
+            // Si no hay sesión online, intentar auto-login offline
+            console.log('[useAuth] No hay sesión online, intentando auto-login offline...');
+            const offlineResult = await authService.tryAutoLoginOffline();
+            if (offlineResult && offlineResult.success && offlineResult.profile) {
+              console.log('[useAuth] ✅ Auto-login offline exitoso:', offlineResult.profile);
+              // Establecer usuario offline (sin sesión de Supabase)
+              setUser({ id: offlineResult.profile.userId });
+              setSession(null);
+              setUserProfile(offlineResult.profile);
+            } else {
+              console.log('[useAuth] No hay sesión offline activa');
+            }
           }
         }
       } catch (error) {
-        console.error('Error inicializando autenticación:', error);
+        console.error('[useAuth] Error inicializando autenticación:', error);
       } finally {
         setLoading(false);
         setIsInitialized(true);
