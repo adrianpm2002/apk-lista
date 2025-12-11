@@ -185,8 +185,12 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         
         if (isOnline) {
           // Online: Cargar desde Supabase
-          const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
+          const { data } = await supabase.from('loteria').select('id,nombre,created_at').eq('id_banco', bankId).order('nombre');
           lots = data || [];
+          // Cachear para uso offline
+          if (lots.length > 0) {
+            await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
+          }
         } else {
           // Offline: Cargar desde SQLite
           lots = await OfflineStorage.getLotteries(bankId);
@@ -213,15 +217,13 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         if (isOnline) {
           const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
           jugadas = jugRow?.jugadas || {};
+          // Cachear para uso offline
+          if (Object.keys(jugadas).length > 0) {
+            await OfflineStorage.saveJugadasActivas(bankId, jugadas);
+          }
         } else {
-          // Offline: usar jugadas activas por defecto (todas habilitadas)
-          jugadas = {
-            fijo: true,
-            corrido: true,
-            parle: true,
-            centena: true,
-            tripleta: true
-          };
+          // Offline: Cargar desde SQLite
+          jugadas = await OfflineStorage.getJugadasActivas(bankId) || {};
         }
         
         // Almacenar todas las jugadas por lotería para filtrado posterior
@@ -239,13 +241,6 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             });
           }
         });
-        
-        // Si no hay jugadas configuradas, usar todas como activas (fallback)
-        if (allActivePlayTypes.size === 0) {
-          ['fijo', 'corrido', 'parle', 'centena', 'tripleta'].forEach(j => 
-            allActivePlayTypes.add(j)
-          );
-        }
         
         // Convertir a formato esperado y ordenar
         const enabled = Array.from(allActivePlayTypes).map(k => ({ 
@@ -324,6 +319,10 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             .in('id_loteria', lotIds)
             .order('nombre');
           rows = data || [];
+          // Cachear para uso offline
+          if (rows.length > 0) {
+            await OfflineStorage.saveSchedules(rows);
+          }
         } else {
           // Offline: Cargar desde SQLite
           const allSchedules = await OfflineStorage.getSchedules(null);

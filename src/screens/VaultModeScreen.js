@@ -91,8 +91,12 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         
         if (isOnline) {
           // Online: Cargar desde Supabase
-          const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
+          const { data } = await supabase.from('loteria').select('id,nombre,created_at').eq('id_banco', bankId).order('nombre');
           lots = data || [];
+          // Cachear para uso offline
+          if (lots.length > 0) {
+            await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
+          }
         } else {
           // Offline: Cargar desde SQLite
           lots = await OfflineStorage.getLotteries(bankId);
@@ -135,6 +139,10 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
             .in('id_loteria', lotIds)
             .order('nombre');
           rows = data || [];
+          // Cachear para uso offline
+          if (rows.length > 0) {
+            await OfflineStorage.saveSchedules(rows);
+          }
         } else {
           // Offline: Cargar desde SQLite
           const allSchedules = await OfflineStorage.getSchedules(null);

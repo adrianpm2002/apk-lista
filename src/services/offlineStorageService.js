@@ -13,7 +13,7 @@ if (Platform.OS !== 'web') {
 }
 
 const DB_NAME = 'offline.db';
-const DB_VERSION = 2; // Versión 2 agrega is_active_session
+const DB_VERSION = 3; // Versión 3 agrega tabla de jugadas activas
 
 let dbInstance = null;
 
@@ -91,6 +91,22 @@ const runMigrations = async (db, fromVersion, toVersion) => {if (fromVersion < 1
       `);
     } catch (error) {
       // Si la columna ya existe, ignorar el error
+    }
+  }
+
+  if (fromVersion < 3 && toVersion >= 3) {
+    // Migración v3: Crear tabla de jugadas activas
+    try {
+      await db.executeSql(`
+        CREATE TABLE IF NOT EXISTS offline_jugadas_activas (
+          id_banco TEXT PRIMARY KEY,
+          jugadas TEXT NOT NULL,
+          cached_at TEXT,
+          updated_at TEXT
+        )
+      `);
+    } catch (error) {
+      // Si la tabla ya existe, ignorar el error
     }
   }
 };
@@ -175,7 +191,19 @@ const createInitialSchema = async (db) => {// Tabla de jugadas offline
       data TEXT NOT NULL,
       last_sync TEXT NOT NULL
     )
-  `);// Crear índices para optimizar consultas
+  `);
+
+  // Tabla de jugadas activas por banco
+  await db.executeSql(`
+    CREATE TABLE IF NOT EXISTS offline_jugadas_activas (
+      id_banco TEXT PRIMARY KEY,
+      jugadas TEXT NOT NULL,
+      cached_at TEXT,
+      updated_at TEXT
+    )
+  `);
+
+  // Crear índices para optimizar consultas
   await db.executeSql(`
     CREATE INDEX IF NOT EXISTS idx_plays_status ON offline_plays(status)
   `);
@@ -366,14 +394,17 @@ export const saveLotteries = async (lotteries) => {
     if (!db) {if (sqliteLoadError) {}
       return false;
     }// Guardar todas las loterías secuencialmente
-    for (const lottery of lotteries) {await db.executeSql(
+    for (const lottery of lotteries) {
+      // Mapear created_at de Supabase a creada_en de SQLite
+      const creadaEn = lottery.created_at || lottery.creada_en || new Date().toISOString();
+      await db.executeSql(
         `INSERT OR REPLACE INTO offline_lotteries 
          (id, nombre, creada_en, id_banco, cached_at, updated_at) 
          VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
         [
           lottery.id,
           lottery.nombre,
-          lottery.creada_en,
+          creadaEn,
           lottery.id_banco
         ]
       );}await addLog('INFO', 'Loterías guardadas en caché', { count: lotteries.length });
@@ -497,6 +528,75 @@ export const setLastCacheUpdate = async (type, timestamp) => {
   try {
     await setConfig(`cache_update_${type}`, timestamp.toString());return true;
   } catch (error) {return false;
+  }
+};
+
+// =================================================================
+// JUGADAS ACTIVAS DEL BANCO - FASE 5.5
+// =================================================================
+
+/**
+ * Guardar jugadas activas del banco en caché
+ * @param {string} id_banco - ID del banco
+ * @param {Object} jugadas - Objeto con las jugadas activas { "id_loteria": { fijo: true, ... } }
+ * @returns {Promise<boolean>} true si se guardó correctamente
+ */
+export const saveJugadasActivas = async (id_banco, jugadas) => {
+  try {
+    if (!id_banco || !jugadas) {
+      return false;
+    }
+    
+    const db = await getDatabase();
+    if (!db) {
+      return false;
+    }
+
+    await db.executeSql(
+      `INSERT OR REPLACE INTO offline_jugadas_activas 
+       (id_banco, jugadas, cached_at, updated_at) 
+       VALUES (?, ?, datetime('now'), datetime('now'))`,
+      [id_banco, JSON.stringify(jugadas)]
+    );
+    
+    await addLog('INFO', 'Jugadas activas guardadas en caché', { id_banco });
+    return true;
+  } catch (error) {
+    await addLog('ERROR', 'Error guardando jugadas activas', { error: error.message });
+    return false;
+  }
+};
+
+/**
+ * Obtener jugadas activas del banco desde caché
+ * @param {string} id_banco - ID del banco
+ * @returns {Promise<Object|null>} Objeto con jugadas activas o null si no existe
+ */
+export const getJugadasActivas = async (id_banco) => {
+  try {
+    if (!id_banco) {
+      return null;
+    }
+    
+    const db = await getDatabase();
+    if (!db) {
+      return null;
+    }
+
+    const [result] = await db.executeSql(
+      `SELECT jugadas FROM offline_jugadas_activas WHERE id_banco = ?`,
+      [id_banco]
+    );
+
+    if (result.rows.length > 0) {
+      const row = result.rows.item(0);
+      return JSON.parse(row.jugadas);
+    }
+    
+    return null;
+  } catch (error) {
+    await addLog('ERROR', 'Error obteniendo jugadas activas del caché', { error: error.message });
+    return null;
   }
 };
 
@@ -1310,6 +1410,9 @@ export default {
   getSchedules,
   getLastCacheUpdate,
   setLastCacheUpdate,
+  // Jugadas activas del banco - FASE 5.5
+  saveJugadasActivas,
+  getJugadasActivas,
   // Jugadas offline - FASE 6
   savePlayOffline,
   getPendingPlays,
