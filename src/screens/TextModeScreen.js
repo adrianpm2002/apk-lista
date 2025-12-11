@@ -462,10 +462,11 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
       return;
     }
     try {
-      // Validaciones de límites usando funciones migradas
+      // Validaciones de límites usando funciones migradas - SOLO cuando hay conexión
+      // En modo offline, los límites se verificarán al sincronizar
       const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
       let violations=[];
-      if(horarios.length){
+      if(horarios.length && isOnline){
         const { data: { user } } = await supabase.auth.getUser();
         const ctx = await fetchLimitsContext(horarios, user?.id);
         
@@ -573,8 +574,8 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
       try {
         const lottery = selectedLotteries[0];
         const newHorario = selectedSchedules[lottery];
-        // Validación de límites para edición
-        if(newHorario){
+        // Validación de límites para edición - SOLO cuando hay conexión
+        if(newHorario && isOnline){
           const { data: { user } } = await supabase.auth.getUser();
           const ctx = await fetchLimitsContext([newHorario], user?.id);
           // Restar uso previo de la jugada actual para no duplicar consumo del límite
@@ -630,7 +631,8 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
     }
 
     // Validación de capacidad (unificada con modo visual) usando uso del día en tabla jugada
-    if (!hasErrors) {
+    // SOLO cuando hay conexión - en modo offline, los límites se verificarán al sincronizar
+    if (!hasErrors && isOnline) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);

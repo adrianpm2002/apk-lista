@@ -113,7 +113,7 @@ const groupDataForListero = (rawData) => {
   }
 };
 
-const CACHE_DAYS = 30; // Cachear últimos 30 días
+const CACHE_DAYS = 60; // Cachear últimos 60 días
 
 export const useListeroStatistics = (options = {}) => {
   const { enabled = true } = options;
@@ -180,14 +180,9 @@ export const useListeroStatistics = (options = {}) => {
   }, [enabled]);
 
   /**
-   * Cargar datos desde Supabase
+   * Cargar datos desde Supabase (tabla estadisticas)
    */
   const loadFromSupabase = async (userId, startDate, endDate) => {
-    //   userId,
-    //   startDate: formatDateForSupabase(startDate),
-    //   endDate: formatDateForSupabase(endDate)
-    // });
-    
     try {
       // Formatear fechas para Supabase (timestamp local, NO UTC)
       const startStr = formatDateForSupabase(startDate);
@@ -199,9 +194,8 @@ export const useListeroStatistics = (options = {}) => {
       let hasMore = true;
       
       while (hasMore) {
-        
         const { data: playsData, error } = await supabase
-          .from('v_estadisticas')
+          .from('estadisticas')
           .select('*')
           .eq('id_listero', userId)
           .gte('fecha_jugada', startStr)
@@ -233,10 +227,41 @@ export const useListeroStatistics = (options = {}) => {
       throw error;
     }
   };
+
   /**
-   * Cargar datos desde views específicas (v_estadisticas_hoy o v_estadisticas_ayer)
+   * Verificar si una fecha está dentro de los últimos CACHE_DAYS días
+   */
+  const isWithinCacheDays = (date) => {
+    const now = new Date();
+    const limitDate = new Date(now);
+    limitDate.setDate(limitDate.getDate() - CACHE_DAYS);
+    limitDate.setHours(0, 0, 0, 0);
+    return date >= limitDate;
+  };
+
   /**
-   * Cargar datos con estrategia optimizada de 3 niveles
+   * Verificar si el rango de fechas es "Hoy"
+   */
+  const isTodayFilter = (startDate, endDate) => {
+    const today = new Date();
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+    
+    return startDate.getDate() === todayStart.getDate() &&
+           startDate.getMonth() === todayStart.getMonth() &&
+           startDate.getFullYear() === todayStart.getFullYear() &&
+           endDate.getDate() === todayEnd.getDate() &&
+           endDate.getMonth() === todayEnd.getMonth() &&
+           endDate.getFullYear() === todayEnd.getFullYear();
+  };
+
+  /**
+   * Cargar datos con estrategia SQLite-First
+   * - Solo va a Supabase para actualizar HOY (con forceRefresh)
+   * - Para otros filtros, siempre usa SQLite
+   * - Para rangos fuera de 60 días, va a Supabase
    */
   const loadPlaysData = async (filters = {}, userIdOverride = null) => {
     const effectiveUserId = userIdOverride || userId;
@@ -245,12 +270,12 @@ export const useListeroStatistics = (options = {}) => {
       return;
     }
     
-    // 🎯 FIX: Si ya está cargando, ignorar nueva petición (prevenir race conditions)
+    // Si ya está cargando, ignorar nueva petición (prevenir race conditions)
     if (loadingRef.current) {
       return;
     }
     
-    // 🎯 FIX: Cancelar cargas anteriores incrementando el token
+    // Cancelar cargas anteriores incrementando el token
     loadTokenRef.current += 1;
     const currentToken = loadTokenRef.current;
     
@@ -268,19 +293,30 @@ export const useListeroStatistics = (options = {}) => {
       // Si no hay fechas, usar HOY por defecto
       if (!startDate || !endDate) {
         const now = new Date();
-        startDate = new Date(now.setHours(0, 0, 0, 0));
-        endDate = new Date(now.setHours(23, 59, 59, 999));
+        startDate = new Date(now);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(now);
+        endDate.setHours(23, 59, 59, 999);
       }
 
       // ========================================
-      // ESTRATEGIA CACHE-FIRST SIMPLIFICADA
+      // ESTRATEGIA SQLite-First
+      // - Solo va a Supabase para actualizar HOY (con forceRefresh)
+      // - Para otros filtros, siempre usa SQLite
+      // - Para rangos fuera de 60 días, va a Supabase
       // ========================================
       
-      if (forceRefresh) {
-        // PULL-TO-REFRESH: Cargar desde Supabase y actualizar caché
+      const isToday = isTodayFilter(startDate, endDate);
+      const oldestDateInRange = new Date(startDate);
+      const isRangeWithinCache = isWithinCacheDays(oldestDateInRange);
+
+      // CASO 1: forceRefresh + filtro HOY → Actualizar desde Supabase
+      if (forceRefresh && isToday) {
+        console.log('[useListeroStatistics] 🔄 Actualizando HOY desde Supabase...');
+        
         const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
         
-        // Reemplazar caché con datos frescos para este rango
+        // Borrar HOY de SQLite y guardar datos frescos
         await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'listero', freshPlays, startDate, endDate);
         
         // Verificar token antes de setear datos
@@ -293,16 +329,17 @@ export const useListeroStatistics = (options = {}) => {
         const groupedData = groupDataForListero(freshPlays);
         setTableData({ plays: groupedData });
         
-        // Limpiar loading state y salir
         setIsLoading(false);
         loadingRef.current = false;
         return;
+      }
+
+      // CASO 2: forceRefresh + otro filtro → Solo recargar desde SQLite
+      if (forceRefresh && !isToday) {
+        console.log('[useListeroStatistics] 🔄 Recargando desde SQLite (no es HOY)...');
         
-      } else {
-        // CARGA NORMAL: Solo desde caché
         let cachedPlays = [];
         try {
-          // 🎯 FIX: Pasar filtros de fecha para optimizar query SQL
           cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'listero', {
             startDate,
             endDate
@@ -312,40 +349,16 @@ export const useListeroStatistics = (options = {}) => {
           cachedPlays = [];
         }
         
-        // 🎯 FIX: Si caché está vacío, forzar carga desde Supabase
-        if (cachedPlays.length === 0) {
+        // Si caché vacío y rango dentro de 60 días, puede que nunca se haya cargado
+        if (cachedPlays.length === 0 && isRangeWithinCache) {
+          // Cargar desde Supabase solo esta vez para poblar caché
           const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
-          
-          // Intentar guardar en caché (puede fallar en web, pero intentamos)
           try {
             await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'listero', freshPlays, startDate, endDate);
-          } catch (cacheError) {
-            // Error silencioso
-          }
-          
-          // Verificar token
-          if (currentToken !== loadTokenRef.current) {
-            setIsLoading(false);
-            loadingRef.current = false;
-            return;
-          }
-          
-          const groupedData = groupDataForListero(freshPlays);
-          setTableData({ plays: groupedData });
-          
-          // Limpiar y salir
-          try {
-            await SQLiteCache.cleanOldRecords(effectiveUserId, 'listero');
-          } catch (cacheError) {
-            // Error silencioso
-          }
-          
-          setIsLoading(false);
-          loadingRef.current = false;
-          return;
+          } catch (cacheError) {}
+          cachedPlays = freshPlays;
         }
         
-        // Verificar token antes de setear datos
         if (currentToken !== loadTokenRef.current) {
           setIsLoading(false);
           loadingRef.current = false;
@@ -355,24 +368,91 @@ export const useListeroStatistics = (options = {}) => {
         const groupedData = groupDataForListero(cachedPlays);
         setTableData({ plays: groupedData });
         
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
       }
+
+      // CASO 3: Rango personalizado fuera de 60 días → Supabase directo (sin cachear)
+      if (!isRangeWithinCache) {
+        console.log('[useListeroStatistics] 📡 Rango fuera de 60 días, cargando desde Supabase...');
+        
+        const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
+        
+        if (currentToken !== loadTokenRef.current) {
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+        
+        const groupedData = groupDataForListero(freshPlays);
+        setTableData({ plays: groupedData });
+        
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+      }
+
+      // CASO 4: Carga normal (sin forceRefresh) → SQLite primero
+      console.log('[useListeroStatistics] 📦 Cargando desde SQLite...');
+      
+      let cachedPlays = [];
+      try {
+        cachedPlays = await SQLiteCache.readPlaysFromCache(effectiveUserId, 'listero', {
+          startDate,
+          endDate
+        });
+      } catch (cacheError) {
+        console.error('[useListeroStatistics] ⚠️ Error leyendo caché:', cacheError);
+        cachedPlays = [];
+      }
+      
+      // Si caché vacío, cargar desde Supabase para poblar
+      if (cachedPlays.length === 0) {
+        console.log('[useListeroStatistics] 📡 Caché vacío, cargando desde Supabase para poblar...');
+        
+        const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
+        
+        try {
+          await SQLiteCache.replacePlaysByDateRange(effectiveUserId, 'listero', freshPlays, startDate, endDate);
+        } catch (cacheError) {}
+        
+        if (currentToken !== loadTokenRef.current) {
+          setIsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+        
+        const groupedData = groupDataForListero(freshPlays);
+        setTableData({ plays: groupedData });
+        
+        // Limpiar registros antiguos
+        try {
+          await SQLiteCache.cleanOldRecords(effectiveUserId, 'listero');
+        } catch (cacheError) {}
+        
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+      }
+      
+      // Hay datos en caché, usarlos
+      if (currentToken !== loadTokenRef.current) {
+        setIsLoading(false);
+        loadingRef.current = false;
+        return;
+      }
+      
+      const groupedData = groupDataForListero(cachedPlays);
+      setTableData({ plays: groupedData });
 
       // Limpiar registros muy antiguos (>60 días)
       try {
         await SQLiteCache.cleanOldRecords(effectiveUserId, 'listero');
-      } catch (cacheError) {
-        // Error silencioso
-      }
+      } catch (cacheError) {}
 
     } catch (error) {
       console.error('[useListeroStatistics] ❌ Error en loadPlaysData:', error);
-      console.error('[useListeroStatistics] 📋 Detalles del error:', {
-        message: error?.message,
-        name: error?.name,
-        code: error?.code,
-        details: error?.details,
-        hint: error?.hint
-      });
       
       // Verificar token antes de limpiar datos
       if (currentToken !== loadTokenRef.current) {
@@ -385,63 +465,6 @@ export const useListeroStatistics = (options = {}) => {
     } finally {
       setIsLoading(false);
       loadingRef.current = false;
-    }
-  };
-
-  /**
-   * Actualización incremental en background (solo HOY)
-   */
-  const updateTodayInBackground = async (userId) => {
-    try {
-      const today = new Date();
-      const todayStart = new Date(today);
-      todayStart.setHours(0, 0, 0, 0);
-      
-      const updateStart = new Date(todayStart);
-      updateStart.setHours(updateStart.getHours() - 5);
-      
-      const todayEnd = new Date(today);
-      todayEnd.setHours(23, 59, 59, 999);
-
-      const todayPlays = await loadFromSupabase(userId, updateStart, todayEnd);
-
-      if (todayPlays.length > 0) {
-        try {
-          await SQLiteCache.savePlaysToCache(userId, 'listero', todayPlays);
-          await SQLiteCache.updateIncrementalTimestamp(userId, 'listero');
-        } catch (cacheError) {
-          console.error('[useListeroStatistics] ⚠️ Error in incremental update cache save:', cacheError);
-          return;
-        }
-        
-        const { startDate, endDate } = dateRange;
-        const isViewingToday = 
-          startDate.getDate() === today.getDate() &&
-          startDate.getMonth() === today.getMonth() &&
-          startDate.getFullYear() === today.getFullYear();
-
-        if (isViewingToday) {
-          try {
-            const cachedPlays = await SQLiteCache.readPlaysFromCache(userId, 'listero', {
-              startDate,
-              endDate
-            });
-            
-            const groupedData = groupDataForListero(cachedPlays);
-            setTableData({ plays: groupedData });
-          } catch (cacheError) {
-            // Error silencioso
-          }
-        }
-      }
-
-      try {
-        await SQLiteCache.cleanOldRecords(userId, 'listero');
-      } catch (cacheError) {
-        // Error silencioso
-      }
-    } catch (error) {
-      // Error silencioso
     }
   };
 

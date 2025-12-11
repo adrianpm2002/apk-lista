@@ -596,8 +596,8 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
       try {
         const lottery = selectedLotteries[0];
         const newHorario = selectedSchedules[lottery];
-        // Validación de límites para edición
-        if(newHorario){
+        // Validación de límites para edición - SOLO cuando hay conexión
+        if(newHorario && isOnline){
           const { data: { user } } = await supabase.auth.getUser();
           const ctx = await fetchLimitsContext([newHorario], user?.id);
           // Restar uso previo de la jugada actual para no duplicar consumo del límite
@@ -657,7 +657,8 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
     }
 
     // Validación de capacidad (unificada con modo visual) usando uso del día en tabla jugada
-    if (!hasErrors) {
+    // SOLO cuando hay conexión - en modo offline, los límites se verificarán al sincronizar
+    if (!hasErrors && isOnline) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);

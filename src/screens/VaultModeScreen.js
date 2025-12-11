@@ -195,7 +195,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           Object.keys(next).forEach(lv => { if (!grouped[lv] || !grouped[lv].some(o => o.value === next[lv])) delete next[lv]; });
           return next;
         });
-      } catch (e) { /* ignore */ }
+      } catch (e) { console.error('[VaultMode] Error cargando horarios:', e); }
     };
     loadAllSchedules();
     return () => { cancelled = true; };
@@ -602,23 +602,26 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     }
 
     // Solo verificación de límites (duplicados manejados por BD)
-    const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
-    const ctx = await fetchLimitsContext(horarios, userId);
-    
-    const tempInstructions = payloads.map(p=> ({ 
-      playType: p.jugada, 
-      numbers: p.numeros.split(',').filter(Boolean), 
-      amountEach: p.monto_unitario 
-    }));
-    
-    const violations = checkInstructionsLimits(tempInstructions, horarios, ctx);
-    if(violations.length){
-      setLimitViolations(violations);
-      setInsertFeedback({ 
-        type: 'error',
-        message: `Se encontraron ${violations.length} violación(es) de límites. Revisa las restricciones.`
-      });
-      return;
+    // SOLO cuando hay conexión - en modo offline, los límites se verificarán al sincronizar
+    if (isOnline) {
+      const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
+      const ctx = await fetchLimitsContext(horarios, userId);
+      
+      const tempInstructions = payloads.map(p=> ({ 
+        playType: p.jugada, 
+        numbers: p.numeros.split(',').filter(Boolean), 
+        amountEach: p.monto_unitario 
+      }));
+      
+      const violations = checkInstructionsLimits(tempInstructions, horarios, ctx);
+      if(violations.length){
+        setLimitViolations(violations);
+        setInsertFeedback({ 
+          type: 'error',
+          message: `Se encontraron ${violations.length} violación(es) de límites. Revisa las restricciones.`
+        });
+        return;
+      }
     }
     
     // Inserción usando batch (más eficiente)

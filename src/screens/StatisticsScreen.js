@@ -373,7 +373,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       const endStr = formatDateForQuery(endDate);
 
       let query = supabase
-        .from('v_estadisticas')
+        .from('estadisticas')
         .select('*')
         .gte('fecha_jugada', startStr)
         .lte('fecha_jugada', endStr)
@@ -2617,7 +2617,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     const validPlays = plays.filter(r => r.fecha_jugada || r.created_at);
     
     for(const r of validPlays) {
-      // Usar fecha_jugada como campo principal de fecha (de v_estadisticas)
+      // Usar fecha_jugada como campo principal de fecha (de tabla estadisticas)
       const fechaJugada = r.fecha_jugada || r.created_at;
       const dayKey = dayKeyOf(fechaJugada);
       const dayLabel = dayLabelOf(fechaJugada);
@@ -2649,7 +2649,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       
       const group = map.get(key);
       
-      // Acumular totales según el rol - USAR CAMPOS CORRECTOS DE v_estadisticas
+      // Acumular totales según el rol - USAR CAMPOS CORRECTOS DE tabla estadisticas
       if (userRole === 'collector') {
         group.totalGanancia += Number(r.ganancia_colector || 0);
         group.totalGananciaListero += Number(r.ganancia_listero || 0);

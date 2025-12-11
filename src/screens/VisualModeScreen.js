@@ -144,13 +144,17 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const loadContext = async () => {
       try {
         // Intentar primero con Supabase (online)
+        console.log('[VisualMode] loadContext - Intentando cargar usuario de Supabase...');
         const { data: { user } } = await supabase.auth.getUser();
+        console.log('[VisualMode] loadContext - User de Supabase:', user?.id || 'null');
         if(user) {
           setUserId(user.id);
-          const { data: profile } = await supabase.from('profiles').select('role,id_banco,username').eq('id', user.id).single();
+          const { data: profile, error: profileError } = await supabase.from('profiles').select('role,id_banco,username').eq('id', user.id).single();
+          console.log('[VisualMode] loadContext - Profile:', profile, 'Error:', profileError);
           if(profile) {
             setUserProfile(profile);
             const bId = profile.role === 'admin' ? user.id : profile.id_banco;
+            console.log('[VisualMode] loadContext - bankId calculado:', bId);
             setBankId(bId);
             return;
           }
@@ -178,14 +182,23 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
 
   // Cargar loterías y jugadas activas cuando tengamos bankId
   useEffect(()=>{
-    if(!bankId) return;
+    if(!bankId) {
+      console.log('[VisualMode] No hay bankId, no se cargan datos. isOnline:', isOnline);
+      return;
+    }
+    console.log('[VisualMode] Cargando datos... bankId:', bankId, 'isOnline:', isOnline);
     const loadData = async () => {
       try {
         let lots = [];
         
         if (isOnline) {
           // Online: Cargar desde Supabase
-          const { data } = await supabase.from('loteria').select('id,nombre,created_at').eq('id_banco', bankId).order('nombre');
+          console.log('[VisualMode] Consultando loterías desde Supabase para bankId:', bankId);
+          const { data, error } = await supabase.from('loteria').select('id,nombre,created_at').eq('id_banco', bankId).order('nombre');
+          console.log('[VisualMode] Respuesta loterías - data:', data?.length || 0, 'error:', error);
+          if (error) {
+            console.error('[VisualMode] Error cargando loterías de Supabase:', error);
+          }
           lots = data || [];
           // Cachear para uso offline (no bloquear si falla)
           if (lots.length > 0) {
@@ -204,11 +217,15 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         
         // Cargar configuración de modo Santiago del banco
         if (isOnline) {
-          const { data: bankProfile } = await supabase
+          const { data: bankProfile, error: profileError } = await supabase
             .from('profiles')
             .select('modo_santiago, porciento')
             .eq('id', bankId)
             .single();
+          
+          if (profileError) {
+            console.error('[VisualMode] Error cargando perfil del banco:', profileError);
+          }
           
           if (bankProfile) {
             setModoSantiago(bankProfile.modo_santiago || false);
@@ -219,7 +236,10 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         // Cargar jugadas activas (online o offline)
         let jugadas = {};
         if (isOnline) {
-          const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
+          const { data: jugRow, error: jugError } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
+          if (jugError) {
+            console.error('[VisualMode] Error cargando jugadas activas:', jugError);
+          }
           jugadas = jugRow?.jugadas || {};
           // Cachear para uso offline (no bloquear si falla)
           if (Object.keys(jugadas).length > 0) {
@@ -263,7 +283,9 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         
         setPlayTypes(ordered);
         setFilteredPlayTypes(ordered); // Inicialmente mostrar todas
-      } catch(e){ /* ignore */ }
+      } catch(e){ 
+        console.error('[VisualMode] Error en loadData:', e); 
+      }
     };
     loadData();
   },[bankId, isOnline]);
@@ -722,18 +744,21 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     }
 
     try {
-  // Verificación de capacidad usando util compartido
-  const { data: { user } } = await supabase.auth.getUser();
-  const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
-  const ctx = await fetchLimitsContext(horarios, user?.id);
-  // Adaptar payloads a formato de instrucciones temporales para reusar checkInstructionsLimits
-  const tempInstructions = payloads.map(p=> ({ playType:p.jugada, numbers:p.numeros.split(',').filter(Boolean), amountEach:p.monto_unitario }));
-  const violations = checkInstructionsLimits(tempInstructions, horarios, ctx);
-      if(violations.length){
-  setLimitViolations(violations);
-  setInsertFeedback({ success:0, fail:payloads.length, duplicates:[], blocked:true });
-        return; // aborta inserción
-      }
+  // Verificación de capacidad usando util compartido - SOLO cuando hay conexión
+  // En modo offline, los límites se verificarán al sincronizar
+  if (isOnline) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const horarios = selectedLotteries.map(l=> selectedSchedules[l]).filter(Boolean);
+    const ctx = await fetchLimitsContext(horarios, user?.id);
+    // Adaptar payloads a formato de instrucciones temporales para reusar checkInstructionsLimits
+    const tempInstructions = payloads.map(p=> ({ playType:p.jugada, numbers:p.numeros.split(',').filter(Boolean), amountEach:p.monto_unitario }));
+    const violations = checkInstructionsLimits(tempInstructions, horarios, ctx);
+    if(violations.length){
+      setLimitViolations(violations);
+      setInsertFeedback({ success:0, fail:payloads.length, duplicates:[], blocked:true });
+      return; // aborta inserción
+    }
+  }
       // 7. Insertar usando batch (más eficiente)
       setIsInserting(true);
 

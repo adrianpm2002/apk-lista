@@ -11,7 +11,7 @@ if (Platform.OS !== 'web') {
 const DB_NAME = 'statistics.db';
 const DB_VERSION = 1;
 const CACHE_REFRESH_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutos
-const CACHE_DAYS = 30; // Cachear últimos 30 días
+const CACHE_DAYS = 60; // Cachear últimos 60 días
 
 let dbInstance = null;
 
@@ -709,7 +709,7 @@ export const updateIncrementalTimestamp = async (userId, role) => {
 };
 
 /**
- * Limpiar registros antiguos (> 30 días)
+ * Limpiar registros antiguos (> 60 días)
  */
 export const cleanOldRecords = async (userId, role) => {
   // Guard: En web no hacer nada
