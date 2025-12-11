@@ -363,8 +363,11 @@ export const savePlayOffline = async (playData) => {
 export const getPendingPlays = async () => {
   try {const db = await getDatabase();
     if (!db) {return [];
-    }const [result] = await db.executeSql(
-      `SELECT * FROM offline_plays ORDER BY created_at DESC`
+    }// Solo obtener jugadas pendientes o fallidas, NO las exitosas
+    const [result] = await db.executeSql(
+      `SELECT * FROM offline_plays 
+       WHERE status IN ('pending', 'failed') 
+       ORDER BY created_at DESC`
     );const plays = [];
     for (let i = 0; i < result.rows.length; i++) {
       const row = result.rows.item(i);// El campo numeros ya es string, no necesita JSON.parse
