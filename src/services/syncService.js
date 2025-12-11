@@ -79,10 +79,12 @@ export const syncAllPlays = async (onProgress = null, shouldCancel = null) => {
           errors.push({ playId: play.id, error: result.error });
         }
 
-      } catch (error) {await OfflineStorage.updatePlayStatus(play.id, 'failed', error.message);
+      } catch (error) {
+        const formattedError = formatErrorMessage(error.message);
+        await OfflineStorage.updatePlayStatus(play.id, 'failed', formattedError);
         await OfflineStorage.incrementSyncAttempts(play.id);
         failedCount++;
-        errors.push({ playId: play.id, error: error.message });
+        errors.push({ playId: play.id, error: formattedError });
       }
     }// Log de operación
     await OfflineStorage.addLog('INFO', 'Sync completed', {
@@ -148,9 +150,11 @@ export const syncSinglePlay = async (playId) => {
       await OfflineStorage.incrementSyncAttempts(playId);return { success: false, error: result.error };
     }
 
-  } catch (error) {await OfflineStorage.updatePlayStatus(playId, 'failed', error.message);
+  } catch (error) {
+    const formattedError = formatErrorMessage(error.message);
+    await OfflineStorage.updatePlayStatus(playId, 'failed', formattedError);
     await OfflineStorage.incrementSyncAttempts(playId);
-    return { success: false, error: error.message };
+    return { success: false, error: formattedError };
   }
 };
 
@@ -164,6 +168,39 @@ export const retryFailedPlay = async (playId) => {// Cambiar status a pending an
   
   // Sincronizar
   return await syncSinglePlay(playId);
+};
+
+/**
+ * Formatear mensajes de error para mostrar al usuario
+ * @param {string} errorMessage - Mensaje de error original
+ * @returns {string} - Mensaje de error formateado
+ */
+const formatErrorMessage = (errorMessage) => {
+  if (!errorMessage) return 'Error desconocido';
+  
+  const msg = errorMessage.toLowerCase();
+  
+  // Errores de conexión
+  if (msg.includes('network request failed') || msg.includes('fetch') || msg.includes('typeerror: network')) {
+    return 'Error de conexión';
+  }
+  
+  // Errores de límite de Supabase (pueden ser muy largos)
+  if (msg.includes('límite') || msg.includes('limit') || msg.includes('limite_numero')) {
+    return 'Límite de número excedido';
+  }
+  
+  // Errores de horario
+  if (msg.includes('horario')) {
+    return 'Horario no válido';
+  }
+  
+  // Si el mensaje es muy largo (más de 100 caracteres), acortarlo
+  if (errorMessage.length > 100) {
+    return errorMessage.substring(0, 97) + '...';
+  }
+  
+  return errorMessage;
 };
 
 /**
@@ -191,19 +228,11 @@ const sendPlayToSupabase = async (play) => {
       .insert(payload)
       .select();
 
-    if (error) {// Parsear errores específicos
-      let errorMessage = error.message;
-      
-      if (error.message.includes('límite') || error.message.includes('limit')) {
-        errorMessage = 'Límite de número excedido';
-      } else if (error.message.includes('horario')) {
-        errorMessage = 'Horario no válido';
-      }
-      
-      return { success: false, error: errorMessage };
+    if (error) {
+      return { success: false, error: formatErrorMessage(error.message) };
     }return { success: true, data };
 
-  } catch (error) {return { success: false, error: error.message };
+  } catch (error) {return { success: false, error: formatErrorMessage(error.message) };
   }
 };
 
