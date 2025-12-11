@@ -421,10 +421,6 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
               <Text style={styles.playExpandedLabel}>Jugada:</Text>
               <Text style={styles.playExpandedValue}>{item.jugada || 'N/A'}</Text>
             </View>
-            <View style={styles.playExpandedRow}>
-              <Text style={styles.playExpandedLabel}>Comando:</Text>
-              <Text style={styles.playExpandedValue}>{item.comando || 'N/A'}</Text>
-            </View>
             {item.last_error && (
               <View style={styles.playExpandedRow}>
                 <Text style={[styles.playExpandedLabel, styles.errorLabel]}>Error:</Text>
