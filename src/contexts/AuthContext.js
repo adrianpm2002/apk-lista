@@ -28,9 +28,6 @@ export const AuthProvider = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    // Inicializar el monitoreo de sesión
-    sessionMonitor.startMonitoring();
-
     // Agregar listener para cambios de estado de autenticación
     const handleAuthStateChange = (event, session) => {
       if (event === 'SIGNED_IN' && session) {
@@ -46,8 +43,6 @@ export const AuthProvider = ({ children }) => {
       
       setLoading(false);
     };
-
-    sessionMonitor.addListener(handleAuthStateChange);
 
     // Verificar sesión inicial
     const initializeAuth = async () => {
@@ -81,6 +76,11 @@ export const AuthProvider = ({ children }) => {
       } finally {
         setLoading(false);
         setIsInitialized(true);
+        
+        // Iniciar el monitoreo DESPUÉS de completar la inicialización
+        // Esto evita bloqueos en el auto-login offline
+        sessionMonitor.startMonitoring();
+        sessionMonitor.addListener(handleAuthStateChange);
       }
     };
 
