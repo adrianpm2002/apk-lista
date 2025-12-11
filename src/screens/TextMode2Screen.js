@@ -175,8 +175,6 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
     let cancelled=false;
     const loadLots = async () => {
       try {
-        let lots = [];
-        
         // SIEMPRE cargar desde cache primero
         let lots = await OfflineStorage.getLotteries(bankId);
         if (cancelled) return;
