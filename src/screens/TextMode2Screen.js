@@ -224,7 +224,6 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
     const loadAllSchedules = async () => {
       try {
         const lotIds = lotteries.map(l=> l.value);
-        let rows = [];
         
         // SIEMPRE cargar desde cache primero
         const allSchedules = await OfflineStorage.getSchedules(null);
