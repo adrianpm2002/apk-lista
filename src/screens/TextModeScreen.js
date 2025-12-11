@@ -177,27 +177,28 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
     let cancelled=false;
     const loadLots = async () => {
       try {
-        let lots = [];
-        
-        if (isOnline) {
-          // Online: Cargar desde Supabase
-          const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
-          lots = data || [];
-          // Cachear para uso offline (no bloquear si falla)
-          if (lots.length > 0) {
-            try {
-              await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
-            } catch (cacheError) {
-              console.log('[TextMode] No se pudo cachear loterías:', cacheError);
-            }
-          }
-        } else {
-          // Offline: Cargar desde SQLite
-          lots = await OfflineStorage.getLotteries(bankId);
+        // SIEMPRE cargar desde cache primero
+        let lots = await OfflineStorage.getLotteries(bankId);
+        if (cancelled) return;
+        if (lots && lots.length > 0) {
+          setLotteries(lots.map(l=> ({ label:l.nombre, value:l.id })));
         }
         
-        if(cancelled) return;
-        setLotteries((lots||[]).map(l=> ({ label:l.nombre, value:l.id })));
+        // Si está online, actualizar desde Supabase
+        if (isOnline) {
+          try {
+            const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
+            if (data && data.length > 0) {
+              lots = data;
+              await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
+              if (!cancelled) {
+                setLotteries(lots.map(l=> ({ label:l.nombre, value:l.id })));
+              }
+            }
+          } catch (onlineError) {
+            console.log('[TextMode] Error cargando online, usando cache');
+          }
+        }
         
         // Cargar configuración de modo Santiago del banco
         if (isOnline && !cancelled) {
@@ -225,28 +226,26 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
     const loadAllSchedules = async () => {
       try {
         const lotIds = lotteries.map(l=> l.value);
-        let rows = [];
         
+        // SIEMPRE cargar desde cache primero
+        const allSchedules = await OfflineStorage.getSchedules(null);
+        let rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
+        
+        // Si está online, actualizar desde Supabase
         if (isOnline) {
-          // Online: Cargar desde Supabase
-          const { data } = await supabase
-            .from('horario')
-            .select('id,nombre,id_loteria,hora_inicio,hora_fin')
-            .in('id_loteria', lotIds)
-            .order('nombre');
-          rows = data || [];
-          // Cachear para uso offline (no bloquear si falla)
-          if (rows.length > 0) {
-            try {
-              await OfflineStorage.saveSchedules(rows);
-            } catch (cacheError) {
-              console.log('[TextMode] No se pudo cachear horarios:', cacheError);
+          try {
+            const { data } = await supabase
+              .from('horario')
+              .select('id,nombre,id_loteria,hora_inicio,hora_fin')
+              .in('id_loteria', lotIds)
+              .order('nombre');
+            if (data && data.length > 0) {
+              await OfflineStorage.saveSchedules(data);
+              rows = data.filter(s => lotIds.includes(s.id_loteria));
             }
+          } catch (schedError) {
+            console.log('[TextMode] Error cargando horarios online, usando cache');
           }
-        } else {
-          // Offline: Cargar desde SQLite
-          const allSchedules = await OfflineStorage.getSchedules(null);
-          rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
         }
         
         if(cancelled) return;
