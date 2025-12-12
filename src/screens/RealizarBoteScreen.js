@@ -101,6 +101,51 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
   };
 
   useEffect(() => {
+    const loadUserProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          Alert.alert(
+            'Error de conexión',
+            'No se pudo verificar tu sesión. Por favor, inicia sesión nuevamente.',
+            [{ text: 'OK', onPress: () => navigation.replace('Login') }]
+          );
+          return;
+        }
+
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('role, id_banco')
+          .eq('id', user.id)
+          .single();
+
+        if (error || !profile) {
+          Alert.alert(
+            'Error de conexión',
+            'No se pudo obtener tu perfil. Por favor, inicia sesión nuevamente.',
+            [{ text: 'OK', onPress: () => navigation.replace('Login') }]
+          );
+          return;
+        }
+
+        const bankId = profile.role === 'admin' ? user.id : profile.id_banco;
+        setCurrentBankId(bankId);
+        setUserRole(profile.role);
+      } catch (error) {
+        console.error('Error loading user profile:', error);
+        Alert.alert('Error', 'Error al cargar el perfil del usuario');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserProfile();
+  }, [navigation]);
+
+  const toggleSidebar = () => {
+    setSidebarVisible(!sidebarVisible);
+  };
+
   // Opciones únicas de loterías, horarios y tipos de jugada
   const lotteryOptions = useMemo(() => {
     const unique = [...new Set(capacityData.map(item => item.nombre_loteria))];
@@ -234,52 +279,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
           onModeVisibilityChange={onModeVisibilityChange}
           role={userRole}
         />
-      </Viewn opción seleccionada
-    if (option === 'play') {
-      navigation.navigate('MainApp');
-    } else if (option === 'statistics') {
-      navigation.navigate('Statistics');
-    } else if (option === 'insertResults') {
-      navigation.navigate('InsertResults');
-    } else if (option === 'createUser') {
-      navigation.navigate('CreateUser');
-    } else if (option === 'lotteries') {
-      navigation.navigate('ManageLotteries');
-    } else if (option === 'prices') {
-      navigation.navigate('ManagePrices');
-    } else if (option === 'limitedNumbers') {
-      navigation.navigate('LotteryLimits');
-    } else if (option === 'bankCapacity') {
-      navigation.navigate('BankCapacity');
-    } else if (option === 'realizarBote') {
-      navigation.navigate('RealizarBote');
-    } else if (option === 'jugadas') {
-      navigation.navigate('Jugadas');
-    } else if (option === 'offlineRegistry') {
-      navigation.navigate('SavedPlays');
-    }
-  };
-
-  if (loading) {
-    return (
-      <SideBarWrapper
-        isVisible={sidebarVisible}
-        onClose={() => setSidebarVisible(false)}
-        onOptionSelect={handleSidebarOption}
-        navigation={navigation}
-        onModeVisibilityChange={onModeVisibilityChange}
-      >
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <SideBarToggle onPress={toggleSidebar} />
-            <Text style={styles.title}>Realizar Bote</Text>
-          </View>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.loadingText}>Cargando...</Text>
-          </View>
-        </View>
-      </SideBarWrapper>
+      </View>
     );
   }
 
