@@ -13,6 +13,10 @@ import { supabase } from '../supabaseClient';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import ScreenWrapper from '../components/ScreenWrapper';
 import ErrorBoundary from '../components/ErrorBoundary';
+import DropdownPicker from '../components/DropdownPicker';
+import ActionButton from '../components/ActionButton';
+import * as OfflineStorage from '../services/offlineStorageService';
+import { useOfflineSafe } from '../contexts/OfflineContext';
 
 const RealizarBoteScreen = ({ navigation, onModeVisibilityChange }) => {
   return (
@@ -34,6 +38,17 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [capacityData, setCapacityData] = useState([]);
   const [sortBy, setSortBy] = useState('capacity');
+  
+  // Estados para lotería y horario
+  const [lotteries, setLotteries] = useState([]);
+  const [selectedLottery, setSelectedLottery] = useState(null);
+  const [scheduleOptions, setScheduleOptions] = useState([]);
+  const [selectedSchedule, setSelectedSchedule] = useState(null);
+  const [isSending, setIsSending] = useState(false);
+  
+  // Estado de conexión
+  const offlineContext = useOfflineSafe();
+  const isOnline = offlineContext?.isOnline ?? true;
   
   // Estados para los filtros
   const [lotteryFilter, setLotteryFilter] = useState(null);
@@ -142,8 +157,140 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
     loadUserProfile();
   }, [navigation]);
 
+  // Cargar loterías cuando tengamos bankId
+  useEffect(() => {
+    if (!currentBankId) return;
+    
+    const loadLotteries = async () => {
+      try {
+        let lots = [];
+        
+        // Cargar desde cache primero
+        const cachedLots = await OfflineStorage.getLotteries(currentBankId);
+        if (cachedLots && cachedLots.length > 0) {
+          lots = cachedLots;
+          setLotteries(lots.map(l => ({ label: l.nombre, value: l.id })));
+        }
+        
+        // Si está online, actualizar desde Supabase
+        if (isOnline) {
+          try {
+            const { data } = await supabase
+              .from('loteria')
+              .select('id,nombre')
+              .eq('id_banco', currentBankId)
+              .order('nombre');
+            
+            if (data && data.length > 0) {
+              lots = data;
+              await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: currentBankId })));
+              setLotteries(lots.map(l => ({ label: l.nombre, value: l.id })));
+            }
+          } catch (onlineError) {
+            console.log('[RealizarBote] Error cargando loterías online, usando cache');
+          }
+        }
+      } catch (error) {
+        console.error('[RealizarBote] Error cargando loterías:', error);
+      }
+    };
+    
+    loadLotteries();
+  }, [currentBankId, isOnline]);
+
+  // Cargar horarios cuando se selecciona una lotería
+  useEffect(() => {
+    if (!currentBankId || !selectedLottery) {
+      setScheduleOptions([]);
+      setSelectedSchedule(null);
+      return;
+    }
+    
+    const loadSchedules = async () => {
+      try {
+        const { data: rows } = await supabase
+          .from('horario')
+          .select('id, nombre, hora_inicio, hora_fin')
+          .eq('id_banco', currentBankId)
+          .eq('id_loteria', selectedLottery)
+          .order('hora_inicio');
+        
+        if (!rows) return;
+        
+        // Filtrar horarios abiertos
+        const now = new Date();
+        const havanaTime = now.toLocaleString('en-US', { 
+          timeZone: 'America/Havana',
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        const [nowHour, nowMinute] = havanaTime.split(':').map(n => parseInt(n, 10));
+        const nowMinutes = nowHour * 60 + nowMinute;
+        
+        const isOpen = (hi, hf) => {
+          if (!hi || !hf) return false;
+          const [shi, smi] = hi.split(':');
+          const [shf, smf] = hf.split(':');
+          const start = parseInt(shi, 10) * 60 + parseInt(smi || '0', 10);
+          const end = parseInt(shf, 10) * 60 + parseInt(smf || '0', 10);
+          if (start === end) return true;
+          if (end > start) return nowMinutes >= start && nowMinutes < end;
+          return (nowMinutes >= start) || (nowMinutes < end);
+        };
+        
+        const openSchedules = rows
+          .filter(r => isOpen(r.hora_inicio, r.hora_fin))
+          .map(r => {
+            const horaInicio = r.hora_inicio ? r.hora_inicio.substring(0, 5) : '';
+            const horaFin = r.hora_fin ? r.hora_fin.substring(0, 5) : '';
+            const labelConHoras = horaInicio && horaFin ? `${r.nombre} (${horaInicio} - ${horaFin})` : r.nombre;
+            return { label: labelConHoras, value: r.id };
+          });
+        
+        setScheduleOptions(openSchedules);
+        setSelectedSchedule(null);
+      } catch (error) {
+        console.error('[RealizarBote] Error cargando horarios:', error);
+      }
+    };
+    
+    loadSchedules();
+  }, [currentBankId, selectedLottery]);
+
   const toggleSidebar = () => {
     setSidebarVisible(!sidebarVisible);
+  };
+
+  const handleEnviarBote = async () => {
+    if (!selectedSchedule) {
+      Alert.alert('Error', 'Debes seleccionar una lotería y un horario');
+      return;
+    }
+    
+    setIsSending(true);
+    try {
+      const { data, error } = await supabase
+        .from('realizar_bote')
+        .insert({ horario_id: selectedSchedule })
+        .select();
+      
+      if (error) {
+        console.error('[RealizarBote] Error enviando bote:', error);
+        Alert.alert('Error', 'No se pudo realizar el bote. Intenta nuevamente.');
+        return;
+      }
+      
+      Alert.alert('Éxito', 'Bote realizado correctamente');
+      setSelectedLottery(null);
+      setSelectedSchedule(null);
+      setScheduleOptions([]);
+    } catch (error) {
+      console.error('[RealizarBote] Error enviando bote:', error);
+      Alert.alert('Error', 'Ocurrió un error inesperado');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   // Opciones únicas de loterías, horarios y tipos de jugada
@@ -152,7 +299,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
     return unique.filter(Boolean).sort();
   }, [capacityData]);
 
-  const scheduleOptions = useMemo(() => {
+  const scheduleFilterOptions = useMemo(() => {
     const unique = [...new Set(capacityData.map(item => item.nombre_horario))];
     return unique.filter(Boolean).sort();
   }, [capacityData]);
@@ -249,6 +396,39 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
           <Text style={styles.headerTitle}>Realizar Bote</Text>
         </View>
 
+        {/* Selectores de lotería y horario */}
+        <View style={styles.selectorsContainer}>
+          <View style={styles.selectorsRow}>
+            <View style={styles.selectorHalf}>
+              <DropdownPicker
+                label="Lotería"
+                value={selectedLottery && lotteries.find(l => l.value === selectedLottery)?.label}
+                onSelect={(item) => setSelectedLottery(item.value || item)}
+                options={lotteries}
+                placeholder="Seleccionar lotería"
+              />
+            </View>
+            <View style={styles.selectorHalf}>
+              <DropdownPicker
+                label="Horario"
+                value={selectedSchedule && scheduleOptions.find(s => s.value === selectedSchedule)?.label}
+                onSelect={(item) => setSelectedSchedule(item.value || item)}
+                options={scheduleOptions}
+                placeholder={scheduleOptions.length > 0 ? "Seleccionar horario" : "Sin horarios abiertos"}
+              />
+            </View>
+          </View>
+          <View style={styles.sendButtonContainer}>
+            <ActionButton
+              title={isSending ? 'Enviando...' : 'Enviar Bote'}
+              onPress={handleEnviarBote}
+              variant="success"
+              size="medium"
+              disabled={!selectedSchedule || isSending}
+            />
+          </View>
+        </View>
+
         <View style={styles.filtersBar}>
           <View style={styles.filtersContainer}>
             <View style={styles.filterGroup}>
@@ -288,6 +468,39 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
       <View style={styles.header}>
         <SideBarToggle inline onToggle={toggleSidebar} style={styles.sidebarButton} />
         <Text style={styles.headerTitle}>Realizar Bote</Text>
+      </View>
+
+      {/* Selectores de lotería y horario */}
+      <View style={styles.selectorsContainer}>
+        <View style={styles.selectorsRow}>
+          <View style={styles.selectorHalf}>
+            <DropdownPicker
+              label="Lotería"
+              value={selectedLottery && lotteries.find(l => l.value === selectedLottery)?.label}
+              onSelect={(item) => setSelectedLottery(item.value || item)}
+              options={lotteries}
+              placeholder="Seleccionar lotería"
+            />
+          </View>
+          <View style={styles.selectorHalf}>
+            <DropdownPicker
+              label="Horario"
+              value={selectedSchedule && scheduleOptions.find(s => s.value === selectedSchedule)?.label}
+              onSelect={(item) => setSelectedSchedule(item.value || item)}
+              options={scheduleOptions}
+              placeholder={scheduleOptions.length > 0 ? "Seleccionar horario" : "Sin horarios abiertos"}
+            />
+          </View>
+        </View>
+        <View style={styles.sendButtonContainer}>
+          <ActionButton
+            title={isSending ? 'Enviando...' : 'Enviar Bote'}
+            onPress={handleEnviarBote}
+            variant="success"
+            size="medium"
+            disabled={!selectedSchedule || isSending}
+          />
+        </View>
       </View>
 
       {/* Barra de filtros */}
@@ -359,7 +572,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
           )}
 
           {/* Filtro de Horario */}
-          {scheduleOptions.length > 0 && (
+          {scheduleFilterOptions.length > 0 && (
             <View style={styles.filterGroupWrapper}>
               <View style={styles.filterGroup}>
                 <Text style={styles.filterLabel}>Horario:</Text>
@@ -374,7 +587,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
               </View>
               {scheduleExpanded && (
                 <View style={styles.expandedOptions}>
-                  {scheduleOptions.map(schedule => (
+                  {scheduleFilterOptions.map(schedule => (
                     <TouchableOpacity
                       key={schedule}
                       style={styles.sortButton}
@@ -576,13 +789,31 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
   },
+  selectorsContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 110,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+  },
+  selectorsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  selectorHalf: {
+    flex: 1,
+  },
+  sendButtonContainer: {
+    alignItems: 'center',
+  },
   filtersBar: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E9ECEF',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    marginTop: 110,
   },
   filtersContainer: {
     flexDirection: 'row',
