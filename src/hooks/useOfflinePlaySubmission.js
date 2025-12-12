@@ -151,12 +151,15 @@ export const useOfflinePlaySubmission = () => {
 
     try {
       console.log('[OfflinePlay] Guardando jugadas en batch offline...', playsDataArray.length);
+      console.log('[OfflinePlay] Primer elemento del array:', JSON.stringify(playsDataArray[0], null, 2));
 
       if (!Array.isArray(playsDataArray) || playsDataArray.length === 0) {
+        console.error('[OfflinePlay] Array vacío o inválido');
         throw new Error('Array de jugadas vacío o inválido');
       }
 
       // Procesar todas las jugadas para agregar información completa
+      console.log('[OfflinePlay] Procesando jugadas...');
       const processedPlays = await Promise.all(
         playsDataArray.map(async (playData) => {
           // Validaciones básicas
@@ -211,9 +214,12 @@ export const useOfflinePlaySubmission = () => {
       );
 
       console.log('[OfflinePlay] Procesadas jugadas con info del caché:', processedPlays.length);
+      console.log('[OfflinePlay] Primera jugada procesada:', JSON.stringify(processedPlays[0], null, 2));
 
       // Guardar todas las jugadas en batch usando la transacción de SQLite
+      console.log('[OfflinePlay] Llamando a saveBatchOfflinePlays...');
       const result = await OfflineStorage.saveBatchOfflinePlays(processedPlays);
+      console.log('[OfflinePlay] Resultado de saveBatchOfflinePlays:', JSON.stringify(result, null, 2));
 
       if (!result.success) {
         throw new Error(result.error || 'Error guardando jugadas offline en batch');

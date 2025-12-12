@@ -682,12 +682,16 @@ export const saveOfflinePlay = async (playData) => {
  */
 export const saveBatchOfflinePlays = async (playsData) => {
   try {
+    console.log('[OfflineStorage] saveBatchOfflinePlays llamado con', playsData.length, 'jugadas');
     const db = await getDatabase();
     if (!db) {
+      console.error('[OfflineStorage] Base de datos no disponible');
       return { success: false, insertedCount: 0, failedCount: playsData.length, error: 'Base de datos no disponible' };
     }
+    console.log('[OfflineStorage] Base de datos obtenida correctamente');
 
     if (!Array.isArray(playsData) || playsData.length === 0) {
+      console.error('[OfflineStorage] Array vacío o inválido');
       return { success: false, insertedCount: 0, failedCount: 0, error: 'Array de jugadas vacío o inválido' };
     }
 
@@ -698,9 +702,11 @@ export const saveBatchOfflinePlays = async (playsData) => {
     return new Promise((resolve) => {
       db.transaction(
         (tx) => {
+          console.log('[OfflineStorage] Iniciando transacción SQL para', playsData.length, 'jugadas');
           playsData.forEach((playData, index) => {
             // Validar datos requeridos
             if (!playData.user_id || !playData.id_horario || (!playData.numeros && !playData.jugada)) {
+              console.error('[OfflineStorage] Datos incompletos en jugada', index, ':', playData);
               failedCount++;
               errors.push({ index, error: 'Datos incompletos' });
               return;
@@ -732,9 +738,11 @@ export const saveBatchOfflinePlays = async (playsData) => {
               ],
               (tx, result) => {
                 insertedCount++;
+                console.log('[OfflineStorage] Jugada', index, 'insertada correctamente. ID:', result.insertId);
               },
               (tx, error) => {
                 failedCount++;
+                console.error('[OfflineStorage] Error insertando jugada', index, ':', error.message);
                 errors.push({ index, error: error.message });
               }
             );
@@ -742,6 +750,7 @@ export const saveBatchOfflinePlays = async (playsData) => {
         },
         (error) => {
           // Error en la transacción completa
+          console.error('[OfflineStorage] Error en transacción SQL:', error.message);
           resolve({ 
             success: false, 
             insertedCount, 
@@ -752,6 +761,7 @@ export const saveBatchOfflinePlays = async (playsData) => {
         },
         () => {
           // Success callback - transacción completada
+          console.log('[OfflineStorage] Transacción completada. Insertadas:', insertedCount, 'Fallidas:', failedCount);
           resolve({ 
             success: insertedCount > 0, 
             insertedCount, 

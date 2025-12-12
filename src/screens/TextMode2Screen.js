@@ -703,9 +703,11 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
           }
 
           console.log('[TextMode2] Insertando batch de jugadas offline:', batchPayloads.length);
+          console.log('[TextMode2] Primer payload:', JSON.stringify(batchPayloads[0], null, 2));
 
           // ✅ INSERCIÓN BATCH REAL - Una sola transacción SQLite
           const result = await saveBatchPlaysOffline(batchPayloads);
+          console.log('[TextMode2] Resultado de batch insert:', JSON.stringify(result, null, 2));
           const successCount = result.insertedCount || 0;
           const failCount = result.failedCount || 0;
 

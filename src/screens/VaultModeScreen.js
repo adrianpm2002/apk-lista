@@ -641,9 +641,11 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         });
 
         console.log('[VaultMode] Insertando batch de jugadas offline:', batchPayloads.length);
+        console.log('[VaultMode] Primer payload:', JSON.stringify(batchPayloads[0], null, 2));
 
         // ✅ INSERCIÓN BATCH REAL - Una sola transacción SQLite para todas las jugadas
         const result = await saveBatchPlaysOffline(batchPayloads);
+        console.log('[VaultMode] Resultado de batch insert:', JSON.stringify(result, null, 2));
 
         const successCount = result.insertedCount || 0;
         const failCount = result.failedCount || 0;
