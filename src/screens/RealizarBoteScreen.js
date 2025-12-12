@@ -202,7 +202,10 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Cargar horarios cuando se selecciona una lotería
   useEffect(() => {
+    console.log('[RealizarBote] useEffect horarios - currentBankId:', currentBankId, 'selectedLottery:', selectedLottery);
+    
     if (!currentBankId || !selectedLottery) {
+      console.log('[RealizarBote] No hay bankId o lotería seleccionada, limpiando horarios');
       setScheduleOptions([]);
       setSelectedSchedule(null);
       return;
@@ -210,34 +213,54 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
     
     const loadSchedules = async () => {
       try {
+        console.log('[RealizarBote] Iniciando carga de horarios para lotería:', selectedLottery);
         let rows = [];
         
         // Cargar desde cache primero
         const cachedSchedules = await OfflineStorage.getSchedules(null);
+        console.log('[RealizarBote] Horarios en cache (todos):', cachedSchedules?.length || 0);
+        
         if (cachedSchedules && cachedSchedules.length > 0) {
           rows = cachedSchedules.filter(s => s.id_loteria === selectedLottery);
+          console.log('[RealizarBote] Horarios filtrados de cache para lotería:', rows.length);
+          console.log('[RealizarBote] Primer horario de cache:', JSON.stringify(rows[0], null, 2));
         }
         
         // Si está online, actualizar desde Supabase
+        console.log('[RealizarBote] isOnline:', isOnline);
         if (isOnline) {
           try {
-            const { data } = await supabase
+            console.log('[RealizarBote] Consultando Supabase - bankId:', currentBankId, 'lotteryId:', selectedLottery);
+            const { data, error } = await supabase
               .from('horario')
               .select('id, nombre, id_loteria, hora_inicio, hora_fin')
               .eq('id_banco', currentBankId)
               .eq('id_loteria', selectedLottery)
               .order('hora_inicio');
             
+            console.log('[RealizarBote] Respuesta Supabase - data:', data?.length || 0, 'error:', error);
+            
+            if (error) {
+              console.error('[RealizarBote] Error en query Supabase:', error);
+            }
+            
             if (data && data.length > 0) {
+              console.log('[RealizarBote] Horarios obtenidos de Supabase:', data.length);
+              console.log('[RealizarBote] Primer horario de Supabase:', JSON.stringify(data[0], null, 2));
               await OfflineStorage.saveSchedules(data);
               rows = data;
+            } else {
+              console.log('[RealizarBote] No se obtuvieron horarios de Supabase');
             }
           } catch (onlineError) {
-            console.log('[RealizarBote] Error cargando horarios online, usando cache');
+            console.log('[RealizarBote] Error cargando horarios online, usando cache:', onlineError);
           }
         }
         
+        console.log('[RealizarBote] Total rows a procesar:', rows.length);
+        
         if (!rows || rows.length === 0) {
+          console.log('[RealizarBote] No hay horarios disponibles');
           setScheduleOptions([]);
           setSelectedSchedule(null);
           return;
@@ -250,6 +273,9 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
           const labelConHoras = horaInicio && horaFin ? `${r.nombre} (${horaInicio} - ${horaFin})` : r.nombre;
           return { label: labelConHoras, value: r.id };
         });
+        
+        console.log('[RealizarBote] schedulesList creada:', schedulesList.length);
+        console.log('[RealizarBote] Primer elemento de schedulesList:', JSON.stringify(schedulesList[0], null, 2));
         
         setScheduleOptions(schedulesList);
         setSelectedSchedule(null);
