@@ -676,7 +676,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
             
             for (const instr of parsedInstructions) {
               batchPayloads.push({
-                user_id: user?.id,
+                user_id: userId,
                 id_horario: scheduleId,
                 numeros: instr.numbers.join(','),
                 tipo_jugada: instr.playType,
