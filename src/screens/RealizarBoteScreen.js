@@ -210,24 +210,48 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
     
     const loadSchedules = async () => {
       try {
-        const { data: rows } = await supabase
-          .from('horario')
-          .select('id, nombre, hora_inicio, hora_fin')
-          .eq('id_banco', currentBankId)
-          .eq('id_loteria', selectedLottery)
-          .order('hora_inicio');
+        let rows = [];
         
-        if (!rows) return;
+        // Cargar desde cache primero
+        const cachedSchedules = await OfflineStorage.getSchedules(null);
+        if (cachedSchedules && cachedSchedules.length > 0) {
+          rows = cachedSchedules.filter(s => s.id_loteria === selectedLottery);
+        }
+        
+        // Si está online, actualizar desde Supabase
+        if (isOnline) {
+          try {
+            const { data } = await supabase
+              .from('horario')
+              .select('id, nombre, id_loteria, hora_inicio, hora_fin')
+              .eq('id_banco', currentBankId)
+              .eq('id_loteria', selectedLottery)
+              .order('hora_inicio');
+            
+            if (data && data.length > 0) {
+              await OfflineStorage.saveSchedules(data);
+              rows = data;
+            }
+          } catch (onlineError) {
+            console.log('[RealizarBote] Error cargando horarios online, usando cache');
+          }
+        }
+        
+        if (!rows || rows.length === 0) {
+          setScheduleOptions([]);
+          setSelectedSchedule(null);
+          return;
+        }
         
         // Mostrar todos los horarios sin filtrar
-        const allSchedules = rows.map(r => {
+        const schedulesList = rows.map(r => {
           const horaInicio = r.hora_inicio ? r.hora_inicio.substring(0, 5) : '';
           const horaFin = r.hora_fin ? r.hora_fin.substring(0, 5) : '';
           const labelConHoras = horaInicio && horaFin ? `${r.nombre} (${horaInicio} - ${horaFin})` : r.nombre;
           return { label: labelConHoras, value: r.id };
         });
         
-        setScheduleOptions(allSchedules);
+        setScheduleOptions(schedulesList);
         setSelectedSchedule(null);
       } catch (error) {
         console.error('[RealizarBote] Error cargando horarios:', error);
@@ -235,7 +259,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
     };
     
     loadSchedules();
-  }, [currentBankId, selectedLottery]);
+  }, [currentBankId, selectedLottery, isOnline]);
 
   const toggleSidebar = () => {
     setSidebarVisible(!sidebarVisible);
@@ -409,7 +433,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
                 value={selectedSchedule && scheduleOptions.find(s => s.value === selectedSchedule)?.label}
                 onSelect={(item) => setSelectedSchedule(item.value || item)}
                 options={scheduleOptions}
-                placeholder={scheduleOptions.length > 0 ? "Seleccionar horario" : "Sin horarios abiertos"}
+                placeholder="Sin horario seleccionado"
               />
             </View>
           </View>
@@ -493,7 +517,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
               value={selectedSchedule && scheduleOptions.find(s => s.value === selectedSchedule)?.label}
               onSelect={(item) => setSelectedSchedule(item.value || item)}
               options={scheduleOptions}
-              placeholder={scheduleOptions.length > 0 ? "Seleccionar horario" : "Sin horarios abiertos"}
+              placeholder="Sin horario seleccionado"
             />
           </View>
         </View>
