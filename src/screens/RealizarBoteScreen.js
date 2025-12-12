@@ -217,38 +217,15 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
         
         if (!rows) return;
         
-        // Filtrar horarios abiertos
-        const now = new Date();
-        const havanaTime = now.toLocaleString('en-US', { 
-          timeZone: 'America/Havana',
-          hour12: false,
-          hour: '2-digit',
-          minute: '2-digit'
+        // Mostrar todos los horarios sin filtrar
+        const allSchedules = rows.map(r => {
+          const horaInicio = r.hora_inicio ? r.hora_inicio.substring(0, 5) : '';
+          const horaFin = r.hora_fin ? r.hora_fin.substring(0, 5) : '';
+          const labelConHoras = horaInicio && horaFin ? `${r.nombre} (${horaInicio} - ${horaFin})` : r.nombre;
+          return { label: labelConHoras, value: r.id };
         });
-        const [nowHour, nowMinute] = havanaTime.split(':').map(n => parseInt(n, 10));
-        const nowMinutes = nowHour * 60 + nowMinute;
         
-        const isOpen = (hi, hf) => {
-          if (!hi || !hf) return false;
-          const [shi, smi] = hi.split(':');
-          const [shf, smf] = hf.split(':');
-          const start = parseInt(shi, 10) * 60 + parseInt(smi || '0', 10);
-          const end = parseInt(shf, 10) * 60 + parseInt(smf || '0', 10);
-          if (start === end) return true;
-          if (end > start) return nowMinutes >= start && nowMinutes < end;
-          return (nowMinutes >= start) || (nowMinutes < end);
-        };
-        
-        const openSchedules = rows
-          .filter(r => isOpen(r.hora_inicio, r.hora_fin))
-          .map(r => {
-            const horaInicio = r.hora_inicio ? r.hora_inicio.substring(0, 5) : '';
-            const horaFin = r.hora_fin ? r.hora_fin.substring(0, 5) : '';
-            const labelConHoras = horaInicio && horaFin ? `${r.nombre} (${horaInicio} - ${horaFin})` : r.nombre;
-            return { label: labelConHoras, value: r.id };
-          });
-        
-        setScheduleOptions(openSchedules);
+        setScheduleOptions(allSchedules);
         setSelectedSchedule(null);
       } catch (error) {
         console.error('[RealizarBote] Error cargando horarios:', error);
