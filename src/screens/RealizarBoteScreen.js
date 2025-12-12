@@ -432,7 +432,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Total de los datos filtrados
   const total = useMemo(() => {
-    return filteredData.reduce((sum, item) => sum + (item.monto || 0), 0);
+    return filteredData.reduce((sum, item) => sum + (parseFloat(item.monto) || 0), 0);
   }, [filteredData]);
 
   const renderBoteItem = useCallback(({ item }) => {
@@ -444,7 +444,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
           <Text style={styles.numberText}>{item.numero}</Text>
           <Text style={styles.playTypeText}>{playType}</Text>
           <Text style={styles.amountText}>
-            ${(item.monto || 0).toFixed(2)}
+            ${(parseFloat(item.monto) || 0).toFixed(2)}
           </Text>
         </View>
 
@@ -471,21 +471,200 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
     }
 
     try {
-      const headers = ['Número', 'Jugada', 'Monto', 'Lotería', 'Horario'];
-      const rows = filteredData.map(item => [
-        item.numero?.toString() || '',
-        playTypeLabels[item.jugada] || item.jugada?.toUpperCase() || '',
-        `$${(item.monto || 0).toFixed(2)}`,
-        item.loteria_nombre || '',
-        item.horario_nombre || ''
-      ]);
+      // Estilos profesionales como en StatisticsScreen
+      const style = `
+        <style>
+          body{ 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            color: #333;
+          }
+          h2{ 
+            margin: 0 0 16px 0; 
+            font-size: 18px; 
+            color: #1976D2;
+            border-bottom: 2px solid #1976D2;
+            padding-bottom: 8px;
+          }
+          table{ 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          }
+          th, td{ 
+            border: 1px solid #ddd; 
+            padding: 8px; 
+            font-size: 11px; 
+            text-align: left;
+            vertical-align: top;
+          }
+          th {
+            white-space: nowrap;
+          }
+          td {
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            min-height: 30px;
+          }
+          thead{ 
+            background: #1976D2;
+            color: white;
+            font-weight: bold;
+          }
+          tbody tr:nth-child(even) {
+            background: #f9f9f9;
+          }
+          tbody tr:hover {
+            background: #f0f0f0;
+          }
+          .summary-box {
+            background: #f0f0f0;
+            padding: 16px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #1976D2;
+            page-break-inside: avoid;
+          }
+          .filter-box {
+            background: #fff3cd;
+            padding: 12px;
+            margin-bottom: 16px;
+            border-radius: 4px;
+            border-left: 4px solid #ffc107;
+            page-break-inside: avoid;
+          }
+          @media print {
+            body { 
+              margin: 10px; 
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            h2 { 
+              page-break-before: avoid;
+              color: #1976D2 !important;
+            }
+            table { 
+              page-break-inside: avoid;
+              box-shadow: none;
+            }
+            thead {
+              background: #1976D2 !important;
+              color: white !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            tbody tr:nth-child(even) {
+              background: #f9f9f9 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .summary-box, .filter-box {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+          }
+        </style>
+      `;
 
-      const success = await exportPdfModule.exportToPDF(
-        'Reporte de Bote',
-        headers,
-        rows,
-        { total: `Total: $${total.toFixed(2)}` }
-      );
+      // Información de filtros aplicados
+      const filtrosActivos = [];
+      if (filters.lottery !== 'all') {
+        const lotteryName = lotteries.find(l => l.value === filters.lottery)?.label;
+        if (lotteryName) filtrosActivos.push(`<div><strong>Lotería:</strong> ${lotteryName}</div>`);
+      } else {
+        filtrosActivos.push('<div><strong>Lotería:</strong> Todas</div>');
+      }
+      
+      if (filters.schedule !== 'all') {
+        const scheduleName = scheduleOptions.find(s => s.value === filters.schedule)?.label;
+        if (scheduleName) filtrosActivos.push(`<div><strong>Horario:</strong> ${scheduleName}</div>`);
+      } else {
+        filtrosActivos.push('<div><strong>Horario:</strong> Todos</div>');
+      }
+
+      if (filters.type !== 'all') {
+        const typeName = filters.type === 'fijo' ? 'Fijo' : filters.type === 'corrido' ? 'Corrido' : filters.type === 'parle' ? 'Parlé' : 'Centena';
+        filtrosActivos.push(`<div><strong>Tipo:</strong> ${typeName}</div>`);
+      } else {
+        filtrosActivos.push('<div><strong>Tipo:</strong> Todos</div>');
+      }
+
+      if (searchQuery) {
+        filtrosActivos.push(`<div><strong>Búsqueda:</strong> "${searchQuery}"</div>`);
+      }
+
+      const filtrosHTML = `
+        <div class="filter-box">
+          <h4 style="margin:0 0 8px 0; font-size:12px; color:#856404;">🔍 Filtros Aplicados</h4>
+          <div style="font-size:10px; color:#856404;">
+            ${filtrosActivos.join('')}
+            <div><strong>Total de registros:</strong> ${filteredData.length}</div>
+          </div>
+        </div>
+      `;
+
+      // Resumen general
+      const resumenHTML = `
+        <div class="summary-box">
+          <h3 style="margin:0 0 12px 0; font-size:15px; color:#1976D2;">📊 Resumen General</h3>
+          <table style="width:100%; border:none; font-size:11px; margin:0;">
+            <tr>
+              <td style="border:none; padding:3px; width:50%;"><strong>Total de Números:</strong> ${filteredData.length}</td>
+              <td style="border:none; padding:3px; width:50%;"><strong>Total Monto:</strong> $${total.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td colspan="2" style="border:none; padding:3px;">
+                <strong>Fecha de Exportación:</strong> ${new Date().toLocaleString('es-ES', { 
+                  day: '2-digit', 
+                  month: '2-digit', 
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </td>
+            </tr>
+          </table>
+        </div>
+      `;
+
+      // Generar filas de la tabla
+      const rows = filteredData.map(item => {
+        const playType = playTypeLabels[item.jugada] || item.jugada?.toUpperCase() || '';
+        const monto = (parseFloat(item.monto) || 0).toFixed(2);
+        return `
+          <tr>
+            <td>${item.numero || ''}</td>
+            <td>${playType}</td>
+            <td>$${monto}</td>
+            <td>${item.loteria_nombre || ''}</td>
+            <td>${item.horario_nombre || ''}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>${style}</head><body>
+        <h2>Reporte de Bote</h2>
+        ${filtrosHTML}
+        ${resumenHTML}
+        <table>
+          <thead>
+            <tr>
+              <th>Número</th>
+              <th>Jugada</th>
+              <th>Monto</th>
+              <th>Lotería</th>
+              <th>Horario</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </body></html>`;
+
+      const success = await exportPdfModule.exportPdf(html);
 
       if (success) {
         Alert.alert('Éxito', 'PDF exportado correctamente');
