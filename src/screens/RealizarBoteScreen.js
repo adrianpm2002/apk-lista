@@ -727,7 +727,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
         <View style={styles.centerContent}>
           <Text style={styles.emptyText}>
             {capacityData.length === 0
-              ? 'No hay datos de capacidad disponibles'
+              ? 'Aun no se ha realizado ningun bote.'
               : 'No hay resultados con los filtros aplicados'}
           </Text>
         </View>
