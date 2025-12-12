@@ -124,7 +124,9 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
     if (!bankId) return;
     setLoadingResults(true);
     try {
-      const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD en zona horaria local
+      // Obtener fecha en zona horaria de La Habana, Cuba
+      const now = new Date();
+      const today = now.toLocaleDateString('en-CA', { timeZone: 'America/Havana' }); // YYYY-MM-DD
       const startStr = `${today} 00:00:00`;
       const endStr = `${today} 23:59:59.999`;
 
