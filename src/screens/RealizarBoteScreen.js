@@ -8,6 +8,8 @@ import {
   Alert,
   TouchableOpacity,
   TextInput,
+  RefreshControl,
+  Platform,
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
@@ -18,6 +20,18 @@ import ActionButton from '../components/ActionButton';
 import FeedbackBanner from '../components/FeedbackBanner';
 import * as OfflineStorage from '../services/offlineStorageService';
 import { useOfflineSafe } from '../contexts/OfflineContext';
+
+// Importación condicional para exportación PDF
+let exportPdfModule;
+try {
+  if (Platform.OS === 'web') {
+    exportPdfModule = require('../utils/pdfExport.web');
+  } else {
+    exportPdfModule = require('../utils/pdfExport.native');
+  }
+} catch (error) {
+  exportPdfModule = null;
+}
 
 const RealizarBoteScreen = ({ navigation, onModeVisibilityChange }) => {
   return (
@@ -34,11 +48,13 @@ const RealizarBoteScreen = ({ navigation, onModeVisibilityChange }) => {
 
 const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
   const [currentBankId, setCurrentBankId] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [userRole, setUserRole] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [capacityData, setCapacityData] = useState([]);
-  const [sortBy, setSortBy] = useState('capacity');
+  const [boteData, setBoteData] = useState([]);
+  const [sortBy, setSortBy] = useState('numero');
   
   // Estados para lotería y horario
   const [lotteries, setLotteries] = useState([]);
@@ -147,6 +163,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
 
         const bankId = profile.role === 'admin' ? user.id : profile.id_banco;
         setCurrentBankId(bankId);
+        setCurrentUserId(user.id);
         setUserRole(profile.role);
       } catch (error) {
         console.error('Error loading user profile:', error);
@@ -158,6 +175,43 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
 
     loadUserProfile();
   }, [navigation]);
+
+  // Cargar datos del bote
+  const fetchBoteData = useCallback(async () => {
+    if (!currentUserId) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('v_bote')
+        .select('*')
+        .eq('listero_id', currentUserId);
+      
+      if (error) {
+        console.error('[RealizarBote] Error cargando datos del bote:', error);
+        Alert.alert('Error', 'No se pudieron cargar los datos del bote');
+        return;
+      }
+      
+      console.log('[RealizarBote] Datos del bote cargados:', data?.length || 0);
+      setBoteData(data || []);
+    } catch (error) {
+      console.error('[RealizarBote] Error en fetchBoteData:', error);
+    }
+  }, [currentUserId]);
+
+  // Cargar datos al entrar y cuando cambie currentUserId
+  useEffect(() => {
+    if (currentUserId) {
+      fetchBoteData();
+    }
+  }, [currentUserId, fetchBoteData]);
+
+  // Función para refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchBoteData();
+    setRefreshing(false);
+  }, [fetchBoteData]);
 
   // Cargar loterías cuando tengamos bankId
   useEffect(() => {
@@ -329,26 +383,26 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
 
   // Opciones únicas de loterías, horarios y tipos de jugada
   const lotteryOptions = useMemo(() => {
-    const unique = [...new Set(capacityData.map(item => item.nombre_loteria))];
+    const unique = [...new Set(boteData.map(item => item.loteria_nombre))];
     return unique.filter(Boolean).sort();
-  }, [capacityData]);
+  }, [boteData]);
 
   const scheduleFilterOptions = useMemo(() => {
-    const unique = [...new Set(capacityData.map(item => item.nombre_horario))];
+    const unique = [...new Set(boteData.map(item => item.horario_nombre))];
     return unique.filter(Boolean).sort();
-  }, [capacityData]);
+  }, [boteData]);
 
   const playTypeOptions = useMemo(() => {
-    const unique = [...new Set(capacityData.map(item => item.jugada))];
+    const unique = [...new Set(boteData.map(item => item.jugada))];
     return unique.filter(Boolean).sort();
-  }, [capacityData]);
+  }, [boteData]);
 
   // Datos filtrados
   const filteredData = useMemo(() => {
-    let filtered = [...capacityData];
+    let filtered = [...boteData];
     
-    if (sortBy === 'capacity') {
-      filtered.sort((a, b) => (b.used_today_banco || 0) - (a.used_today_banco || 0));
+    if (sortBy === 'cantidad') {
+      filtered.sort((a, b) => (b.monto || 0) - (a.monto || 0));
     } else {
       filtered.sort((a, b) => {
         const numA = parseInt(a.numero);
@@ -358,11 +412,11 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
     }
     
     if (lotteryFilter) {
-      filtered = filtered.filter(item => item.nombre_loteria === lotteryFilter);
+      filtered = filtered.filter(item => item.loteria_nombre === lotteryFilter);
     }
     
     if (scheduleFilter) {
-      filtered = filtered.filter(item => item.nombre_horario === scheduleFilter);
+      filtered = filtered.filter(item => item.horario_nombre === scheduleFilter);
     }
     
     if (playTypeFilter) {
@@ -373,54 +427,76 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
       filtered = filtered.filter(item => matchesSearch(item.numero, searchNumber));
     }
     
-    const boteValue = parseFloat(boteAmount) || 0;
-    if (boteValue > 0) {
-      filtered = filtered.filter(item => (item.used_today_banco || 0) > boteValue);
-    }
-    
     return filtered;
-  }, [capacityData, lotteryFilter, scheduleFilter, playTypeFilter, searchNumber, boteAmount, sortBy]);
+  }, [boteData, lotteryFilter, scheduleFilter, playTypeFilter, searchNumber, sortBy]);
 
-  // Total bruto de los datos filtrados
-  const boteValue = parseFloat(boteAmount) || 0;
-  const totalBruto = useMemo(() => {
-    if (boteValue > 0) {
-      return filteredData.reduce((sum, item) => {
-        const excedente = (item.used_today_banco || 0) - boteValue;
-        return sum + excedente;
-      }, 0);
-    }
-    return filteredData.reduce((sum, item) => sum + (item.used_today_banco || 0), 0);
-  }, [filteredData, boteValue]);
+  // Total de los datos filtrados
+  const total = useMemo(() => {
+    return filteredData.reduce((sum, item) => sum + (item.monto || 0), 0);
+  }, [filteredData]);
 
-  const renderCapacityItem = useCallback(({ item }) => {
+  const renderBoteItem = useCallback(({ item }) => {
     const playType = playTypeLabels[item.jugada] || item.jugada?.toUpperCase() || '';
     
-    const currentBoteValue = parseFloat(boteAmount) || 0;
-    const displayAmount = currentBoteValue > 0 
-      ? (item.used_today_banco || 0) - currentBoteValue 
-      : (item.used_today_banco || 0);
-    
     return (
-      <View style={styles.capacityCard}>
+      <View style={styles.boteCard}>
         <View style={styles.firstLine}>
           <Text style={styles.numberText}>{item.numero}</Text>
           <Text style={styles.playTypeText}>{playType}</Text>
-          <Text style={[styles.amountText, currentBoteValue > 0 && styles.exceedAmount]}>
-            {currentBoteValue > 0 ? '+' : ''}${displayAmount.toFixed(2)}
+          <Text style={styles.amountText}>
+            ${(item.monto || 0).toFixed(2)}
           </Text>
         </View>
 
         <View style={styles.secondLine}>
-          <Text style={styles.lotteryText}>{item.nombre_loteria}</Text>
+          <Text style={styles.lotteryText}>{item.loteria_nombre}</Text>
           <Text style={styles.separator}> - </Text>
           <Text style={styles.scheduleText}>
-            {item.nombre_horario} | {formatTime(item.hora_inicio)} - {formatTime(item.hora_fin)}
+            {item.horario_nombre}
           </Text>
         </View>
       </View>
     );
-  }, [playTypeLabels, boteAmount]);
+  }, [playTypeLabels]);
+
+  const handleExportPDF = async () => {
+    if (!exportPdfModule) {
+      Alert.alert('Error', 'La funcionalidad de exportar PDF no está disponible en esta plataforma');
+      return;
+    }
+
+    if (filteredData.length === 0) {
+      Alert.alert('Sin datos', 'No hay datos para exportar');
+      return;
+    }
+
+    try {
+      const headers = ['Número', 'Jugada', 'Monto', 'Lotería', 'Horario'];
+      const rows = filteredData.map(item => [
+        item.numero?.toString() || '',
+        playTypeLabels[item.jugada] || item.jugada?.toUpperCase() || '',
+        `$${(item.monto || 0).toFixed(2)}`,
+        item.loteria_nombre || '',
+        item.horario_nombre || ''
+      ]);
+
+      const success = await exportPdfModule.exportToPDF(
+        'Reporte de Bote',
+        headers,
+        rows,
+        { total: `Total: $${total.toFixed(2)}` }
+      );
+
+      if (success) {
+        Alert.alert('Éxito', 'PDF exportado correctamente');
+      } else {
+        Alert.alert('Error', 'No se pudo generar el PDF');
+      }
+    } catch (error) {
+      console.error('[RealizarBote] Error exportando PDF:', error);
+      Alert.alert('Error', `No se pudo exportar: ${error.message}`);
+    }
+  };
 
   if (loading) {
     return (
@@ -479,7 +555,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
               <Text style={styles.filterLabel}>Ordenar:</Text>
               <TouchableOpacity style={[styles.sortButton, styles.sortButtonActive]}>
                 <Text style={[styles.sortButtonText, styles.sortButtonTextActive]}>
-                  Capacidad
+                  Cantidad
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.sortButton}>
@@ -512,6 +588,15 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
       <View style={styles.header}>
         <SideBarToggle inline onToggle={toggleSidebar} style={styles.sidebarButton} />
         <Text style={styles.headerTitle}>Realizar Bote</Text>
+        <TouchableOpacity
+          style={styles.exportButton}
+          onPress={handleExportPDF}
+          disabled={filteredData.length === 0}
+        >
+          <Text style={[styles.exportButtonText, filteredData.length === 0 && styles.exportButtonDisabled]}>
+            📄 PDF
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Feedback Banner */}
@@ -564,18 +649,18 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Ordenar:</Text>
             <TouchableOpacity
-              style={[styles.sortButton, sortBy === 'capacity' && styles.sortButtonActive]}
-              onPress={() => setSortBy('capacity')}
+              style={[styles.sortButton, sortBy === 'cantidad' && styles.sortButtonActive]}
+              onPress={() => setSortBy('cantidad')}
             >
-              <Text style={[styles.sortButtonText, sortBy === 'capacity' && styles.sortButtonTextActive]}>
-                Capacidad
+              <Text style={[styles.sortButtonText, sortBy === 'cantidad' && styles.sortButtonTextActive]}>
+                Cantidad
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.sortButton, sortBy === 'number' && styles.sortButtonActive]}
-              onPress={() => setSortBy('number')}
+              style={[styles.sortButton, sortBy === 'numero' && styles.sortButtonActive]}
+              onPress={() => setSortBy('numero')}
             >
-              <Text style={[styles.sortButtonText, sortBy === 'number' && styles.sortButtonTextActive]}>
+              <Text style={[styles.sortButtonText, sortBy === 'numero' && styles.sortButtonTextActive]}>
                 Número
               </Text>
             </TouchableOpacity>
@@ -742,36 +827,10 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
             )}
           </View>
 
-          {/* Monto del Bote */}
-          <View style={styles.filterGroupWrapper}>
-            <View style={styles.filterGroup}>
-              <Text style={styles.filterLabel}>Bote:</Text>
-              <TouchableOpacity
-                style={[styles.sortButton, boteExpanded && styles.sortButtonActive]}
-                onPress={() => setBoteExpanded(!boteExpanded)}
-              >
-                <Text style={[styles.sortButtonText, boteExpanded && styles.sortButtonTextActive]}>
-                  {boteAmount ? `$${boteAmount}` : 'Monto'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            {boteExpanded && (
-              <View style={styles.searchInputContainer}>
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="0.00"
-                  value={boteAmount}
-                  onChangeText={setBoteAmount}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-            )}
-          </View>
-
-          {/* Total Bruto */}
+          {/* Total */}
           <View style={styles.totalBrutoContainer}>
             <Text style={styles.totalBrutoLabel}>Total: </Text>
-            <Text style={styles.totalBrutoValue}>${totalBruto.toFixed(2)}</Text>
+            <Text style={styles.totalBrutoValue}>${total.toFixed(2)}</Text>
           </View>
         </View>
       </View>
@@ -780,7 +839,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
       {filteredData.length === 0 ? (
         <View style={styles.centerContent}>
           <Text style={styles.emptyText}>
-            {capacityData.length === 0
+            {boteData.length === 0
               ? 'Aun no se ha realizado ningun bote.'
               : 'No hay resultados con los filtros aplicados'}
           </Text>
@@ -788,12 +847,20 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
       ) : (
         <FlatList
           data={filteredData}
-          renderItem={renderCapacityItem}
-          keyExtractor={(item, index) => `${item.numero}-${item.jugada}-${item.id_horario}-${index}`}
+          renderItem={renderBoteItem}
+          keyExtractor={(item, index) => `${item.bote_id}-${index}`}
           contentContainerStyle={styles.listContent}
           initialNumToRender={20}
           maxToRenderPerBatch={20}
           windowSize={10}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#27AE60']}
+              tintColor="#27AE60"
+            />
+          }
         />
       )}
 
@@ -842,6 +909,20 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     flex: 1,
     textAlign: 'center',
+  },
+  exportButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#27AE60',
+  },
+  exportButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  exportButtonDisabled: {
+    opacity: 0.5,
   },
   selectorsContainer: {
     backgroundColor: '#FFFFFF',
@@ -967,7 +1048,7 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
   },
-  capacityCard: {
+  boteCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
     padding: 12,
@@ -1001,9 +1082,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#27AE60',
-  },
-  exceedAmount: {
-    color: '#E74C3C',
   },
   secondLine: {
     flexDirection: 'row',
