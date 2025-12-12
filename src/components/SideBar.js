@@ -80,6 +80,7 @@ const roleOptionsMap = {
     { id: 'prices', icon: '💰', title: 'Precios' },
     { id: 'limitedNumbers', icon: '📊', title: 'Límites' },
     { id: 'bankCapacity', icon: '🔋', title: 'Capacidad del Banco' },
+    { id: 'realizarBote', icon: '💸', title: 'Realizar Bote' },
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   collector: [
@@ -87,6 +88,7 @@ const roleOptionsMap = {
     { id: 'statistics', icon: '📈', title: 'Estadísticas' },
     { id: 'insertResults', icon: '🎯', title: 'Resultados' },
     { id: 'createUser', icon: '🧑‍💼', title: 'Usuarios' },
+    { id: 'realizarBote', icon: '💸', title: 'Realizar Bote' },
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   listero: [
@@ -94,6 +96,7 @@ const roleOptionsMap = {
   { id: 'offlineRegistry', icon: '📱', title: 'Registro Offline', badge: true },
   { id: 'statistics', icon: '📈', title: 'Estadísticas' },
   { id: 'insertResults', icon: '🎯', title: 'Resultados' },
+  { id: 'realizarBote', icon: '💸', title: 'Realizar Bote' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ]
 };
@@ -210,6 +213,10 @@ const configOptions = role ? roleOptionsMap[role] : null;
     case 'bankCapacity':
       handleClose();
       navigation.navigate('BankCapacity');
+      break;
+    case 'realizarBote':
+      handleClose();
+      navigation.navigate('RealizarBote');
       break;
     case 'collectorStatistics':
       handleClose();
