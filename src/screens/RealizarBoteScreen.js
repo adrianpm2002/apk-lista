@@ -15,6 +15,7 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import ErrorBoundary from '../components/ErrorBoundary';
 import DropdownPicker from '../components/DropdownPicker';
 import ActionButton from '../components/ActionButton';
+import FeedbackBanner from '../components/FeedbackBanner';
 import * as OfflineStorage from '../services/offlineStorageService';
 import { useOfflineSafe } from '../contexts/OfflineContext';
 
@@ -45,6 +46,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
   const [scheduleOptions, setScheduleOptions] = useState([]);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [isSending, setIsSending] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState(null);
   
   // Estado de conexión
   const offlineContext = useOfflineSafe();
@@ -241,11 +243,12 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
 
   const handleEnviarBote = async () => {
     if (!selectedSchedule) {
-      Alert.alert('Error', 'Debes seleccionar una lotería y un horario');
+      setFeedbackMessage({ type: 'error', message: 'Debes seleccionar una lotería y un horario' });
       return;
     }
     
     setIsSending(true);
+    setFeedbackMessage(null);
     try {
       const { data, error } = await supabase
         .from('realizar_bote')
@@ -254,17 +257,22 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
       
       if (error) {
         console.error('[RealizarBote] Error enviando bote:', error);
-        Alert.alert('Error', 'No se pudo realizar el bote. Intenta nuevamente.');
+        const errorMessage = error.message || 'No se pudo realizar el bote. Intenta nuevamente.';
+        setFeedbackMessage({ type: 'error', message: errorMessage });
         return;
       }
       
-      Alert.alert('Éxito', 'Bote realizado correctamente');
+      setFeedbackMessage({ type: 'success', message: 'Bote realizado correctamente' });
       setSelectedLottery(null);
       setSelectedSchedule(null);
       setScheduleOptions([]);
+      
+      // Limpiar mensaje de éxito después de 3 segundos
+      setTimeout(() => setFeedbackMessage(null), 3000);
     } catch (error) {
       console.error('[RealizarBote] Error enviando bote:', error);
-      Alert.alert('Error', 'Ocurrió un error inesperado');
+      const errorMessage = error.message || 'Ocurrió un error inesperado';
+      setFeedbackMessage({ type: 'error', message: errorMessage });
     } finally {
       setIsSending(false);
     }
@@ -373,6 +381,16 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
           <Text style={styles.headerTitle}>Realizar Bote</Text>
         </View>
 
+        {/* Feedback Banner */}
+        {feedbackMessage && (
+          <FeedbackBanner
+            type={feedbackMessage.type}
+            message={feedbackMessage.message}
+            onClose={() => setFeedbackMessage(null)}
+            style={{ top: 70 }}
+          />
+        )}
+
         {/* Selectores de lotería y horario */}
         <View style={styles.selectorsContainer}>
           <View style={styles.selectorsRow}>
@@ -446,6 +464,16 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
         <SideBarToggle inline onToggle={toggleSidebar} style={styles.sidebarButton} />
         <Text style={styles.headerTitle}>Realizar Bote</Text>
       </View>
+
+      {/* Feedback Banner */}
+      {feedbackMessage && (
+        <FeedbackBanner
+          type={feedbackMessage.type}
+          message={feedbackMessage.message}
+          onClose={() => setFeedbackMessage(null)}
+          style={{ top: 70 }}
+        />
+      )}
 
       {/* Selectores de lotería y horario */}
       <View style={styles.selectorsContainer}>
