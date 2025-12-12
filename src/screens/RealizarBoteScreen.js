@@ -54,7 +54,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [boteData, setBoteData] = useState([]);
-  const [sortBy, setSortBy] = useState('numero');
+  const [sortBy, setSortBy] = useState('cantidad');
   
   // Estados para lotería y horario
   const [lotteries, setLotteries] = useState([]);
@@ -570,29 +570,33 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
 
       // Información de filtros aplicados
       const filtrosActivos = [];
-      if (filters.lottery !== 'all') {
-        const lotteryName = lotteries.find(l => l.value === filters.lottery)?.label;
-        if (lotteryName) filtrosActivos.push(`<div><strong>Lotería:</strong> ${lotteryName}</div>`);
+      
+      if (lotteryFilter) {
+        filtrosActivos.push(`<div><strong>Lotería:</strong> ${lotteryFilter}</div>`);
       } else {
         filtrosActivos.push('<div><strong>Lotería:</strong> Todas</div>');
       }
       
-      if (filters.schedule !== 'all') {
-        const scheduleName = scheduleOptions.find(s => s.value === filters.schedule)?.label;
-        if (scheduleName) filtrosActivos.push(`<div><strong>Horario:</strong> ${scheduleName}</div>`);
+      if (scheduleFilter) {
+        filtrosActivos.push(`<div><strong>Horario:</strong> ${scheduleFilter}</div>`);
       } else {
         filtrosActivos.push('<div><strong>Horario:</strong> Todos</div>');
       }
 
-      if (filters.type !== 'all') {
-        const typeName = filters.type === 'fijo' ? 'Fijo' : filters.type === 'corrido' ? 'Corrido' : filters.type === 'parle' ? 'Parlé' : 'Centena';
+      if (playTypeFilter) {
+        const typeName = playTypeLabels[playTypeFilter] || playTypeFilter.toUpperCase();
         filtrosActivos.push(`<div><strong>Tipo:</strong> ${typeName}</div>`);
       } else {
         filtrosActivos.push('<div><strong>Tipo:</strong> Todos</div>');
       }
 
-      if (searchQuery) {
-        filtrosActivos.push(`<div><strong>Búsqueda:</strong> "${searchQuery}"</div>`);
+      if (searchNumber) {
+        filtrosActivos.push(`<div><strong>Búsqueda:</strong> "${searchNumber}"</div>`);
+      }
+      
+      if (sortBy) {
+        const sortLabel = sortBy === 'cantidad' ? 'Cantidad' : 'Número';
+        filtrosActivos.push(`<div><strong>Ordenar por:</strong> ${sortLabel}</div>`);
       }
 
       const filtrosHTML = `
