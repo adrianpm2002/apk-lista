@@ -230,11 +230,10 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
         console.log('[RealizarBote] isOnline:', isOnline);
         if (isOnline) {
           try {
-            console.log('[RealizarBote] Consultando Supabase - bankId:', currentBankId, 'lotteryId:', selectedLottery);
+            console.log('[RealizarBote] Consultando Supabase - lotteryId:', selectedLottery);
             const { data, error } = await supabase
               .from('horario')
               .select('id, nombre, id_loteria, hora_inicio, hora_fin')
-              .eq('id_banco', currentBankId)
               .eq('id_loteria', selectedLottery)
               .order('hora_inicio');
             
