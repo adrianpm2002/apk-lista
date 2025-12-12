@@ -248,8 +248,6 @@ class AuthService {
    */
   async logout(clearPersistentPreference = false) {
     try {
-      console.log('[AuthService] Iniciando logout...');
-      
       // Cerrar sesión en Supabase con timeout para evitar bloqueo offline
       try {
         const signOutPromise = supabase.auth.signOut();
@@ -257,7 +255,6 @@ class AuthService {
           setTimeout(() => reject(new Error('Timeout')), 3000)
         );
         await Promise.race([signOutPromise, timeoutPromise]);
-        console.log('[AuthService] Sesión Supabase cerrada');
       } catch (signOutError) {
         console.log('[AuthService] No se pudo cerrar sesión en Supabase (probablemente offline), continuando...');
       }
@@ -273,7 +270,6 @@ class AuthService {
         console.log('[AuthService] ✅ Credenciales offline eliminadas (preferencia deshabilitada)');
       } else {
         await secureStorage.clearStoredCredentials();
-        console.log('[AuthService] Credenciales AsyncStorage limpiadas');
         
         // Opción B: Mantener credenciales offline pero marcar sesión como inactiva
         const OfflineStorage = require('./offlineStorageService');
@@ -372,23 +368,16 @@ class AuthService {
    */
   async saveCredentialsForOffline(username, password, profile) {
     try {
-      console.log('[AuthService] Iniciando guardado de credenciales offline...');
-      console.log('[AuthService] Usuario:', username);
-      console.log('[AuthService] Profile recibido:', JSON.stringify(profile));
-
       const { encryptPassword } = require('./encryptionService');
       const OfflineStorage = require('./offlineStorageService');
 
       // Encriptar contraseña
-      console.log('[AuthService] Encriptando contraseña...');
       const encryptedData = await encryptPassword(password);
-      console.log('[AuthService] Contraseña encriptada:', encryptedData ? 'OK' : 'FALLÓ');
 
       // Calcular fecha de expiración (24 horas)
       const now = Date.now();
       const expiresAt = now + (24 * 60 * 60 * 1000);
 
-      console.log('[AuthService] Preparando datos para SQLite...');
       const credentialsData = {
         user_id: profile.userId || profile.id,
         encrypted_data: JSON.stringify({
@@ -400,19 +389,12 @@ class AuthService {
         last_login: now.toString(),
         session_expires: expiresAt.toString(),
       };
-      console.log('[AuthService] Datos a guardar:', JSON.stringify(credentialsData, null, 2));
 
       // Guardar en SQLite
-      console.log('[AuthService] Guardando en SQLite...');
       const saved = await OfflineStorage.saveCredentials(credentialsData);
-      console.log('[AuthService] Resultado de guardado:', saved ? 'ÉXITO' : 'FALLÓ');
 
       if (saved) {
-        console.log('[AuthService] ✅ Credenciales guardadas exitosamente para login offline');
         await OfflineStorage.setLastLoginTimestamp(now);
-        console.log('[AuthService] ✅ Timestamp actualizado');
-      } else {
-        console.error('[AuthService] ❌ saveCredentials retornó false');
       }
 
       return saved;

@@ -278,8 +278,6 @@ export const useCollectorStatistics = (options = {}) => {
 
       // CASO 1: forceRefresh + filtro HOY → Actualizar desde Supabase
       if (forceRefresh && isToday) {
-        console.log('[useCollectorStatistics] 🔄 Actualizando HOY desde Supabase...');
-        
         const freshPlays = await loadFromSupabase(effectiveUserId, startDate, endDate);
         
         // Borrar HOY de SQLite y guardar datos frescos

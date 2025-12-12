@@ -19,7 +19,6 @@ export const generateDeviceKey = async () => {
     // Intentar obtener clave existente
     const existingKey = await AsyncStorage.getItem(DEVICE_KEY_STORAGE);
     if (existingKey) {
-      console.log('[Encryption] Using existing device key');
       return existingKey;
     }
 
@@ -73,30 +72,21 @@ export const getDeviceKey = async () => {
  */
 export const encryptPassword = async (password, key = null) => {
   try {
-    console.log('[Encryption] Iniciando encriptación de contraseña...');
     const encryptionKey = key || await generateDeviceKey();
-    console.log('[Encryption] Clave de encriptación obtenida');
     
     // Convertir password y key a arrays de bytes
-    console.log('[Encryption] Convirtiendo password a bytes...');
     const passwordBytes = stringToBytes(password);
-    console.log('[Encryption] Password bytes:', passwordBytes.length);
-    
     const keyBytes = hexToBytes(encryptionKey);
-    console.log('[Encryption] Key bytes:', keyBytes.length);
 
     // XOR simple: repetir la clave si es más corta que el password
-    console.log('[Encryption] Aplicando XOR...');
     const encryptedBytes = passwordBytes.map((byte, index) => {
       const keyByte = keyBytes[index % keyBytes.length];
       return byte ^ keyByte;
     });
 
     // Convertir a Base64
-    console.log('[Encryption] Convirtiendo a Base64...');
     const encryptedBase64 = bytesToBase64(encryptedBytes);
     
-    console.log('[Encryption] ✅ Password encrypted successfully, length:', encryptedBase64.length);
     return encryptedBase64;
   } catch (error) {
     console.error('[Encryption] Error encrypting password:', error);

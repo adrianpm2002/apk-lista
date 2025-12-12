@@ -249,10 +249,8 @@ const configOptions = role ? roleOptionsMap[role] : null;
   const handleLogout = () => {
     const proceed = async () => {
       try {
-        console.log('[SideBar] Iniciando logout completo...');
         // Usar authService.logout() para limpiar tanto AsyncStorage como SQLite
         await authService.logout(false);
-        console.log('[SideBar] ✅ Logout completo exitoso');
       } catch (e) {
         console.error('[SideBar] Error en logout:', e);
         // ignorar error de signOut para no bloquear la navegación

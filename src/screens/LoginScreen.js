@@ -37,9 +37,7 @@ const OfflineLoginButton = ({ username, password, setFieldError, navigation }) =
   }, [navigation]);
 
   const checkStoredCredentials = async () => {
-    console.log('[LoginScreen] Verificando credenciales guardadas...');
     const hasStored = await OfflineStorage.hasStoredCredentials();
-    console.log('[LoginScreen] Credenciales guardadas:', hasStored);
     setHasCredentials(hasStored);
   };
 

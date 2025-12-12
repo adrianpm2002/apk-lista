@@ -261,9 +261,6 @@ export const syncOfflineCache = async () => {
       return { success: false, error: `Rol desconocido: ${profile.role}` };
     }
 
-    console.log('[BackgroundTask] Rol del usuario:', profile.role);
-    console.log('[BackgroundTask] ID Banco del usuario:', id_banco);
-
     // 3. Fetch loterías del banco del usuario
     const { data: lotteries, error: lotteriesError } = await supabase
       .from('loteria')
@@ -277,15 +274,10 @@ export const syncOfflineCache = async () => {
       return { success: false, error: 'Error fetching loterías' };
     }
 
-    console.log(`[BackgroundTask] Loterías obtenidas: ${lotteries?.length || 0}`);
-
     // 4. Guardar loterías en SQLite
     if (lotteries && lotteries.length > 0) {
       const savedLotteries = await OfflineStorage.saveLotteries(lotteries);
       if (!savedLotteries) {
-        console.error('[BackgroundTask] ❌ No se pudieron guardar loterías');
-        console.error('[BackgroundTask] Platform.OS:', require('react-native').Platform.OS);
-        
         await OfflineStorage.addLog('ERROR', 'Cache sync failed - cannot save lotteries', { 
           reason: 'Database error',
           platform: require('react-native').Platform.OS
