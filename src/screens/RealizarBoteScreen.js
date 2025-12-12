@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
+  FlatList,
   ActivityIndicator,
   Alert,
-  ScrollView,
   TouchableOpacity,
   TextInput,
 } from 'react-native';
@@ -30,17 +30,19 @@ const RealizarBoteScreen = ({ navigation, onModeVisibilityChange }) => {
 const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
   const [currentBankId, setCurrentBankId] = useState(null);
   const [userRole, setUserRole] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [capacityData, setCapacityData] = useState([]);
+  const [sortBy, setSortBy] = useState('capacity');
   
-  // Estados para los filtros y datos
+  // Estados para los filtros
   const [lotteryFilter, setLotteryFilter] = useState(null);
   const [scheduleFilter, setScheduleFilter] = useState(null);
   const [playTypeFilter, setPlayTypeFilter] = useState(null);
   const [searchNumber, setSearchNumber] = useState('');
   const [boteAmount, setBoteAmount] = useState('');
   
-  // Estados de expansión para los filtros
+  // Estados de expansión
   const [lotteryExpanded, setLotteryExpanded] = useState(false);
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [playTypeExpanded, setPlayTypeExpanded] = useState(false);
@@ -55,55 +57,184 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
     'tripleta': 'TRIPLETA'
   };
 
-  useEffect(() => {
-    const loadUserProfile = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          Alert.alert(
-            'Error de conexión',
-            'No se pudo verificar tu sesión. Por favor, inicia sesión nuevamente.',
-            [{ text: 'OK', onPress: () => navigation.replace('Login') }]
-          );
-          return;
-        }
-
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('role, id_banco')
-          .eq('id', user.id)
-          .single();
-
-        if (error || !profile) {
-          Alert.alert(
-            'Error de conexión',
-            'No se pudo obtener tu perfil. Por favor, inicia sesión nuevamente.',
-            [{ text: 'OK', onPress: () => navigation.replace('Login') }]
-          );
-          return;
-        }
-
-        const bankId = profile.role === 'admin' ? user.id : profile.id_banco;
-        setCurrentBankId(bankId);
-        setUserRole(profile.role);
-      } catch (error) {
-        console.error('Error loading user profile:', error);
-        Alert.alert('Error', 'Error al cargar el perfil del usuario');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadUserProfile();
-  }, [navigation]);
-
-  const toggleSidebar = () => {
-    setSidebarVisible(!sidebarVisible);
+  const formatTime = (timeString) => {
+    if (!timeString) return '';
+    return timeString.substring(0, 5);
   };
 
-  const handleSidebarOption = (option) => {
-    setSidebarVisible(false);
-    // Navegación según opción seleccionada
+  // Función para verificar si un número coincide con la búsqueda considerando permutaciones
+  const matchesSearch = (numero, searchTerm) => {
+    if (!searchTerm) return true;
+    
+    const numStr = numero.toString();
+    const searchStr = searchTerm.toString();
+    
+    if (numStr === searchStr) return true;
+    
+    const length = searchStr.length;
+    
+    if (length === 4 && numStr.length === 4) {
+      const ab = searchStr.substring(0, 2);
+      const cd = searchStr.substring(2, 4);
+      const permuted = cd + ab;
+      if (numStr === permuted) return true;
+    }
+    
+    if (length === 6 && numStr.length === 6) {
+      const pair1 = searchStr.substring(0, 2);
+      const pair2 = searchStr.substring(2, 4);
+      const pair3 = searchStr.substring(4, 6);
+      
+      const permutations = [
+        pair1 + pair2 + pair3,
+        pair1 + pair3 + pair2,
+        pair2 + pair1 + pair3,
+        pair2 + pair3 + pair1,
+        pair3 + pair1 + pair2,
+        pair3 + pair2 + pair1,
+      ];
+      
+      if (permutations.includes(numStr)) return true;
+    }
+    
+    return false;
+  };
+
+  useEffect(() => {
+  // Opciones únicas de loterías, horarios y tipos de jugada
+  const lotteryOptions = useMemo(() => {
+    const unique = [...new Set(capacityData.map(item => item.nombre_loteria))];
+    return unique.filter(Boolean).sort();
+  }, [capacityData]);
+
+  const scheduleOptions = useMemo(() => {
+    const unique = [...new Set(capacityData.map(item => item.nombre_horario))];
+    return unique.filter(Boolean).sort();
+  }, [capacityData]);
+
+  const playTypeOptions = useMemo(() => {
+    const unique = [...new Set(capacityData.map(item => item.jugada))];
+    return unique.filter(Boolean).sort();
+  }, [capacityData]);
+
+  // Datos filtrados
+  const filteredData = useMemo(() => {
+    let filtered = [...capacityData];
+    
+    if (sortBy === 'capacity') {
+      filtered.sort((a, b) => (b.used_today_banco || 0) - (a.used_today_banco || 0));
+    } else {
+      filtered.sort((a, b) => {
+        const numA = parseInt(a.numero);
+        const numB = parseInt(b.numero);
+        return numA - numB;
+      });
+    }
+    
+    if (lotteryFilter) {
+      filtered = filtered.filter(item => item.nombre_loteria === lotteryFilter);
+    }
+    
+    if (scheduleFilter) {
+      filtered = filtered.filter(item => item.nombre_horario === scheduleFilter);
+    }
+    
+    if (playTypeFilter) {
+      filtered = filtered.filter(item => item.jugada === playTypeFilter);
+    }
+    
+    if (searchNumber) {
+      filtered = filtered.filter(item => matchesSearch(item.numero, searchNumber));
+    }
+    
+    const boteValue = parseFloat(boteAmount) || 0;
+    if (boteValue > 0) {
+      filtered = filtered.filter(item => (item.used_today_banco || 0) > boteValue);
+    }
+    
+    return filtered;
+  }, [capacityData, lotteryFilter, scheduleFilter, playTypeFilter, searchNumber, boteAmount, sortBy]);
+
+  // Total bruto de los datos filtrados
+  const boteValue = parseFloat(boteAmount) || 0;
+  const totalBruto = useMemo(() => {
+    if (boteValue > 0) {
+      return filteredData.reduce((sum, item) => {
+        const excedente = (item.used_today_banco || 0) - boteValue;
+        return sum + excedente;
+      }, 0);
+    }
+    return filteredData.reduce((sum, item) => sum + (item.used_today_banco || 0), 0);
+  }, [filteredData, boteValue]);
+
+  const renderCapacityItem = useCallback(({ item }) => {
+    const playType = playTypeLabels[item.jugada] || item.jugada?.toUpperCase() || '';
+    
+    const currentBoteValue = parseFloat(boteAmount) || 0;
+    const displayAmount = currentBoteValue > 0 
+      ? (item.used_today_banco || 0) - currentBoteValue 
+      : (item.used_today_banco || 0);
+    
+    return (
+      <View style={styles.capacityCard}>
+        <View style={styles.firstLine}>
+          <Text style={styles.numberText}>{item.numero}</Text>
+          <Text style={styles.playTypeText}>{playType}</Text>
+          <Text style={[styles.amountText, currentBoteValue > 0 && styles.exceedAmount]}>
+            {currentBoteValue > 0 ? '+' : ''}${displayAmount.toFixed(2)}
+          </Text>
+        </View>
+
+        <View style={styles.secondLine}>
+          <Text style={styles.lotteryText}>{item.nombre_loteria}</Text>
+          <Text style={styles.separator}> - </Text>
+          <Text style={styles.scheduleText}>
+            {item.nombre_horario} | {formatTime(item.hora_inicio)} - {formatTime(item.hora_fin)}
+          </Text>
+        </View>
+      </View>
+    );
+  }, [playTypeLabels, boteAmount]);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <SideBarToggle inline onToggle={toggleSidebar} style={styles.sidebarButton} />
+          <Text style={styles.headerTitle}>Realizar Bote</Text>
+        </View>
+
+        <View style={styles.filtersBar}>
+          <View style={styles.filtersContainer}>
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Ordenar:</Text>
+              <TouchableOpacity style={[styles.sortButton, styles.sortButtonActive]}>
+                <Text style={[styles.sortButtonText, styles.sortButtonTextActive]}>
+                  Capacidad
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.sortButton}>
+                <Text style={styles.sortButtonText}>
+                  Número
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.centerContent}>
+          <ActivityIndicator size="large" color="#27AE60" />
+          <Text style={styles.loadingText}>Cargando...</Text>
+        </View>
+        
+        <SideBarWrapper
+          isVisible={sidebarVisible}
+          onClose={() => setSidebarVisible(false)}
+          navigation={navigation}
+          onModeVisibilityChange={onModeVisibilityChange}
+          role={userRole}
+        />
+      </Viewn opción seleccionada
     if (option === 'play') {
       navigation.navigate('MainApp');
     } else if (option === 'statistics') {
@@ -153,134 +284,260 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
   }
 
   return (
-    <SideBarWrapper
-      isVisible={sidebarVisible}
-      onClose={() => setSidebarVisible(false)}
-      onOptionSelect={handleSidebarOption}
-      navigation={navigation}
-      onModeVisibilityChange={onModeVisibilityChange}
-    >
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <SideBarToggle onPress={toggleSidebar} />
-          <Text style={styles.title}>Realizar Bote</Text>
-        </View>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <SideBarToggle inline onToggle={toggleSidebar} style={styles.sidebarButton} />
+        <Text style={styles.headerTitle}>Realizar Bote</Text>
+      </View>
 
-        {/* Filtros */}
+      {/* Barra de filtros */}
+      <View style={styles.filtersBar}>
         <View style={styles.filtersContainer}>
-          {/* Filtro de Lotería */}
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setLotteryExpanded(!lotteryExpanded)}
-          >
-            <Text style={styles.filterButtonText}>
-              {lotteryFilter ? `Lotería: ${lotteryFilter}` : 'Todas las Loterías'}
-            </Text>
-            <Text style={styles.filterButtonIcon}>
-              {lotteryExpanded ? '▲' : '▼'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Filtro de Horario */}
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setScheduleExpanded(!scheduleExpanded)}
-          >
-            <Text style={styles.filterButtonText}>
-              {scheduleFilter ? `Horario: ${scheduleFilter}` : 'Todos los Horarios'}
-            </Text>
-            <Text style={styles.filterButtonIcon}>
-              {scheduleExpanded ? '▲' : '▼'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Filtro de Tipo de Jugada */}
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setPlayTypeExpanded(!playTypeExpanded)}
-          >
-            <Text style={styles.filterButtonText}>
-              {playTypeFilter ? playTypeLabels[playTypeFilter] : 'Todos los Tipos'}
-            </Text>
-            <Text style={styles.filterButtonIcon}>
-              {playTypeExpanded ? '▲' : '▼'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Búsqueda por Número */}
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setSearchExpanded(!searchExpanded)}
-          >
-            <Text style={styles.filterButtonText}>
-              {searchNumber ? `Buscar: ${searchNumber}` : 'Buscar Número'}
-            </Text>
-            <Text style={styles.filterButtonIcon}>
-              {searchExpanded ? '▲' : '▼'}
-            </Text>
-          </TouchableOpacity>
-          
-          {searchExpanded && (
-            <View style={styles.expandedFilter}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Ingresa el número..."
-                value={searchNumber}
-                onChangeText={setSearchNumber}
-                keyboardType="numeric"
-              />
-            </View>
-          )}
-
-          {/* Campo de Monto del Bote */}
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setBoteExpanded(!boteExpanded)}
-          >
-            <Text style={styles.filterButtonText}>
-              {boteAmount ? `Bote: $${boteAmount}` : 'Monto del Bote'}
-            </Text>
-            <Text style={styles.filterButtonIcon}>
-              {boteExpanded ? '▲' : '▼'}
-            </Text>
-          </TouchableOpacity>
-          
-          {boteExpanded && (
-            <View style={styles.expandedFilter}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Ingresa el monto..."
-                value={boteAmount}
-                onChangeText={setBoteAmount}
-                keyboardType="numeric"
-              />
-            </View>
-          )}
-        </View>
-
-        {/* Contenido Principal */}
-        <ScrollView style={styles.content}>
-          <View style={styles.infoContainer}>
-            <Text style={styles.infoTitle}>💸 Realizar Bote</Text>
-            <Text style={styles.infoText}>
-              Selecciona los filtros necesarios y configura el monto del bote.
-            </Text>
-            <Text style={styles.infoText}>
-              Aquí podrás gestionar los botes de las jugadas.
-            </Text>
+          {/* Ordenar */}
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Ordenar:</Text>
+            <TouchableOpacity
+              style={[styles.sortButton, sortBy === 'capacity' && styles.sortButtonActive]}
+              onPress={() => setSortBy('capacity')}
+            >
+              <Text style={[styles.sortButtonText, sortBy === 'capacity' && styles.sortButtonTextActive]}>
+                Capacidad
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortButton, sortBy === 'number' && styles.sortButtonActive]}
+              onPress={() => setSortBy('number')}
+            >
+              <Text style={[styles.sortButtonText, sortBy === 'number' && styles.sortButtonTextActive]}>
+                Número
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Botón de Acción Principal */}
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => Alert.alert('Info', 'Funcionalidad en desarrollo')}
-          >
-            <Text style={styles.primaryButtonText}>Aplicar Bote</Text>
-          </TouchableOpacity>
-        </ScrollView>
+          {/* Filtro de Lotería */}
+          {lotteryOptions.length > 0 && (
+            <View style={styles.filterGroupWrapper}>
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterLabel}>Lotería:</Text>
+                <TouchableOpacity
+                  style={[styles.sortButton, styles.sortButtonActive]}
+                  onPress={() => setLotteryExpanded(!lotteryExpanded)}
+                >
+                  <Text style={[styles.sortButtonText, styles.sortButtonTextActive]}>
+                    {lotteryFilter || 'Todas'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {lotteryExpanded && (
+                <View style={styles.expandedOptions}>
+                  {lotteryOptions.map(lottery => (
+                    <TouchableOpacity
+                      key={lottery}
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setLotteryFilter(lottery);
+                        setLotteryExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>{lottery}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  {lotteryFilter && (
+                    <TouchableOpacity
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setLotteryFilter(null);
+                        setLotteryExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>Todas</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Filtro de Horario */}
+          {scheduleOptions.length > 0 && (
+            <View style={styles.filterGroupWrapper}>
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterLabel}>Horario:</Text>
+                <TouchableOpacity
+                  style={[styles.sortButton, styles.sortButtonActive]}
+                  onPress={() => setScheduleExpanded(!scheduleExpanded)}
+                >
+                  <Text style={[styles.sortButtonText, styles.sortButtonTextActive]}>
+                    {scheduleFilter || 'Todos'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {scheduleExpanded && (
+                <View style={styles.expandedOptions}>
+                  {scheduleOptions.map(schedule => (
+                    <TouchableOpacity
+                      key={schedule}
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setScheduleFilter(schedule);
+                        setScheduleExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>{schedule}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  {scheduleFilter && (
+                    <TouchableOpacity
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setScheduleFilter(null);
+                        setScheduleExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>Todos</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Filtro de Tipo de Jugada */}
+          {playTypeOptions.length > 0 && (
+            <View style={styles.filterGroupWrapper}>
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterLabel}>Tipo:</Text>
+                <TouchableOpacity
+                  style={[styles.sortButton, styles.sortButtonActive]}
+                  onPress={() => setPlayTypeExpanded(!playTypeExpanded)}
+                >
+                  <Text style={[styles.sortButtonText, styles.sortButtonTextActive]}>
+                    {playTypeFilter ? playTypeLabels[playTypeFilter] : 'Todos'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {playTypeExpanded && (
+                <View style={styles.expandedOptions}>
+                  {playTypeOptions.map(playType => (
+                    <TouchableOpacity
+                      key={playType}
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setPlayTypeFilter(playType);
+                        setPlayTypeExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>
+                        {playTypeLabels[playType] || playType}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  {playTypeFilter && (
+                    <TouchableOpacity
+                      style={styles.sortButton}
+                      onPress={() => {
+                        setPlayTypeFilter(null);
+                        setPlayTypeExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.sortButtonText}>Todos</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Búsqueda por Número */}
+          <View style={styles.filterGroupWrapper}>
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Buscar:</Text>
+              <TouchableOpacity
+                style={[styles.sortButton, searchExpanded && styles.sortButtonActive]}
+                onPress={() => setSearchExpanded(!searchExpanded)}
+              >
+                <Text style={[styles.sortButtonText, searchExpanded && styles.sortButtonTextActive]}>
+                  {searchNumber || 'Número'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {searchExpanded && (
+              <View style={styles.searchInputContainer}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Número"
+                  value={searchNumber}
+                  onChangeText={setSearchNumber}
+                  keyboardType="numeric"
+                  maxLength={6}
+                />
+              </View>
+            )}
+          </View>
+
+          {/* Monto del Bote */}
+          <View style={styles.filterGroupWrapper}>
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Bote:</Text>
+              <TouchableOpacity
+                style={[styles.sortButton, boteExpanded && styles.sortButtonActive]}
+                onPress={() => setBoteExpanded(!boteExpanded)}
+              >
+                <Text style={[styles.sortButtonText, boteExpanded && styles.sortButtonTextActive]}>
+                  {boteAmount ? `$${boteAmount}` : 'Monto'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {boteExpanded && (
+              <View style={styles.searchInputContainer}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="0.00"
+                  value={boteAmount}
+                  onChangeText={setBoteAmount}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            )}
+          </View>
+
+          {/* Total Bruto */}
+          <View style={styles.totalBrutoContainer}>
+            <Text style={styles.totalBrutoLabel}>Total: </Text>
+            <Text style={styles.totalBrutoValue}>${totalBruto.toFixed(2)}</Text>
+          </View>
+        </View>
       </View>
-    </SideBarWrapper>
+
+      {/* Lista de Datos */}
+      {filteredData.length === 0 ? (
+        <View style={styles.centerContent}>
+          <Text style={styles.emptyText}>
+            {capacityData.length === 0
+              ? 'No hay datos de capacidad disponibles'
+              : 'No hay resultados con los filtros aplicados'}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredData}
+          renderItem={renderCapacityItem}
+          keyExtractor={(item, index) => `${item.numero}-${item.jugada}-${item.id_horario}-${index}`}
+          contentContainerStyle={styles.listContent}
+          initialNumToRender={20}
+          maxToRenderPerBatch={20}
+          windowSize={10}
+        />
+      )}
+
+      <SideBarWrapper
+        isVisible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        navigation={navigation}
+        onModeVisibilityChange={onModeVisibilityChange}
+        role={userRole}
+      />
+    </View>
   );
 };
 
@@ -294,118 +551,188 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#27AE60',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
-  title: {
-    fontSize: 20,
+  sidebarButton: {
+    marginRight: 12,
+  },
+  headerTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginLeft: 16,
+    letterSpacing: 0.3,
   },
-  loadingContainer: {
+  filtersBar: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  filtersContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  filterGroupWrapper: {
+    flexDirection: 'column',
+  },
+  filterGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  expandedOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 4,
+    marginLeft: 0,
+  },
+  filterLabel: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#495057',
+  },
+  sortButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#DEE2E6',
+  },
+  sortButtonActive: {
+    backgroundColor: '#27AE60',
+    borderColor: '#27AE60',
+  },
+  sortButtonText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#495057',
+  },
+  sortButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+  },
+  searchInput: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#27AE60',
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#495057',
+    minWidth: 60,
+    textAlign: 'center',
+  },
+  totalBrutoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto',
+    paddingLeft: 8,
+  },
+  totalBrutoLabel: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#495057',
+  },
+  totalBrutoValue: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#27AE60',
+  },
+  centerContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 32,
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: '#7F8C8D',
+    fontWeight: '500',
   },
-  filtersContainer: {
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+  emptyText: {
+    fontSize: 16,
+    color: '#7F8C8D',
+    textAlign: 'center',
   },
-  filterButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  filterButtonText: {
-    fontSize: 14,
-    color: '#333',
-    flex: 1,
-  },
-  filterButtonIcon: {
-    fontSize: 12,
-    color: '#666',
-    marginLeft: 8,
-  },
-  expandedFilter: {
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  searchInput: {
-    borderWidth: 1,
-    borderColor: '#DDD',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    backgroundColor: '#FFFFFF',
-  },
-  content: {
-    flex: 1,
+  listContent: {
     padding: 16,
   },
-  infoContainer: {
+  capacityCard: {
     backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 16,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
   },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  primaryButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+  firstLine: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    marginBottom: 6,
+    gap: 10,
   },
-  primaryButtonText: {
-    color: '#FFFFFF',
+  numberText: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#2C3E50',
+  },
+  playTypeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#000000',
+    flex: 1,
+  },
+  amountText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    color: '#27AE60',
+  },
+  exceedAmount: {
+    color: '#E74C3C',
+  },
+  secondLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  lotteryText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3498DB',
+  },
+  separator: {
+    fontSize: 12,
+    color: '#7F8C8D',
+  },
+  scheduleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#A0826D',
   },
 });
 
