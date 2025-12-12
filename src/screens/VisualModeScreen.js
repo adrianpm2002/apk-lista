@@ -495,8 +495,10 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             }
             const { data: limitRows } = await supabase.from('limite_numero').select('numero,limite,jugada,id_horario').eq('id_horario', newHorario);
             const limitMap=new Map(); (limitRows||[]).forEach(r=> limitMap.set(`${r.id_horario}|${r.jugada}|${r.numero}`, r.limite));
-            const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD en zona horaria local
-            const { data: usadas } = await supabase.from('jugada').select('id,id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', today).eq('id_horario', newHorario).eq('id_listero', user.id);
+            // Obtener fecha actual en zona horaria de La Habana
+            const now = new Date();
+            const havanaDateStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Havana' }); // YYYY-MM-DD
+            const { data: usadas } = await supabase.from('jugada').select('id,id_horario,jugada,numeros,monto_unitario,created_at').gte('created_at', havanaDateStr).eq('id_horario', newHorario).eq('id_listero', user.id);
             const usageMap=new Map();
             (usadas||[]).forEach(j=>{
               if(j.id===editingId) return; // excluir la jugada actual para recalcular con nuevos montos
@@ -526,9 +528,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           }
         }
         // Actualizar marca de tiempo (created_at) para reflejar edición
-        const now = new Date();
-        const pad = (n) => String(n).padStart(2,'0');
-        const tsLocal = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        const { getHavanaTimestamp } = require('../utils/dateUtils');
+        const tsLocal = getHavanaTimestamp();
         // Determinar nuevos id_horario y jugada si el usuario los cambió
         const newLottery = selectedLotteries[0];
         const newHorario = selectedSchedules[newLottery];

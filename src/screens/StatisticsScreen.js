@@ -358,15 +358,23 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
         return;
       }
 
-      // Formatear fechas para consulta usando zona horaria local (no UTC)
+      // Formatear fechas para consulta usando zona horaria de La Habana, Cuba
       const formatDateForQuery = (date) => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const seconds = String(date.getSeconds()).padStart(2, '0');
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        const havanaTime = date.toLocaleString('en-US', {
+          timeZone: 'America/Havana',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+        // Parsear "MM/DD/YYYY, HH:MM:SS"
+        const parts = havanaTime.split(', ');
+        const dateParts = parts[0].split('/'); // [MM, DD, YYYY]
+        const timePart = parts[1]; // HH:MM:SS
+        return `${dateParts[2]}-${dateParts[0]}-${dateParts[1]} ${timePart}`;
       };
 
       const startStr = formatDateForQuery(startDate);

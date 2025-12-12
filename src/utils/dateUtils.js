@@ -1,5 +1,31 @@
-// Utilidades para formateo de fechas
-// Este archivo puede ser eliminado si solo se necesita la función format de date-fns
+/**
+ * Obtener timestamp actual en zona horaria de La Habana, Cuba
+ * Formato: YYYY-MM-DD HH:MM:SS (compatible con Supabase)
+ * @returns {string} Timestamp en formato YYYY-MM-DD HH:MM:SS
+ */
+export const getHavanaTimestamp = () => {
+  const now = new Date();
+  
+  // Convertir a zona horaria de La Habana
+  const havanaTime = now.toLocaleString('en-US', {
+    timeZone: 'America/Havana',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  
+  // Parsear el string "MM/DD/YYYY, HH:MM:SS"
+  const parts = havanaTime.split(', ');
+  const dateParts = parts[0].split('/'); // [MM, DD, YYYY]
+  const timePart = parts[1]; // HH:MM:SS
+  
+  // Formatear como YYYY-MM-DD HH:MM:SS
+  return `${dateParts[2]}-${dateParts[0]}-${dateParts[1]} ${timePart}`;
+};
 
 // Funciones auxiliares para formateo de fechas
 export const formatDate = (date, formatStr) => {

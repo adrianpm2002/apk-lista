@@ -617,9 +617,8 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
           if(violations.length){ setLimitViolations(violations); setInsertFeedback({ success:0, fail:1, edit:true, blocked:true }); return; }
         }
         // Recalcular total (ya está en parser) y ejecutar update
-        const pad=(n)=> String(n).padStart(2,'0');
-        const now=new Date();
-        const tsLocal = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        const { getHavanaTimestamp } = require('../utils/dateUtils');
+        const tsLocal = getHavanaTimestamp();
     const updatePayload={ numeros: instr.numbers.join(','), nota: note.trim() || null, monto_unitario: instr.amountEach, monto_total: instr.totalPerLottery, jugada: instr.playType, comando: plays.trim() };
         if(newHorario) updatePayload.id_horario = newHorario;
   const { error } = await supabase.from('jugada').update(updatePayload).eq('id', editingId);
