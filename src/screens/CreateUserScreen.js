@@ -1801,6 +1801,7 @@ const styles = StyleSheet.create({
   buttonRow: { 
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 6,
     marginTop: 4,
   },
@@ -1867,7 +1868,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalScrollContent: {
-    paddingBottom: 40, // Espacio extra para que los botones sean visibles
+    paddingBottom: Platform.OS === 'android' ? 60 : 40, // Espacio extra para que los botones sean visibles
   },
   modalTitle: {
     fontSize: 20,

@@ -810,7 +810,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
           }
         } catch (generalError) {
           console.error('Error general insertando jugadas:', generalError);
-          setInsertFeedback({ success: 0, fail: payloads.length, duplicates:[], edit:false, serverError: 'Error inesperado al enviar jugadas' });
+          // No establecer feedback aquí, ya se manejó arriba en el bloque de error específico
         }
       } catch (error) {
         console.error('Error al guardar las jugadas:', error);

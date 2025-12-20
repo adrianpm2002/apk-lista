@@ -870,7 +870,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         }
       } catch(err){
         console.error('Error general insertando jugadas', err);
-        setInsertFeedback({ success:0, fail:payloads.length||1, duplicates:[] });
+        // No establecer feedback aquí, ya se manejó arriba en el bloque de error específico
       } finally { setIsInserting(false); }
     } catch (outerErr) {
       console.error('Error general en handleSend:', outerErr);

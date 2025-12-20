@@ -763,10 +763,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         
       } catch(err){
         console.error('Error general insertando jugadas', err);
-        setInsertFeedback({ 
-          type: 'error',
-          message: 'Error inesperado al enviar jugadas. Intenta nuevamente.'
-        });
+        // No establecer feedback aquí, ya se manejó arriba en el bloque de error específico
       } finally { 
         setIsInserting(false); 
       }
