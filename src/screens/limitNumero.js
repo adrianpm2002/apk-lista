@@ -7,6 +7,21 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
 import DropdownPicker from '../components/DropdownPicker';
 
+/**
+ * Obtener timestamp en hora local (NO UTC)
+ * Supabase está configurado para trabajar con hora local
+ */
+const getLocalTimestamp = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
 const LimitNumberScreen = ({ navigation }) => {
   return (
     <ScreenWrapper>
@@ -370,7 +385,7 @@ const LimitNumberContent = ({ navigation }) => {
         id_horario: selectedSchedule.id,
         jugada: selectedJugada.jugada,
         numero: numericValue,
-        created_at: new Date().toISOString()
+        created_at: getLocalTimestamp()
       });
       if (!error) {
         resetForm();
@@ -498,7 +513,7 @@ const LimitNumberContent = ({ navigation }) => {
         jugada: selectedJugada2.jugada,
         numero: numericValue,
         limite: parseInt(tempLimit2,10),
-        created_at: new Date().toISOString()
+        created_at: getLocalTimestamp()
       });
       if(!error){
         setTempNumber2(''); setTempLimit2(''); setSelectedJugada2(null);

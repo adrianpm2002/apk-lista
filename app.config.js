@@ -65,9 +65,10 @@ export default {
       favicon: "./assets/favicon.png",
       bundler: "metro"
     },
+    owner: "expo4085",
     extra: {
       eas: {
-        projectId: "791d2570-1ee3-40e0-a272-e1b727e72523"
+        projectId: "eebd5cf6-bc00-4ad1-863f-f8461ebd7219"
       }
     },
     plugins: [

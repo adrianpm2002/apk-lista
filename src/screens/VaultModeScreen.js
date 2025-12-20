@@ -731,25 +731,34 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
             });
           }
         } else {
-          // Batch exitoso - limpiar pantalla automáticamente
-          setJugadasFijosYCorridos([]);
-          setJugadasParles([]);
-          setJugadasCentenas([]);
-          setNote('');
-          setNumero('');
-          setFijo('');
-          setCorrido('');
-          setParleInput('');
-          setPrecioParle('');
-          setCentenaNumero('');
-          setCentenaPrecio('');
-          setJugadasConError(new Set());
-          setShowFieldErrors(false);
-          
-          setInsertFeedback({ 
-            type: 'success',
-            message: `${payloads.length} jugada(s) enviada(s) exitosamente.`
-          });
+          // Verificar que se insertaron registros
+          if (!insertedData || insertedData.length === 0) {
+            setInsertFeedback({ 
+              type: 'error',
+              message: 'No se insertó ningún registro en la base de datos',
+              serverError: 'No se insertó ningún registro en la base de datos'
+            });
+          } else {
+            // Batch exitoso - limpiar pantalla automáticamente
+            setJugadasFijosYCorridos([]);
+            setJugadasParles([]);
+            setJugadasCentenas([]);
+            setNote('');
+            setNumero('');
+            setFijo('');
+            setCorrido('');
+            setParleInput('');
+            setPrecioParle('');
+            setCentenaNumero('');
+            setCentenaPrecio('');
+            setJugadasConError(new Set());
+            setShowFieldErrors(false);
+            
+            setInsertFeedback({ 
+              type: 'success',
+              message: `${insertedData.length} jugada(s) enviada(s) exitosamente.`
+            });
+          }
         }
         
       } catch(err){

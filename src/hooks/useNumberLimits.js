@@ -2,6 +2,21 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Alert } from 'react-native';
 
+/**
+ * Obtener timestamp en hora local (NO UTC)
+ * Supabase está configurado para trabajar con hora local
+ */
+const getLocalTimestamp = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
 export const useNumberLimits = () => {
   const [globalLimits, setGlobalLimits] = useState([]);
   const [specificLimits, setSpecificLimits] = useState([]);
@@ -162,7 +177,7 @@ export const useNumberLimits = () => {
           .from('specific_number_limits')
           .update({
             current_amount: newAmount,
-            updated_at: new Date().toISOString()
+            updated_at: getLocalTimestamp()
           })
           .eq('id', specificLimit.id);
 
@@ -204,7 +219,7 @@ export const useNumberLimits = () => {
           id_horario: scheduleId,
           play_type: playType,
           global_limit: parseFloat(globalLimit),
-          updated_at: new Date().toISOString()
+          updated_at: getLocalTimestamp()
         }, {
           onConflict: 'id_loteria,id_horario,play_type'
         });
@@ -232,7 +247,7 @@ export const useNumberLimits = () => {
           number: paddedNumber,
           limit_amount: parseFloat(limitAmount),
           current_amount: 0, // Solo actualizar si es nuevo
-          updated_at: new Date().toISOString()
+          updated_at: getLocalTimestamp()
         }, {
           onConflict: 'id_loteria,id_horario,play_type,number',
           ignoreDuplicates: false

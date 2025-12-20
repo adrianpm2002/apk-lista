@@ -302,34 +302,6 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
     }
 
     try {
-      // Primero verificar si la lotería tiene horarios abiertos
-      const { data: lotterySchedules, error: schedulesError } = await supabase
-        .from('horario')
-        .select('hora_inicio, hora_fin, nombre')
-        .eq('id_loteria', id);
-
-      if (schedulesError) {
-        console.error('Error fetching schedules for validation:', schedulesError);
-        Alert.alert('Error', 'No se pudo verificar el estado de los horarios');
-        return;
-      }
-
-      // Verificar si algún horario está abierto
-      const openSchedules = lotterySchedules?.filter(schedule => 
-        isScheduleOpen(schedule.hora_inicio, schedule.hora_fin)
-      ) || [];
-
-      if (openSchedules.length > 0) {
-        const scheduleNames = openSchedules.map(s => s.nombre).join(', ');
-        Alert.alert(
-          'Lotería con Horarios Activos',
-          `No se puede eliminar esta lotería porque tiene horarios actualmente abiertos: ${scheduleNames}. Por favor, espera a que todos los horarios cierren.`,
-          [{ text: 'Entendido' }]
-        );
-        return;
-      }
-
-      // Si no hay horarios abiertos, proceder con la eliminación
       showConfirmation(
         'Confirmar eliminación',
         '¿Estás seguro de que deseas eliminar esta lotería? También se eliminarán todos sus horarios.',
@@ -478,18 +450,6 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
   };
 
   const handleEditSchedule = (schedule) => {
-    // Verificar si el horario está abierto antes de permitir editarlo
-    const isOpen = isScheduleOpen(schedule.hora_inicio, schedule.hora_fin);
-    
-    if (isOpen) {
-      Alert.alert(
-        'Horario Activo',
-        'No se puede editar un horario que está actualmente abierto. Por favor, espera a que cierre para editarlo.',
-        [{ text: 'Entendido' }]
-      );
-      return;
-    }
-
     setEditingSchedule(schedule);
     setNewSchedule({
       name: schedule.nombre,
@@ -503,21 +463,6 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
   };
 
   const handleDeleteSchedule = async (scheduleId) => {
-    // Verificar si el horario está abierto antes de permitir eliminarlo
-    const schedule = modalSchedules.find(s => s.id === scheduleId);
-    if (schedule) {
-      const isOpen = isScheduleOpen(schedule.hora_inicio, schedule.hora_fin);
-      
-      if (isOpen) {
-        Alert.alert(
-          'Horario Activo',
-          'No se puede eliminar un horario que está actualmente abierto. Por favor, espera a que cierre para eliminarlo.',
-          [{ text: 'Entendido' }]
-        );
-        return;
-      }
-    }
-
     showConfirmation(
       'Confirmar eliminación',
       '¿Estás seguro de que deseas eliminar este horario?',

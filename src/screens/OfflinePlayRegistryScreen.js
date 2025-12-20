@@ -176,7 +176,7 @@ const OfflinePlayRegistryScreen = ({ navigation }) => {
 
     Alert.alert(
       '🔄 Sincronizar jugadas',
-      `${pendingPlays.length} jugada(s) pendiente(s)\nTotal: RD$${totalAmount.toFixed(2)}\n\n¿Enviar al servidor?`,
+      `${pendingPlays.length} jugada(s) pendiente(s)\nTotal: $${totalAmount.toFixed(2)}\n\n¿Enviar al servidor?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {

@@ -18,6 +18,28 @@ const DB_VERSION = 3; // Versión 3 agrega tabla de jugadas activas
 let dbInstance = null;
 
 // ========================================
+// UTILIDADES
+// ========================================
+
+/**
+ * Obtener timestamp en hora local de La Habana, Cuba
+ * NO usar toISOString() porque convierte a UTC
+ * @returns {string} Fecha en formato YYYY-MM-DD HH:mm:ss
+ */
+const getLocalTimestamp = () => {
+  const now = new Date();
+  // Formatear fecha local en formato ISO: YYYY-MM-DD HH:mm:ss
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
+// ========================================
 // INICIALIZACIÓN Y CONFIGURACIÓN
 // ========================================
 
@@ -645,7 +667,7 @@ export const saveOfflinePlay = async (playData) => {
               playData.nota || `${playData.nombre_loteria || 'Lotería'} - ${playData.nombre_horario || 'Horario'}`,
               playData.comando || null,
               playData.id_cliente || null,
-              playData.created_at || new Date().toISOString(),
+              playData.created_at || getLocalTimestamp(), // Hora local, NO UTC
               'offline', // created_from
               playData.status || 'pending',
               playData.last_error || null,
@@ -729,7 +751,7 @@ export const saveBatchOfflinePlays = async (playsData) => {
                 playData.nota || `${playData.nombre_loteria || 'Lotería'} - ${playData.nombre_horario || 'Horario'}`,
                 playData.comando || null,
                 playData.id_cliente || null,
-                playData.created_at || new Date().toISOString(),
+                playData.created_at || getLocalTimestamp(), // Hora local, NO UTC
                 'offline',
                 playData.status || 'pending',
                 playData.last_error || null,
@@ -1262,7 +1284,7 @@ export const updatePlayStatus = async (playId, status, error = null) => {
       `UPDATE offline_plays 
        SET status = ?, last_error = ?, last_sync_attempt = ? 
        WHERE id = ?`,
-      [status, error, new Date().toISOString(), playId]
+      [status, error, getLocalTimestamp(), playId]
     );return true;
   } catch (error) {throw error;
   }
@@ -1374,7 +1396,7 @@ export const saveMultiplePlaysTransaction = async (playsArray) => {
                 playData.monto_total,
                 JSON.stringify(playData),
                 'pending',
-                new Date().toISOString(),
+                getLocalTimestamp(),
               ]
             );
           });

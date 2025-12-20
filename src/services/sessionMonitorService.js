@@ -3,6 +3,20 @@ import { authService } from './authService';
 import { secureStorage } from '../utils/storage';
 
 /**
+ * Obtener timestamp en hora local (NO UTC)
+ */
+const getLocalTimestamp = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
+/**
  * Servicio para monitorear el estado de la sesión en tiempo real
  */
 class SessionMonitorService {
@@ -130,7 +144,7 @@ class SessionMonitorService {
         role: userProfile.role,
         bankId: userProfile.bankId,
         activo: userProfile.activo,
-        lastActivity: new Date().toISOString()
+        lastActivity: getLocalTimestamp()
       });
     }
   }
@@ -162,7 +176,7 @@ class SessionMonitorService {
     if (existingSession) {
       await secureStorage.saveUserSession({
         ...existingSession,
-        lastActivity: new Date().toISOString()
+        lastActivity: getLocalTimestamp()
       });
     }
   }

@@ -150,17 +150,25 @@ const ListerCapacityContent = ({ navigation }) => {
     setLoading(true);
 
     try {
-      const orderColumn = sortBy === 'capacity' ? 'used_today_listero' : 'numero';
       const { data, error } = await supabase
         .from('v_capacidades')
         .select('*')
         .eq('id_banco', currentBankId)
-        .eq('id_listero', currentListerId)
-        .order(orderColumn, { ascending: sortBy === 'number' });
+        .eq('id_listero', currentListerId);
 
       if (error) throw error;
 
-      setCapacityData(data || []);
+      // Ordenar en el cliente para garantizar orden correcto
+      let sortedData = data || [];
+      if (sortBy === 'capacity') {
+        // Ordenar por capacidad descendente (mayor a menor)
+        sortedData.sort((a, b) => (b.used_today_listero || 0) - (a.used_today_listero || 0));
+      } else {
+        // Ordenar por número ascendente (numéricamente)
+        sortedData.sort((a, b) => parseInt(a.numero) - parseInt(b.numero));
+      }
+
+      setCapacityData(sortedData);
     } catch (error) {
       console.error('Error fetching lister capacities:', error);
       Alert.alert('Error', 'No se pudieron cargar las capacidades');

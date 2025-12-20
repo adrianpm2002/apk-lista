@@ -222,15 +222,25 @@ const sendPlayToSupabase = async (play) => {
       comando: play.comando || null,
       id_cliente: play.id_cliente || null,
       created_at: play.created_at,
-    };// Insertar en Supabase
+    };
+
+    // Insertar en Supabase como array de 1 elemento
+    // El trigger espera new_rows que es una tabla/array, incluso para una sola fila
     const { data, error } = await supabase
       .from('jugada')
-      .insert(payload)
+      .insert([payload])
       .select();
 
     if (error) {
       return { success: false, error: formatErrorMessage(error.message) };
-    }return { success: true, data };
+    }
+
+    // Verificar que se insertó al menos 1 registro
+    if (!data || data.length === 0) {
+      return { success: false, error: 'No se insertó ningún registro en la base de datos' };
+    }
+
+    return { success: true, data };
 
   } catch (error) {return { success: false, error: formatErrorMessage(error.message) };
   }

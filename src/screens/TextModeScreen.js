@@ -788,14 +788,25 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
               });
             }
           } else {
-            // Batch exitoso - limpiar pantalla automáticamente
-            const success = payloads.length;
-            setInsertFeedback({ success, fail: 0, duplicates:[], edit:false });
-            setPlays(''); 
-            setCalculatedAmount(0); 
-            setTotal(0); 
-            setParsedInstructions([]);
-            // Mantener la nota después del envío exitoso
+            // Verificar que se insertaron registros
+            if (!insertedData || insertedData.length === 0) {
+              setInsertFeedback({ 
+                success: 0, 
+                fail: payloads.length, 
+                duplicates: [],
+                edit: false,
+                serverError: 'No se insertó ningún registro en la base de datos'
+              });
+            } else {
+              // Batch exitoso - limpiar pantalla automáticamente
+              const success = insertedData.length;
+              setInsertFeedback({ success, fail: 0, duplicates:[], edit:false });
+              setPlays(''); 
+              setCalculatedAmount(0); 
+              setTotal(0); 
+              setParsedInstructions([]);
+              // Mantener la nota después del envío exitoso
+            }
           }
         } catch (generalError) {
           console.error('Error general insertando jugadas:', generalError);

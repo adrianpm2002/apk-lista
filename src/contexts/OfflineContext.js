@@ -1,4 +1,5 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
+import { AppState } from 'react-native';
 import { useConnection } from '../hooks/useConnection';
 import * as OfflineStorage from '../services/offlineStorageService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -6,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 /**
  * Contexto para manejar el estado offline de la aplicación
  * Gestiona: conexión, modo offline manual, jugadas pendientes, sincronización
+ * Filtra automáticamente jugadas que no sean del día actual
  */
 
 const OfflineContext = createContext(null);
@@ -55,6 +57,52 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
   }, [isOnline, isSyncing]);
 
   /**
+   * Verificar cambio de día y limpiar cola cada 5 minutos
+   * Esto asegura que la cola solo contenga jugadas del día actual
+   */
+  useEffect(() => {
+    const checkDayAndRefresh = async () => {
+      const hasChanged = await checkDayChange();
+      if (hasChanged) {
+        console.log('[OfflineContext] 🔄 Cambio de día detectado. Limpiando cola...');
+        await loadPendingPlays(); // Recarga y filtra automáticamente
+      }
+    };
+
+    // Verificar inmediatamente
+    checkDayAndRefresh();
+
+    // Verificar cada 5 minutos
+    const interval = setInterval(checkDayAndRefresh, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  /**
+   * Listener de AppState: verificar cambio de día cuando la app vuelve al foreground
+   */
+  const appState = useRef(AppState.currentState);
+  
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      // Si la app vuelve al foreground
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('[OfflineContext] 📱 App volvió al foreground. Verificando día...');
+        const hasChanged = await checkDayChange();
+        if (hasChanged) {
+          console.log('[OfflineContext] 🔄 Cambio de día detectado. Refrescando cola...');
+          await loadPendingPlays(); // Filtra automáticamente jugadas antiguas
+        }
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  /**
    * FASE 12.2: Verificar validez de sesión offline cada hora
    * Si la sesión expiró (>24h), se debe cerrar automáticamente
    */
@@ -83,12 +131,35 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
 
   /**
    * Cargar jugadas pendientes desde SQLite
+   * Filtra automáticamente las jugadas que no sean del día actual
    */
   const loadPendingPlays = async () => {
     try {
       const plays = await OfflineStorage.getPendingPlays();
-      setPendingPlays(plays || []);
-    } catch (error) {setPendingPlays([]);
+      
+      // Filtrar solo jugadas del día actual (hora local)
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; // YYYY-MM-DD
+      
+      const todayPlays = (plays || []).filter(play => {
+        if (!play.created_at) return false;
+        
+        // Extraer fecha de created_at
+        // Formato puede ser: "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DDTHH:mm:ssZ"
+        const playDate = play.created_at.split(' ')[0].split('T')[0]; // YYYY-MM-DD
+        return playDate === today;
+      });
+      
+      // Log si se filtraron jugadas antiguas
+      const filteredCount = (plays || []).length - todayPlays.length;
+      if (filteredCount > 0) {
+        console.log(`[OfflineContext] ℹ️ Filtradas ${filteredCount} jugada(s) de días anteriores de la cola`);
+      }
+      
+      setPendingPlays(todayPlays);
+    } catch (error) {
+      console.error('[OfflineContext] Error cargando jugadas pendientes:', error);
+      setPendingPlays([]);
     }
   };
 

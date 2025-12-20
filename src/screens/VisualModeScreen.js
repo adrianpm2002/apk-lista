@@ -850,13 +850,23 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             });
           }
         } else {
-          // Batch insert exitoso
-          const successes = insertedData || [];
-          setPlays('');
-          setAmounts({ fijo:'', corrido:'', centena:'', parle:'', tripleta:'' });
-          setTotal(0);
-          setShowFieldErrors(false);
-          setInsertFeedback({ success: successes.length, fail: 0, duplicates: [] });
+          // Verificar que se insertaron registros
+          if (!insertedData || insertedData.length === 0) {
+            setInsertFeedback({ 
+              success: 0, 
+              fail: payloads.length, 
+              duplicates: [],
+              serverError: 'No se insertó ningún registro en la base de datos'
+            });
+          } else {
+            // Batch insert exitoso
+            const successes = insertedData || [];
+            setPlays('');
+            setAmounts({ fijo:'', corrido:'', centena:'', parle:'', tripleta:'' });
+            setTotal(0);
+            setShowFieldErrors(false);
+            setInsertFeedback({ success: successes.length, fail: 0, duplicates: [] });
+          }
         }
       } catch(err){
         console.error('Error general insertando jugadas', err);

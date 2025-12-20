@@ -2,6 +2,24 @@ import { useState } from 'react';
 import * as OfflineStorage from '../services/offlineStorageService';
 
 /**
+ * Obtener timestamp en hora local de La Habana, Cuba (UTC-5)
+ * NO usar toISOString() porque convierte a UTC
+ */
+const getLocalTimestamp = () => {
+  const now = new Date();
+  // Cuba está en UTC-5 (o UTC-4 en horario de verano)
+  // Formatear fecha local en formato ISO: YYYY-MM-DD HH:mm:ss
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
+/**
  * Hook para manejar el envío de jugadas en modo offline
  * Similar a usePlaySubmission pero guarda en SQLite en lugar de enviar a Supabase
  */
@@ -86,7 +104,7 @@ export const useOfflinePlaySubmission = () => {
         status: 'pending', // pending, sending, success, failed
         sync_attempts: 0,
         last_error: null,
-        created_at: new Date().toISOString(),
+        created_at: getLocalTimestamp(), // Hora local de La Habana, NO UTC
       };
 
       console.log('[OfflinePlay] Datos completos con info del caché:', {
@@ -208,7 +226,7 @@ export const useOfflinePlaySubmission = () => {
             status: 'pending',
             sync_attempts: 0,
             last_error: null,
-            created_at: new Date().toISOString(),
+            created_at: getLocalTimestamp(), // Hora local de La Habana, NO UTC
           };
         })
       );
