@@ -38,12 +38,18 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
   const [lotteries, setLotteries] = useState([]);
   const [activeJugadas, setActiveJugadas] = useState({});
   const [allLimits, setAllLimits] = useState({}); // Para almacenar límites de todas las loterías
+  const [expandedLotteries, setExpandedLotteries] = useState({}); // Para controlar acordeón
   
-  // Estados del modal
+  // Estados del modal de lotería
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedLottery, setSelectedLottery] = useState(null);
   const [currentLimits, setCurrentLimits] = useState({});
   const [limitsRecordId, setLimitsRecordId] = useState(null);
+  
+  // Estados del modal de horario
+  const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState(null);
+  const [currentScheduleLimits, setCurrentScheduleLimits] = useState({});
 
   // Orden de jugadas para mostrar
   const JUGADA_ORDER = ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'];
@@ -85,9 +91,14 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
     
     setLoading(true);
     try {
+      // Cargar loterías con sus horarios en una sola query
       const { data, error } = await supabase
         .from('loteria')
-        .select('id, nombre')
+        .select(`
+          id, 
+          nombre,
+          horarios:horario(id, nombre, hora_inicio, hora_fin, limite)
+        `)
         .eq('id_banco', bankId)
         .order('nombre');
       
@@ -276,7 +287,69 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
     } catch (error) {
       console.error('[lottery_limits] Error guardando límites:', error);
       Alert.alert(
+    
+
+  // Funciones para horarios
+  const toggleLotteryExpansion = (lotteryId) => {
+    setExpandedLotteries(prev => ({
+      ...prev,
+      [lotteryId]: !prev[lotteryId]
+    }));
+  };
+
+  const openScheduleModal = (schedule, lotteryName) => {
+    setSelectedSchedule({ ...schedule, lotteryName });
+    setCurrentScheduleLimits(schedule.limite || {});
+    setScheduleModalVisible(true);
+  };
+
+  const handleScheduleLimitChange = (jugada, value) => {
+    setCurrentScheduleLimits(prev => ({
+      ...prev,
+      [jugada]: value
+    }));
+  };
+
+  const saveScheduleLimits = async () => {
+    if (!selectedSchedule) return;
+    
+    setSaving(true);
+    try {
+      // Convertir valores a números y filtrar vacíos
+      const processedLimits = {};
+      Object.entries(currentScheduleLimits).forEach(([jugada, value]) => {
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue) && numValue > 0) {
+          processedLimits[jugada] = numValue;
+        }
+      });
+
+      // Actualizar directamente en la tabla horario
+      const { error } = await supabase
+        .from('horario')
+        .update({ limite: processedLimits })
+        .eq('id', selectedSchedule.id);
+      
+      if (error) {
+        console.error('[schedule_limits] Error actualizando:', error);
+        throw error;
+      }
+      
+      Alert.alert('Éxito', 'Límites del horario guardados correctamente');
+      
+      // Recargar loterías para actualizar la vista
+      await loadLotteries();
+      
+      setScheduleModalVisible(false);
+    } catch (error) {
+      console.error('[schedule_limits] Error guardando límites:', error);
+      Alert.alert(
         'Error',
+        `No se pudieron guardar los límites: ${error.message || 'Error desconocido'}`
+      );
+    }
+    setSaving(false);
+  };    'Error',
         `No se pudieron guardar los límites: ${error.message || 'Error desconocido'}`
       );
     }
@@ -287,6 +360,8 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
     const itemLimits = allLimits[item.id] || {};
     const hasLimits = Object.keys(itemLimits).length > 0;
     const activeJugadasList = getActiveJugadasList(item.id);
+    const isExpanded = expandedLotteries[item.id] || false;
+    const schedules = item.horarios || [];
     
     // Filtrar solo las jugadas que tienen límites configurados
     const configuredLimits = activeJugadasList.filter(jugada => itemLimits[jugada]);
@@ -301,42 +376,119 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
     };
     
     return (
-      <View style={styles.lotteryItem}>
-        <View style={styles.lotteryInfo}>
-          <Text style={styles.lotteryName}>
-            {item.nombre}
-          </Text>
-          
-          {hasLimits ? (
-            <View style={styles.limitsPreview}>
-              <Text style={styles.limitsPreviewTitle}>
-                Límites configurados:
-              </Text>
-              {createLimitRows().map((row, rowIndex) => (
-                <View key={rowIndex} style={styles.limitRow}>
-                  {row.map(jugada => (
-                    <View key={jugada} style={styles.limitChip}>
-                      <Text style={styles.limitChipText}>
-                        {jugada.charAt(0).toUpperCase() + jugada.slice(1)}: ${itemLimits[jugada].toLocaleString()}
-                      </Text>
+      <View style={styles.lotteryContainer}>
+        {/* Card de Lotería */}
+        <TouchableOpacity 
+          style={styles.lotteryItem}
+          onPress={() => toggleLotteryExpansion(item.id)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.lotteryHeader}>
+            <View style={styles.lotteryInfo}>
+              <View style={styles.lotteryTitleRow}>
+                <Text style={styles.expandIcon}>
+                  {isExpanded ? '📂' : '📁'}
+                </Text>
+                <Text style={styles.lotteryName}>
+                  {item.nombre}
+                </Text>
+                <Text style={styles.scheduleCount}>
+                  ({schedules.length} horario{schedules.length !== 1 ? 's' : ''})
+                </Text>
+              </View>
+              
+              {hasLimits ? (
+                <View style={styles.limitsPreview}>
+                  <Text style={styles.limitsPreviewTitle}>
+                    Límites de lotería:
+                  </Text>
+                  {createLimitRows().map((row, rowIndex) => (
+                    <View key={rowIndex} style={styles.limitRow}>
+                      {row.map(jugada => (
+                        <View key={jugada} style={styles.limitChip}>
+                          <Text style={styles.limitChipText}>
+                            {jugada.charAt(0).toUpperCase() + jugada.slice(1)}: ${itemLimits[jugada].toLocaleString()}
+                          </Text>
+                        </View>
+                      ))}
                     </View>
                   ))}
                 </View>
-              ))}
+              ) : (
+                <Text style={styles.noLimitsText}>
+                  Sin límites de lotería
+                </Text>
+              )}
             </View>
-          ) : (
-            <Text style={styles.noLimitsText}>
-              Sin límites configurados
-            </Text>
-          )}
-        </View>
-        
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => openEditModal(item)}
-        >
-          <Text style={styles.editButtonText}>Editar Límites</Text>
+            
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                openEditModal(item);
+              }}
+            >
+              <Text style={styles.editButtonText}>✏️</Text>
+            </TouchableOpacity>
+          </View>
         </TouchableOpacity>
+
+        {/* Horarios expandibles */}
+        {isExpanded && schedules.length > 0 && (
+          <View style={styles.schedulesContainer}>
+            {schedules.map((schedule, index) => {
+              const scheduleLimits = schedule.limite || {};
+              const hasScheduleLimits = Object.keys(scheduleLimits).length > 0;
+              const scheduleLimitsArray = Object.entries(scheduleLimits).filter(([, value]) => value > 0);
+              
+              return (
+                <View key={schedule.id} style={styles.scheduleItem}>
+                  <View style={styles.scheduleInfo}>
+                    <View style={styles.scheduleHeader}>
+                      <Text style={styles.scheduleIcon}>🕐</Text>
+                      <View style={styles.scheduleDetails}>
+                        <Text style={styles.scheduleName}>
+                          {schedule.nombre}
+                        </Text>
+                        <Text style={styles.scheduleTime}>
+                          {schedule.hora_inicio?.substring(0, 5)} - {schedule.hora_fin?.substring(0, 5)}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    {hasScheduleLimits ? (
+                      <View style={styles.scheduleLimits}>
+                        <Text style={styles.scheduleLimitsTitle}>
+                          Límites del horario:
+                        </Text>
+                        <View style={styles.scheduleLimitsList}>
+                          {scheduleLimitsArray.map(([jugada, value]) => (
+                            <View key={jugada} style={styles.scheduleLimitChip}>
+                              <Text style={styles.scheduleLimitChipText}>
+                                {jugada.charAt(0).toUpperCase() + jugada.slice(1)}: ${value.toLocaleString()}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    ) : (
+                      <Text style={styles.noScheduleLimitsText}>
+                        Sin límites específicos
+                      </Text>
+                    )}
+                  </View>
+                  
+                  <TouchableOpacity
+                    style={styles.scheduleEditButton}
+                    onPress={() => openScheduleModal(schedule, item.nombre)}
+                  >
+                    <Text style={styles.scheduleEditButtonText}>✏️</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+        )}
       </View>
     );
   };
@@ -397,7 +549,7 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
         />
       )}
 
-      {/* Modal de edición de límites */}
+      {/* Modal de edición de límites de lotería */}
       {modalVisible && (
         <Modal
           visible={true}
@@ -409,7 +561,7 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
-                  Límites - {selectedLottery?.nombre}
+                  Límites de Lotería - {selectedLottery?.nombre}
                 </Text>
                 <TouchableOpacity onPress={() => setModalVisible(false)}>
                   <Text style={styles.modalCloseButton}>×</Text>
@@ -436,6 +588,76 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
                 <TouchableOpacity
                   style={[styles.modalButton, styles.saveButton, saving && styles.saveButtonDisabled]}
                   onPress={saveLimits}
+                  disabled={saving}
+                >
+                  <Text style={styles.modalButtonText}>
+                    {saving ? 'Guardando...' : 'Guardar'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Modal de edición de límites de horario */}
+      {scheduleModalVisible && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setScheduleModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>
+                    Límites de Horario
+                  </Text>
+                  <Text style={styles.modalSubtitle}>
+                    {selectedSchedule?.lotteryName} - {selectedSchedule?.nombre}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setScheduleModalVisible(false)}>
+                  <Text style={styles.modalCloseButton}>×</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalBody}>
+                {getActiveJugadasList(selectedSchedule?.id_loteria).length > 0 ? (
+                  getActiveJugadasList(selectedSchedule?.id_loteria).map((jugada) => (
+                    <View key={jugada} style={styles.limitInputRow}>
+                      <Text style={styles.limitLabel}>
+                        {jugada.charAt(0).toUpperCase() + jugada.slice(1)}:
+                      </Text>
+                      <TextInput
+                        style={styles.limitInput}
+                        value={currentScheduleLimits[jugada]?.toString() || ''}
+                        onChangeText={(value) => handleScheduleLimitChange(jugada, value)}
+                        placeholder="0.00"
+                        placeholderTextColor="#95a5a6"
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.noJugadasText}>
+                    No hay jugadas activas configuradas
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => setScheduleModalVisible(false)}
+                >
+                  <Text style={styles.modalButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.saveButton, saving && styles.saveButtonDisabled]}
+                  onPress={saveScheduleLimits}
                   disabled={saving}
                 >
                   <Text style={styles.modalButtonText}>
@@ -509,28 +731,46 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 20
   },
+  lotteryContainer: {
+    marginBottom: 15
+  },
   lotteryItem: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 20,
-    marginBottom: 15,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    padding: 16,
     ...createShadowStyle(0, 2, '#000000', 0.1, 4)
   },
   lotteryItemDark: {
     backgroundColor: '#2c3e50'
   },
+  lotteryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start'
+  },
+  lotteryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  expandIcon: {
+    fontSize: 18,
+    marginRight: 8
+  },
+  scheduleCount: {
+    fontSize: 12,
+    color: '#95a5a6',
+    marginLeft: 8,
+    fontStyle: 'italic'
+  },
   lotteryInfo: {
     flex: 1,
-    marginRight: 15
+    marginRight: 10
   },
   lotteryName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#2D5016',
-    marginBottom: 8
+    color: '#2D5016'
   },
   lotteryNameDark: {
     color: '#E8F5E8'
@@ -539,7 +779,7 @@ const styles = StyleSheet.create({
     marginTop: 4
   },
   limitsPreviewTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     color: '#4CAF50',
     marginBottom: 6
@@ -571,32 +811,112 @@ const styles = StyleSheet.create({
   limitChipTextDark: {
     color: '#E8F5E8'
   },
-  limitPreviewItem: {
-    fontSize: 11,
-    color: '#666',
-    marginBottom: 1
-  },
-  limitPreviewItemDark: {
-    color: '#bdc3c7'
-  },
   noLimitsText: {
-    fontSize: 12,
-    color: '#e74c3c',
-    fontStyle: 'italic'
+    fontSize: 11,
+    color: '#95a5a6',
+    fontStyle: 'italic',
+    marginTop: 4
   },
   noLimitsTextDark: {
-    color: '#ec7063'
+    color: '#bdc3c7'
   },
   editButton: {
     backgroundColor: '#4CAF50',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8
+    borderRadius: 8,
+    minWidth: 40,
+    alignItems: 'center'
   },
   editButtonText: {
-    color: '#FFFFFF',
+    fontSize: 18
+  },
+  // Estilos para horarios
+  schedulesContainer: {
+    marginTop: 10,
+    paddingLeft: 12,
+    borderLeftWidth: 2,
+    borderLeftColor: '#E8F5E8'
+  },
+  scheduleItem: {
+    backgroundColor: '#F8FDF5',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#E8F5E8'
+  },
+  scheduleInfo: {
+    flex: 1,
+    marginRight: 8
+  },
+  scheduleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6
+  },
+  scheduleIcon: {
+    fontSize: 16,
+    marginRight: 8
+  },
+  scheduleDetails: {
+    flex: 1
+  },
+  scheduleName: {
     fontSize: 14,
-    fontWeight: '600'
+    fontWeight: '600',
+    color: '#2D5016',
+    marginBottom: 2
+  },
+  scheduleTime: {
+    fontSize: 11,
+    color: '#7F8C8D'
+  },
+  scheduleLimits: {
+    marginTop: 6
+  },
+  scheduleLimitsTitle: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#3498DB',
+    marginBottom: 4
+  },
+  scheduleLimitsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap'
+  },
+  scheduleLimitChip: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginRight: 4,
+    marginBottom: 3
+  },
+  scheduleLimitChipText: {
+    fontSize: 9,
+    color: '#1976D2',
+    fontWeight: '500'
+  },
+  noScheduleLimitsText: {
+    fontSize: 10,
+    color: '#95a5a6',
+    fontStyle: 'italic',
+    marginTop: 4
+  },
+  scheduleEditButton: {
+    backgroundColor: '#3498DB',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    minWidth: 36,
+    alignItems: 'center'
+  },
+  scheduleEditButtonText: {
+    fontSize: 16
   },
   modalOverlay: {
     flex: 1,
@@ -627,6 +947,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2D5016',
     flex: 1
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#7F8C8D',
+    marginTop: 4
   },
   modalTitleDark: {
     color: '#E8F5E8'
