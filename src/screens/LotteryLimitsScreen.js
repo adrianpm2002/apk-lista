@@ -52,7 +52,7 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
   const [currentScheduleLimits, setCurrentScheduleLimits] = useState({});
 
   // Orden de jugadas para mostrar
-  const JUGADA_ORDER = ['fijo', 'corrido', 'posicion', 'parle', 'centena', 'tripleta'];
+  const JUGADA_ORDER = ['fijo', 'corrido', 'parle', 'centena', 'tripleta'];
 
   // Cargar rol y bankId
   useEffect(() => {
@@ -97,7 +97,7 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
         .select(`
           id, 
           nombre,
-          horarios:horario(id, nombre, hora_inicio, hora_fin, limite)
+          horarios:horario(id, nombre, hora_inicio, hora_fin, limite, id_loteria)
         `)
         .eq('id_banco', bankId)
         .order('nombre');
@@ -161,8 +161,8 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
 
   const openEditModal = async (lottery) => {
     setSelectedLottery(lottery);
-    await loadLotteryLimits(lottery.id);
     setModalVisible(true);
+    await loadLotteryLimits(lottery.id);
   };
 
   const loadLotteryLimits = async (lotteryId) => {
@@ -287,7 +287,12 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
     } catch (error) {
       console.error('[lottery_limits] Error guardando límites:', error);
       Alert.alert(
-    
+        'Error',
+        `No se pudieron guardar los límites: ${error.message || 'Error desconocido'}`
+      );
+    }
+    setSaving(false);
+  };
 
   // Funciones para horarios
   const toggleLotteryExpansion = (lotteryId) => {
@@ -345,11 +350,6 @@ const LotteryLimitsContent = ({ navigation, onToggleDarkMode }) => {
       console.error('[schedule_limits] Error guardando límites:', error);
       Alert.alert(
         'Error',
-        `No se pudieron guardar los límites: ${error.message || 'Error desconocido'}`
-      );
-    }
-    setSaving(false);
-  };    'Error',
         `No se pudieron guardar los límites: ${error.message || 'Error desconocido'}`
       );
     }

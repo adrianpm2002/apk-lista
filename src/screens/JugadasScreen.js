@@ -220,7 +220,6 @@ const JugadasScreen = ({ navigation, onModeVisibilityChange, route }) => {
 const DEFAULT_JUGADAS_JSON = {
   fijo: true,
   corrido: true,
-  posicion: true,
   parle: true,
   centena: true,
   tripleta: true,
@@ -247,7 +246,6 @@ const JugadasContent = React.memo(({
   const [availablePlayTypes] = useState([
     { id: 'fijo', label: 'Fijo', enabled: true },
     { id: 'corrido', label: 'Corrido', enabled: true },
-    { id: 'posicion', label: 'Posición', enabled: true },
     { id: 'parle', label: 'Parle', enabled: true },
     { id: 'centena', label: 'Centena', enabled: true },
     { id: 'tripleta', label: 'Tripleta', enabled: true },
