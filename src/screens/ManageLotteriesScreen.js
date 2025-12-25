@@ -667,15 +667,12 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
                     <TouchableOpacity
                       style={[
                         styles.actionButton, 
-                        styles.deleteButton,
-                        hasOpenSchedules && styles.disabledButton
+                        styles.deleteButton
                       ]}
                       onPress={() => handleDeleteLottery(item.id)}
-                      disabled={hasOpenSchedules}
                     >
                       <Text style={[
-                        styles.actionButtonText,
-                        hasOpenSchedules && styles.disabledText
+                        styles.actionButtonText
                       ]}>🗑️ Eliminar</Text>
                     </TouchableOpacity>
                   </View>
@@ -902,28 +899,22 @@ const ManageLotteriesContent = ({ navigation, onModeVisibilityChange }) => {
                             onPress={() => handleEditSchedule(schedule)}
                             style={[
                               styles.scheduleActionButton, 
-                              styles.editButton,
-                              isOpen && styles.disabledButton
+                              styles.editButton
                             ]}
-                            disabled={isOpen}
                           >
                             <Text style={[
-                              styles.scheduleActionText,
-                              isOpen && styles.disabledText
+                              styles.scheduleActionText
                             ]}>✏️</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() => handleDeleteSchedule(schedule.id)}
                             style={[
                               styles.scheduleActionButton, 
-                              styles.deleteScheduleButton,
-                              isOpen && styles.disabledButton
+                              styles.deleteScheduleButton
                             ]}
-                            disabled={isOpen}
                           >
                             <Text style={[
-                              styles.scheduleActionText,
-                              isOpen && styles.disabledText
+                              styles.scheduleActionText
                             ]}>🗑️</Text>
                           </TouchableOpacity>
                         </View>

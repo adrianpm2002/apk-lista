@@ -161,7 +161,7 @@ const AppNavigator = () => (
     />
 
     <Stack.Screen 
-      name="RealizarBote" 
+      name="Bote" 
       component={RealizarBoteScreen} 
       options={{
         headerShown: false,

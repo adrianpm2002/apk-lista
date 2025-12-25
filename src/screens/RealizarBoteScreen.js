@@ -355,7 +355,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
     try {
       const { data, error } = await supabase
         .from('realizar_bote')
-        .insert({ horario_id: selectedSchedule })
+        .insert({ horario_id: selectedSchedule, listero_id: currentUserId })
         .select();
       
       if (error) {
@@ -369,6 +369,9 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
       setSelectedLottery(null);
       setSelectedSchedule(null);
       setScheduleOptions([]);
+      
+      // Actualizar datos del bote automáticamente
+      await fetchBoteData();
       
       // Limpiar mensaje de éxito después de 3 segundos
       setTimeout(() => setFeedbackMessage(null), 3000);
@@ -686,7 +689,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
       <View style={styles.container}>
         <View style={styles.header}>
           <SideBarToggle inline onToggle={toggleSidebar} style={styles.sidebarButton} />
-          <Text style={styles.headerTitle}>Realizar Bote</Text>
+          <Text style={styles.headerTitle}>Bote</Text>
         </View>
 
         {/* Feedback Banner */}
@@ -770,7 +773,7 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <SideBarToggle inline onToggle={toggleSidebar} style={styles.sidebarButton} />
-        <Text style={styles.headerTitle}>Realizar Bote</Text>
+        <Text style={styles.headerTitle}>Bote</Text>
         <TouchableOpacity
           style={styles.exportButton}
           onPress={handleExportPDF}
