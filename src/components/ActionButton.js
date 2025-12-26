@@ -72,8 +72,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   medium: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   large: {
     paddingHorizontal: 24,
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   mediumText: {
-    fontSize: 15,
+    fontSize: 12,
   },
   largeText: {
     fontSize: 17,

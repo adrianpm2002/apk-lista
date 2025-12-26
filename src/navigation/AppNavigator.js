@@ -16,6 +16,7 @@ import SavedPlaysScreen from '../screens/SavedPlaysScreen';
 import BankCapacityScreen from '../screens/BankCapacityScreen';
 import ListerCapacityScreen from '../screens/ListerCapacityScreen';
 import RealizarBoteScreen from '../screens/RealizarBoteScreen';
+import EstadisticasBoteScreen from '../screens/EstadisticasBoteScreen';
 import OfflinePlayRegistryScreen from '../screens/OfflinePlayRegistryScreen';
 
 const Stack = createNativeStackNavigator();
@@ -163,6 +164,15 @@ const AppNavigator = () => (
     <Stack.Screen 
       name="Bote" 
       component={RealizarBoteScreen} 
+      options={{
+        headerShown: false,
+        gestureEnabled: Platform.OS === 'ios',
+      }}
+    />
+
+    <Stack.Screen 
+      name="EstadisticasBote" 
+      component={EstadisticasBoteScreen} 
       options={{
         headerShown: false,
         gestureEnabled: Platform.OS === 'ios',

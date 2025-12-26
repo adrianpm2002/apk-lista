@@ -552,7 +552,6 @@ class AuthService {
       const activeSession = await OfflineStorage.default.getActiveOfflineSession();
       
       if (!activeSession) {
-        console.log('[AuthService] No hay sesión activa offline');
         return null;
       }
 

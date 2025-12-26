@@ -86,36 +86,36 @@ const DropdownPicker = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 12,
+    marginBottom: 4,
   },
   label: {
-    fontSize: 14,
+    fontSize: 10,
     fontWeight: '600',
     color: '#2D5016',
-    marginBottom: 6,
-    marginLeft: 4,
+    marginBottom: 2,
+    marginLeft: 2,
   },
   dropdown: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1.5,
+    borderRadius: 6,
+    borderWidth: 1,
     borderColor: '#B8D4A8',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     shadowColor: '#2D5016',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 1,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   dropdownText: {
-    fontSize: 15,
+    fontSize: 11,
     color: '#2D5016',
     flex: 1,
   },
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     color: '#8FA987',
   },
   arrow: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#2D5016',
   },
   overlay: {
