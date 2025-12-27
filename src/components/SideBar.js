@@ -89,6 +89,7 @@ const roleOptionsMap = {
   { id: 'insertResults', icon: '🎯', title: 'Resultados' },
   { id: 'createUser', icon: '👥', title: 'Clientes' },
   { id: 'clientSchedules', icon: '🕒', title: 'Horarios Clientes' },
+  { id: 'clientPrices', icon: '💵', title: 'Precios Clientes' },
   { id: 'clientLimits', icon: '🚫', title: 'Límites Clientes' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
@@ -194,6 +195,10 @@ const configOptions = role ? roleOptionsMap[role] : null;
     case 'clientLimits':
       handleClose();
       navigation.navigate('ListerClientLimits');
+      break;
+    case 'clientPrices':
+      handleClose();
+      navigation.navigate('ListerPrices');
       break;
     case 'prices':
       handleClose();
