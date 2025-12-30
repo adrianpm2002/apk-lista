@@ -170,6 +170,7 @@ const AppNavigator = () => (
       }}
     />
 
+    {/*
     <Stack.Screen 
       name="EstadisticasBote" 
       component={EstadisticasBoteScreen} 
@@ -178,6 +179,7 @@ const AppNavigator = () => (
         gestureEnabled: Platform.OS === 'ios',
       }}
     />
+    */}
 
     <Stack.Screen 
       name="OfflinePlayRegistry" 
