@@ -81,7 +81,7 @@ const roleOptionsMap = {
     { id: 'limitedNumbers', icon: '📊', title: 'Límites' },
     { id: 'bankCapacity', icon: '🔋', title: 'Capacidad del Banco' },
     { id: 'bote', icon: '💸', title: 'Bote' },
-    { id: 'estadisticasBote', icon: '📊', title: 'Estadísticas Bote' },
+    // { id: 'estadisticasBote', icon: '📊', title: 'Estadísticas Bote' },
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   collector: [
@@ -90,7 +90,7 @@ const roleOptionsMap = {
     { id: 'insertResults', icon: '🎯', title: 'Resultados' },
     { id: 'createUser', icon: '🧑‍💼', title: 'Usuarios' },
     { id: 'bote', icon: '💸', title: 'Bote' },
-    { id: 'estadisticasBote', icon: '📊', title: 'Estadísticas Bote' },
+    // { id: 'estadisticasBote', icon: '📊', title: 'Estadísticas Bote' },
     { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ],
   listero: [
@@ -99,7 +99,7 @@ const roleOptionsMap = {
   { id: 'statistics', icon: '📈', title: 'Estadísticas' },
   { id: 'insertResults', icon: '🎯', title: 'Resultados' },
   { id: 'bote', icon: '💸', title: 'Bote' },
-  { id: 'estadisticasBote', icon: '📊', title: 'Estadísticas Bote' },
+  // { id: 'estadisticasBote', icon: '📊', title: 'Estadísticas Bote' },
   { id: 'settings', icon: '⚙️', title: 'Configuración' },
   ]
 };
@@ -221,10 +221,10 @@ const configOptions = role ? roleOptionsMap[role] : null;
       handleClose();
       navigation.navigate('Bote');
       break;
-    case 'estadisticasBote':
-      handleClose();
-      navigation.navigate('EstadisticasBote');
-      break;
+    // case 'estadisticasBote':
+    //   handleClose();
+    //   navigation.navigate('EstadisticasBote');
+    //   break;
     case 'collectorStatistics':
       handleClose();
       navigation.navigate('CollectorStatistics');
