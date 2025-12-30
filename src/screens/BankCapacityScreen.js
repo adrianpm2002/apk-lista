@@ -6,7 +6,6 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
-  Platform,
   TouchableOpacity,
   TextInput,
 } from 'react-native';
@@ -142,29 +141,37 @@ const BankCapacityContent = ({ navigation, onModeVisibilityChange }) => {
     loadUserProfile();
   }, [navigation]);
 
+  // Nueva función para paginación de capacidades del banco
   const fetchBankCapacities = useCallback(async () => {
     if (!currentBankId) return;
-
     setLoading(true);
-
     try {
-      const { data, error } = await supabase
-        .from('v_capacidades_banco')
-        .select('*')
-        .eq('id_banco', currentBankId);
-
-      if (error) throw error;
-
-      // Ordenar en el cliente para garantizar orden correcto
-      let sortedData = data || [];
+      let allData = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('v_capacidades_banco')
+          .select('*')
+          .eq('id_banco', currentBankId)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allData = allData.concat(data);
+          hasMore = data.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+        if (page > 250) break; // Límite de seguridad
+      }
+      let sortedData = allData;
       if (sortBy === 'capacity') {
-        // Ordenar por capacidad descendente (mayor a menor)
         sortedData.sort((a, b) => (b.used_today_banco || 0) - (a.used_today_banco || 0));
       } else {
-        // Ordenar por número ascendente (numéricamente)
         sortedData.sort((a, b) => parseInt(a.numero) - parseInt(b.numero));
       }
-
       setCapacityData(sortedData);
     } catch (error) {
       console.error('Error fetching bank capacities:', error);

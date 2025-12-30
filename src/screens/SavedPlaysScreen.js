@@ -49,21 +49,33 @@ const SavedPlaysScreen = ({ navigation, route }) => {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [copiedBanner, setCopiedBanner] = useState(false);
 
-  // Función auxiliar para cargar jugadas con una vista específica
+  // Función auxiliar para cargar jugadas con paginación de 1000 en 1000
   const loadSavedPlaysWithView = async (viewName, userId) => {
     try {
       setIsLoading(true);
-      
-      const { data, error } = await supabase
-        .from(viewName)
-        .select('*')
-        .eq('id_listero', userId)
-        .order('fecha_jugada', { ascending: false });
-        
-      if (error) throw error;
-      
+      let allData = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from(viewName)
+          .select('*')
+          .eq('id_listero', userId)
+          .order('fecha_jugada', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allData = allData.concat(data);
+          hasMore = data.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+        if (page > 250) break; // Límite de seguridad
+      }
       // Mapear los datos de la view al formato esperado por la UI
-      const mapped = (data || []).map(r => {
+      const mapped = (allData || []).map(r => {
         // Extraer hora en formato AM/PM
         const timestamp = new Date(r.fecha_jugada);
         
@@ -218,6 +230,28 @@ const SavedPlaysScreen = ({ navigation, route }) => {
     };
     loadData();
   },[]));
+
+  // Reemplazar las llamadas a supabase por la función paginada
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const { data: userRes } = await supabase.auth.getUser();
+        const userId = userRes?.user?.id;
+        if (!userId) return;
+        if (modoSantiago) {
+          await loadSavedPlaysWithView('v_registro_diario_santiago', userId);
+        } else {
+          await loadSavedPlaysWithView('v_registro_diario', userId);
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [modoSantiago]);
 
   // Derivar opciones dinámicas cada vez que cambian las jugadas cargadas
   useEffect(()=> {
