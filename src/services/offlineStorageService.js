@@ -373,14 +373,8 @@ export const initOfflineDB = async () => {
 };
 
 // ========================================
-// FUNCIONES PLACEHOLDER (implementar en fases siguientes)
+// JUGADAS PENDIENTES - FASE 6
 // ========================================
-
-// Jugadas
-export const savePlayOffline = async (playData) => {
-  await addLog('TODO', 'savePlayOffline not implemented yet', playData);
-  throw new Error('Not implemented yet');
-};
 
 export const getPendingPlays = async () => {
   try {const db = await getDatabase();
@@ -1414,6 +1408,8 @@ export const saveMultiplePlaysTransaction = async (playsArray) => {
 };
 
 export default {
+  // Base de datos
+  getDatabase,
   initOfflineDB,
   addLog,
   getLogs,

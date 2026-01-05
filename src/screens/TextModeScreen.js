@@ -853,7 +853,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
                 navigation={navigation}
                 onModeVisibilityChange={onModeVisibilityChange}
                 visibleModes={visibleModes}
-                role="listero"
+                role={userProfile?.role || 'listero'}
               />
           </View>
           <View style={[styles.rightButtonsGroup, { pointerEvents: 'box-none' }]}>
@@ -1157,7 +1157,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         onToggleDarkMode={onToggleDarkMode}
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
-        role="listero"
+        role={userProfile?.role || 'listero'}
       />
   {/* CapacityModal ahora gestionado por BatteryButton (🔋) */}
     </View>

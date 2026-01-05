@@ -1130,7 +1130,7 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
   visibleModes={visibleModes}
-        role="listero"
+        role={userProfile?.role || 'listero'}
       />
   {/* CapacityModal ahora gestionado por BatteryButton (🔋) */}
     </View>

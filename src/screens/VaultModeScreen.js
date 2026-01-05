@@ -1258,7 +1258,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
         navigation={navigation}
         onModeVisibilityChange={onModeVisibilityChange}
         visibleModes={visibleModes}
-        role="listero"
+        role={userProfile?.role || 'listero'}
       />
     </View>
   );

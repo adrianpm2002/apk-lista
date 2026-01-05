@@ -12,15 +12,32 @@ import * as OfflineStorage from './offlineStorageService';
 const LAST_CHECK_DATE_KEY = '@offline_last_check_date';
 
 /**
+ * Obtener fecha local en formato YYYY-MM-DD
+ * NO usar toISOString() porque convierte a UTC
+ */
+const getLocalDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
  * Paso 10.1: Detectar si cambió el día desde la última verificación
  */
 export const detectDayChange = async () => {
   try {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const lastCheckDate = await AsyncStorage.getItem(LAST_CHECK_DATE_KEY);// Si es la primera vez o cambió el día
-    if (!lastCheckDate || lastCheckDate !== today) {return true;
-    }return false;
-  } catch (error) {return false;
+    const today = getLocalDateString(); // Usar hora local, NO UTC
+    const lastCheckDate = await AsyncStorage.getItem(LAST_CHECK_DATE_KEY);
+    // Si es la primera vez o cambió el día
+    if (!lastCheckDate || lastCheckDate !== today) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('[DayChangeService] Error detectando cambio de día:', error);
+    return false;
   }
 };
 
@@ -31,11 +48,13 @@ export const detectDayChange = async () => {
  * sin importar su estado (pending, success, failed)
  */
 export const cleanOldPlays = async () => {
-  try {const db = await OfflineStorage.getDatabase();
-    if (!db) {return 0;
+  try {
+    const db = await OfflineStorage.getDatabase();
+    if (!db) {
+      return 0;
     }
 
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const today = getLocalDateString(); // Usar hora local, NO UTC
 
     // Contar jugadas antes de limpiar (todas, sin filtro de status)
     const countBefore = await new Promise((resolve, reject) => {
@@ -43,22 +62,29 @@ export const cleanOldPlays = async () => {
         tx.executeSql(
           `SELECT COUNT(*) as total FROM offline_plays`,
           [],
-          (_, { rows }) => resolve(rows._array[0].total),
-          (_, error) => {reject(error);
+          (_, results) => resolve(results.rows.item(0).total),
+          (_, error) => {
+            console.error('[DayChangeService] Error contando jugadas:', error);
+            reject(error);
             return false;
           }
         );
       });
-    });// Eliminar TODAS las jugadas del día anterior (sin filtro de status)
+    });
+
+    // Eliminar TODAS las jugadas del día anterior (sin filtro de status)
     await new Promise((resolve, reject) => {
       db.transaction(tx => {
         tx.executeSql(
           `DELETE FROM offline_plays 
            WHERE DATE(created_at) < DATE(?)`,
           [today],
-          (_, result) => {resolve(result);
+          (_, result) => {
+            resolve(result);
           },
-          (_, error) => {reject(error);
+          (_, error) => {
+            console.error('[DayChangeService] Error eliminando jugadas:', error);
+            reject(error);
             return false;
           }
         );
@@ -71,16 +97,21 @@ export const cleanOldPlays = async () => {
         tx.executeSql(
           `SELECT COUNT(*) as total FROM offline_plays`,
           [],
-          (_, { rows }) => resolve(rows._array[0].total),
-          (_, error) => {reject(error);
+          (_, results) => resolve(results.rows.item(0).total),
+          (_, error) => {
+            console.error('[DayChangeService] Error contando jugadas:', error);
+            reject(error);
             return false;
           }
         );
       });
     });
 
-    const deleted = countBefore - countAfter;return deleted;
-  } catch (error) {return 0;
+    const deleted = countBefore - countAfter;
+    return deleted;
+  } catch (error) {
+    console.error('[DayChangeService] Error limpiando jugadas antiguas:', error);
+    return 0;
   }
 };
 
@@ -89,8 +120,11 @@ export const cleanOldPlays = async () => {
  */
 export const updateLastCheckDate = async () => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    await AsyncStorage.setItem(LAST_CHECK_DATE_KEY, today);} catch (error) {}
+    const today = getLocalDateString(); // Usar hora local, NO UTC
+    await AsyncStorage.setItem(LAST_CHECK_DATE_KEY, today);
+  } catch (error) {
+    console.error('[DayChangeService] Error actualizando fecha:', error);
+  }
 };
 
 /**
@@ -103,16 +137,22 @@ export const updateLastCheckDate = async () => {
  * REGLA DE NEGOCIO: Elimina TODAS las jugadas del día anterior
  */
 export const checkAndCleanIfDayChanged = async () => {
-  try {const dayChanged = await detectDayChange();
+  try {
+    const dayChanged = await detectDayChange();
     
-    if (dayChanged) {// Limpiar TODAS las jugadas antiguas (sin importar estado)
+    if (dayChanged) {
+      // Limpiar TODAS las jugadas antiguas (sin importar estado)
       const deleted = await cleanOldPlays();
       
       // Actualizar fecha de última verificación
-      await updateLastCheckDate();return { dayChanged: true, deleted };
-    } else {return { dayChanged: false, deleted: 0 };
+      await updateLastCheckDate();
+      return { dayChanged: true, deleted };
+    } else {
+      return { dayChanged: false, deleted: 0 };
     }
-  } catch (error) {return { dayChanged: false, deleted: 0, error };
+  } catch (error) {
+    console.error('[DayChangeService] Error en checkAndCleanIfDayChanged:', error);
+    return { dayChanged: false, deleted: 0, error };
   }
 };
 
