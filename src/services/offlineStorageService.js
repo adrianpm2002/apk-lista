@@ -1455,7 +1455,7 @@ export default {
   saveJugadasActivas,
   getJugadasActivas,
   // Jugadas offline - FASE 6
-  savePlayOffline,
+  saveOfflinePlay,
   getPendingPlays,
   // Gestión avanzada - FASE 7
   getAllOfflinePlays,
