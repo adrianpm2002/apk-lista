@@ -55,6 +55,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const [playTypeError, setPlayTypeError] = useState(false);
   const [playsError, setPlaysError] = useState(false);
   const [amountError, setAmountError] = useState(false); // se usará si cualquier monto requerido falta
+  const [noteError, setNoteError] = useState(false); // true si la nota es inválida
   const [showFieldErrors, setShowFieldErrors] = useState(false); // sólo mostrar bordes rojos tras intento
   const [limitViolations, setLimitViolations] = useState([]); // [{numero, jugada, permitido, usado}]
 
@@ -195,6 +196,9 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       try {
         let lots = [];
         
+        // Determinar si debe usar solo SQLite (listero en móvil)
+        const useSqliteOnly = userProfile?.role === 'listero' && Platform.OS !== 'web';
+        
         // SIEMPRE cargar desde cache primero para respuesta rápida
         const cachedLots = await OfflineStorage.getLotteries(bankId);
         if (cachedLots && cachedLots.length > 0) {
@@ -202,8 +206,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           setLotteries(lots.map(l=>({ label:l.nombre, value:l.id })));
         }
         
-        // Si está online, actualizar desde Supabase en segundo plano
-        if (isOnline) {
+        // Si está online Y NO es listero en móvil, actualizar desde Supabase en segundo plano
+        if (isOnline && !useSqliteOnly) {
           try {
             const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
             if (data && data.length > 0) {
@@ -223,8 +227,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           setLotteries((lots||[]).map(l=>({ label:l.nombre, value:l.id })));
         }
         
-        // Cargar configuración de modo Santiago del banco
-        if (isOnline) {
+        // Cargar configuración de modo Santiago del banco (solo si online y NO es listero SQLite-only)
+        if (isOnline && !useSqliteOnly) {
           const { data: bankProfile, error: profileError } = await supabase
             .from('profiles')
             .select('modo_santiago, porciento')
@@ -247,8 +251,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           setAllJugadas(jugadas);
         }
         
-        // Si está online, actualizar desde Supabase en segundo plano
-        if (isOnline) {
+        // Si está online Y NO es listero en móvil, actualizar desde Supabase en segundo plano
+        if (isOnline && !useSqliteOnly) {
           try {
             const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
             if (jugRow?.jugadas && Object.keys(jugRow.jugadas).length > 0) {
@@ -342,12 +346,15 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
       try {
         const lotIds = lotteries.map(l=> l.value); // UUID strings
         
+        // Determinar si debe usar solo SQLite (listero en móvil)
+        const useSqliteOnly = userProfile?.role === 'listero' && Platform.OS !== 'web';
+        
         // SIEMPRE cargar desde cache primero
         const allSchedules = await OfflineStorage.getSchedules(null);
         let rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
         
-        // Si está online, actualizar desde Supabase en segundo plano
-        if (isOnline) {
+        // Si está online Y NO es listero en móvil, actualizar desde Supabase en segundo plano
+        if (isOnline && !useSqliteOnly) {
           try {
             const { data } = await supabase
               .from('horario')
@@ -667,6 +674,13 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         setPlaysError(true);
         hasErrors = true;
       }
+    }
+
+    // Validar que la nota no sea "bote" (palabra reservada por el sistema)
+    if (!hasErrors && note.trim().toLowerCase() === 'bote') {
+      setNoteError(true);
+      setInsertFeedback({ success: 0, fail: 1, blocked: true, message: 'La nota "bote" está reservada por el sistema y no se puede utilizar' });
+      hasErrors = true;
     }
 
     if (hasErrors) {

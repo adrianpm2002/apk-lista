@@ -180,6 +180,9 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
     let cancelled=false;
     const loadLots = async () => {
       try {
+        // Determinar si debe usar solo SQLite (listero en móvil)
+        const useSqliteOnly = userProfile?.role === 'listero' && Platform.OS !== 'web';
+        
         // SIEMPRE cargar desde cache primero
         let lots = await OfflineStorage.getLotteries(bankId);
         if (cancelled) return;
@@ -187,8 +190,8 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
           setLotteries(lots.map(l=> ({ label:l.nombre, value:l.id })));
         }
         
-        // Si está online, actualizar desde Supabase
-        if (isOnline) {
+        // Si está online Y NO es listero en móvil, actualizar desde Supabase
+        if (isOnline && !useSqliteOnly) {
           try {
             const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
             if (data && data.length > 0) {
@@ -203,8 +206,8 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
           }
         }
         
-        // Cargar configuración de modo Santiago del banco
-        if (isOnline && !cancelled) {
+        // Cargar configuración de modo Santiago del banco (solo si NO es listero SQLite-only)
+        if (isOnline && !cancelled && !useSqliteOnly) {
           const { data: bankProfile } = await supabase
             .from('profiles')
             .select('modo_santiago, porciento')
@@ -230,12 +233,15 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
       try {
         const lotIds = lotteries.map(l=> l.value);
         
+        // Determinar si debe usar solo SQLite (listero en móvil)
+        const useSqliteOnly = userProfile?.role === 'listero' && Platform.OS !== 'web';
+        
         // SIEMPRE cargar desde cache primero
         const allSchedules = await OfflineStorage.getSchedules(null);
         let rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
         
-        // Si está online, actualizar desde Supabase
-        if (isOnline) {
+        // Si está online Y NO es listero en móvil, actualizar desde Supabase
+        if (isOnline && !useSqliteOnly) {
           try {
             const { data } = await supabase
               .from('horario')
@@ -657,6 +663,13 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         setInsertFeedback({ success: 0, fail: 1, blocked: true, message: `Líneas duplicadas: ${duplicateLinesFound.slice(0,3).join(', ')}` });
         hasErrors = true;
       }
+    }
+
+    // Validar que la nota no sea "bote" (palabra reservada por el sistema)
+    if (!hasErrors && note.trim().toLowerCase() === 'bote') {
+      setNoteError(true);
+      setInsertFeedback({ success: 0, fail: 1, blocked: true, message: 'La nota "bote" está reservada por el sistema y no se puede utilizar' });
+      hasErrors = true;
     }
 
     // Validación de capacidad (unificada con modo visual) usando uso del día en tabla jugada

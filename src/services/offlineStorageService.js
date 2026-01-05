@@ -15,6 +15,9 @@ if (Platform.OS !== 'web') {
 const DB_NAME = 'offline.db';
 const DB_VERSION = 3; // Versión 3 agrega tabla de jugadas activas
 
+// Configuración de caché
+const CACHE_TTL_HOURS = 24; // El caché de loterías/horarios expira después de 24 horas
+
 let dbInstance = null;
 
 // ========================================
@@ -271,7 +274,12 @@ export const addLog = async (level, message, data = null) => {
     await db.executeSql(
       `INSERT INTO offline_logs (level, message, data, timestamp) VALUES (?, ?, ?, ?)`,
       [level, message, dataStr, timestamp]
-    );} catch (error) {}
+    );
+  } catch (error) {
+    // Silenciar errores de logging para evitar loops infinitos
+    // pero mantener en console para debugging local
+    if (__DEV__) console.warn('[OfflineStorage] Error en addLog:', error.message);
+  }
 };
 
 /**
@@ -309,7 +317,10 @@ export const clearLogs = async () => {
     const db = await getDatabase();
     if (!db) return;
 
-    await db.executeSql(`DELETE FROM offline_logs`);} catch (error) {}
+    await db.executeSql(`DELETE FROM offline_logs`);
+  } catch (error) {
+    console.error('[OfflineStorage] Error limpiando logs:', error);
+  }
 };
 
 // ========================================
@@ -556,8 +567,35 @@ export const getLastCacheUpdate = async (type) => {
  */
 export const setLastCacheUpdate = async (type, timestamp) => {
   try {
-    await setConfig(`cache_update_${type}`, timestamp.toString());return true;
-  } catch (error) {return false;
+    await setConfig(`cache_update_${type}`, timestamp.toString());
+    return true;
+  } catch (error) {
+    console.error('[OfflineStorage] Error guardando timestamp de caché:', error);
+    return false;
+  }
+};
+
+/**
+ * Verificar si el caché está obsoleto (expiró el TTL)
+ * @param {string} type - Tipo de caché ('lotteries' o 'schedules')
+ * @returns {Promise<boolean>} true si el caché está obsoleto o no existe
+ */
+export const isCacheStale = async (type) => {
+  try {
+    const lastUpdate = await getLastCacheUpdate(type);
+    
+    if (!lastUpdate) {
+      // No hay caché, está obsoleto
+      return true;
+    }
+    
+    const now = Date.now();
+    const hoursSinceUpdate = (now - lastUpdate) / (1000 * 60 * 60);
+    
+    return hoursSinceUpdate >= CACHE_TTL_HOURS;
+  } catch (error) {
+    console.error('[OfflineStorage] Error verificando caché:', error);
+    return true; // En caso de error, asumir que está obsoleto
   }
 };
 
@@ -627,6 +665,85 @@ export const getJugadasActivas = async (id_banco) => {
   } catch (error) {
     await addLog('ERROR', 'Error obteniendo jugadas activas del caché', { error: error.message });
     return null;
+  }
+};
+
+// =================================================================
+// VERIFICACIÓN Y SINCRONIZACIÓN DE DATOS - FASE 8
+// =================================================================
+
+/**
+ * Verificar si hay datos de loterías, horarios y jugadas activas en caché
+ * @param {string} id_banco - ID del banco
+ * @returns {Promise<Object>} { hasLotteries, hasSchedules, hasJugadasActivas, isComplete }
+ */
+export const hasOfflineData = async (id_banco) => {
+  try {
+    if (Platform.OS === 'web') {
+      return { hasLotteries: false, hasSchedules: false, hasJugadasActivas: false, isComplete: false };
+    }
+    
+    const db = await getDatabase();
+    if (!db) {
+      return { hasLotteries: false, hasSchedules: false, hasJugadasActivas: false, isComplete: false };
+    }
+
+    // Verificar loterías
+    const [lotResult] = await db.executeSql(
+      `SELECT COUNT(*) as count FROM offline_lotteries WHERE id_banco = ?`,
+      [id_banco]
+    );
+    const hasLotteries = lotResult.rows.item(0).count > 0;
+
+    // Verificar horarios
+    const [schResult] = await db.executeSql(
+      `SELECT COUNT(*) as count FROM offline_schedules`
+    );
+    const hasSchedules = schResult.rows.item(0).count > 0;
+
+    // Verificar jugadas activas
+    const [jugResult] = await db.executeSql(
+      `SELECT COUNT(*) as count FROM offline_jugadas_activas WHERE id_banco = ?`,
+      [id_banco]
+    );
+    const hasJugadasActivas = jugResult.rows.item(0).count > 0;
+
+    const isComplete = hasLotteries && hasSchedules && hasJugadasActivas;
+
+    return { hasLotteries, hasSchedules, hasJugadasActivas, isComplete };
+  } catch (error) {
+    await addLog('ERROR', 'Error verificando datos offline', { error: error.message });
+    return { hasLotteries: false, hasSchedules: false, hasJugadasActivas: false, isComplete: false };
+  }
+};
+
+/**
+ * Borrar datos de loterías, horarios y jugadas activas del caché
+ * @returns {Promise<boolean>} true si se borraron correctamente
+ */
+export const clearSyncData = async () => {
+  try {
+    if (Platform.OS === 'web') {
+      return false;
+    }
+    
+    const db = await getDatabase();
+    if (!db) {
+      return false;
+    }
+
+    await db.executeSql(`DELETE FROM offline_lotteries`);
+    await db.executeSql(`DELETE FROM offline_schedules`);
+    await db.executeSql(`DELETE FROM offline_jugadas_activas`);
+    
+    // Limpiar timestamps de caché
+    await db.executeSql(`DELETE FROM offline_config WHERE key LIKE 'cache_update_%'`);
+
+    await addLog('INFO', 'Datos de sincronización borrados');
+    return true;
+  } catch (error) {
+    await addLog('ERROR', 'Error borrando datos de sincronización', { error: error.message });
+    return false;
   }
 };
 
@@ -911,7 +1028,9 @@ export const getCredentialsByUsername = async (username) => {
     for (let i = 0; i < result.rows.length; i++) {
       const row = result.rows.item(i);
       try {
-        const encryptedData = JSON.parse(row.encrypted_data);if (encryptedData.username === username) {return {
+        const encryptedData = JSON.parse(row.encrypted_data);
+        if (encryptedData.username === username) {
+          return {
             user_id: row.user_id,
             encrypted_data: row.encrypted_data,
             username: encryptedData.username,
@@ -921,8 +1040,11 @@ export const getCredentialsByUsername = async (username) => {
             session_expires: row.session_expires,
           };
         }
-      } catch (e) {}
-    }return null;
+      } catch (e) {
+        // JSON inválido - continuar buscando en siguiente registro
+      }
+    }
+    return null;
   } catch (error) {await addLog('ERROR', 'Failed to get credentials by username', { username, error: error.message });
     return null;
   }
@@ -1033,7 +1155,9 @@ export const getActiveOfflineSession = async () => {
       try {
         const encryptedData = JSON.parse(row.encrypted_data);
         username = encryptedData.username;
-      } catch (e) {}
+      } catch (e) {
+        // JSON inválido - ignorar, username quedará null
+      }
       
       return {
         user_id: row.user_id,
@@ -1451,9 +1575,13 @@ export default {
   getSchedules,
   getLastCacheUpdate,
   setLastCacheUpdate,
+  isCacheStale,
   // Jugadas activas del banco - FASE 5.5
   saveJugadasActivas,
   getJugadasActivas,
+  // Verificación y sincronización de datos - FASE 8
+  hasOfflineData,
+  clearSyncData,
   // Jugadas offline - FASE 6
   saveOfflinePlay,
   getPendingPlays,

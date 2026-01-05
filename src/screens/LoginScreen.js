@@ -157,24 +157,51 @@ const LoginContent = ({ navigation }) => {
 
       const { profile } = result;
 
-      // FASE 14.1: Sincronizar cache offline (loterías y horarios) después del login
-      // Se ejecuta en background sin bloquear la navegación
-      BackgroundTask.syncOfflineCache().catch(err => {
-        console.error('[LoginScreen] Error al sincronizar cache offline:', err);
-      });
-      
-      // Si es admin o collector, navegar a Statistics
-      if (profile.role === 'admin' || profile.role === 'collector') {
-        setIsPreloading(true);
-        // Navegación inmediata para mejor UX
-        setTimeout(() => {
+      // FASE 14.1: Sincronizar cache offline (loterías, horarios y jugadas activas) después del login
+      // Para listero en móvil: verificar si hay datos completos, si no, sincronizar y esperar
+      if (profile.role === 'listero' && Platform.OS !== 'web') {
+        const idBanco = profile.id_banco;
+        const offlineStatus = await OfflineStorage.hasOfflineData(idBanco);
+        
+        if (!offlineStatus.isComplete) {
+          console.log('[LoginScreen] Datos offline incompletos, sincronizando...');
+          setIsPreloading(true);
+          
+          try {
+            const syncResult = await BackgroundTask.syncOfflineCache();
+            if (!syncResult.success) {
+              console.warn('[LoginScreen] Sincronización falló pero continuando:', syncResult.error);
+            }
+          } catch (syncErr) {
+            console.error('[LoginScreen] Error en sincronización inicial:', syncErr);
+          }
+          
           setIsPreloading(false);
-          navigation.navigate('Statistics');
-        }, 100); // Reducido a 100ms
-      } else if (profile.role === 'listero') {
+        } else {
+          // Datos ya existen, solo actualizar en background
+          BackgroundTask.syncOfflineCache().catch(err => {
+            console.error('[LoginScreen] Error al sincronizar cache offline:', err);
+          });
+        }
+        
         navigation.navigate('MainApp');
       } else {
-        setFieldError('general', 'Rol de usuario no reconocido.');
+        // Para admin/collector: sincronizar en background sin esperar
+        BackgroundTask.syncOfflineCache().catch(err => {
+          console.error('[LoginScreen] Error al sincronizar cache offline:', err);
+        });
+        
+        // Si es admin o collector, navegar a Statistics
+        if (profile.role === 'admin' || profile.role === 'collector') {
+          setIsPreloading(true);
+          // Navegación inmediata para mejor UX
+          setTimeout(() => {
+            setIsPreloading(false);
+            navigation.navigate('Statistics');
+          }, 100); // Reducido a 100ms
+        } else {
+          setFieldError('general', 'Rol de usuario no reconocido.');
+        }
       }
       
       setSubmitting(false);

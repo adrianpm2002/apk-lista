@@ -20,11 +20,15 @@ import ChangePasswordModal from './ChangePasswordModal';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { getAccessibilityProps } from '../utils/accessibilityUtils';
 import { useOfflineSafe } from '../contexts/OfflineContext';
+import { useAuth } from '../contexts/AuthContext';
 import * as OfflineStorage from '../services/offlineStorageService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
+  // Auth context para obtener authUser (id_banco para sincronización)
+  const { authUser } = useAuth();
+  
   // Offline context para badge de pendientes (seguro - puede ser null)
   const offlineContext = useOfflineSafe();
   const pendingPlays = offlineContext?.pendingPlays || [];
@@ -73,6 +77,9 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibil
   const [sqliteDiagModalVisible, setSqliteDiagModalVisible] = useState(false);
   const [sqliteDiagData, setSqliteDiagData] = useState(null);
   const [loadingSqliteDiag, setLoadingSqliteDiag] = useState(false);
+  
+  // Estado para sincronización de datos (solo listero)
+  const [syncingData, setSyncingData] = useState(false);
 
   // Función para cargar diagnóstico de SQLite
   const loadSqliteDiagnostics = async () => {
@@ -102,6 +109,91 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibil
   const handleSqliteDiagPress = () => {
     setSqliteDiagModalVisible(true);
     loadSqliteDiagnostics();
+  };
+
+  // Función para sincronizar datos desde Supabase (solo listero, solo móvil)
+  const handleSyncData = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('No disponible', 'La sincronización offline solo está disponible en la app móvil.');
+      return;
+    }
+    
+    // Obtener id_banco del usuario
+    const idBanco = authUser?.role === 'admin' ? authUser?.userId : (authUser?.bankId || authUser?.id_banco);
+    if (!idBanco) {
+      Alert.alert('Error', 'No se pudo determinar el banco asociado.');
+      return;
+    }
+
+    Alert.alert(
+      'Sincronizar Datos',
+      'Esto descargará nuevamente las loterías, horarios y jugadas activas desde el servidor. ¿Desea continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sincronizar',
+          onPress: async () => {
+            setSyncingData(true);
+            try {
+              // 1. Limpiar datos actuales
+              await OfflineStorage.clearSyncData();
+              
+              // 2. Cargar loterías desde Supabase
+              const { data: loteriasData, error: lotError } = await supabase
+                .from('loteria')
+                .select('id,nombre')
+                .eq('id_banco', idBanco)
+                .order('nombre');
+              
+              if (lotError) throw new Error(`Error cargando loterías: ${lotError.message}`);
+              
+              if (loteriasData && loteriasData.length > 0) {
+                await OfflineStorage.saveLotteries(loteriasData.map(l => ({ ...l, id_banco: idBanco })));
+                
+                // 3. Cargar horarios de las loterías
+                const lotIds = loteriasData.map(l => l.id);
+                const { data: horariosData, error: horError } = await supabase
+                  .from('horario')
+                  .select('id,nombre,id_loteria,hora_inicio,hora_fin')
+                  .in('id_loteria', lotIds)
+                  .order('nombre');
+                
+                if (horError) throw new Error(`Error cargando horarios: ${horError.message}`);
+                
+                if (horariosData && horariosData.length > 0) {
+                  await OfflineStorage.saveSchedules(horariosData);
+                }
+              }
+              
+              // 4. Cargar jugadas activas
+              const { data: jugadasRow, error: jugError } = await supabase
+                .from('jugadas_activas')
+                .select('jugadas')
+                .eq('id_banco', idBanco)
+                .maybeSingle();
+              
+              if (jugError) throw new Error(`Error cargando jugadas: ${jugError.message}`);
+              
+              if (jugadasRow?.jugadas) {
+                await OfflineStorage.saveJugadasActivas(idBanco, jugadasRow.jugadas);
+              }
+              
+              Alert.alert('Éxito', 'Los datos se han sincronizado correctamente. Cierre y abra la pantalla de juego para ver los cambios.');
+              
+              // Recargar diagnósticos si el modal está abierto
+              if (sqliteDiagModalVisible) {
+                loadSqliteDiagnostics();
+              }
+            } catch (error) {
+              console.error('Error sincronizando datos:', error);
+              Alert.alert('Error', `No se pudieron sincronizar los datos: ${error.message}`);
+            } finally {
+              setSyncingData(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // Opciones del sidebar por rol
@@ -628,6 +720,21 @@ const configOptions = role ? roleOptionsMap[role] : null;
                   >
                     <Text style={styles.settingIcon}>🗄️</Text>
                     <Text style={styles.settingText}>Ver Datos Offline</Text>
+                    <Text style={styles.settingArrow}>▶</Text>
+                  </Pressable>
+                )}
+
+                {/* Sincronizar Datos (solo listero, solo móvil) */}
+                {role === 'listero' && Platform.OS !== 'web' && (
+                  <Pressable 
+                    style={[styles.settingOption, syncingData && { opacity: 0.6 }]}
+                    onPress={handleSyncData}
+                    disabled={syncingData}
+                  >
+                    <Text style={styles.settingIcon}>🔄</Text>
+                    <Text style={styles.settingText}>
+                      {syncingData ? 'Sincronizando...' : 'Sincronizar Datos'}
+                    </Text>
                     <Text style={styles.settingArrow}>▶</Text>
                   </Pressable>
                 )}

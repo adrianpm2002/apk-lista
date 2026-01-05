@@ -44,7 +44,9 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
         if (value !== null) {
           setIsOfflineModeEnabled(JSON.parse(value));
         }
-      } catch (error) {}
+      } catch (error) {
+        console.error('[OfflineContext] Error cargando modo offline:', error);
+      }
     };
     loadOfflineMode();
   }, []);
@@ -172,8 +174,10 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
       setIsOfflineModeEnabled(newValue);
       await AsyncStorage.setItem(OFFLINE_MODE_KEY, JSON.stringify(newValue));
       
-      // Log para debugreturn newValue;
-    } catch (error) {return isOfflineModeEnabled;
+      return newValue;
+    } catch (error) {
+      console.error('[OfflineContext] Error al cambiar modo offline:', error);
+      return isOfflineModeEnabled;
     }
   };
 
@@ -195,7 +199,9 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
       const hoursSinceLogin = (now - lastLogin) / (1000 * 60 * 60);
 
       return hoursSinceLogin < SESSION_DURATION_HOURS;
-    } catch (error) {return false;
+    } catch (error) {
+      console.error('[OfflineContext] Error validando sesión offline:', error);
+      return false;
     }
   };
 
@@ -215,7 +221,9 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
       }
 
       return false;
-    } catch (error) {return false;
+    } catch (error) {
+      console.error('[OfflineContext] Error verificando cambio de día:', error);
+      return false;
     }
   };
 
@@ -225,7 +233,10 @@ export const OfflineProvider = ({ children, onSessionExpired = null }) => {
   const clearAllPlays = async () => {
     try {
       await OfflineStorage.clearAllOfflinePlays();
-      await loadPendingPlays();} catch (error) {}
+      await loadPendingPlays();
+    } catch (error) {
+      console.error('[OfflineContext] Error limpiando jugadas:', error);
+    }
   };
 
   /**

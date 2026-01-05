@@ -31,6 +31,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   const [lotteryError, setLotteryError] = useState(false);
   const [lotteryErrorMessage, setLotteryErrorMessage] = useState('');
   const [scheduleError, setScheduleError] = useState(false);
+  const [noteError, setNoteError] = useState(false); // true si la nota es inválida
   const [showFieldErrors, setShowFieldErrors] = useState(false);
   const [bankId, setBankId] = useState(null);
   const [userProfile, setUserProfile] = useState(null); // Para el rol del usuario
@@ -102,14 +103,17 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     if (!bankId) return;
     const loadData = async () => {
       try {
+        // Determinar si debe usar solo SQLite (listero en móvil)
+        const useSqliteOnly = userProfile?.role === 'listero' && Platform.OS !== 'web';
+        
         // SIEMPRE cargar desde cache primero
         let lots = await OfflineStorage.getLotteries(bankId);
         if (lots && lots.length > 0) {
           setLotteries(lots.map(l => ({ label: l.nombre, value: l.id })));
         }
         
-        // Si está online, actualizar desde Supabase
-        if (isOnline) {
+        // Si está online Y NO es listero en móvil, actualizar desde Supabase
+        if (isOnline && !useSqliteOnly) {
           try {
             const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
             if (data && data.length > 0) {
@@ -122,8 +126,8 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
           }
         }
         
-        // Cargar configuración de modo Santiago del banco
-        if (isOnline) {
+        // Cargar configuración de modo Santiago del banco (solo si NO es listero SQLite-only)
+        if (isOnline && !useSqliteOnly) {
           const { data: bankProfile } = await supabase
             .from('profiles')
             .select('modo_santiago, porciento')
@@ -148,12 +152,15 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       try {
         const lotIds = lotteries.map(l => l.value);
         
+        // Determinar si debe usar solo SQLite (listero en móvil)
+        const useSqliteOnly = userProfile?.role === 'listero' && Platform.OS !== 'web';
+        
         // SIEMPRE cargar desde cache primero
         const allSchedules = await OfflineStorage.getSchedules(null);
         let rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
         
-        // Si está online, actualizar desde Supabase
-        if (isOnline) {
+        // Si está online Y NO es listero en móvil, actualizar desde Supabase
+        if (isOnline && !useSqliteOnly) {
           try {
             const { data } = await supabase
               .from('horario')
@@ -488,6 +495,13 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     const totalJugadas = jugadasFijosYCorridos.length + jugadasParles.length + jugadasCentenas.length;
     if (totalJugadas === 0) {
       Alert.alert('Error', 'No hay jugadas para enviar');
+      hasErrors = true;
+    }
+
+    // Validar que la nota no sea "bote" (palabra reservada por el sistema)
+    if (!hasErrors && note.trim().toLowerCase() === 'bote') {
+      setNoteError(true);
+      setInsertFeedback({ success: 0, fail: 1, blocked: true, message: 'La nota "bote" está reservada por el sistema y no se puede utilizar' });
       hasErrors = true;
     }
 

@@ -337,6 +337,23 @@ export const syncOfflineCache = async () => {
       console.log('[BackgroundTask] ✅ Horarios guardados en caché');
     }
 
+    // 7.5 Sincronizar jugadas activas del banco
+    const { data: jugadasRow, error: jugadasError } = await supabase
+      .from('jugadas_activas')
+      .select('jugadas')
+      .eq('id_banco', id_banco)
+      .maybeSingle();
+
+    if (jugadasError) {
+      console.error('[BackgroundTask] Error fetching jugadas activas:', jugadasError);
+      await OfflineStorage.addLog('ERROR', 'Cache sync warning - jugadas fetch error', { error: jugadasError.message });
+      // No retornamos error porque jugadas activas no son críticas
+    } else if (jugadasRow?.jugadas) {
+      await OfflineStorage.saveJugadasActivas(id_banco, jugadasRow.jugadas);
+      await OfflineStorage.setLastCacheUpdate('jugadas_activas', Date.now());
+      console.log('[BackgroundTask] ✅ Jugadas activas guardadas en caché');
+    }
+
     // 8. Log de operación exitosa
     const timestamp = Date.now();
     await OfflineStorage.addLog('INFO', 'Cache sync completed successfully', {
