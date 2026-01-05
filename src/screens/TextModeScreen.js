@@ -8,6 +8,7 @@ import {
   Animated,
   Alert,
   Clipboard,
+  Platform,
 } from 'react-native';
 import DropdownPicker from '../components/DropdownPicker';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
@@ -157,27 +158,21 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
               const bId = profile.role === 'admin' ? user.id : profile.id_banco;
               setBankId(bId);
               profileLoadedRef.current = true;
-              console.log('[TextMode] ✅ Contexto cargado desde Supabase, bankId:', bId);
               return;
             }
           }
         } catch(e){
-          console.log('[TextMode] Error cargando desde Supabase, usando AuthContext');
+          // Fallback a AuthContext
         }
       }
       
       // Usar AuthContext (offline o fallback)
-      // Solo usar si authUser tiene estructura de perfil offline (tiene role definido)
       if (authUser && authUser.role) {
-        console.log('[TextMode] Cargando contexto desde AuthContext:', authUser);
         setUserId(authUser.userId);
         setUserProfile({ role: authUser.role, id_banco: authUser.bankId, username: authUser.username });
         const bId = authUser.role === 'admin' ? authUser.userId : authUser.bankId;
         setBankId(bId);
         profileLoadedRef.current = true;
-        console.log('[TextMode] ✅ Contexto cargado desde AuthContext, bankId:', bId);
-      } else {
-        console.log('[TextMode] ⚠️ No hay authUser disponible o no tiene rol');
       }
     };
     loadContext();
@@ -192,16 +187,14 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         // Determinar si debe usar solo SQLite (listero en móvil)
         const useSqliteOnly = userProfile?.role === 'listero' && Platform.OS !== 'web';
         
-        // SIEMPRE cargar desde cache primero
-        console.log('[TextMode] Cargando loterías desde cache, bankId:', bankId, 'isOnline:', isOnline);
-        let lots = await OfflineStorage.getLotteries(bankId);
-        console.log('[TextMode] Loterías desde cache:', lots?.length || 0);
-        if (cancelled) return;
-        if (lots && lots.length > 0) {
-          setLotteries(lots.map(l=> ({ label:l.nombre, value:l.id })));
-          console.log('[TextMode] ✅ Loterías cargadas desde cache');
-        } else {
-          console.log('[TextMode] ⚠️ No hay loterías en cache');
+        // Cargar desde cache primero (solo en móvil)
+        let lots = [];
+        if (Platform.OS !== 'web') {
+          lots = await OfflineStorage.getLotteries(bankId);
+          if (cancelled) return;
+          if (lots && lots.length > 0) {
+            setLotteries(lots.map(l=> ({ label:l.nombre, value:l.id })));
+          }
         }
         
         // Si está online Y NO es listero en móvil, actualizar desde Supabase
@@ -210,13 +203,15 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
             const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
             if (data && data.length > 0) {
               lots = data;
-              await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
+              if (Platform.OS !== 'web') {
+                await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
+              }
               if (!cancelled) {
                 setLotteries(lots.map(l=> ({ label:l.nombre, value:l.id })));
               }
             }
           } catch (onlineError) {
-            console.log('[TextMode] Error cargando online, usando cache');
+            // Mantener datos de cache
           }
         }
         
@@ -250,9 +245,12 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
         // Determinar si debe usar solo SQLite (listero en móvil)
         const useSqliteOnly = userProfile?.role === 'listero' && Platform.OS !== 'web';
         
-        // SIEMPRE cargar desde cache primero
-        const allSchedules = await OfflineStorage.getSchedules(null);
-        let rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
+        // Cargar desde cache primero (solo en móvil)
+        let rows = [];
+        if (Platform.OS !== 'web') {
+          const allSchedules = await OfflineStorage.getSchedules(null);
+          rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
+        }
         
         // Si está online Y NO es listero en móvil, actualizar desde Supabase
         if (isOnline && !useSqliteOnly) {
@@ -263,11 +261,13 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
               .in('id_loteria', lotIds)
               .order('nombre');
             if (data && data.length > 0) {
-              await OfflineStorage.saveSchedules(data);
+              if (Platform.OS !== 'web') {
+                await OfflineStorage.saveSchedules(data);
+              }
               rows = data.filter(s => lotIds.includes(s.id_loteria));
             }
           } catch (schedError) {
-            console.log('[TextMode] Error cargando horarios online, usando cache');
+            // Mantener datos de cache
           }
         }
         
@@ -711,12 +711,8 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
             }
           }
 
-          console.log('[TextMode] Insertando batch de jugadas offline:', batchPayloads.length);
-          console.log('[TextMode] Primer payload:', JSON.stringify(batchPayloads[0], null, 2));
-
-          // ✅ INSERCIÓN BATCH REAL - Una sola transacción SQLite
+          // INSERCIÓN BATCH REAL - Una sola transacción SQLite
           const result = await saveBatchPlaysOffline(batchPayloads);
-          console.log('[TextMode] Resultado de batch insert:', JSON.stringify(result, null, 2));
           const successCount = result.insertedCount || 0;
           const failCount = result.failedCount || 0;
 

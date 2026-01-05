@@ -8,6 +8,7 @@ import {
   Animated,
   Alert,
   Clipboard,
+  Platform,
 } from 'react-native';
 import { supabase } from '../supabaseClient';
 import DropdownPicker from '../components/DropdownPicker';
@@ -155,7 +156,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         const { data: { user } } = await supabase.auth.getUser();
         if(user) {
           setUserId(user.id);
-          const { data: profile } = await supabase.from('profiles').select('role,id_banco,username').eq('id', user.id).single();
+          const { data: profile, error: profileErr } = await supabase.from('profiles').select('role,id_banco,username').eq('id', user.id).single();
           if(profile) {
             setUserProfile(profile);
             const bId = profile.role === 'admin' ? user.id : profile.id_banco;
@@ -166,7 +167,6 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         }
         
         // Fallback: Si no hay sesión online, usar AuthContext (offline)
-        // Solo usar si authUser tiene estructura de perfil offline (tiene role definido)
         if (authUser && authUser.role) {
           setUserId(authUser.userId);
           setUserProfile({ role: authUser.role, id_banco: authUser.bankId, username: authUser.username });
@@ -176,7 +176,6 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         }
       } catch(e) {
         // Si falla online, intentar con AuthContext (offline)
-        // Solo usar si authUser tiene estructura de perfil offline (tiene role definido)
         if (authUser && authUser.role) {
           setUserId(authUser.userId);
           setUserProfile({ role: authUser.role, id_banco: authUser.bankId, username: authUser.username });
@@ -191,7 +190,9 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
 
   // Cargar loterías y jugadas activas cuando tengamos bankId
   useEffect(()=>{
-    if(!bankId) return;
+    if(!bankId) {
+      return;
+    }
     const loadData = async () => {
       try {
         let lots = [];
@@ -199,32 +200,37 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         // Determinar si debe usar solo SQLite (listero en móvil)
         const useSqliteOnly = userProfile?.role === 'listero' && Platform.OS !== 'web';
         
-        // SIEMPRE cargar desde cache primero para respuesta rápida
-        const cachedLots = await OfflineStorage.getLotteries(bankId);
-        if (cachedLots && cachedLots.length > 0) {
-          lots = cachedLots;
-          setLotteries(lots.map(l=>({ label:l.nombre, value:l.id })));
+        // En web, saltar cache y cargar directo de Supabase
+        if (Platform.OS !== 'web') {
+          // SIEMPRE cargar desde cache primero para respuesta rápida
+          const cachedLots = await OfflineStorage.getLotteries(bankId);
+          if (cachedLots && cachedLots.length > 0) {
+            lots = cachedLots;
+            setLotteries(lots.map(l=>({ label:l.nombre, value:l.id })));
+          }
         }
         
         // Si está online Y NO es listero en móvil, actualizar desde Supabase en segundo plano
         if (isOnline && !useSqliteOnly) {
           try {
-            const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
+            const { data, error } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
             if (data && data.length > 0) {
               lots = data;
-              // Cachear para uso offline
-              await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
-              // Actualizar UI si cambió
+              // Cachear para uso offline (solo en móvil)
+              if (Platform.OS !== 'web') {
+                await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
+              }
               setLotteries(lots.map(l=>({ label:l.nombre, value:l.id })));
             }
           } catch (onlineError) {
-            // Si falla online, mantener los datos de cache (ya están cargados)
-            console.log('[VisualMode] Error cargando online, usando cache');
+            // Si falla online, mantener los datos de cache
           }
-        } else if (!lots.length) {
-          // Si está offline y no hay cache, cargar lo que haya
-          lots = await OfflineStorage.getLotteries(bankId);
-          setLotteries((lots||[]).map(l=>({ label:l.nombre, value:l.id })));
+        } else {
+          if (!lots.length && Platform.OS !== 'web') {
+            // Si está offline y no hay cache, cargar lo que haya
+            lots = await OfflineStorage.getLotteries(bankId);
+            setLotteries((lots||[]).map(l=>({ label:l.nombre, value:l.id })));
+          }
         }
         
         // Cargar configuración de modo Santiago del banco (solo si online y NO es listero SQLite-only)
@@ -245,23 +251,29 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
           }
         }
         
-        // Cargar jugadas activas - SIEMPRE desde cache primero
-        let jugadas = await OfflineStorage.getJugadasActivas(bankId) || {};
-        if (Object.keys(jugadas).length > 0) {
-          setAllJugadas(jugadas);
+        // Cargar jugadas activas - desde cache primero (solo en móvil)
+        let jugadas = {};
+        if (Platform.OS !== 'web') {
+          jugadas = await OfflineStorage.getJugadasActivas(bankId) || {};
+          if (Object.keys(jugadas).length > 0) {
+            setAllJugadas(jugadas);
+          }
         }
         
         // Si está online Y NO es listero en móvil, actualizar desde Supabase en segundo plano
         if (isOnline && !useSqliteOnly) {
           try {
-            const { data: jugRow } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
+            const { data: jugRow, error: jugError2 } = await supabase.from('jugadas_activas').select('jugadas').eq('id_banco', bankId).maybeSingle();
             if (jugRow?.jugadas && Object.keys(jugRow.jugadas).length > 0) {
               jugadas = jugRow.jugadas;
-              await OfflineStorage.saveJugadasActivas(bankId, jugadas);
+              // Solo cachear en móvil
+              if (Platform.OS !== 'web') {
+                await OfflineStorage.saveJugadasActivas(bankId, jugadas);
+              }
               setAllJugadas(jugadas);
             }
           } catch (jugError) {
-            console.log('[VisualMode] Error cargando jugadas online, usando cache');
+            // Mantener datos de cache
           }
         }
         
@@ -349,24 +361,30 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         // Determinar si debe usar solo SQLite (listero en móvil)
         const useSqliteOnly = userProfile?.role === 'listero' && Platform.OS !== 'web';
         
-        // SIEMPRE cargar desde cache primero
-        const allSchedules = await OfflineStorage.getSchedules(null);
-        let rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
+        // Cargar desde cache primero (solo en móvil)
+        let rows = [];
+        if (Platform.OS !== 'web') {
+          const allSchedules = await OfflineStorage.getSchedules(null);
+          rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
+        }
         
         // Si está online Y NO es listero en móvil, actualizar desde Supabase en segundo plano
         if (isOnline && !useSqliteOnly) {
           try {
-            const { data } = await supabase
+            const { data, error: schedErr } = await supabase
               .from('horario')
               .select('id,nombre,id_loteria,hora_inicio,hora_fin')
               .in('id_loteria', lotIds)
               .order('nombre');
             if (data && data.length > 0) {
-              await OfflineStorage.saveSchedules(data);
+              // Solo cachear en móvil
+              if (Platform.OS !== 'web') {
+                await OfflineStorage.saveSchedules(data);
+              }
               rows = data.filter(s => lotIds.includes(s.id_loteria));
             }
           } catch (schedError) {
-            console.log('[VisualMode] Error cargando horarios online, usando cache');
+            // Mantener datos de cache
           }
         }
         
@@ -815,9 +833,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             }
           }
 
-          console.log('[VisualMode] Insertando batch de jugadas offline:', batchPayloads.length);
-
-          // ✅ INSERCIÓN BATCH REAL - Una sola transacción SQLite
+          // INSERCIÓN BATCH REAL - Una sola transacción SQLite
           const result = await saveBatchPlaysOffline(batchPayloads);
           successCount = result.insertedCount || 0;
           failCount = result.failedCount || 0;

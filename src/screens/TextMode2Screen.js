@@ -8,6 +8,7 @@ import {
   Pressable,
   Alert,
   Clipboard,
+  Platform,
 } from 'react-native';
 import DropdownPicker from '../components/DropdownPicker';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
@@ -183,11 +184,14 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         // Determinar si debe usar solo SQLite (listero en móvil)
         const useSqliteOnly = userProfile?.role === 'listero' && Platform.OS !== 'web';
         
-        // SIEMPRE cargar desde cache primero
-        let lots = await OfflineStorage.getLotteries(bankId);
-        if (cancelled) return;
-        if (lots && lots.length > 0) {
-          setLotteries(lots.map(l=> ({ label:l.nombre, value:l.id })));
+        // Cargar desde cache primero (solo en móvil)
+        let lots = [];
+        if (Platform.OS !== 'web') {
+          lots = await OfflineStorage.getLotteries(bankId);
+          if (cancelled) return;
+          if (lots && lots.length > 0) {
+            setLotteries(lots.map(l=> ({ label:l.nombre, value:l.id })));
+          }
         }
         
         // Si está online Y NO es listero en móvil, actualizar desde Supabase
@@ -196,13 +200,15 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
             const { data } = await supabase.from('loteria').select('id,nombre').eq('id_banco', bankId).order('nombre');
             if (data && data.length > 0) {
               lots = data;
-              await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
+              if (Platform.OS !== 'web') {
+                await OfflineStorage.saveLotteries(lots.map(l => ({ ...l, id_banco: bankId })));
+              }
               if (!cancelled) {
                 setLotteries(lots.map(l=> ({ label:l.nombre, value:l.id })));
               }
             }
           } catch (onlineError) {
-            console.log('[TextMode2] Error cargando online, usando cache');
+            // Mantener datos de cache
           }
         }
         
@@ -236,9 +242,12 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
         // Determinar si debe usar solo SQLite (listero en móvil)
         const useSqliteOnly = userProfile?.role === 'listero' && Platform.OS !== 'web';
         
-        // SIEMPRE cargar desde cache primero
-        const allSchedules = await OfflineStorage.getSchedules(null);
-        let rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
+        // Cargar desde cache primero (solo en móvil)
+        let rows = [];
+        if (Platform.OS !== 'web') {
+          const allSchedules = await OfflineStorage.getSchedules(null);
+          rows = (allSchedules || []).filter(s => lotIds.includes(s.id_loteria));
+        }
         
         // Si está online Y NO es listero en móvil, actualizar desde Supabase
         if (isOnline && !useSqliteOnly) {
@@ -249,11 +258,13 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
               .in('id_loteria', lotIds)
               .order('nombre');
             if (data && data.length > 0) {
-              await OfflineStorage.saveSchedules(data);
+              if (Platform.OS !== 'web') {
+                await OfflineStorage.saveSchedules(data);
+              }
               rows = data.filter(s => lotIds.includes(s.id_loteria));
             }
           } catch (schedError) {
-            console.log('[TextMode2] Error cargando horarios online, usando cache');
+            // Mantener datos de cache
           }
         }
         
@@ -726,12 +737,8 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
             }
           }
 
-          console.log('[TextMode2] Insertando batch de jugadas offline:', batchPayloads.length);
-          console.log('[TextMode2] Primer payload:', JSON.stringify(batchPayloads[0], null, 2));
-
-          // ✅ INSERCIÓN BATCH REAL - Una sola transacción SQLite
+          // INSERCIÓN BATCH REAL - Una sola transacción SQLite
           const result = await saveBatchPlaysOffline(batchPayloads);
-          console.log('[TextMode2] Resultado de batch insert:', JSON.stringify(result, null, 2));
           const successCount = result.insertedCount || 0;
           const failCount = result.failedCount || 0;
 
