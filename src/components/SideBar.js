@@ -20,14 +20,14 @@ import ChangePasswordModal from './ChangePasswordModal';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { getAccessibilityProps } from '../utils/accessibilityUtils';
 import { useOfflineSafe } from '../contexts/OfflineContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthContext } from '../contexts/AuthContext';
 import * as OfflineStorage from '../services/offlineStorageService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
   // Auth context para obtener authUser (id_banco para sincronización)
-  const { authUser } = useAuth();
+  const { authUser } = useAuthContext();
   
   // Offline context para badge de pendientes (seguro - puede ser null)
   const offlineContext = useOfflineSafe();

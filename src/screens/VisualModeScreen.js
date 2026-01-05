@@ -589,6 +589,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
     setPlayTypeError(false);
     setPlaysError(false);
   setAmountError(false);
+  setNoteError(false);
   setShowFieldErrors(false);
     setLotteryErrorMessage('');
 
@@ -692,6 +693,7 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         setPlayTypeError(false);
         setPlaysError(false);
         setAmountError(false);
+        setNoteError(false);
         setLotteryErrorMessage('');
         setShowFieldErrors(false);
       }, 3000);

@@ -472,6 +472,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
     // Resetear errores
     setLotteryError(false);
     setScheduleError(false);
+    setNoteError(false);
     setShowFieldErrors(false);
     setLotteryErrorMessage('');
 
@@ -510,6 +511,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
       setTimeout(() => {
         setLotteryError(false);
         setScheduleError(false);
+        setNoteError(false);
         setLotteryErrorMessage('');
         setShowFieldErrors(false);
       }, 3000);
