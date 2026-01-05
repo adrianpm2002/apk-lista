@@ -185,6 +185,12 @@ const LoginContent = ({ navigation }) => {
         }
         
         navigation.navigate('MainApp');
+      } else if (profile.role === 'listero' && Platform.OS === 'web') {
+        // Listero en web: sincronizar en background y navegar
+        BackgroundTask.syncOfflineCache().catch(err => {
+          console.error('[LoginScreen] Error al sincronizar cache offline:', err);
+        });
+        navigation.navigate('MainApp');
       } else {
         // Para admin/collector: sincronizar en background sin esperar
         BackgroundTask.syncOfflineCache().catch(err => {
