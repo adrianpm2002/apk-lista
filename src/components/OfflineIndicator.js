@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { useOffline } from '../contexts/OfflineContext';
 import * as OfflineStorage from '../services/offlineStorageService';
@@ -9,6 +9,7 @@ import * as OfflineStorage from '../services/offlineStorageService';
  */
 const OfflineIndicator = ({ onPress, isDarkMode = false }) => {
   const [pendingCount, setPendingCount] = useState(0);
+  const isMountedRef = useRef(true); // Para evitar memory leaks
   
   // Intentar obtener contexto offline (puede no estar disponible en web)
   let offlineContext = null;
@@ -19,52 +20,57 @@ const OfflineIndicator = ({ onPress, isDarkMode = false }) => {
     return null;
   }
 
-  const { isOnline, isOfflineModeEnabled, isSyncing } = offlineContext;
+  const { isOnline, isOfflineModeEnabled, isSyncing, pendingPlays } = offlineContext;
 
-  // Actualizar contador de jugadas pendientes cada 2 segundos
+  // Usar el contador del contexto si está disponible (más eficiente)
   useEffect(() => {
+    if (pendingPlays && Array.isArray(pendingPlays)) {
+      const pending = pendingPlays.filter(p => p.status === 'pending').length;
+      if (isMountedRef.current) {
+        setPendingCount(pending);
+      }
+    }
+  }, [pendingPlays]);
+
+  // Fallback: Actualizar contador cada 5 segundos si no hay datos del contexto
+  useEffect(() => {
+    // Solo usar fallback si el contexto no proporciona pendingPlays
+    if (pendingPlays && pendingPlays.length > 0) {
+      return; // Usar datos del contexto
+    }
+
     const updatePendingCount = async () => {
       try {
         // Solo en plataformas con SQLite
         if (Platform.OS === 'web') {
-          setPendingCount(0);
+          if (isMountedRef.current) setPendingCount(0);
           return;
         }
 
-        const db = await OfflineStorage.getDatabase();
-        if (!db) {
-          setPendingCount(0);
-          return;
+        // Usar la función del servicio en lugar de acceso directo a DB
+        const plays = await OfflineStorage.getPendingPlays();
+        if (isMountedRef.current) {
+          const pending = (plays || []).filter(p => p.status === 'pending').length;
+          setPendingCount(pending);
         }
-
-        db.transaction((tx) => {
-          tx.executeSql(
-            "SELECT COUNT(*) as count FROM offline_plays WHERE status = 'pending'",
-            [],
-            (tx, results) => {
-              if (results.rows.length > 0) {
-                const count = results.rows.item(0).count;
-                setPendingCount(count);
-              } else {
-                setPendingCount(0);
-              }
-            },
-            (tx, error) => {
-              console.error('[OfflineIndicator] Error SQL:', error);
-              setPendingCount(0);
-            }
-          );
-        });
       } catch (error) {
         console.error('[OfflineIndicator] Error obteniendo jugadas pendientes:', error);
-        setPendingCount(0);
+        if (isMountedRef.current) setPendingCount(0);
       }
     };
 
     updatePendingCount();
-    const interval = setInterval(updatePendingCount, 2000); // Actualizar cada 2s
+    const interval = setInterval(updatePendingCount, 5000); // Reducido a cada 5s
 
     return () => clearInterval(interval);
+  }, [pendingPlays]);
+
+  // Cleanup: marcar como desmontado
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   // Determinar icono y color según estado

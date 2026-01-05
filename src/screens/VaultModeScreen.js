@@ -33,6 +33,7 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   const [scheduleError, setScheduleError] = useState(false);
   const [showFieldErrors, setShowFieldErrors] = useState(false);
   const [bankId, setBankId] = useState(null);
+  const [userProfile, setUserProfile] = useState(null); // Para el rol del usuario
   
   // Estados para modo Santiago
   const [modoSantiago, setModoSantiago] = useState(false);
@@ -42,7 +43,6 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   const [totalGeneral, setTotalGeneral] = useState(0);
 
 
-
   // Obtener user del AuthContext para manejar offline
   const { user: authUser } = useAuthContext();
   
@@ -50,36 +50,52 @@ const VaultModeScreen = ({ navigation, currentMode, onModeChange, isDarkMode, on
   const offlineContext = useOfflineSafe();
   const isOnline = offlineContext?.isOnline ?? true;
 
-  // Cargar banco (id_banco) y luego loterías
+  // useRef para evitar re-cargas innecesarias cuando ya tenemos un perfil válido
+  const profileLoadedRef = React.useRef(false);
+
+  // Cargar banco (id_banco) y perfil de usuario
   React.useEffect(() => {
     const loadContext = async () => {
+      // Si ya cargamos el perfil correctamente, no volver a cargar
+      if (profileLoadedRef.current && userProfile?.role) {
+        return;
+      }
+      
       try {
         // Intentar primero con Supabase (online)
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const { data: profile } = await supabase.from('profiles').select('role,id_banco').eq('id', user.id).single();
+          const { data: profile } = await supabase.from('profiles').select('role,id_banco,username').eq('id', user.id).single();
           if (profile) {
+            setUserProfile(profile);
             const bId = profile.role === 'admin' ? user.id : profile.id_banco;
             setBankId(bId);
+            profileLoadedRef.current = true;
             return;
           }
         }
         
         // Fallback: Si no hay sesión online, usar AuthContext (offline)
-        if (authUser) {
+        // Solo usar si authUser tiene estructura de perfil offline (tiene role definido)
+        if (authUser && authUser.role) {
+          setUserProfile({ role: authUser.role, id_banco: authUser.bankId, username: authUser.username });
           const bId = authUser.role === 'admin' ? authUser.userId : authUser.bankId;
           setBankId(bId);
+          profileLoadedRef.current = true;
         }
       } catch (e) {
         // Si falla online, intentar con AuthContext (offline)
-        if (authUser) {
+        // Solo usar si authUser tiene estructura de perfil offline (tiene role definido)
+        if (authUser && authUser.role) {
+          setUserProfile({ role: authUser.role, id_banco: authUser.bankId, username: authUser.username });
           const bId = authUser.role === 'admin' ? authUser.userId : authUser.bankId;
           setBankId(bId);
+          profileLoadedRef.current = true;
         }
       }
     };
     loadContext();
-  }, [authUser]);
+  }, [authUser, userProfile?.role]);
 
   // Cargar loterías cuando tengamos bankId
   React.useEffect(() => {

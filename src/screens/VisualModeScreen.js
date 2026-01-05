@@ -139,8 +139,16 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
   const { user: authUser } = useAuthContext();
 
   // Cargar banco (id_banco) y luego loterías + jugadas activas
+  // useRef para evitar re-cargas innecesarias cuando ya tenemos un perfil válido
+  const profileLoadedRef = React.useRef(false);
+  
   useEffect(()=>{
   const loadContext = async () => {
+      // Si ya cargamos el perfil correctamente, no volver a cargar
+      if (profileLoadedRef.current && userProfile?.role) {
+        return;
+      }
+      
       try {
         // Intentar primero con Supabase (online)
         const { data: { user } } = await supabase.auth.getUser();
@@ -151,29 +159,34 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
             setUserProfile(profile);
             const bId = profile.role === 'admin' ? user.id : profile.id_banco;
             setBankId(bId);
+            profileLoadedRef.current = true;
             return;
           }
         }
         
         // Fallback: Si no hay sesión online, usar AuthContext (offline)
-        if (authUser) {
+        // Solo usar si authUser tiene estructura de perfil offline (tiene role definido)
+        if (authUser && authUser.role) {
           setUserId(authUser.userId);
           setUserProfile({ role: authUser.role, id_banco: authUser.bankId, username: authUser.username });
           const bId = authUser.role === 'admin' ? authUser.userId : authUser.bankId;
           setBankId(bId);
+          profileLoadedRef.current = true;
         }
       } catch(e) {
         // Si falla online, intentar con AuthContext (offline)
-        if (authUser) {
+        // Solo usar si authUser tiene estructura de perfil offline (tiene role definido)
+        if (authUser && authUser.role) {
           setUserId(authUser.userId);
           setUserProfile({ role: authUser.role, id_banco: authUser.bankId, username: authUser.username });
           const bId = authUser.role === 'admin' ? authUser.userId : authUser.bankId;
           setBankId(bId);
+          profileLoadedRef.current = true;
         }
       }
     };
     loadContext();
-  },[authUser]);
+  },[authUser, userProfile?.role]);
 
   // Cargar loterías y jugadas activas cuando tengamos bankId
   useEffect(()=>{

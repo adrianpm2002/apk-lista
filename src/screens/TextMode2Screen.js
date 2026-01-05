@@ -132,9 +132,17 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
   // Obtener user del AuthContext para manejar offline
   const { user: authUser } = useAuthContext();
 
+  // useRef para evitar re-cargas innecesarias cuando ya tenemos un perfil válido
+  const profileLoadedRef = React.useRef(false);
+
   // Cargar contexto de usuario (bankId)
   useEffect(()=>{
     const loadContext = async () => {
+      // Si ya cargamos el perfil correctamente, no volver a cargar
+      if (profileLoadedRef.current && userProfile?.role) {
+        return;
+      }
+      
       // Si está online, intentar con Supabase
       if (isOnline) {
         try {
@@ -146,6 +154,7 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
               setUserProfile(profile);
               const bId = profile.role === 'admin' ? user.id : profile.id_banco;
               setBankId(bId);
+              profileLoadedRef.current = true;
               return;
             }
           }
@@ -153,15 +162,17 @@ const TextMode2Screen = ({ navigation, route, currentMode, onModeChange, isDarkM
       }
       
       // Usar AuthContext (offline o fallback)
-      if (authUser) {
+      // Solo usar si authUser tiene estructura de perfil offline (tiene role definido)
+      if (authUser && authUser.role) {
         setUserId(authUser.userId);
         setUserProfile({ role: authUser.role, id_banco: authUser.bankId, username: authUser.username });
         const bId = authUser.role === 'admin' ? authUser.userId : authUser.bankId;
         setBankId(bId);
+        profileLoadedRef.current = true;
       }
     };
     loadContext();
-  },[authUser, isOnline]);
+  },[authUser, isOnline, userProfile?.role]);
 
   // Cargar loterías del banco
   useEffect(()=>{

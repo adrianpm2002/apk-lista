@@ -45,14 +45,19 @@ const getLocalTimestamp = () => {
 
 /**
  * Obtiene o crea instancia de base de datos offline
+ * Exportado para uso en otros servicios como dayChangeService
  */
-const getDatabase = async () => {
+export const getDatabase = async () => {
   // Verificar plataforma
-  if (Platform.OS === 'web') {return null;
+  if (Platform.OS === 'web') {
+    return null;
   }
 
   // Verificar si SQLite se cargó correctamente
-  if (!SQLite) {if (sqliteLoadError) {}
+  if (!SQLite) {
+    if (sqliteLoadError) {
+      console.error('[OfflineStorage] Error cargando SQLite:', sqliteLoadError);
+    }
     return null;
   }
 
@@ -60,11 +65,17 @@ const getDatabase = async () => {
     return dbInstance;
   }
 
-  try {const db = await SQLite.openDatabase({
+  try {
+    const db = await SQLite.openDatabase({
       name: DB_NAME,
       location: 'default',
-    });await initializeTables(db);dbInstance = db;return db;
-  } catch (error) {// Limpiar instancia en caso de error
+    });
+    await initializeTables(db);
+    dbInstance = db;
+    return db;
+  } catch (error) {
+    console.error('[OfflineStorage] Error abriendo base de datos:', error);
+    // Limpiar instancia en caso de error
     dbInstance = null;
     
     // No hacer throw para que el sistema pueda continuar
@@ -669,9 +680,11 @@ export const saveOfflinePlay = async (playData) => {
               null, // last_sync_attempt
             ],
             (tx, result) => {
-              const playId = result.insertId;resolve({ success: true, id: playId });
+              const playId = result.insertId;
+              resolve({ success: true, id: playId });
             },
-            (tx, error) => {// Cambiar reject por resolve para mantener consistencia
+            (tx, error) => {
+              // Error en el INSERT
               resolve({ success: false, error: error.message });
             }
           );
@@ -679,11 +692,8 @@ export const saveOfflinePlay = async (playData) => {
         (error) => {
           // Error en la transacción completa
           resolve({ success: false, error: error.message });
-        },
-        () => {
-          // Success callback de la transacción
-          resolve({ success: true });
         }
+        // NOTA: No usar success callback de transacción porque ya resolvemos en executeSql
       );
     });
   } catch (error) {

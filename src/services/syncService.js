@@ -9,7 +9,11 @@ import * as OfflineStorage from './offlineStorageService';
  * - Validar horarios antes de enviar
  * - Manejar errores del servidor
  * - Actualizar estados de jugadas
+ * - Limitar reintentos (máximo 3)
  */
+
+// Configuración
+const MAX_RETRY_ATTEMPTS = 3; // Máximo de intentos antes de marcar como permanentemente fallida
 
 /**
  * Sincronizar todas las jugadas pendientes
@@ -18,35 +22,60 @@ import * as OfflineStorage from './offlineStorageService';
  * @returns {Promise<Object>} { success, successCount, failedCount, errors }
  */
 export const syncAllPlays = async (onProgress = null, shouldCancel = null) => {
-  try {// 1. Obtener jugadas pendientes
+  try {
+    // 1. Obtener jugadas pendientes
     const pendingPlays = await OfflineStorage.getPendingPlays();
     
-    if (!pendingPlays || pendingPlays.length === 0) {return {
+    if (!pendingPlays || pendingPlays.length === 0) {
+      return {
         success: true,
         successCount: 0,
         failedCount: 0,
         errors: [],
       };
-    }// 2. Obtener caché de horarios para validación
+    }
+
+    // 2. Filtrar jugadas que no han excedido el límite de reintentos
+    const playsToSync = pendingPlays.filter(play => {
+      const attempts = play.sync_attempts || 0;
+      if (attempts >= MAX_RETRY_ATTEMPTS) {
+        console.log(`[SyncService] Jugada ${play.id} omitida: excedió ${MAX_RETRY_ATTEMPTS} reintentos`);
+        return false;
+      }
+      return true;
+    });
+
+    if (playsToSync.length === 0) {
+      return {
+        success: true,
+        successCount: 0,
+        failedCount: 0,
+        errors: [],
+        message: `Todas las jugadas pendientes han excedido el límite de ${MAX_RETRY_ATTEMPTS} reintentos`,
+      };
+    }
+
+    // 3. Obtener caché de horarios para validación
     const cachedSchedules = await OfflineStorage.getSchedules(null);
     const scheduleMap = new Map();
     cachedSchedules.forEach(s => scheduleMap.set(s.id, s));
 
-    // 3. Procesar cada jugada
+    // 4. Procesar cada jugada
     let successCount = 0;
     let failedCount = 0;
     const errors = [];
 
-    for (let i = 0; i < pendingPlays.length; i++) {
-      const play = pendingPlays[i];
+    for (let i = 0; i < playsToSync.length; i++) {
+      const play = playsToSync[i];
       
       // Verificar si se canceló la sincronización
-      if (shouldCancel && shouldCancel()) {break;
+      if (shouldCancel && shouldCancel()) {
+        break;
       }
 
       // Notificar progreso
       if (onProgress) {
-        onProgress(i + 1, pendingPlays.length, play);
+        onProgress(i + 1, playsToSync.length, play);
       }
 
       try {
@@ -60,7 +89,8 @@ export const syncAllPlays = async (onProgress = null, shouldCancel = null) => {
         const schedule = scheduleMap.get(play.id_horario);
         if (schedule) {
           const validationError = validateScheduleTime(schedule, play.created_at);
-          if (validationError) {await OfflineStorage.updatePlayStatus(play.id, 'failed', validationError);
+          if (validationError) {
+            await OfflineStorage.updatePlayStatus(play.id, 'failed', validationError);
             await OfflineStorage.incrementSyncAttempts(play.id);
             failedCount++;
             errors.push({ playId: play.id, error: validationError });
@@ -71,9 +101,11 @@ export const syncAllPlays = async (onProgress = null, shouldCancel = null) => {
         // Enviar a Supabase
         const result = await sendPlayToSupabase(play);
 
-        if (result.success) {await OfflineStorage.updatePlayStatus(play.id, 'success', null);
+        if (result.success) {
+          await OfflineStorage.updatePlayStatus(play.id, 'success', null);
           successCount++;
-        } else {await OfflineStorage.updatePlayStatus(play.id, 'failed', result.error);
+        } else {
+          await OfflineStorage.updatePlayStatus(play.id, 'failed', result.error);
           await OfflineStorage.incrementSyncAttempts(play.id);
           failedCount++;
           errors.push({ playId: play.id, error: result.error });
@@ -86,9 +118,11 @@ export const syncAllPlays = async (onProgress = null, shouldCancel = null) => {
         failedCount++;
         errors.push({ playId: play.id, error: formattedError });
       }
-    }// Log de operación
+    }
+
+    // Log de operación
     await OfflineStorage.addLog('INFO', 'Sync completed', {
-      total: pendingPlays.length,
+      total: playsToSync.length,
       success: successCount,
       failed: failedCount,
     });
@@ -247,24 +281,54 @@ const sendPlayToSupabase = async (play) => {
 };
 
 /**
- * Validar si el horario está abierto para la fecha/hora de la jugada
+ * Validar si el horario estaba abierto cuando se creó la jugada
+ * 
+ * REGLA DE NEGOCIO:
+ * - Solo sincronizar jugadas del día actual
+ * - Verificar que la hora de creación estuviera dentro del horario
+ * 
  * @param {Object} schedule - Horario del caché
  * @param {string} playCreatedAt - Timestamp de creación de la jugada
  * @returns {string|null} - Mensaje de error o null si es válido
  */
 const validateScheduleTime = (schedule, playCreatedAt) => {
-  try {// Validar que existan los campos necesarios
-    if (!schedule || !schedule.hora_inicio || !schedule.hora_fin) {return null;
+  try {
+    // Validar que existan los campos necesarios
+    if (!schedule || !schedule.hora_inicio || !schedule.hora_fin) {
+      return null; // Sin horario definido, permitir
     }
 
-    // Obtener hora de la jugada en zona horaria de La Habana, Cuba (America/Havana)
+    // Obtener fecha/hora de la jugada
     const playDate = new Date(playCreatedAt);
     
     // Validar que la fecha sea válida
-    if (isNaN(playDate.getTime())) {return null; // Permitir envío si la fecha es inválida
+    if (isNaN(playDate.getTime())) {
+      return null; // Permitir envío si la fecha es inválida
     }
 
-    // Convertir a hora de La Habana usando toLocaleString
+    // Obtener fecha actual en zona horaria de La Habana
+    const now = new Date();
+    const todayHavana = now.toLocaleString('en-US', { 
+      timeZone: 'America/Havana',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).split('/').reverse().join('-'); // Convertir MM/DD/YYYY a YYYY-MM-DD
+    
+    const playDateHavana = playDate.toLocaleString('en-US', { 
+      timeZone: 'America/Havana',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).split('/').reverse().join('-');
+
+    // Si la jugada NO es de hoy, rechazarla
+    // (El servicio de cambio de día debería haberla eliminado)
+    if (playDateHavana !== todayHavana) {
+      return `Jugada del ${playDateHavana} no puede sincronizarse hoy. Solo se permiten jugadas del día actual.`;
+    }
+
+    // Obtener hora de creación en zona horaria de La Habana
     const havanaTime = playDate.toLocaleString('en-US', { 
       timeZone: 'America/Havana',
       hour12: false,
@@ -274,7 +338,9 @@ const validateScheduleTime = (schedule, playCreatedAt) => {
     
     // Parsear la hora de La Habana (formato "HH:MM")
     const [playHour, playMinute] = havanaTime.split(':').map(n => parseInt(n, 10));
-    const playTime = playHour * 60 + playMinute; // minutos desde medianoche// Parsear hora_inicio y hora_fin del horario
+    const playTime = playHour * 60 + playMinute; // minutos desde medianoche
+
+    // Parsear hora_inicio y hora_fin del horario
     // Formato esperado: "HH:MM" o "HH:MM:SS"
     const startParts = schedule.hora_inicio.split(':').map(n => parseInt(n, 10));
     const endParts = schedule.hora_fin.split(':').map(n => parseInt(n, 10));
@@ -285,15 +351,23 @@ const validateScheduleTime = (schedule, playCreatedAt) => {
     const endMinute = endParts[1] || 0;
 
     // Validar que los valores sean números válidos
-    if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {return null; // Permitir envío si los horarios son inválidos
+    if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
+      return null; // Permitir envío si los horarios son inválidos
     }
     
     const startTime = startHour * 60 + startMinute;
-    const endTime = endHour * 60 + endMinute;// Validar si está dentro del rango
+    const endTime = endHour * 60 + endMinute;
+
+    // Validar si estaba dentro del rango cuando se creó
     if (playTime < startTime || playTime > endTime) {
-      const errorMsg = `Horario cerrado. Jugada creada a las ${playHour.toString().padStart(2, '0')}:${playMinute.toString().padStart(2, '0')}, pero el horario "${schedule.nombre}" es de ${schedule.hora_inicio} a ${schedule.hora_fin}`;return errorMsg;
-    }return null; // Válido
-  } catch (error) {// En caso de error en la validación, BLOQUEAR el envío por seguridad
+      const errorMsg = `Horario cerrado. Jugada creada a las ${playHour.toString().padStart(2, '0')}:${playMinute.toString().padStart(2, '0')}, pero el horario "${schedule.nombre}" es de ${schedule.hora_inicio} a ${schedule.hora_fin}`;
+      return errorMsg;
+    }
+
+    return null; // Válido
+  } catch (error) {
+    console.error('[SyncService] Error validando horario:', error);
+    // En caso de error en la validación, BLOQUEAR el envío por seguridad
     return 'Error al validar horario. Contacta soporte.';
   }
 };

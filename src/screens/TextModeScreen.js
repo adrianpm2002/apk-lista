@@ -134,9 +134,17 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
   // Obtener user del AuthContext para manejar offline
   const { user: authUser } = useAuthContext();
 
+  // useRef para evitar re-cargas innecesarias cuando ya tenemos un perfil válido
+  const profileLoadedRef = React.useRef(false);
+
   // Cargar contexto de usuario (bankId)
   useEffect(()=>{
     const loadContext = async () => {
+      // Si ya cargamos el perfil correctamente, no volver a cargar
+      if (profileLoadedRef.current && userProfile?.role) {
+        return;
+      }
+      
       // Si está online, intentar con Supabase
       if (isOnline) {
         try {
@@ -148,6 +156,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
               setUserProfile(profile);
               const bId = profile.role === 'admin' ? user.id : profile.id_banco;
               setBankId(bId);
+              profileLoadedRef.current = true;
               console.log('[TextMode] ✅ Contexto cargado desde Supabase, bankId:', bId);
               return;
             }
@@ -158,19 +167,21 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
       }
       
       // Usar AuthContext (offline o fallback)
-      if (authUser) {
+      // Solo usar si authUser tiene estructura de perfil offline (tiene role definido)
+      if (authUser && authUser.role) {
         console.log('[TextMode] Cargando contexto desde AuthContext:', authUser);
         setUserId(authUser.userId);
         setUserProfile({ role: authUser.role, id_banco: authUser.bankId, username: authUser.username });
         const bId = authUser.role === 'admin' ? authUser.userId : authUser.bankId;
         setBankId(bId);
+        profileLoadedRef.current = true;
         console.log('[TextMode] ✅ Contexto cargado desde AuthContext, bankId:', bId);
       } else {
-        console.log('[TextMode] ⚠️ No hay authUser disponible');
+        console.log('[TextMode] ⚠️ No hay authUser disponible o no tiene rol');
       }
     };
     loadContext();
-  },[authUser, isOnline]);
+  },[authUser, isOnline, userProfile?.role]);
 
   // Cargar loterías del banco
   useEffect(()=>{
