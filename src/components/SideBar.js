@@ -20,6 +20,7 @@ import ChangePasswordModal from './ChangePasswordModal';
 import { createShadowStyle } from '../utils/shadowUtils';
 import { getAccessibilityProps } from '../utils/accessibilityUtils';
 import { useOfflineSafe } from '../contexts/OfflineContext';
+import * as OfflineStorage from '../services/offlineStorageService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -67,6 +68,41 @@ const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibil
   const [loadingModoSantiago, setLoadingModoSantiago] = useState(false);
   const [porcentajeSantiago, setPorcentajeSantiago] = useState(100);
   const [loadingPorcentaje, setLoadingPorcentaje] = useState(false);
+
+  // Estado para modal de diagnóstico SQLite (solo listero)
+  const [sqliteDiagModalVisible, setSqliteDiagModalVisible] = useState(false);
+  const [sqliteDiagData, setSqliteDiagData] = useState(null);
+  const [loadingSqliteDiag, setLoadingSqliteDiag] = useState(false);
+
+  // Función para cargar diagnóstico de SQLite
+  const loadSqliteDiagnostics = async () => {
+    setLoadingSqliteDiag(true);
+    try {
+      const diagnostics = await OfflineStorage.getDiagnostics();
+      const lotteries = await OfflineStorage.getLotteries(null);
+      const schedules = await OfflineStorage.getSchedules(null);
+      const pendingPlaysData = await OfflineStorage.getPendingPlays();
+      const allPlays = await OfflineStorage.getAllOfflinePlays();
+      
+      setSqliteDiagData({
+        diagnostics,
+        lotteries: lotteries || [],
+        schedules: schedules || [],
+        pendingPlays: pendingPlaysData || [],
+        allPlays: allPlays || [],
+      });
+    } catch (error) {
+      console.error('Error cargando diagnóstico SQLite:', error);
+      setSqliteDiagData({ error: error.message });
+    } finally {
+      setLoadingSqliteDiag(false);
+    }
+  };
+
+  const handleSqliteDiagPress = () => {
+    setSqliteDiagModalVisible(true);
+    loadSqliteDiagnostics();
+  };
 
   // Opciones del sidebar por rol
 const roleOptionsMap = {
@@ -584,6 +620,18 @@ const configOptions = role ? roleOptionsMap[role] : null;
                   </Pressable>
                 )}
 
+                {/* Diagnóstico SQLite (solo listero) */}
+                {role === 'listero' && (
+                  <Pressable 
+                    style={styles.settingOption}
+                    onPress={handleSqliteDiagPress}
+                  >
+                    <Text style={styles.settingIcon}>🗄️</Text>
+                    <Text style={styles.settingText}>Ver Datos Offline</Text>
+                    <Text style={styles.settingArrow}>▶</Text>
+                  </Pressable>
+                )}
+
                 {/* Modo Santiago (solo admin/banco) */}
                 {role === 'admin' && (
                   <Pressable 
@@ -1079,6 +1127,114 @@ const configOptions = role ? roleOptionsMap[role] : null;
         visible={changePasswordModalVisible}
         onClose={() => setChangePasswordModalVisible(false)}
       />
+
+      {/* Modal de diagnóstico SQLite */}
+      <Modal
+        visible={sqliteDiagModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSqliteDiagModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { maxHeight: '85%' }]}>
+            <Text style={styles.modalTitle}>🗄️ Datos Offline (SQLite)</Text>
+            
+            {loadingSqliteDiag ? (
+              <Text style={{ textAlign: 'center', padding: 20 }}>Cargando...</Text>
+            ) : sqliteDiagData?.error ? (
+              <Text style={{ color: 'red', padding: 10 }}>Error: {sqliteDiagData.error}</Text>
+            ) : sqliteDiagData ? (
+              <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={true}>
+                {/* Resumen General */}
+                <View style={styles.diagSection}>
+                  <Text style={styles.diagSectionTitle}>📊 Resumen</Text>
+                  <Text style={styles.diagText}>
+                    • Loterías: {sqliteDiagData.lotteries?.length || 0}
+                  </Text>
+                  <Text style={styles.diagText}>
+                    • Horarios: {sqliteDiagData.schedules?.length || 0}
+                  </Text>
+                  <Text style={styles.diagText}>
+                    • Jugadas pendientes: {sqliteDiagData.pendingPlays?.length || 0}
+                  </Text>
+                  <Text style={styles.diagText}>
+                    • Total jugadas offline: {sqliteDiagData.allPlays?.length || 0}
+                  </Text>
+                </View>
+
+                {/* Diagnóstico DB */}
+                {sqliteDiagData.diagnostics && (
+                  <View style={styles.diagSection}>
+                    <Text style={styles.diagSectionTitle}>🔧 Base de Datos</Text>
+                    <Text style={styles.diagText}>
+                      • Versión: {sqliteDiagData.diagnostics.dbVersion || 'N/A'}
+                    </Text>
+                    <Text style={styles.diagText}>
+                      • Jugadas pendientes (DB): {sqliteDiagData.diagnostics.pendingPlaysCount || 0}
+                    </Text>
+                    <Text style={styles.diagText}>
+                      • Credenciales guardadas: {sqliteDiagData.diagnostics.hasCredentials ? 'Sí' : 'No'}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Loterías */}
+                <View style={styles.diagSection}>
+                  <Text style={styles.diagSectionTitle}>🎰 Loterías ({sqliteDiagData.lotteries?.length || 0})</Text>
+                  {sqliteDiagData.lotteries?.slice(0, 10).map((lot, idx) => (
+                    <Text key={idx} style={styles.diagText}>
+                      • {lot.nombre || lot.name || 'Sin nombre'} (ID: {lot.id?.substring(0, 8)}...)
+                    </Text>
+                  ))}
+                  {sqliteDiagData.lotteries?.length > 10 && (
+                    <Text style={styles.diagText}>... y {sqliteDiagData.lotteries.length - 10} más</Text>
+                  )}
+                </View>
+
+                {/* Horarios */}
+                <View style={styles.diagSection}>
+                  <Text style={styles.diagSectionTitle}>⏰ Horarios ({sqliteDiagData.schedules?.length || 0})</Text>
+                  {sqliteDiagData.schedules?.slice(0, 10).map((sch, idx) => (
+                    <Text key={idx} style={styles.diagText}>
+                      • {sch.nombre || sch.name || 'Sin nombre'} ({sch.hora_inicio || 'N/A'} - {sch.hora_fin || 'N/A'})
+                    </Text>
+                  ))}
+                  {sqliteDiagData.schedules?.length > 10 && (
+                    <Text style={styles.diagText}>... y {sqliteDiagData.schedules.length - 10} más</Text>
+                  )}
+                </View>
+
+                {/* Jugadas Pendientes */}
+                <View style={styles.diagSection}>
+                  <Text style={styles.diagSectionTitle}>📝 Jugadas Pendientes ({sqliteDiagData.pendingPlays?.length || 0})</Text>
+                  {sqliteDiagData.pendingPlays?.slice(0, 5).map((play, idx) => (
+                    <View key={idx} style={styles.diagPlayItem}>
+                      <Text style={styles.diagText}>
+                        • {play.numeros || 'N/A'} - ${play.monto_total || 0}
+                      </Text>
+                      <Text style={[styles.diagText, { fontSize: 10, color: '#666' }]}>
+                        Estado: {play.status} | {play.created_at || 'N/A'}
+                      </Text>
+                    </View>
+                  ))}
+                  {sqliteDiagData.pendingPlays?.length > 5 && (
+                    <Text style={styles.diagText}>... y {sqliteDiagData.pendingPlays.length - 5} más</Text>
+                  )}
+                </View>
+              </ScrollView>
+            ) : (
+              <Text style={{ textAlign: 'center', padding: 20 }}>Sin datos</Text>
+            )}
+
+            <Pressable 
+              style={[styles.modalCloseButton, { marginTop: 10 }]} 
+              onPress={() => setSqliteDiagModalVisible(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Cerrar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };
@@ -1311,6 +1467,30 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  
+  // Diagnóstico SQLite styles
+  diagSection: {
+    marginBottom: 15,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  diagSectionTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  diagText: {
+    fontSize: 12,
+    color: '#34495e',
+    marginVertical: 2,
+    paddingLeft: 5,
+  },
+  diagPlayItem: {
+    marginBottom: 8,
+    paddingLeft: 5,
   },
   
   // Settings modal
