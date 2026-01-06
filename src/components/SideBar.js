@@ -1348,7 +1348,7 @@ const configOptions = role ? roleOptionsMap[role] : null;
                   <Text style={styles.diagSectionTitle}>🎰 Loterías ({sqliteDiagData.lotteries?.length || 0})</Text>
                   {sqliteDiagData.lotteries?.slice(0, 10).map((lot, idx) => (
                     <Text key={idx} style={styles.diagText}>
-                      • {lot.nombre || lot.name || 'Sin nombre'} (ID: {lot.id?.substring(0, 8)}...)
+                      • {lot.nombre || lot.name || 'Sin nombre'}
                     </Text>
                   ))}
                   {sqliteDiagData.lotteries?.length > 10 && (

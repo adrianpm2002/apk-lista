@@ -71,12 +71,9 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   useEffect(() => {
     const loadUserProfile = async () => {
       try {
+        // Si no hay usuario, simplemente retornar sin mostrar error
+        // (puede ser porque se cerró sesión)
         if (!user) {
-          Alert.alert(
-            'Error de conexión',
-            'No se pudo verificar tu rol. Por favor, inicia sesión nuevamente.',
-            [{ text: 'OK', onPress: () => navigation.replace('Login') }]
-          );
           return;
         }
         
