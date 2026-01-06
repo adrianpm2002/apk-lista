@@ -21,8 +21,10 @@ export const useAuthContext = () => {
 
 /**
  * Helper para cargar el perfil del usuario y combinarlo con el objeto user
+ * Intenta primero desde Supabase (online), luego desde SQLite (offline)
  */
 const loadUserProfile = async (sessionUser) => {
+  // Intentar primero desde Supabase (online)
   try {
     const { data: profile, error } = await supabase
       .from('profiles')
@@ -42,8 +44,29 @@ const loadUserProfile = async (sessionUser) => {
       };
     }
   } catch (e) {
-    // Ignorar errores de conexión
+    // Ignorar errores de conexión, intentar fallback
   }
+  
+  // Fallback: Intentar cargar desde SQLite (sesión offline guardada)
+  try {
+    const OfflineStorage = require('../services/offlineStorageService');
+    const offlineSession = await OfflineStorage.default.getActiveOfflineSession();
+    
+    if (offlineSession && offlineSession.user_id === sessionUser.id) {
+      // Usar datos del perfil guardados en SQLite
+      return {
+        ...sessionUser,
+        role: offlineSession.role,
+        bankId: offlineSession.id_banco,
+        id_banco: offlineSession.id_banco,
+        username: offlineSession.encrypted_data ? JSON.parse(offlineSession.encrypted_data).username : null,
+        userId: sessionUser.id,
+      };
+    }
+  } catch (offlineError) {
+    console.error('[AuthContext] Error cargando perfil desde SQLite:', offlineError);
+  }
+  
   return sessionUser;
 };
 

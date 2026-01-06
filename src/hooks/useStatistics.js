@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { useAuthContext } from '../contexts/AuthContext';
 import { useListeroStatistics } from './useListeroStatistics';
 import { useCollectorStatistics } from './useCollectorStatistics';
 import { useAdminStatistics } from './useAdminStatistics';
@@ -7,6 +8,7 @@ import { useAdminStatistics } from './useAdminStatistics';
 // Hook de compatibilidad que mantiene la interfaz original
 // pero usa los nuevos hooks específicos por rol internamente
 const useStatistics = () => {
+  const { user: authUser } = useAuthContext();
   const [userRole, setUserRole] = useState(null);
   const [userId, setUserId] = useState(null);
   
@@ -15,24 +17,31 @@ const useStatistics = () => {
   const collectorStats = useCollectorStatistics({ enabled: userRole === 'collector' || userRole === 'colector' });
   const adminStats = useAdminStatistics({ enabled: userRole === 'admin' });
 
-  // Detectar el rol del usuario
+  // Detectar el rol del usuario (online y offline)
   useEffect(() => {
     const detectUserRole = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        if (!authUser) {
           return;
         }
 
+        // Si el usuario ya tiene rol (offline), usarlo directamente
+        if (authUser.role) {
+          setUserRole(authUser.role);
+          setUserId(authUser.userId || authUser.id);
+          return;
+        }
+
+        // Si no tiene rol (online), consultar Supabase
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('role')
-          .eq('id', user.id)
+          .eq('id', authUser.id)
           .single();
 
         if (!error && profile && profile.role) {
           setUserRole(profile.role);
-          setUserId(user.id);
+          setUserId(authUser.id);
         }
       } catch (error) {
         // Error crítico: no hacer nada, dejar userRole como null
@@ -41,7 +50,7 @@ const useStatistics = () => {
     };
 
     detectUserRole();
-  }, []);
+  }, [authUser]);
 
   // Función para obtener el hook activo según el rol
   const getActiveStats = () => {
