@@ -810,7 +810,7 @@ const configOptions = role ? roleOptionsMap[role] : null;
                     onPress={handleSqliteDiagPress}
                   >
                     <Text style={styles.settingIcon}>🗄️</Text>
-                    <Text style={styles.settingText}>Ver Datos Offline</Text>
+                    <Text style={styles.settingText}>Datos Offline</Text>
                     <Text style={styles.settingArrow}>▶</Text>
                   </Pressable>
                 )}
@@ -1343,39 +1343,6 @@ const configOptions = role ? roleOptionsMap[role] : null;
               <Text style={{ color: 'red', padding: 10 }}>Error: {sqliteDiagData.error}</Text>
             ) : sqliteDiagData ? (
               <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={true}>
-                {/* Resumen General */}
-                <View style={styles.diagSection}>
-                  <Text style={styles.diagSectionTitle}>📊 Resumen</Text>
-                  <Text style={styles.diagText}>
-                    • Loterías: {sqliteDiagData.lotteries?.length || 0}
-                  </Text>
-                  <Text style={styles.diagText}>
-                    • Horarios: {sqliteDiagData.schedules?.length || 0}
-                  </Text>
-                  <Text style={styles.diagText}>
-                    • Jugadas pendientes: {sqliteDiagData.pendingPlays?.length || 0}
-                  </Text>
-                  <Text style={styles.diagText}>
-                    • Total jugadas offline: {sqliteDiagData.allPlays?.length || 0}
-                  </Text>
-                </View>
-
-                {/* Diagnóstico DB */}
-                {sqliteDiagData.diagnostics && (
-                  <View style={styles.diagSection}>
-                    <Text style={styles.diagSectionTitle}>🔧 Base de Datos</Text>
-                    <Text style={styles.diagText}>
-                      • Versión: {sqliteDiagData.diagnostics.dbVersion || 'N/A'}
-                    </Text>
-                    <Text style={styles.diagText}>
-                      • Jugadas pendientes (DB): {sqliteDiagData.diagnostics.pendingPlaysCount || 0}
-                    </Text>
-                    <Text style={styles.diagText}>
-                      • Credenciales guardadas: {sqliteDiagData.diagnostics.hasCredentials ? 'Sí' : 'No'}
-                    </Text>
-                  </View>
-                )}
-
                 {/* Loterías */}
                 <View style={styles.diagSection}>
                   <Text style={styles.diagSectionTitle}>🎰 Loterías ({sqliteDiagData.lotteries?.length || 0})</Text>
@@ -1399,24 +1366,6 @@ const configOptions = role ? roleOptionsMap[role] : null;
                   ))}
                   {sqliteDiagData.schedules?.length > 10 && (
                     <Text style={styles.diagText}>... y {sqliteDiagData.schedules.length - 10} más</Text>
-                  )}
-                </View>
-
-                {/* Jugadas Pendientes */}
-                <View style={styles.diagSection}>
-                  <Text style={styles.diagSectionTitle}>📝 Jugadas Pendientes ({sqliteDiagData.pendingPlays?.length || 0})</Text>
-                  {sqliteDiagData.pendingPlays?.slice(0, 5).map((play, idx) => (
-                    <View key={idx} style={styles.diagPlayItem}>
-                      <Text style={styles.diagText}>
-                        • {play.numeros || 'N/A'} - ${play.monto_total || 0}
-                      </Text>
-                      <Text style={[styles.diagText, { fontSize: 10, color: '#666' }]}>
-                        Estado: {play.status} | {play.created_at || 'N/A'}
-                      </Text>
-                    </View>
-                  ))}
-                  {sqliteDiagData.pendingPlays?.length > 5 && (
-                    <Text style={styles.diagText}>... y {sqliteDiagData.pendingPlays.length - 5} más</Text>
                   )}
                 </View>
               </ScrollView>
