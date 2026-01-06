@@ -512,10 +512,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     width: '100%',
-    maxHeight: '92%',
-    paddingTop: 14,
-    paddingBottom: 8,
-    paddingHorizontal: 14,
+    maxHeight: Platform.OS === 'android' ? '88%' : '92%',
+    paddingTop: Platform.OS === 'android' ? 10 : 14,
+    paddingBottom: Platform.OS === 'android' ? 6 : 8,
+    paddingHorizontal: Platform.OS === 'android' ? 10 : 14,
     borderWidth: 1,
     borderColor: '#E4EBE2',
     ...createShadowStyle({
@@ -576,16 +576,74 @@ const styles = StyleSheet.create({
   combineBelowRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:22 },
   quickRow:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:26 },
   // togglePill & secondaryBtn estilos eliminados
-  footerBar:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingTop:8, borderTopWidth:1, borderTopColor:'#E4EBE2' },
-  footerBtnCancel:{ flex:1, marginRight:8, backgroundColor:'#FFEDEA', paddingVertical:12, borderRadius:10, alignItems:'center', borderWidth:1, borderColor:'#F5C4BD' },
-  footerBtnCancelText:{ fontSize:14, fontWeight:'600', color:'#C0392B' },
-  footerBtnMiddle:{ flex:1, marginHorizontal:8, backgroundColor:'#F4F9F2', paddingVertical:12, borderRadius:10, alignItems:'center', borderWidth:1, borderColor:'#D5E4D0' },
-  footerBtnMiddleText:{ fontSize:14, fontWeight:'700', color:'#2D5016' },
-  footerBtnInsert:{ flex:1, marginLeft:8, backgroundColor:'#27AE60', paddingVertical:12, borderRadius:10, alignItems:'center', borderWidth:1, borderColor:'#229954' },
-  footerBtnInsertText:{ fontSize:14, fontWeight:'700', color:'#FFFFFF' },
+  footerBar:{ 
+    flexDirection:'row', 
+    justifyContent:'space-between', 
+    alignItems:'center', 
+    paddingTop: Platform.OS === 'android' ? 6 : 8, 
+    paddingBottom: Platform.OS === 'android' ? 4 : 0,
+    borderTopWidth:1, 
+    borderTopColor:'#E4EBE2' 
+  },
+  footerBtnCancel:{ 
+    flex:1, 
+    marginRight: Platform.OS === 'android' ? 4 : 8, 
+    backgroundColor:'#FFEDEA', 
+    paddingVertical: Platform.OS === 'android' ? 10 : 12, 
+    borderRadius:10, 
+    alignItems:'center', 
+    borderWidth:1, 
+    borderColor:'#F5C4BD' 
+  },
+  footerBtnCancelText:{ 
+    fontSize: Platform.OS === 'android' ? 13 : 14, 
+    fontWeight:'600', 
+    color:'#C0392B' 
+  },
+  footerBtnMiddle:{ 
+    flex:1, 
+    marginHorizontal: Platform.OS === 'android' ? 4 : 8, 
+    backgroundColor:'#F4F9F2', 
+    paddingVertical: Platform.OS === 'android' ? 10 : 12, 
+    borderRadius:10, 
+    alignItems:'center', 
+    borderWidth:1, 
+    borderColor:'#D5E4D0' 
+  },
+  footerBtnMiddleText:{ 
+    fontSize: Platform.OS === 'android' ? 13 : 14, 
+    fontWeight:'700', 
+    color:'#2D5016' 
+  },
+  footerBtnInsert:{ 
+    flex:1, 
+    marginLeft: Platform.OS === 'android' ? 4 : 8, 
+    backgroundColor:'#27AE60', 
+    paddingVertical: Platform.OS === 'android' ? 10 : 12, 
+    borderRadius:10, 
+    alignItems:'center', 
+    borderWidth:1, 
+    borderColor:'#229954' 
+  },
+  footerBtnInsertText:{ 
+    fontSize: Platform.OS === 'android' ? 13 : 14, 
+    fontWeight:'700', 
+    color:'#FFFFFF' 
+  },
   scrollArea:{ flexGrow:1 },
-  scrollContent:{ paddingBottom:28 },
-  listInputContainer:{ flexDirection:'row', borderWidth:1, borderColor:'#D5E4D0', borderRadius:10, backgroundColor:'#FFFFFF', padding:8, minHeight:140, maxHeight:220 },
+  scrollContent:{ 
+    paddingBottom: Platform.OS === 'android' ? 12 : 28 
+  },
+  listInputContainer:{ 
+    flexDirection:'row', 
+    borderWidth:1, 
+    borderColor:'#D5E4D0', 
+    borderRadius:10, 
+    backgroundColor:'#FFFFFF', 
+    padding: Platform.OS === 'android' ? 6 : 8, 
+    minHeight: Platform.OS === 'android' ? 120 : 140, 
+    maxHeight: Platform.OS === 'android' ? 180 : 220 
+  },
   listInputContainerDup:{ borderColor:'#F1C40F' },
   listInput:{ flex:1, fontSize:12, lineHeight:18, color:'#2D5016', paddingRight:8 },
   sideButtonsColumn:{ width:86, justifyContent:'flex-start' },
@@ -601,7 +659,17 @@ const styles = StyleSheet.create({
   amarrarCompactBtn:{ marginLeft:10, height:54, paddingHorizontal:18, backgroundColor:'#F39C12', borderRadius:14, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor:'#E67E22' },
   amarrarCompactBtnText:{ fontSize:12, fontWeight:'700', color:'#FFFFFF' },
   // Nueva edición lista
-  tokensEditContainer:{ position:'relative', borderWidth:1, borderColor:'#D5E4D0', borderRadius:10, backgroundColor:'#FFFFFF', minHeight:180, maxHeight:210, padding:6, paddingRight:84 },
+  tokensEditContainer:{ 
+    position:'relative', 
+    borderWidth:1, 
+    borderColor:'#D5E4D0', 
+    borderRadius:10, 
+    backgroundColor:'#FFFFFF', 
+    minHeight: Platform.OS === 'android' ? 150 : 180, 
+    maxHeight: Platform.OS === 'android' ? 180 : 210, 
+    padding:6, 
+    paddingRight:84 
+  },
   tokensEditFocused:{ borderColor:'#A8C8A2' },
   tokensEditDup:{ borderColor:'#F1C40F' },
   transparentInput:{ position:'absolute', top:6, left:6, right:94, bottom:6, opacity:0, color:'transparent' },
@@ -620,7 +688,16 @@ const styles = StyleSheet.create({
   amarrarMiniBtnText:{ fontSize:11, fontWeight:'700', color:'#FFFFFF' },
   combinarBtn:{ marginLeft:10, backgroundColor:'#2980B9', borderColor:'#2471A3' },
   insertAllBtn:{ marginLeft:10, backgroundColor:'#16A085', borderColor:'#13856E' },
-  tokensContainer:{ borderWidth:1, borderColor:'#D5E4D0', borderRadius:10, backgroundColor:'#FFFFFF', padding:8, minHeight:120, maxHeight:220, position:'relative' },
+  tokensContainer:{ 
+    borderWidth:1, 
+    borderColor:'#D5E4D0', 
+    borderRadius:10, 
+    backgroundColor:'#FFFFFF', 
+    padding: Platform.OS === 'android' ? 6 : 8, 
+    minHeight: Platform.OS === 'android' ? 100 : 120, 
+    maxHeight: Platform.OS === 'android' ? 180 : 220, 
+    position:'relative' 
+  },
   tokensScroll:{ maxHeight:180 },
   tokensWrap:{ flexDirection:'row', flexWrap:'wrap', paddingRight:68 },
   token:{ backgroundColor:'#F4F9F2', borderWidth:1, borderColor:'#D5E4D0', paddingVertical:4, borderRadius:6, margin:3, width:44, alignItems:'center' }, // ajustado para 5 por fila

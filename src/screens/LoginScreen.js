@@ -58,8 +58,21 @@ const OfflineLoginButton = ({ username, password, setFieldError, navigation }) =
         return;
       }
 
-      // Login offline exitoso - Establecer usuario en el contexto
+      // Login offline exitoso - Validar rol
       const { profile } = result;
+      
+      // Verificar si el rol es admin o collector
+      if (profile.role === 'admin' || profile.role === 'collector') {
+        Alert.alert(
+          'Modo Offline No Disponible',
+          'El modo offline solo está disponible para el listero en esta versión. Por favor, inicie sesión con conexión a internet.',
+          [{ text: 'OK' }]
+        );
+        setIsLoading(false);
+        return;
+      }
+      
+      // Establecer usuario en el contexto solo si es listero
       setOfflineUser(profile);
       
       Alert.alert(
@@ -69,12 +82,7 @@ const OfflineLoginButton = ({ username, password, setFieldError, navigation }) =
           {
             text: 'OK',
             onPress: () => {
-              // Navegar según el rol
-              if (profile.role === 'admin' || profile.role === 'collector') {
-                navigation.navigate('Statistics');
-              } else if (profile.role === 'listero') {
-                navigation.navigate('MainApp');
-              }
+              navigation.navigate('MainApp');
             }
           }
         ]

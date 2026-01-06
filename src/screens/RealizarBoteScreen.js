@@ -14,6 +14,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { supabase } from '../supabaseClient';
+import { useAuthContext } from '../contexts/AuthContext';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
 import ScreenWrapper from '../components/ScreenWrapper';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -163,11 +164,13 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
     return false;
   };
 
+  // Obtener usuario del contexto (funciona online y offline)
+  const { user: authUser } = useAuthContext();
+  
   useEffect(() => {
     const loadUserProfile = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        if (!authUser) {
           Alert.alert(
             'Error de conexión',
             'No se pudo verificar tu sesión. Por favor, inicia sesión nuevamente.',
@@ -176,10 +179,20 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
           return;
         }
 
+        // Si el usuario tiene rol (offline), usarlo directamente
+        if (authUser.role) {
+          const bankId = authUser.role === 'admin' ? (authUser.userId || authUser.id) : (authUser.bankId || authUser.id_banco);
+          setCurrentBankId(bankId);
+          setCurrentUserId(authUser.userId || authUser.id);
+          setUserRole(authUser.role);
+          return;
+        }
+
+        // Si no tiene rol (online), consultar Supabase
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('role, id_banco')
-          .eq('id', user.id)
+          .eq('id', authUser.id)
           .single();
 
         if (error || !profile) {
@@ -191,9 +204,9 @@ const RealizarBoteContent = ({ navigation, onModeVisibilityChange }) => {
           return;
         }
 
-        const bankId = profile.role === 'admin' ? user.id : profile.id_banco;
+        const bankId = profile.role === 'admin' ? authUser.id : profile.id_banco;
         setCurrentBankId(bankId);
-        setCurrentUserId(user.id);
+        setCurrentUserId(authUser.id);
         setUserRole(profile.role);
       } catch (error) {
         console.error('Error loading user profile:', error);

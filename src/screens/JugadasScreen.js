@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Alert, ActivityIndicator, Switch, RefreshControl, TouchableOpacity } from 'react-native';
 import { supabase } from '../supabaseClient';
+import { useAuthContext } from '../contexts/AuthContext';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
@@ -255,16 +256,27 @@ const JugadasContent = React.memo(({
   const [enabledPlayTypesByLottery, setEnabledPlayTypesByLottery] = useState({});
   const [jugadasRecordId, setJugadasRecordId] = useState(null); // id de la fila en jugadas_activas
 
+  // Obtener usuario del contexto (funciona online y offline)
+  const { user: authUser } = useAuthContext();
+  
   // ========== FETCH FUNCTIONS ==========
   const fetchUserProfile = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!authUser) return;
 
+      // Si el usuario tiene rol (offline), usarlo directamente
+      if (authUser.role) {
+        setUserRole(authUser.role);
+        const bankId = authUser.role === 'admin' ? (authUser.userId || authUser.id) : (authUser.bankId || authUser.id_banco);
+        setCurrentBankId(bankId);
+        return;
+      }
+
+      // Si no tiene rol (online), consultar Supabase
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('role, id_banco')
-        .eq('id', user.id)
+        .eq('id', authUser.id)
         .maybeSingle();
 
       if (error) {
@@ -274,7 +286,7 @@ const JugadasContent = React.memo(({
 
       if (profile) {
         setUserRole(profile.role);
-        const bankId = profile.role === 'admin' ? user.id : profile.id_banco;
+        const bankId = profile.role === 'admin' ? authUser.id : profile.id_banco;
         setCurrentBankId(bankId);
       }
     } catch (error) {

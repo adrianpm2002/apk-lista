@@ -1183,8 +1183,8 @@ const VisualModeScreen = ({ navigation, route, currentMode, onModeChange, isDark
         {insertFeedback && (
           <FeedbackBanner
             type={insertFeedback.blocked ? 'blocked' : (insertFeedback.fail ? (insertFeedback.success ? 'warning':'error') : 'success')}
-            message={insertFeedback.blocked ? t('edit.blocked') : insertFeedback.fail ? `${insertFeedback.success} guardada(s), ${insertFeedback.fail} fallida(s)` : `${insertFeedback.success} jugada(s) guardada(s)`}
-            details={(insertFeedback.blocked ? [t('edit.blocked.detail')] : [])
+            message={insertFeedback.message || (insertFeedback.blocked ? t('edit.blocked') : insertFeedback.fail ? `${insertFeedback.success} guardada(s), ${insertFeedback.fail} fallida(s)` : `${insertFeedback.success} jugada(s) guardada(s)`)}
+            details={(insertFeedback.blocked && !insertFeedback.message ? [t('edit.blocked.detail')] : [])
               .concat(insertFeedback.duplicates?.length ? insertFeedback.duplicates.slice(0,8).map(d=> `Dup: ${d.jugada} [${d.numeros}]`) : [])
               .concat(insertFeedback.serverError ? [`Servidor: ${insertFeedback.serverError}`] : [])}
             onClose={()=> setInsertFeedback(null)}

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authService } from '../services/authService';
 import { sessionMonitor } from '../services/sessionMonitorService';
+import { supabase } from '../supabaseClient';
 
 /**
  * Contexto de autenticación
@@ -19,6 +20,34 @@ export const useAuthContext = () => {
 };
 
 /**
+ * Helper para cargar el perfil del usuario y combinarlo con el objeto user
+ */
+const loadUserProfile = async (sessionUser) => {
+  try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('role, id_banco, username')
+      .eq('id', sessionUser.id)
+      .single();
+    
+    if (!error && profile) {
+      // Combinar el usuario de sesión con los datos del perfil
+      return {
+        ...sessionUser,
+        role: profile.role,
+        bankId: profile.id_banco,
+        id_banco: profile.id_banco,
+        username: profile.username,
+        userId: sessionUser.id,
+      };
+    }
+  } catch (e) {
+    // Ignorar errores de conexión
+  }
+  return sessionUser;
+};
+
+/**
  * Provider del contexto de autenticación
  */
 export const AuthProvider = ({ children }) => {
@@ -29,16 +58,20 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     // Agregar listener para cambios de estado de autenticación
-    const handleAuthStateChange = (event, session) => {
+    const handleAuthStateChange = async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
         setSession(session);
-        setUser(session.user);
+        // Cargar perfil con rol para usuarios online
+        const userWithProfile = await loadUserProfile(session.user);
+        setUser(userWithProfile);
       } else if (event === 'SIGNED_OUT') {
         setSession(null);
         setUser(null);
       } else if (event === 'TOKEN_REFRESHED' && session) {
         setSession(session);
-        setUser(session.user);
+        // Cargar perfil con rol para usuarios online
+        const userWithProfile = await loadUserProfile(session.user);
+        setUser(userWithProfile);
       }
       
       setLoading(false);
@@ -54,13 +87,17 @@ export const AuthProvider = ({ children }) => {
         
         if (restoredSession && restoredSession.session) {
           setSession(restoredSession.session);
-          setUser(restoredSession.session.user);
+          // Cargar perfil con rol para usuarios online
+          const userWithProfile = await loadUserProfile(restoredSession.session.user);
+          setUser(userWithProfile);
         } else {
           // Verificar si hay sesión online activa
           const currentSession = await authService.getCurrentSession();
           if (currentSession) {
             setSession(currentSession);
-            setUser(currentSession.user);
+            // Cargar perfil con rol para usuarios online
+            const userWithProfile = await loadUserProfile(currentSession.user);
+            setUser(userWithProfile);
           } else {
             // Si no hay sesión online, intentar auto-login offline
             const offlineResult = await authService.tryAutoLoginOffline();
@@ -98,6 +135,24 @@ export const AuthProvider = ({ children }) => {
       }
     };
   }, []);
+
+  // Efecto adicional: Si el usuario existe pero no tiene rol, cargar el perfil
+  useEffect(() => {
+    const enrichUserWithProfile = async () => {
+      // Solo si hay usuario pero no tiene rol (sesión preexistente sin perfil cargado)
+      if (user && !user.role) {
+        const userId = user.id || user.userId;
+        if (userId) {
+          const userWithProfile = await loadUserProfile({ ...user, id: userId });
+          if (userWithProfile.role) {
+            setUser(userWithProfile);
+          }
+        }
+      }
+    };
+    
+    enrichUserWithProfile();
+  }, [user]);
 
   /**
    * Establecer usuario offline manualmente (para login offline manual)

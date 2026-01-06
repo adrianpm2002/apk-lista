@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import useStatistics from '../hooks/useStatistics';
+import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../supabaseClient';
 import StatisticsChart from '../components/StatisticsChart';
 import SideBarWrapper, { SideBarToggle } from '../components/SideBarWrapper';
@@ -59,6 +60,9 @@ const StatisticsScreen = ({ navigation, onModeVisibilityChange }) => {
 };
 
 const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
+  // Usar AuthContext para obtener usuario (funciona online y offline)
+  const { user } = useAuthContext();
+  
   // Estado local para usuario y rol
   const [currentUserId, setCurrentUserId] = useState(null);
   const [userRole, setUserRole] = useState(null);
@@ -67,7 +71,6 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
   useEffect(() => {
     const loadUserProfile = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           Alert.alert(
             'Error de conexión',
@@ -77,6 +80,24 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           return;
         }
         
+        // Si el usuario ya tiene rol (offline), usarlo directamente
+        if (user.role) {
+          const validRoles = ['admin', 'collector', 'colector', 'listero'];
+          if (!validRoles.includes(user.role)) {
+            Alert.alert(
+              'Error de conexión',
+              'Rol de usuario no válido. Por favor, inicia sesión nuevamente.',
+              [{ text: 'OK', onPress: () => navigation.replace('Login') }]
+            );
+            return;
+          }
+          
+          setUserRole(user.role);
+          setCurrentUserId(user.userId || user.id);
+          return;
+        }
+        
+        // Si no tiene rol (online), consultar Supabase
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('role')
@@ -116,7 +137,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     };
     
     loadUserProfile();
-  }, []);
+  }, [user]);
   
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [selectedLottery, setSelectedLottery] = useState('all');

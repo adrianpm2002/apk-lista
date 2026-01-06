@@ -1155,7 +1155,7 @@ const TextModeScreen = ({ navigation, route, currentMode, onModeChange, isDarkMo
       {insertFeedback && (
         <FeedbackBanner
           type={insertFeedback.blocked ? 'blocked' : (insertFeedback.fail ? (insertFeedback.success ? 'warning' : 'error') : 'success')}
-          message={insertFeedback.blocked ? `${t('edit.blocked')}: ${t('edit.blocked.detail')}` : `${t('banner.inserted')}: ${insertFeedback.success}  ${t('banner.fail')}: ${insertFeedback.fail}`}
+          message={insertFeedback.message || (insertFeedback.blocked ? `${t('edit.blocked')}: ${t('edit.blocked.detail')}` : `${t('banner.inserted')}: ${insertFeedback.success}  ${t('banner.fail')}: ${insertFeedback.fail}`)}
           details={(limitViolations.length ? limitViolations.slice(0,10).map(v=> {
             const usado = v.usado || 0;
             const intento = v.intento || 0;

@@ -25,9 +25,98 @@ import * as OfflineStorage from '../services/offlineStorageService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibilityChange, role, visibleModes: incomingVisibleModes }) => {
-  // Auth context para obtener authUser (id_banco para sincronización)
-  const { authUser } = useAuthContext();
+// Cache global del rol para evitar delays entre instancias de SideBar
+let cachedRole = null;
+let cachedUserId = null; // Para detectar cambios de usuario
+let roleLoadingPromise = null;
+
+// Función para limpiar el cache (llamar al cerrar sesión)
+export const clearRoleCache = () => {
+  cachedRole = null;
+  cachedUserId = null;
+  roleLoadingPromise = null;
+};
+
+const SideBar = ({ isVisible, onClose, onOptionSelect, navigation, onModeVisibilityChange, role: propRole, visibleModes: incomingVisibleModes }) => {
+  // Auth context para obtener user (id_banco para sincronización y rol como fallback)
+  const { user: authUser } = useAuthContext();
+  
+  // Estado interno para el rol
+  const [internalRole, setInternalRole] = useState(cachedRole);
+  
+  // Detectar cambio de usuario o sesión expirada y limpiar cache
+  useEffect(() => {
+    const currentUserId = authUser?.id || authUser?.userId;
+    
+    // Si no hay usuario (sesión expirada o cerrada), limpiar cache
+    if (!authUser && cachedUserId) {
+      cachedRole = null;
+      cachedUserId = null;
+      setInternalRole(null);
+      return;
+    }
+    
+    // Si el usuario cambió, limpiar cache
+    if (currentUserId && cachedUserId && currentUserId !== cachedUserId) {
+      cachedRole = null;
+      cachedUserId = null;
+      setInternalRole(null);
+    }
+    
+    if (currentUserId) {
+      cachedUserId = currentUserId;
+    }
+  }, [authUser]);
+  
+  // Prioridad: prop > authUser.role > cachedRole > internalRole
+  const role = propRole || authUser?.role || cachedRole || internalRole;
+  
+  // Cargar rol desde Supabase una sola vez (compartido entre instancias)
+  useEffect(() => {
+    // Si ya tenemos rol de alguna fuente, no hacer nada
+    if (propRole || authUser?.role || cachedRole) {
+      if (cachedRole && !internalRole) {
+        setInternalRole(cachedRole);
+      }
+      return;
+    }
+    
+    // Si ya hay una carga en progreso, esperar
+    if (roleLoadingPromise) {
+      roleLoadingPromise.then(loadedRole => {
+        if (loadedRole) {
+          setInternalRole(loadedRole);
+        }
+      });
+      return;
+    }
+    
+    // Cargar rol y cachear
+    roleLoadingPromise = (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+          
+          if (profile?.role) {
+            cachedRole = profile.role;
+            cachedUserId = user.id;
+            setInternalRole(profile.role);
+            return profile.role;
+          }
+        }
+      } catch (error) {
+        // Ignorar errores de conexión
+      } finally {
+        roleLoadingPromise = null;
+      }
+      return null;
+    })();
+  }, [propRole, authUser?.role]);
   
   // Offline context para badge de pendientes (seguro - puede ser null)
   const offlineContext = useOfflineSafe();
@@ -384,6 +473,8 @@ const configOptions = role ? roleOptionsMap[role] : null;
   const handleLogout = () => {
     const proceed = async () => {
       try {
+        // Limpiar cache de rol antes de cerrar sesión
+        clearRoleCache();
         // Usar authService.logout() para limpiar tanto AsyncStorage como SQLite
         await authService.logout(false);
       } catch (e) {

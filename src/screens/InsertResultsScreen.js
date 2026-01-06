@@ -5,6 +5,7 @@ import InputField from '../components/InputField';
 import ActionButton from '../components/ActionButton';
 import { SideBar, SideBarToggle } from '../components/SideBar';
 import { supabase } from '../supabaseClient';
+import { useAuthContext } from '../contexts/AuthContext';
 import { useFocusEffect } from '@react-navigation/native';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { createShadowStyle } from '../utils/shadowUtils';
@@ -64,20 +65,30 @@ const InsertResultsContent = ({ navigation, onModeVisibilityChange }) => {
   return digits.slice(0, 3) + ' ' + digits.slice(3);
   };
 
+  // Obtener usuario del contexto (funciona online y offline)
+  const { user: authUser } = useAuthContext();
+  
   // Funciones para obtener datos directamente
   const fetchUserProfile = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile, error } = await supabase.from('profiles').select('role, id_banco').eq('id', user.id).single();
-        if (profile && !error) {
-          setUserRole(profile.role);
-          // Usar la misma lógica que otras pantallas para obtener bankId
-          const bankId = profile.role === 'admin' ? user.id : profile.id_banco;
-          setCurrentBankId(bankId);
-        } else {
-          console.error('Error loading user profile:', error);
-        }
+      if (!authUser) return;
+      
+      // Si el usuario tiene rol (offline), usarlo directamente
+      if (authUser.role) {
+        setUserRole(authUser.role);
+        const bankId = authUser.role === 'admin' ? (authUser.userId || authUser.id) : (authUser.bankId || authUser.id_banco);
+        setCurrentBankId(bankId);
+        return;
+      }
+      
+      // Si no tiene rol (online), consultar Supabase
+      const { data: profile, error } = await supabase.from('profiles').select('role, id_banco').eq('id', authUser.id).single();
+      if (profile && !error) {
+        setUserRole(profile.role);
+        const bankId = profile.role === 'admin' ? authUser.id : profile.id_banco;
+        setCurrentBankId(bankId);
+      } else {
+        console.error('Error loading user profile:', error);
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
