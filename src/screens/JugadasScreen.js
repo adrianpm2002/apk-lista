@@ -134,45 +134,62 @@ const PlaysRecordView = ({ navigation, groupData, title, sidebarVisible, setSide
 
         <ScrollView style={styles.content} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
           {groupData.jugadas && groupData.jugadas.length > 0 ? (
-            groupData.jugadas.map((jugada, index) => (
-              <View key={index} style={[styles.playCard, index % 2 === 0 && styles.evenPlayCard]}>
-                <View style={styles.playHeader}>
-                  <Text style={styles.playTime}>
-                    {jugada.time || formatTime(jugada.ts || jugada.created_at || Date.now())}
-                  </Text>
-                  <Text style={styles.playType}>{jugada.jugada}</Text>
-                </View>
-                
-                <View style={styles.playDetails}>
-                  <Text style={styles.playNumbers}>📝 {jugada.numeros}</Text>
-                  {jugada.nota && (
-                    <Text style={styles.playNote}>💬 {jugada.nota}</Text>
-                  )}
-                </View>
-                
-                <View style={styles.playAmounts}>
-                  <Text style={styles.amountItem}>
-                    💰 Total: {formatMoney(jugada.bruto)}
-                  </Text>
-                  {jugada.ganancia !== undefined && (
-                    <Text style={styles.amountItem}>
-                      📈 Ganancia: {formatMoney(jugada.ganancia)}
+            groupData.jugadas.map((jugada, index) => {
+              const isBote = jugada.isBote || (jugada.nota || '').toLowerCase() === 'bote';
+              
+              return (
+                <View key={index} style={[
+                  styles.playCard, 
+                  index % 2 === 0 && styles.evenPlayCard,
+                  isBote && styles.boteCard
+                ]}>
+                  <View style={styles.playHeader}>
+                    <Text style={styles.playTime}>
+                      {jugada.time || formatTime(jugada.ts || jugada.created_at || Date.now())}
                     </Text>
-                  )}
-                  {jugada.pagado > 0 && (
-                    <Text style={styles.amountItem}>
-                      🏆 Premio: {formatMoney(jugada.pagado)}
+                    <Text style={[styles.playType, isBote && styles.boteType]}>
+                      {isBote ? '🎁 BOTE' : jugada.jugada}
                     </Text>
-                  )}
-                  <Text style={[
-                    styles.amountItem,
-                    (jugada.balance || 0) >= 0 ? styles.positiveBalance : styles.negativeBalance
-                  ]}>
-                    📊 Balance: {formatMoney(jugada.balance || 0)}
-                  </Text>
+                  </View>
+                  
+                  <View style={styles.playDetails}>
+                    {!isBote && jugada.numeros && (
+                      <Text style={styles.playNumbers}>📝 {jugada.numeros}</Text>
+                    )}
+                    {jugada.nota && !isBote && (
+                      <Text style={styles.playNote}>💬 {jugada.nota}</Text>
+                    )}
+                    {isBote && (
+                      <Text style={styles.boteDescription}>Pago de bote asociado a este resultado</Text>
+                    )}
+                  </View>
+                  
+                  <View style={styles.playAmounts}>
+                    {!isBote && (
+                      <Text style={styles.amountItem}>
+                        💰 Total: {formatMoney(jugada.bruto)}
+                      </Text>
+                    )}
+                    {jugada.ganancia !== undefined && (
+                      <Text style={styles.amountItem}>
+                        📈 Ganancia: {formatMoney(jugada.ganancia)}
+                      </Text>
+                    )}
+                    {jugada.pagado !== 0 && (
+                      <Text style={styles.amountItem}>
+                        🏆 Premio: {formatMoney(jugada.pagado)}
+                      </Text>
+                    )}
+                    <Text style={[
+                      styles.amountItem,
+                      (jugada.balance || 0) >= 0 ? styles.positiveBalance : styles.negativeBalance
+                    ]}>
+                      📊 Balance: {formatMoney(jugada.balance || 0)}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ))
+              );
+            })
           ) : (
             <Text style={styles.emptyMessage}>No hay jugadas para mostrar</Text>
           )}
@@ -861,6 +878,22 @@ const styles = {
   },
   evenPlayCard: {
     backgroundColor: '#f8f9fa',
+  },
+  boteCard: {
+    backgroundColor: '#fff3cd',
+    borderColor: '#ffc107',
+    borderWidth: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ff9800',
+  },
+  boteType: {
+    color: '#ff9800',
+    fontWeight: 'bold',
+  },
+  boteDescription: {
+    fontSize: 12,
+    color: '#856404',
+    fontStyle: 'italic',
   },
   playHeader: {
     flexDirection: 'row',

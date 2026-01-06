@@ -1831,7 +1831,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             bruto: Number(play.bruto || play.monto_total || 0),
             ganancia: Number(play.ganancia || play.ganancia_listero || play.ganancia_colector || 0),
             pagado: Number(play.pagado || play.monto_a_pagar || 0),
-            balance: Number(play.balance || play.balance_listero || play.balance_colector || play.balance_banco || 0)
+            balance: Number(play.balance || play.balance_listero || play.balance_colector || play.balance_banco || 0),
+            isBote: play.isBote || (play.nota || '').toLowerCase() === 'bote'
           }))
         },
         title: `${groupData.dayLabel} - ${groupData.lottery} - ${groupData.schedule}`
@@ -1999,6 +2000,7 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
           group.totalPagado += Number(r.monto_a_pagar || 0);
           
           // Agregar jugada individual
+          const isBote = (r.nota || '').toLowerCase() === 'bote';
           group.plays.push({
             time: timeStr(r.fecha_jugada),
             ts: (() => {
@@ -2011,15 +2013,23 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
             bruto: Number(r.monto_total || 0),
             ganancia: Number(r.ganancia_listero || 0),
             pagado: Number(r.monto_a_pagar || 0),
-            balance: Number(r.balance_listero || 0)
+            balance: Number(r.balance_listero || 0),
+            isBote: isBote
           });
         }
         
         let groups = Array.from(map.values())
           .sort((a,b) => (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
 
+        // Ordenar jugadas: primero las normales (por tiempo desc), luego las de bote al final
         groups.forEach(g => {
-          g.plays.sort((a,b) => b.ts - a.ts);
+          g.plays.sort((a, b) => {
+            // Botes siempre al final
+            if (a.isBote && !b.isBote) return 1;
+            if (!a.isBote && b.isBote) return -1;
+            // Dentro de cada tipo, ordenar por tiempo descendente
+            return b.ts - a.ts;
+          });
         });
 
         const expanded = expandedGroups;
@@ -2700,12 +2710,14 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
       group.totalPagado += Number(r.monto_a_pagar || 0); // CORREGIDO: usar monto_a_pagar
       
       // Agregar jugada individual - USAR CAMPOS CORRECTOS
+      const isBote = (r.nota || '').toLowerCase() === 'bote';
       group.plays.push({
         time: timeStr(fechaJugada), // Usar la fecha correcta
         ts: (() => {
           const d = new Date(fechaJugada);
           return isNaN(d.getTime()) ? 0 : d.getTime();
         })(),
+        nota: r.nota || '',
         jugada: r.tipo_jugada || '', // CORREGIDO: usar tipo_jugada
         numeros: r.numeros_jugados || '', // CORREGIDO: usar numeros_jugados
         bruto: Number(r.monto_total || 0), // CORREGIDO: usar monto_total
@@ -2717,7 +2729,8 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
                 userRole === 'admin' ? Number(r.balance_colector || 0) : 
                 Number(r.balance_listero || 0),
         balanceListero: Number(r.balance_listero || 0),
-        balanceColector: Number(r.balance_colector || 0)
+        balanceColector: Number(r.balance_colector || 0),
+        isBote: isBote
       });
     }
     
@@ -2725,9 +2738,15 @@ const StatisticsContent = ({ navigation, onModeVisibilityChange }) => {
     let groups = Array.from(map.values())
       .sort((a,b) => (b.dayKey - a.dayKey) || a.lottery.localeCompare(b.lottery) || a.schedule.localeCompare(b.schedule));
 
-    // Ordenar jugadas dentro de cada grupo
+    // Ordenar jugadas: primero las normales (por tiempo desc), luego las de bote al final
     groups.forEach(g => {
-      g.plays.sort((a,b) => b.ts - a.ts);
+      g.plays.sort((a, b) => {
+        // Botes siempre al final
+        if (a.isBote && !b.isBote) return 1;
+        if (!a.isBote && b.isBote) return -1;
+        // Dentro de cada tipo, ordenar por tiempo descendente
+        return b.ts - a.ts;
+      });
     });
 
     const expanded = expandedGroups;
